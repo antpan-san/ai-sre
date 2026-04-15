@@ -109,6 +109,7 @@ func LoadLLM(configPath, keyFilePath string) (*LLM, string, error) {
 
 func finalize(fc *FileConfig, source string) (*LLM, error) {
 	key := strings.TrimSpace(fc.APIKey)
+	key = strings.Trim(key, "\"'`")
 	if key == "" {
 		return nil, fmt.Errorf("api_key is empty in %s", source)
 	}
@@ -151,6 +152,8 @@ func loadKeyFile(path string) (string, error) {
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
+		// tolerate copy-paste with surrounding quotes
+		line = strings.Trim(line, "\"'`")
 		return line, nil
 	}
 	return "", errors.New("api key file has no valid line")
