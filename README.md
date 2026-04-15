@@ -38,3 +38,7 @@ go build -o ai-sre .
 ## 安全说明
 
 密钥仅通过环境变量读取，仓库内不包含任何 API Key。若密钥曾出现在聊天或邮件中，请在 DeepSeek 控制台轮换。
+
+## 发布流程（团队约定）
+
+代码变更后：在仓库根执行 `./scripts/deploy-remote.sh`（同步至 `root@172.16.195.128:/root/sre` 并远程构建冒烟测试），通过后提交并 `git push` 到 `git@github.com:antpan-san/ai-sre.git`。详细步骤见 `.cursor/skills/ai-sre-ship/SKILL.md`（Agent 在修改本仓库代码后应自动遵循）。

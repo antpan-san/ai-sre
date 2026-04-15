@@ -73,6 +73,11 @@ git push -u origin main
 
 简短说明：已部署路径、远程测试结果、Git 提交哈希或「已 push」。
 
+## 远程环境前提
+
+- 目标机需可执行 `go`（Ubuntu 示例：`apt-get install -y golang-go`）。代理首次部署前若 `go: command not found`，可在远程安装 Go 后再跑 `deploy-remote.sh`。
+- 脚本使用 `ssh`/`rsync`，需本机已配置到 `root@172.16.195.128` 的免密登录。
+
 ## 失败处理
 
 - **SSH/rsync 失败**：检查网络与 `ssh root@172.16.195.128` 连通性，勿反复推送未验证的代码。

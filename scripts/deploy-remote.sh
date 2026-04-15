@@ -20,15 +20,7 @@ rsync -avz \
   "$REMOTE_USER_HOST:$REMOTE_DIR/"
 
 echo "==> Remote build + smoke test"
-ssh -o BatchMode=yes -o ConnectTimeout=30 "$REMOTE_USER_HOST" bash -s <<REMOTE
-set -euo pipefail
-cd '$REMOTE_DIR'
-export GOTOOLCHAIN=auto
-go mod download
-go vet ./...
-go build -o ai-sre .
-./ai-sre version
-echo "Remote deploy OK."
-REMOTE
+ssh -o BatchMode=yes -o ConnectTimeout=30 "$REMOTE_USER_HOST" \
+  "bash -lc 'set -euo pipefail; cd \"$REMOTE_DIR\"; export GOTOOLCHAIN=auto; command -v go >/dev/null || { echo \"Remote: go not found. Install e.g. apt-get install -y golang-go\" >&2; exit 1; }; go mod download; go vet ./...; go build -o ai-sre .; ./ai-sre version; echo Remote deploy OK.'"
 
 echo "==> Done."
