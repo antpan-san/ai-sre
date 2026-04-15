@@ -17,9 +17,11 @@ const (
 
 // FileConfig is the optional YAML file at ~/.config/ai-sre/config.yaml (or --config).
 type FileConfig struct {
-	APIKey  string `yaml:"api_key"`
-	BaseURL string `yaml:"base_url"`
-	Model   string `yaml:"model"`
+	APIKey            string `yaml:"api_key"`
+	BaseURL           string `yaml:"base_url"`
+	Model             string `yaml:"model"`
+	Tier              string `yaml:"tier"`                  // free | pro | empty (pro/unlimited)
+	MaxLLMCallsPerDay int    `yaml:"max_llm_calls_per_day"` // 0 = unlimited
 }
 
 // LLM holds resolved settings for the DeepSeek client.
@@ -27,6 +29,12 @@ type LLM struct {
 	APIKey  string
 	BaseURL string
 	Model   string
+}
+
+// Limits describes product-tier constraints (变现 / 免费版).
+type Limits struct {
+	Tier              string
+	MaxLLMCallsPerDay int
 }
 
 // ResolveDir returns the config directory: $XDG_CONFIG_HOME/ai-sre or ~/.config/ai-sre.
@@ -41,13 +49,13 @@ func ResolveDir() (string, error) {
 	return filepath.Join(h, ".config", "ai-sre"), nil
 }
 
-// LoadLLM resolves API key and optional base URL / model from files only (no env vars).
+// LoadLLM resolves API key, optional tier limits, from files only (no env vars).
 // Precedence: explicit configPath > explicit keyFilePath > defaultDir/config.yaml > defaultDir/api_key.
-// Returns the resolved path used for credentials (for logging only; never log key contents).
-func LoadLLM(configPath, keyFilePath string) (*LLM, string, error) {
+// If credentials come from api_key file only, tier/max_llm_calls_per_day may be merged from config.yaml in the same directory.
+func LoadLLM(configPath, keyFilePath string) (*LLM, *Limits, string, error) {
 	cfgDir, err := ResolveDir()
 	if err != nil {
-		return nil, "", fmt.Errorf("config dir: %w", err)
+		return nil, nil, "", fmt.Errorf("config dir: %w", err)
 	}
 
 	var fc *FileConfig
@@ -58,26 +66,24 @@ func LoadLLM(configPath, keyFilePath string) (*LLM, string, error) {
 		p := expandHome(configPath)
 		fc, err = loadYAML(p)
 		if err != nil {
-			return nil, "", err
+			return nil, nil, "", err
 		}
 		source = p
 	case strings.TrimSpace(keyFilePath) != "":
 		p := expandHome(keyFilePath)
 		key, err := loadKeyFile(p)
 		if err != nil {
-			return nil, "", err
+			return nil, nil, "", err
 		}
-		out, err := finalize(&FileConfig{APIKey: key}, p)
-		if err != nil {
-			return nil, "", err
-		}
-		return out, p, nil
+		fc = &FileConfig{APIKey: key}
+		source = p
+		mergeTierLimitsFromConfigYAML(cfgDir, source, fc)
 	default:
 		yamlPath := filepath.Join(cfgDir, "config.yaml")
 		if _, err := os.Stat(yamlPath); err == nil {
 			fc, err = loadYAML(yamlPath)
 			if err != nil {
-				return nil, "", err
+				return nil, nil, "", err
 			}
 			source = yamlPath
 		} else {
@@ -85,14 +91,15 @@ func LoadLLM(configPath, keyFilePath string) (*LLM, string, error) {
 			if _, err := os.Stat(keyPath); err == nil {
 				key, err := loadKeyFile(keyPath)
 				if err != nil {
-					return nil, "", err
+					return nil, nil, "", err
 				}
 				fc = &FileConfig{APIKey: key}
 				source = keyPath
+				mergeTierLimitsFromConfigYAML(cfgDir, source, fc)
 			}
 		}
 		if fc == nil {
-			return nil, "", fmt.Errorf(
+			return nil, nil, "", fmt.Errorf(
 				"llm credentials not found: create %q or %q (or use --config / --key-file), see README",
 				filepath.Join(cfgDir, "config.yaml"),
 				filepath.Join(cfgDir, "api_key"),
@@ -100,11 +107,47 @@ func LoadLLM(configPath, keyFilePath string) (*LLM, string, error) {
 		}
 	}
 
-	out, err := finalize(fc, source)
+	llm, lim, err := finalizeAll(fc, source)
 	if err != nil {
-		return nil, "", err
+		return nil, nil, "", err
 	}
-	return out, source, nil
+	return llm, lim, source, nil
+}
+
+func mergeTierLimitsFromConfigYAML(cfgDir, credentialSource string, fc *FileConfig) {
+	cfgYaml := filepath.Join(cfgDir, "config.yaml")
+	if credentialSource == cfgYaml {
+		return
+	}
+	if _, err := os.Stat(cfgYaml); err != nil {
+		return
+	}
+	b, err := os.ReadFile(cfgYaml)
+	if err != nil {
+		return
+	}
+	var extra FileConfig
+	if yaml.Unmarshal(b, &extra) != nil {
+		return
+	}
+	if strings.TrimSpace(extra.Tier) != "" {
+		fc.Tier = extra.Tier
+	}
+	if extra.MaxLLMCallsPerDay > 0 {
+		fc.MaxLLMCallsPerDay = extra.MaxLLMCallsPerDay
+	}
+}
+
+func finalizeAll(fc *FileConfig, source string) (*LLM, *Limits, error) {
+	llm, err := finalize(fc, source)
+	if err != nil {
+		return nil, nil, err
+	}
+	lim := &Limits{
+		Tier:              strings.TrimSpace(fc.Tier),
+		MaxLLMCallsPerDay: fc.MaxLLMCallsPerDay,
+	}
+	return llm, lim, nil
 }
 
 func finalize(fc *FileConfig, source string) (*LLM, error) {
@@ -145,14 +188,11 @@ func loadKeyFile(path string) (string, error) {
 	if len(lines) == 0 || strings.TrimSpace(lines[0]) == "" {
 		return "", errors.New("api key file is empty")
 	}
-	// first non-empty line only
-	// allow comments starting with #
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		// tolerate copy-paste with surrounding quotes
 		line = strings.Trim(line, "\"'`")
 		return line, nil
 	}

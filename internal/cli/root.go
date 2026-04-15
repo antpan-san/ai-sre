@@ -14,6 +14,7 @@ import (
 	"github.com/panshuai/ai-sre/internal/llm"
 	"github.com/panshuai/ai-sre/internal/loader"
 	"github.com/panshuai/ai-sre/internal/output"
+	"github.com/panshuai/ai-sre/internal/quota"
 )
 
 var (
@@ -65,7 +66,7 @@ func newRoot() *cobra.Command {
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
 
-	root.AddCommand(analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), versionCmd())
+	root.AddCommand(analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd())
 	return root
 }
 
@@ -169,7 +170,7 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "print version",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("ai-sre 0.2.0")
+			fmt.Println("ai-sre", cliVersion)
 		},
 	}
 }
@@ -198,24 +199,59 @@ func buildContextMap() map[string]string {
 }
 
 func bootstrap() (*engine.Engine, error) {
-	llmCfg, credSrc, err := config.LoadLLM(configFile, keyFile)
+	llmCfg, limits, credSrc, err := config.LoadLLM(configFile, keyFile)
 	if err != nil {
 		return nil, err
+	}
+	cacheDir, err := quota.DefaultCacheDir()
+	if err != nil {
+		return nil, err
+	}
+	if limits != nil && limits.MaxLLMCallsPerDay > 0 {
+		if err := quota.TakeDaily(cacheDir, limits.MaxLLMCallsPerDay); err != nil {
+			return nil, err
+		}
 	}
 	client, err := llm.NewFromConfig(llmCfg)
 	if err != nil {
 		return nil, err
 	}
+	sDir := skillsExtraDir
+	kDir := knowledgeExtraDir
+	if limits != nil && strings.EqualFold(limits.Tier, "free") {
+		if sDir != "" && verbose {
+			fmt.Fprintf(os.Stderr, "[ai-sre] tier=free: ignoring --skills-dir\n")
+		}
+		if kDir != "" && verbose {
+			fmt.Fprintf(os.Stderr, "[ai-sre] tier=free: ignoring --knowledge-dir\n")
+		}
+		sDir, kDir = "", ""
+	}
 	skills, kb, err := loader.LoadSkillsAndKnowledge(loader.Options{
-		SkillsExtraDir:    skillsExtraDir,
-		KnowledgeExtraDir: knowledgeExtraDir,
+		SkillsExtraDir:    sDir,
+		KnowledgeExtraDir: kDir,
 	})
 	if err != nil {
 		return nil, err
 	}
 	if verbose {
 		fmt.Fprintf(os.Stderr, "[ai-sre] llm credentials file: %s\n", credSrc)
+		if limits != nil && limits.Tier != "" {
+			fmt.Fprintf(os.Stderr, "[ai-sre] tier=%s max_llm_calls_per_day=%d\n", limits.Tier, limits.MaxLLMCallsPerDay)
+		}
 		fmt.Fprintf(os.Stderr, "[ai-sre] loaded %d skill(s), %d knowledge chunk(s)\n", len(skills.Packs), len(kb.Chunks))
 	}
 	return &engine.Engine{Skills: skills, RAG: kb, LLM: client}, nil
+}
+
+// effectiveLoaderOptions applies tier=free (ignore custom skill/knowledge dirs). If credentials cannot be loaded, flags are used as-is.
+func effectiveLoaderOptions() loader.Options {
+	_, limits, _, err := config.LoadLLM(configFile, keyFile)
+	if err != nil {
+		return loader.Options{SkillsExtraDir: skillsExtraDir, KnowledgeExtraDir: knowledgeExtraDir}
+	}
+	if limits != nil && strings.EqualFold(limits.Tier, "free") {
+		return loader.Options{}
+	}
+	return loader.Options{SkillsExtraDir: skillsExtraDir, KnowledgeExtraDir: knowledgeExtraDir}
 }

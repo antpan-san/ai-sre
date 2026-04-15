@@ -29,12 +29,13 @@ description: >-
 
 在 **`git commit` / `git push` 之前**，必须**完善或核对** `README.md` 中的**产品使用**相关内容，确保与当前代码一致，包括但不限于：
 
-- [ ] **子命令与用途**：`analyze` / `ask` / `runbook` / `skills list` / `version`
+- [ ] **子命令与用途**：`analyze` / `ask` / `runbook` / `skills list` / `doctor` / `version`
 - [ ] **全局参数**：`--config`、`--key-file`、`-v`、`--no-rag`、`-o`/`--output`、`--skills-dir`、`--knowledge-dir`
 - [ ] **典型示例**：与产品文档 CLI 示例一致或可覆盖之
 - [ ] **配置方式**：密钥文件路径、`config.yaml` / `api_key` 格式（不含真实密钥）
 - [ ] **结构化输出**：`-o json` 的用途说明（若有变更须更新）
-- [ ] **远程部署与冒烟**：`./scripts/deploy-remote.sh`、`DEPLOY_REMOTE`、`DEPLOY_REMOTE_DIR`、`scripts/remote-e2e.sh`
+- [ ] **远程部署与冒烟**：`./scripts/deploy-remote.sh`、`DEPLOY_REMOTE`、`DEPLOY_REMOTE_DIR`、`scripts/remote-e2e.sh`（含 `go test`、`doctor`）
+- [ ] **免费版 / 配额**：`tier`、`max_llm_calls_per_day`、`doctor`、缓存路径说明是否与 `internal/config`、`internal/quota` 一致
 - [ ] **当前版本号**：与 `internal/cli` 中 `version` 子命令输出一致（或注明以 `./ai-sre version` 为准）
 
 若本次变更**影响用户可见行为**（新 flag、新子命令、配置路径、脚本行为），**必须**在本次提交中**同步更新 README**。仅内部重构时，至少快速通读 README，修正已过时表述。

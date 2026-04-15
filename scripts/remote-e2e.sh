@@ -2,11 +2,13 @@
 # Run on the deployment host after deploy-remote.sh (requires valid ~/.config/ai-sre/api_key).
 set -euo pipefail
 cd "$(dirname "$0")/.."
-echo "==> local vet/build"
+echo "==> local vet/build/test"
 go vet ./...
+go test ./...
 go build -o ai-sre .
-echo "==> version"
+echo "==> version / doctor / skills"
 ./ai-sre version
+./ai-sre doctor
 ./ai-sre skills list | head -8
 echo "==> negative: no creds"
 t="$(mktemp -d)"

@@ -1,0 +1,64 @@
+package cli
+
+import (
+	"fmt"
+	"runtime"
+
+	"github.com/spf13/cobra"
+
+	"github.com/panshuai/ai-sre/internal/config"
+	"github.com/panshuai/ai-sre/internal/loader"
+	"github.com/panshuai/ai-sre/internal/quota"
+)
+
+func doctorCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "doctor",
+		Short: "自检：运行时、配置目录、凭据、配额、技能与知识库加载（不调用 LLM）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			fmt.Println("== ai-sre doctor ==")
+			fmt.Printf("go_runtime: %s\n", runtime.Version())
+			fmt.Printf("cli_version: %s\n", cliVersion)
+
+			cfgDir, err := config.ResolveDir()
+			if err != nil {
+				return err
+			}
+			fmt.Printf("config_dir: %s\n", cfgDir)
+
+			_, limits, src, err := config.LoadLLM(configFile, keyFile)
+			if err != nil {
+				fmt.Printf("credentials: ERROR %v\n", err)
+			} else {
+				fmt.Printf("credentials: OK (source %s)\n", src)
+				if limits != nil {
+					fmt.Printf("tier: %q\n", limits.Tier)
+					fmt.Printf("max_llm_calls_per_day: %d\n", limits.MaxLLMCallsPerDay)
+				}
+			}
+
+			cacheDir, err := quota.DefaultCacheDir()
+			if err != nil {
+				return err
+			}
+			d, c, err := quota.ReadUsage(cacheDir)
+			if err != nil {
+				fmt.Printf("quota_read: ERROR %v\n", err)
+			} else {
+				fmt.Printf("quota_cache: %s\n", cacheDir)
+				fmt.Printf("llm_calls_today: %d (date %s)\n", c, d)
+			}
+
+			reg, kb, err := loader.LoadSkillsAndKnowledge(effectiveLoaderOptions())
+			if err != nil {
+				fmt.Printf("skills/knowledge: ERROR %v\n", err)
+			} else {
+				fmt.Printf("skills_loaded: %d\n", len(reg.Packs))
+				fmt.Printf("knowledge_chunks: %d\n", len(kb.Chunks))
+			}
+
+			fmt.Println("hint: LLM 联通性请用: ai-sre ask \"ping\" 或 SHORT=1 bash scripts/remote-e2e.sh")
+			return nil
+		},
+	}
+}

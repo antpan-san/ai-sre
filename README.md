@@ -8,7 +8,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 另：**技能注册** — `skills list`（发现已加载技能包）。
 
-**当前版本**：以运行环境为准，执行 `./ai-sre version`（开发中一般为 `0.2.x`）。
+**当前版本**：以运行环境为准，执行 `./ai-sre version`（与源码中 `internal/cli/version.go` 的 `cliVersion` 对齐，当前为 **0.3.x**）。
 
 ---
 
@@ -20,6 +20,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre ask [question]` | 知识问答（可选 RAG） |
 | `ai-sre runbook [scenario]` | 生成 Runbook |
 | `ai-sre skills list` | 列出内置 + `--skills-dir` 合并后的技能包 |
+| `ai-sre doctor` | 自检（凭据、tier、配额计数、技能/知识加载；**不调用 LLM**） |
 | `ai-sre version` | 打印版本号 |
 | `ai-sre help` | 帮助 |
 
@@ -55,7 +56,13 @@ api_key: "你的 DeepSeek API Key"
 # 可选
 base_url: "https://api.deepseek.com/v1"
 model: "deepseek-chat"
+
+# --- 前期「变现 / 免费版」MVP（产品文档：限制技能与调用次数）---
+# tier: free          # 设为 free 时忽略 --skills-dir / --knowledge-dir，仅使用内置技能与知识
+# max_llm_calls_per_day: 20   # 每日 LLM 调用上限；0 或不写表示不限制。计数文件在 ~/.cache/ai-sre/llm_usage.json
 ```
+
+若仅使用 **`api_key` 纯文件** 存密钥，仍可在同目录增加 **`config.yaml`**（可只含 `tier` / `max_llm_calls_per_day`，不含 `api_key`），程序会自动合并限额配置。
 
 **方式 B — 仅密钥文件**  
 默认路径：`~/.config/ai-sre/api_key`（纯文本，第一行为密钥；`#` 开头行为注释）
@@ -86,9 +93,23 @@ go build -o ai-sre .
 ./ai-sre --no-rag ask "redis 慢查询怎么查"
 
 ./ai-sre --skills-dir ./my-skills --knowledge-dir ./my-docs analyze redis --latency 10ms
+
+./ai-sre doctor
 ```
 
 技能 YAML 中可使用占位符 `{{lag}}`、`{{topic}}` 等（与 flag / `--set` 注入的 context 键一致）。
+
+---
+
+## 开发（前期工程化）
+
+```bash
+make vet          # go vet ./...
+make test         # go test ./...
+make build        # 生成 ./ai-sre
+```
+
+CI 或发布前建议：`go test ./... && go vet ./...`（`scripts/remote-e2e.sh` 的静态阶段已包含 `go test`）。
 
 ---
 
@@ -100,7 +121,7 @@ go build -o ai-sre .
 
 ## 远程部署与冒烟（团队环境）
 
-默认将本仓库同步到 **`root@172.16.195.128:/root/sre`**，并在远程执行 `go vet`、`go build`、`./ai-sre version`。
+默认将本仓库同步到 **`root@172.16.195.128:/root/sre`**；冒烟脚本还会在远程执行 `go vet`、`go test`、`go build`、`./ai-sre doctor` 等（见 `scripts/remote-e2e.sh`）。
 
 在**仓库根目录**执行：
 
@@ -118,7 +139,7 @@ go build -o ai-sre .
 冒烟脚本（在**已部署的远程目录**或本地均可测）：
 
 ```bash
-SHORT=1 bash scripts/remote-e2e.sh   # 仅 vet/build/version/skills list/无凭证负例
+SHORT=1 bash scripts/remote-e2e.sh   # vet/test/build/version/doctor/skills list/无凭证负例
 bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 ```
 
@@ -138,6 +159,8 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | `internal/output` | 文本 / JSON |
 | `internal/llm` | DeepSeek（OpenAI 兼容 API） |
 | `internal/loader` | 内置资源 + 可选目录合并 |
+| `internal/config` | 凭据与 tier / 限额 |
+| `internal/quota` | 每日 LLM 调用计数（`~/.cache/ai-sre`） |
 | `internal/assets/skills/*.yaml` | 内置技能 |
 | `internal/assets/knowledge/*.md` | 内置知识片段 |
 | `scripts/deploy-remote.sh` | 部署脚本 |

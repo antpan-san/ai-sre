@@ -25,10 +25,7 @@ func skillsListCmd() *cobra.Command {
 		Use:   "list",
 		Short: "列出已加载的技能包（内置 + --skills-dir）",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			reg, _, err := loader.LoadSkillsAndKnowledge(loader.Options{
-				SkillsExtraDir:    skillsExtraDir,
-				KnowledgeExtraDir: "",
-			})
+			reg, _, err := loader.LoadSkillsAndKnowledge(effectiveLoaderOptions())
 			if err != nil {
 				return err
 			}
