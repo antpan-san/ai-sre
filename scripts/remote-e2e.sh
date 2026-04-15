@@ -7,6 +7,7 @@ go vet ./...
 go build -o ai-sre .
 echo "==> version"
 ./ai-sre version
+./ai-sre skills list | head -8
 echo "==> negative: no creds"
 t="$(mktemp -d)"
 set +o pipefail

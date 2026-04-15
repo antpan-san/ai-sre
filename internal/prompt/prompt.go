@@ -69,7 +69,16 @@ func BuildAnalyze(sp *skill.Pack, topic string, context map[string]string, ragCo
 		b.WriteString(sp.PromptTemplate)
 	}
 
-	return b.String()
+	return substituteAnalyzeVars(b.String(), topic, context)
+}
+
+// substituteAnalyzeVars replaces {{key}} placeholders using context and topic (product doc style).
+func substituteAnalyzeVars(s, topic string, context map[string]string) string {
+	out := strings.ReplaceAll(s, "{{topic}}", topic)
+	for k, v := range context {
+		out = strings.ReplaceAll(out, "{{"+k+"}}", v)
+	}
+	return out
 }
 
 // BuildAsk is for `ask` — Q&A with optional RAG and optional skill hint.

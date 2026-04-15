@@ -20,8 +20,18 @@ type Engine struct {
 	LLM    *llm.Client
 }
 
+func fillResult(text string, sp *skill.Pack) *RunResult {
+	rr := &RunResult{Answer: text}
+	if sp != nil {
+		rr.SkillName = sp.Name
+		rr.SkillDisplay = sp.DisplayName
+		rr.SkillTopics = append([]string(nil), sp.Topics...)
+	}
+	return rr
+}
+
 // Analyze runs fault diagnosis for a topic with key-value context.
-func (e *Engine) Analyze(ctx context.Context, topic string, context map[string]string, useRAG bool) (string, error) {
+func (e *Engine) Analyze(ctx context.Context, topic string, context map[string]string, useRAG bool) (*RunResult, error) {
 	sp := e.Skills.MatchAnalyze(topic, context)
 	var ragText string
 	if useRAG && e.RAG != nil {
@@ -33,11 +43,15 @@ func (e *Engine) Analyze(ctx context.Context, topic string, context map[string]s
 		ragText = rag.FormatChunks(chunks)
 	}
 	user := prompt.BuildAnalyze(sp, topic, context, ragText)
-	return e.LLM.Chat(ctx, systemSRE, user)
+	text, err := e.LLM.Chat(ctx, systemSRE, user)
+	if err != nil {
+		return nil, err
+	}
+	return fillResult(text, sp), nil
 }
 
 // Ask answers a free-form question; optional skill hint + RAG.
-func (e *Engine) Ask(ctx context.Context, question string, useRAG bool) (string, error) {
+func (e *Engine) Ask(ctx context.Context, question string, useRAG bool) (*RunResult, error) {
 	sp := e.Skills.MatchQuery(question)
 	var ragText string
 	if useRAG && e.RAG != nil {
@@ -45,11 +59,15 @@ func (e *Engine) Ask(ctx context.Context, question string, useRAG bool) (string,
 		ragText = rag.FormatChunks(chunks)
 	}
 	user := prompt.BuildAsk(question, ragText, sp)
-	return e.LLM.Chat(ctx, systemSRE, user)
+	text, err := e.LLM.Chat(ctx, systemSRE, user)
+	if err != nil {
+		return nil, err
+	}
+	return fillResult(text, sp), nil
 }
 
 // Runbook generates a runbook for the given scenario description.
-func (e *Engine) Runbook(ctx context.Context, scenario string, context map[string]string, useRAG bool) (string, error) {
+func (e *Engine) Runbook(ctx context.Context, scenario string, context map[string]string, useRAG bool) (*RunResult, error) {
 	sp := e.Skills.MatchQuery(scenario)
 	var ragText string
 	if useRAG && e.RAG != nil {
@@ -61,7 +79,11 @@ func (e *Engine) Runbook(ctx context.Context, scenario string, context map[strin
 		ragText = rag.FormatChunks(chunks)
 	}
 	user := prompt.BuildRunbook(scenario, sp, context, ragText)
-	return e.LLM.Chat(ctx, systemSRE, user)
+	text, err := e.LLM.Chat(ctx, systemSRE, user)
+	if err != nil {
+		return nil, err
+	}
+	return fillResult(text, sp), nil
 }
 
 // LoadSkillsFromFS loads skill registry from fs.FS path "skills".

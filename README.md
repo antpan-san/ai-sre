@@ -43,17 +43,42 @@ go build -o ai-sre .
 ./ai-sre analyze k8s --pod pending
 ./ai-sre ask "kafka lag 高怎么办"
 ./ai-sre runbook "pod频繁重启"
+./ai-sre skills list                    # 技能注册表 / 发现
+./ai-sre -o json analyze kafka --lag 1  # 结构化 JSON 输出
 ./ai-sre --no-rag ask "redis 慢查询怎么查"   # 关闭 RAG
 ```
 
 二进制别名：`ops-ai`（`go build` 后可用 `ln -s ai-sre ops-ai`）。
 
-## 布局
+## 结构化输出（产品文档「结构化输出」）
 
-- `internal/assets/skills/*.yaml` — 技能包（可扩展）
-- `internal/assets/knowledge/*.md` — RAG 知识片段
-- `internal/engine` — 编排 skill + prompt + RAG + LLM
-- `internal/rag` — 关键词检索（无向量库依赖，可后续换 embedding）
+`analyze` / `ask` / `runbook` 支持 `-o json`：返回 `answer`、`skill`（命中的技能包）、`duration_ms`、`context` 等字段，便于流水线与自动化。
+
+## 自定义技能与知识库（扩展）
+
+与内置 `internal/assets` **合并**加载；同名技能以**后加载的目录为准**（覆盖内置）。
+
+```bash
+./ai-sre --skills-dir ./my-skills --knowledge-dir ./my-docs analyze redis --latency 10ms
+```
+
+- `--skills-dir`：目录下放多个 `*.yaml`，格式与内置技能相同。
+- `--knowledge-dir`：目录下放多个 `*.md`，按段落参与 RAG 检索。
+
+技能 YAML 中可使用占位符 `{{lag}}`、`{{topic}}` 等（与 `--set`/各子命令 flag 注入的 context 键一致）。
+
+## 布局（对齐产品文档）
+
+- `internal/cli` — 命令路由（Cobra）
+- `internal/engine` — AI 编排
+- `internal/skill` — 技能包加载与匹配
+- `internal/prompt` — Prompt 模板
+- `internal/rag` — 轻量知识检索
+- `internal/output` — 文本 / JSON 输出
+- `internal/llm` — DeepSeek（OpenAI 兼容）
+- `internal/loader` — 内置资源 + 可选目录合并
+- `internal/assets/skills/*.yaml` — 内置技能包
+- `internal/assets/knowledge/*.md` — 内置 RAG 片段
 
 ## 安全说明
 
