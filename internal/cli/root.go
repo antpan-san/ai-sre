@@ -9,22 +9,25 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/panshuai/ai-sre/internal/assets"
+	"github.com/panshuai/ai-sre/internal/config"
 	"github.com/panshuai/ai-sre/internal/engine"
 	"github.com/panshuai/ai-sre/internal/llm"
 )
 
 var (
-	verbose   bool
-	noRAG     bool
-	lag       string
-	topicFlag string
-	pod       string
-	namespace string
-	issue     string
-	code      string
-	upstream  string
-	latency   string
-	setKV     map[string]string
+	configFile string
+	keyFile    string
+	verbose    bool
+	noRAG      bool
+	lag        string
+	topicFlag  string
+	pod        string
+	namespace  string
+	issue      string
+	code       string
+	upstream   string
+	latency    string
+	setKV      map[string]string
 )
 
 // Execute runs the Cobra root (entry from main).
@@ -48,6 +51,8 @@ func newRoot() *cobra.Command {
   ai-sre runbook "pod频繁重启"`,
 		SilenceUsage: true,
 	}
+	root.PersistentFlags().StringVar(&configFile, "config", "", "path to config.yaml (api_key, optional base_url, model); default: ~/.config/ai-sre/config.yaml")
+	root.PersistentFlags().StringVar(&keyFile, "key-file", "", "path to file containing API key only (overrides default api_key file if --config not set)")
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logs")
 	root.PersistentFlags().BoolVar(&noRAG, "no-rag", false, "disable knowledge retrieval (RAG)")
 
@@ -180,7 +185,11 @@ func buildContextMap() map[string]string {
 }
 
 func bootstrap() (*engine.Engine, error) {
-	client, err := llm.NewFromEnv()
+	llmCfg, credSrc, err := config.LoadLLM(configFile, keyFile)
+	if err != nil {
+		return nil, err
+	}
+	client, err := llm.NewFromConfig(llmCfg)
 	if err != nil {
 		return nil, err
 	}
@@ -193,6 +202,7 @@ func bootstrap() (*engine.Engine, error) {
 		return nil, fmt.Errorf("load knowledge: %w", err)
 	}
 	if verbose {
+		fmt.Fprintf(os.Stderr, "[ai-sre] llm credentials file: %s\n", credSrc)
 		fmt.Fprintf(os.Stderr, "[ai-sre] loaded %d skill(s), %d knowledge chunk(s)\n", len(skills.Packs), len(kb.Chunks))
 	}
 	return &engine.Engine{Skills: skills, RAG: kb, LLM: client}, nil

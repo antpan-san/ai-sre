@@ -4,3 +4,5 @@
 .env
 .env.local
 config.local.yaml
+**/api_key
+**/credentials

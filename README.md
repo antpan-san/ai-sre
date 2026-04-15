@@ -6,13 +6,33 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 2. **Runbook 生成** — `runbook`
 3. **知识库问答** — `ask`（检索本地 Markdown 片段注入 Prompt）
 
-## 配置
+## 配置（文件，不使用环境变量）
+
+在运行机器上放置密钥，**二选一**即可：
+
+**方式 A — YAML（推荐）** 默认路径：`~/.config/ai-sre/config.yaml`（若设置 `XDG_CONFIG_HOME`，则为 `$XDG_CONFIG_HOME/ai-sre/config.yaml`）
+
+```yaml
+api_key: "你的 DeepSeek API Key"
+# 可选
+base_url: "https://api.deepseek.com/v1"
+model: "deepseek-chat"
+```
+
+**方式 B — 仅密钥文件** 默认路径：`~/.config/ai-sre/api_key`（纯文本，第一行为密钥；`#` 开头行为注释）
+
+命令行覆盖：
+
+- `--config /path/to/config.yaml` 指定 YAML
+- `--key-file /path/to/api_key` 指定仅含密钥的文件
+
+示例：
 
 ```bash
-export DEEPSEEK_API_KEY="你的密钥"   # 必填，勿提交到 Git
-# 可选
-export DEEPSEEK_BASE_URL="https://api.deepseek.com/v1"
-export DEEPSEEK_MODEL="deepseek-chat"
+mkdir -p ~/.config/ai-sre
+chmod 700 ~/.config/ai-sre
+printf '%s\n' '你的密钥' > ~/.config/ai-sre/api_key
+chmod 600 ~/.config/ai-sre/api_key
 ```
 
 ## 构建与示例
@@ -37,7 +57,7 @@ go build -o ai-sre .
 
 ## 安全说明
 
-密钥仅通过环境变量读取，仓库内不包含任何 API Key。若密钥曾出现在聊天或邮件中，请在 DeepSeek 控制台轮换。
+密钥仅从本机文件读取，勿将 `api_key` / `config.yaml` 提交到 Git。建议目录权限 `700`、密钥文件 `600`。
 
 ## 发布流程（团队约定）
 

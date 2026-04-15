@@ -4,15 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/sashabaranov/go-openai"
-)
 
-const (
-	defaultBaseURL = "https://api.deepseek.com/v1"
-	defaultModel   = "deepseek-chat"
+	"github.com/panshuai/ai-sre/internal/config"
 )
 
 // Client wraps OpenAI-compatible chat API (DeepSeek).
@@ -21,21 +17,23 @@ type Client struct {
 	model string
 }
 
-// NewFromEnv uses DEEPSEEK_API_KEY and optional DEEPSEEK_BASE_URL, DEEPSEEK_MODEL.
-func NewFromEnv() (*Client, error) {
-	key := strings.TrimSpace(os.Getenv("DEEPSEEK_API_KEY"))
-	if key == "" {
-		return nil, errors.New("DEEPSEEK_API_KEY is not set (export your DeepSeek API key)")
+// NewFromConfig builds a client from file-based credential config.
+func NewFromConfig(c *config.LLM) (*Client, error) {
+	if c == nil {
+		return nil, errors.New("llm config is nil")
 	}
-	base := strings.TrimSpace(os.Getenv("DEEPSEEK_BASE_URL"))
-	if base == "" {
-		base = defaultBaseURL
+	key := strings.TrimSpace(c.APIKey)
+	if key == "" {
+		return nil, errors.New("api key is empty")
 	}
 	cfg := openai.DefaultConfig(key)
-	cfg.BaseURL = base
-	model := strings.TrimSpace(os.Getenv("DEEPSEEK_MODEL"))
+	cfg.BaseURL = c.BaseURL
+	if cfg.BaseURL == "" {
+		cfg.BaseURL = config.DefaultBaseURL
+	}
+	model := strings.TrimSpace(c.Model)
 	if model == "" {
-		model = defaultModel
+		model = config.DefaultModel
 	}
 	return &Client{api: openai.NewClientWithConfig(cfg), model: model}, nil
 }

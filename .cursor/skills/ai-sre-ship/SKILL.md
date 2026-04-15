@@ -50,7 +50,7 @@ ssh root@172.16.195.128 'cd /root/sre && go mod download && go vet ./... && go b
 ### 2. 远程功能测试（必须通过）
 
 - **必测**：远程构建成功、`./ai-sre version` 正常。
-- **可选（若环境中有 `DEEPSEEK_API_KEY`）**：在远程执行一条需 LLM 的命令验证（例如 `export DEEPSEEK_API_KEY=... && ./ai-sre --no-rag ask test`）；若无密钥，则跳过并注明「LLM 集成需在目标机配置 `DEEPSEEK_API_KEY` 后手测」。
+- **可选（若远程已配置密钥文件）**：在目标机 `~/.config/ai-sre/api_key` 或 `config.yaml` 写入密钥后，执行 `./ai-sre --no-rag ask test` 做 LLM 联调；若无密钥文件则跳过并注明「需在目标机放置密钥文件后手测」。
 
 若任一步失败：**停止推送 GitHub**，先修复代码并重复 1–2。
 
