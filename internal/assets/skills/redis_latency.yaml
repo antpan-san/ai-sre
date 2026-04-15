@@ -1,0 +1,25 @@
+name: redis_latency
+display_name: Redis 延迟升高 / 慢查询
+topics:
+  - redis
+match_keywords:
+  - slowlog
+  - latency
+  - 大key
+  - 热key
+input:
+  - latency_p99
+  - ops
+  - memory
+analysis_steps:
+  - 区分网络、CPU、持久化、内存淘汰、单线程阻塞来源
+  - 检查 slowlog、latency doctor、瞬时 OPS 与连接数
+  - 检查大 key、热 key、pipeline 与批量操作
+  - 检查主从复制延迟、AOF/fsync 压力
+  - 检查客户端连接池与超时重试风暴
+output_format:
+  - root_cause
+  - solution
+  - verification_commands
+extra_guidance: |
+  若缺少监控数据，请列出必须采集的 redis INFO 字段与采样方式。

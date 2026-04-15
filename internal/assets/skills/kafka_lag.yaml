@@ -1,0 +1,28 @@
+name: kafka_lag
+display_name: Kafka 消费堆积 / Lag 过高
+topics:
+  - kafka
+match_keywords:
+  - kafka lag
+  - consumer lag
+  - 消费延迟
+  - rebalance
+input:
+  - lag
+  - topic
+  - consumer_group
+analysis_steps:
+  - 确认 lag 指标是消息条数还是时间延迟，是否单分区尖刺
+  - 对比生产速率与消费速率，判断是否消费能力不足
+  - 检查 broker CPU/磁盘/网络与 ISR 状态
+  - 评估分区是否倾斜、并发度是否过低
+  - 排查近期发布、配置变更、重平衡
+output_format:
+  - root_cause
+  - solution
+  - verification_commands
+extra_guidance: |
+  若用户给出 lag 数值，请结合常见量级说明紧急程度，并给出扩容/降载/优化并行度的优先级。
+prompt_template: |
+  【Kafka 专项】请特别关注：consumer 参数 max.poll.records、fetch.min.bytes、session.timeout、
+  max.partition.fetch.bytes，以及是否存在重复消费与位移提交失败。

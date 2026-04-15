@@ -1,0 +1,25 @@
+name: k8s_pod_pending
+display_name: Kubernetes Pod 长时间 Pending
+topics:
+  - k8s
+match_keywords:
+  - pod pending
+  - scheduler
+  - 调度失败
+  - pvc
+input:
+  - pod
+  - namespace
+  - node
+analysis_steps:
+  - kubectl describe pod 查看 Events（调度/镜像/挂载/污点）
+  - 检查资源请求是否超出节点容量与 Namespace ResourceQuota
+  - 检查 PVC/PV 绑定、StorageClass 与可用区
+  - 检查节点选择器、亲和性、污点与容忍
+  - 检查集群 autoscaler 与节点池健康
+output_format:
+  - root_cause
+  - solution
+  - verification_commands
+extra_guidance: |
+  输出中请包含具体 kubectl 命令与关键字段如何解读。

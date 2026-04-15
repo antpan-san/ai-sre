@@ -1,0 +1,6 @@
+/ai-sre
+*.exe
+.DS_Store
+.env
+.env.local
+config.local.yaml

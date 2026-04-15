@@ -1,0 +1,26 @@
+name: nginx_5xx
+display_name: Nginx / 网关 5xx 异常
+topics:
+  - nginx
+match_keywords:
+  - 502
+  - 503
+  - 504
+  - upstream
+  - 反向代理
+input:
+  - status_code
+  - upstream
+  - latency
+analysis_steps:
+  - 区分 502/503/504 的语义与常见触发条件
+  - 检查 upstream 健康检查、连接池、超时与 keepalive
+  - 检查后端服务可用性、线程/队列是否打满
+  - 检查 TLS、HTTP/2、大报文与 body 缓冲
+  - 关联应用日志与指标（错误率、饱和度）
+output_format:
+  - root_cause
+  - solution
+  - verification_commands
+extra_guidance: |
+  请给出 nginx 侧与 app 侧各至少 3 条可执行检查命令或配置项定位方法。

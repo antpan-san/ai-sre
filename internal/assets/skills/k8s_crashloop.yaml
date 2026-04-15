@@ -1,0 +1,25 @@
+name: k8s_crashloop
+display_name: Kubernetes Pod CrashLoopBackOff
+topics:
+  - k8s
+match_keywords:
+  - crashloop
+  - OOMKilled
+  - exit code
+  - 探针
+input:
+  - pod
+  - namespace
+  - container
+analysis_steps:
+  - kubectl describe pod 与 kubectl logs --previous 对比启动失败与退出码
+  - 检查探针配置是否过严、启动时间是否不足
+  - 检查资源限制是否导致 OOM、CPU throttle
+  - 检查镜像 tag、配置挂载、环境变量与依赖服务
+  - 检查 init container 是否阻塞
+output_format:
+  - root_cause
+  - solution
+  - verification_commands
+extra_guidance: |
+  对 CrashLoop 请按「配置/资源/依赖/镜像」四类归纳可能原因，并给出最小复现与验证路径。
