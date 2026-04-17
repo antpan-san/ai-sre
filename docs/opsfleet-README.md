@@ -4,7 +4,7 @@
 
 # OpsFleetPilot
 
-企业级服务器运维管理与 Kubernetes 集群部署平台：**Web 前端（Vue3）+ API（Golang/Gin）+ Agent（ft-client）**，可作为整体运维 / AIOps 产品体系的 **Web UI 控制台**（与 CLI 类工具如 ai-sre 等配合使用）。
+企业级服务器运维管理与 Kubernetes 集群部署平台：**Web 前端（Vue3）+ API（Golang/Gin）**；历史 **ft-client** Agent 源码曾在此仓，**现已移除**，在线能力仍以服务端 API 与（若部署）兼容 Agent 二进制为准。可作为整体运维 / AIOps 产品体系的 **Web UI 控制台**（与 CLI 类工具如 ai-sre 等配合使用）。
 
 详细功能与模块说明见 **[PRODUCT_DOC.md](../PRODUCT_DOC.md)**。
 
@@ -14,7 +14,7 @@
 |------|------|
 | `ft-front` | Vue3 + Element Plus + Vite |
 | `ft-backend` | Gin + PostgreSQL + Redis + WebSocket |
-| `ft-client` | Go Agent（部署在受管机器，**不在** Web 服务器进程内） |
+| ~~`ft-client`~~ | （已自本仓移除）原 Go Agent，部署在受管机器 |
 
 ## 仓库与构建产物
 
@@ -77,9 +77,9 @@ chmod +x scripts/deploy-opsfleet-remote.sh
 3. 在服务器上执行：`bash scripts/verify-opsfleet-deployment.sh`（需在仓库根目录，或通过 `OPSFLEET_ROOT` 指向部署路径），查看 systemd 与端口。
 4. **PostgreSQL**：`ft-backend/conf/config.yaml` 中账号密码须与实例一致，且库 `opsfleetpilot` 已创建；否则后端进程会退出，页面为 502。可查看：`journalctl -u opsfleet-backend -e`。
 
-## 与 Agent（ft-client）的关系
+## 与 Agent（历史 ft-client）的关系
 
-控制台与 API 以 **本机进程 + Nginx** 方式运行。受管机器需单独安装 **ft-client**，在 `conf/client.yaml` 中设置：
+控制台与 API 以 **本机进程 + Nginx** 方式运行。若使用 **在线 Agent** 流程，受管机需运行 **兼容协议** 的 Agent（原 **ft-client** 配置形态如下，供对照）；**本仓库不再提供** ft-client 源码。
 
 ```yaml
 server:

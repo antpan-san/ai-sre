@@ -1,7 +1,9 @@
 # OpsFleetPilot 产品需求文档（PRD v2.0）
 
-> 本文档基于对 ft-backend / ft-front / ft-client 三个项目源代码的完整 Review 重新整理，
-> 真实反映当前实现状态，并指出超出原始文档的能力及尚未完成的部分。
+> **仓库现状（2026）**：**ft-client** Go Agent 源码已从本仓库移除；下文关于 Agent、目录树与命令行的描述保留为**历史与协议参考**。主路径 Kubernetes 部署以 **离线安装包（ansible-agent + inventory + install.sh）** 为准，见根目录 `README.md`。
+
+> 本文档基于对 ft-backend / ft-front /（历史）ft-client 源代码的 Review 重新整理，
+> 真实反映当时实现状态，并指出超出原始文档的能力及尚未完成的部分。
 
 ---
 

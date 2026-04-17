@@ -119,28 +119,6 @@
         </div>
 
         <div class="header-right">
-          <!-- 客户端下载 -->
-          <div class="client-download-container">
-            <div class="client-download-progress" v-if="isDownloading || isDownloadCompleted">
-              <!-- 上边框进度 -->
-              <div class="border-progress border-top" :style="{ width: topBorderWidth + '%' }"></div>
-              <!-- 右边框进度 -->
-              <div class="border-progress border-right" :style="{ height: rightBorderHeight + '%' }"></div>
-              <!-- 下边框进度 -->
-              <div class="border-progress border-bottom" :style="{ width: bottomBorderWidth + '%' }"></div>
-              <!-- 左边框进度 -->
-              <div class="border-progress border-left" :style="{ height: leftBorderHeight + '%' }"></div>
-            </div>
-            <div class="client-download" @click="handleClientDownload" :class="{ 'downloading': isDownloading }" :disabled="isDownloading">
-              <div class="button-content">
-                <el-icon class="download-icon" :class="{ 'hidden': isDownloading }">
-                  <Download />
-                </el-icon>
-                <div class="progress-text" v-if="isDownloading">{{ downloadProgress }}%</div>
-              </div>
-            </div>
-          </div>
-
           <!-- 通知图标 -->
           <div class="notification">
             <el-badge :value="notificationCount" :max="99">
@@ -207,15 +185,14 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Grid, User, Setting, SwitchButton, ArrowDown, PieChart, DataAnalysis, Monitor, House, Management, Tools, Lock, DocumentCopy, Download } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { User, Setting, SwitchButton, ArrowDown, PieChart, DataAnalysis, Monitor, House, Management, Tools, Lock, DocumentCopy } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { wsService } from '../../utils/websocket'
 import { useMachineStore } from '../../stores/machine'
 
 // 路由路径到图标的映射
 const routeIconMap: Record<string, any> = {
   '/dashboard': PieChart,
-  '/machine': Grid,
   '/service': Setting,
   '/service/deploy': Setting,
   '/service/k8s-deploy': Setting,
@@ -243,56 +220,6 @@ const searchText = ref('')
 // 通知数量
 const notificationCount = ref(3)
 
-// 下载相关状态
-const isDownloading = ref(false)
-const downloadProgress = ref(0)
-const isDownloadCompleted = ref(false)
-
-// 计算矩形边框的进度值
-const topBorderWidth = computed(() => {
-  // 进度 0-25%: 上边框宽度从0%到100%
-  if (downloadProgress.value <= 25) {
-    return (downloadProgress.value / 25) * 100
-  }
-  // 进度 >25%: 上边框保持100%
-  return 100
-})
-
-const rightBorderHeight = computed(() => {
-  // 进度 0-25%: 右边框高度为0%
-  if (downloadProgress.value <= 25) {
-    return 0
-  }
-  // 进度 25-50%: 右边框高度从0%到100%
-  if (downloadProgress.value <= 50) {
-    return ((downloadProgress.value - 25) / 25) * 100
-  }
-  // 进度 >50%: 右边框保持100%
-  return 100
-})
-
-const bottomBorderWidth = computed(() => {
-  // 进度 0-50%: 下边框宽度为0%
-  if (downloadProgress.value <= 50) {
-    return 0
-  }
-  // 进度 50-75%: 下边框宽度从0%到100%
-  if (downloadProgress.value <= 75) {
-    return ((downloadProgress.value - 50) / 25) * 100
-  }
-  // 进度 >75%: 下边框保持100%
-  return 100
-})
-
-const leftBorderHeight = computed(() => {
-  // 进度 0-75%: 左边框高度为0%
-  if (downloadProgress.value <= 75) {
-    return 0
-  }
-  // 进度 75-100%: 左边框高度从0%到100%
-  return ((downloadProgress.value - 75) / 25) * 100
-})
-
 // 处理搜索
 const handleSearch = () => {
   if (searchText.value.trim()) {
@@ -307,76 +234,6 @@ const showNotification = () => {
   // 这里可以实现通知面板的显示逻辑
   console.log('显示通知列表')
   // 例如：打开通知抽屉或弹窗
-}
-
-// 复制下载命令
-// @ts-ignore - 函数在模板中使用但TypeScript未检测到
-const copyCommand = (command: string) => {
-  navigator.clipboard.writeText(command).then(() => {
-    ElMessage.success('命令已复制到剪贴板！')
-  }).catch(err => {
-    console.error('复制失败:', err)
-    ElMessage.error('复制失败，请手动复制')
-  })
-}
-
-// 客户端下载
-const handleClientDownload = () => {
-  // 如果正在下载中，不允许再次点击
-  if (isDownloading.value) {
-    return
-  }
-
-  // 定义可复制的命令
-  const downloadCommand = 'curl https://example.com/xxx.xxx'
-
-  // 自定义对话框内容
-  const message = `
-    是否下载客户端？
-    <div class="download-command-container">
-      <span class="download-command" @click="copyCommand(downloadCommand)">
-        ${downloadCommand}
-      </span>
-      <span class="copy-hint">点击复制</span>
-    </div>
-  `
-
-  ElMessageBox.confirm(message, '下载确认', {
-    confirmButtonText: '下载',
-    cancelButtonText: '取消',
-    type: 'info',
-    dangerouslyUseHTMLString: true,
-  }).then(() => {
-    // 开始模拟下载
-    isDownloading.value = true
-    downloadProgress.value = 0
-    
-    ElMessage.success('开始下载客户端...')
-    
-    // 模拟下载进度
-        const downloadInterval = setInterval(() => {
-          downloadProgress.value += 2
-          
-          // 下载完成
-          if (downloadProgress.value >= 100) {
-            clearInterval(downloadInterval)
-            downloadProgress.value = 100
-            
-            // 下载完成后延迟重置状态
-            setTimeout(() => {
-              isDownloading.value = false
-              isDownloadCompleted.value = true
-              ElMessage.success('客户端下载完成！')
-            }, 1000)
-          }
-        }, 100)
-    
-    // 模拟实际下载（示例）
-    // window.location.href = '/api/download/client'
-  }).catch(() => {
-    // 用户取消下载
-    console.log('用户取消下载')
-  })
 }
 
 // 获取当前用户信息
@@ -654,202 +511,6 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   gap: 16px;
-}
-
-/* 客户端下载 */
-.client-download-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 52px;
-  width: 70px;
-  overflow: visible;
-  margin: 0;
-}
-
-.client-download-progress {
-  position: absolute;
-  top: -1px;
-  left: -1px;
-  right: -1px;
-  bottom: -1px;
-  border-radius: 8px;
-  z-index: 3;
-  pointer-events: none;
-  overflow: visible;
-}
-
-.border-progress {
-  position: absolute;
-  background-color: #67c23a;
-  transition: all 0.3s ease-in-out;
-  z-index: 3;
-}
-
-/* 上边框 */
-.border-top {
-  top: 0;
-  left: 0;
-  height: 2px;
-  border-top-left-radius: 8px;
-  border-top-right-radius: 8px;
-  z-index: 4;
-}
-
-/* 右边框 */
-.border-right {
-  top: 0;
-  right: 0;
-  width: 2px;
-  border-top-right-radius: 8px;
-  border-bottom-right-radius: 8px;
-  z-index: 4;
-}
-
-/* 下边框 */
-.border-bottom {
-  bottom: 0;
-  right: 0;
-  height: 2px;
-  border-bottom-left-radius: 8px;
-  border-bottom-right-radius: 8px;
-  z-index: 4;
-}
-
-/* 左边框 */
-.border-left {
-  bottom: 0;
-  left: 0;
-  width: 2px;
-  border-top-left-radius: 8px;
-  border-bottom-left-radius: 8px;
-  z-index: 4;
-}
-
-.client-download {
-  position: relative;
-  cursor: pointer;
-  padding: 10px;
-  border-radius: 8px;
-  transition: all 0.3s;
-  background-color: #fff;
-  z-index: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  user-select: none;
-  border: none;
-  outline: none;
-  height: 52px;
-  width: 70px;
-}
-
-.client-download:hover:not(.downloading) {
-  background-color: #f3f4f6;
-  transform: scale(1.05);
-}
-
-.client-download.downloading {
-  cursor: not-allowed;
-  background-color: #f5f7fa;
-}
-
-.button-content {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  transition: all 0.3s ease;
-  position: relative;
-  z-index: 1;
-}
-
-.download-icon {
-  font-size: 24px;
-  color: #67c23a;
-  transition: all 0.5s ease-in-out;
-  opacity: 1;
-  transform: scale(1);
-}
-
-.download-icon.hidden {
-  opacity: 0;
-  transform: scale(0.8);
-}
-
-.progress-text {
-  font-size: 16px;
-  font-weight: 600;
-  color: #67c23a;
-  transition: all 0.5s ease-in-out;
-  opacity: 0;
-  transform: scale(0.8);
-  position: relative;
-  z-index: 1;
-  width: auto;
-  text-align: center;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  margin: 0;
-}
-
-.client-download.downloading .progress-text {
-  opacity: 1;
-  transform: scale(1);
-  animation: pulse 1s infinite;
-}
-
-@keyframes pulse {
-  0% {
-    transform: scale(1);
-  }
-  50% {
-    transform: scale(1.05);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-
-/* 下载命令样式 */
-.download-command-container {
-  margin-top: 12px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background-color: #f5f7fa;
-  padding: 10px;
-  border-radius: 4px;
-  border: 1px solid #ebeef5;
-}
-
-.download-command {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  color: #67c23a;
-  font-size: 14px;
-  cursor: pointer;
-  padding: 2px 4px;
-  border-radius: 2px;
-  transition: all 0.3s;
-}
-
-.download-command:hover {
-  background-color: rgba(103, 194, 58, 0.1);
-  color: #85ce61;
-  text-decoration: underline;
-}
-
-.copy-hint {
-  font-size: 12px;
-  color: #909399;
-}
-
-.client-download:hover:not(.downloading) .download-icon {
-  color: #409eff;
 }
 
 /* 通知 */

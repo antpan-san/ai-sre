@@ -10,7 +10,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 **当前版本**：以运行环境为准，执行 `./ai-sre version`（与源码中 `internal/cli/version.go` 的 `cliVersion` 对齐，当前为 **0.3.x**）。
 
-本仓库为 **单一 Git 仓库**：根目录 **CLI（ai-sre）** 与 **OpsFleetPilot（Web + API + Agent 源码）** 并排共存。**OpsFleetPilot** 包含 `ft-backend/`、`ft-front/`、`ft-client/`、`deploy/`、`ansible-agent/`；产品总览见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)，历史说明见 [`docs/opsfleet-README.md`](docs/opsfleet-README.md)。控制台构建：`make build-opsfleet`（产物 `bin/opsfleet-backend`、`dist/web/`）。
+本仓库为 **单一 Git 仓库**：根目录 **CLI（ai-sre）** 与 **OpsFleetPilot（Web + API）** 并排共存。**OpsFleetPilot** 包含 `ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`；产品总览见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)，历史说明见 [`docs/opsfleet-README.md`](docs/opsfleet-README.md)。控制台构建：`make build-opsfleet`（产物 `bin/opsfleet-backend`、`dist/web/`）。
 
 ---
 
@@ -109,7 +109,7 @@ go build -o ai-sre .
 make vet          # go vet ./...
 make test         # go test ./...
 make build        # 生成 ./ai-sre
-make clean        # 删除本机 ai-sre、bin/、dist/、OpsFleet/Agent 常见构建产物
+make clean        # 删除本机 ai-sre、bin/、dist/、OpsFleet 常见构建产物
 ```
 
 CI 或发布前建议：`go test ./... && go vet ./...`（`scripts/remote-e2e.sh` 的静态阶段已包含 `go test`）。
@@ -153,7 +153,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 ## 标准约定（同仓）
 
 - **OpsFleet 后端仅使用** `ft-backend/conf/config.yaml`（由 `deploy/config.production.example.yaml` 复制编辑）；仓库内**不得**再保留根路径 `ft-backend/config.yaml` 等重复配置，以免误用。
-- **勿提交**：本机编译产物（`ai-sre`、`bin/`、`dist/`、`ft-client/ft-client`、`ft-backend/opsfleet-backend`）、`node_modules`、vim `*.swp`（见根目录 `.gitignore`）。
+- **勿提交**：本机编译产物（`ai-sre`、`bin/`、`dist/`、`ft-backend/opsfleet-backend`）、`node_modules`、vim `*.swp`（见根目录 `.gitignore`）。
 - **CLI 凭据**：仅用 `~/.config/ai-sre/`，与 OpsFleet 的 PostgreSQL/JWT 配置无关。
 
 ---
@@ -176,7 +176,6 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | `internal/assets/knowledge/*.md` | 内置知识片段 |
 | `ft-backend/` | OpsFleetPilot API（Gin），独立 `go.mod` |
 | `ft-front/` | OpsFleetPilot Web（Vue3 + Vite） |
-| `ft-client/` | 节点 Agent（已不作为主路径；K8s 推荐「离线安装包」下载执行，见下） |
 | `deploy/` | Nginx / systemd 模板与生产配置示例 |
 | `ansible-agent/` | K8s/Ansible 相关 playbook |
 | `PRODUCT_DOC.md` | OpsFleetPilot 产品文档 |
@@ -201,7 +200,9 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 **OpsFleet 控制台登录**：数据库迁移脚本初始化时默认用户名为 **`admin`**、密码为明文 **`password`**（bcrypt）。生产环境请修改；忘记密码可在数据库所在机执行 **`ft-backend/database/reset_admin_password_pg.sql`**（将 **`admin`** 重置为 **`123456`**，与当前运维约定一致）。
 
-**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP，点击 **「生成并下载离线安装包（zip）」**；在 **Ubuntu 24.04** 上解压后执行 **`sudo bash install.sh`** 完成 Ansible 编排安装（包内含 `ansible-agent` Playbook 与根据表单生成的 `inventory`，**不依赖 ft-client Agent**）。侧栏已隐藏「机器管理」入口；仍需 Agent 的旧流程可在同页切换到「在线 Agent」并提交在线部署。
+**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP，点击 **「生成并下载离线安装包（zip）」**；在 **Ubuntu 24.04** 上解压后执行 **`sudo bash install.sh`** 完成 Ansible 编排安装（包内含 `ansible-agent` Playbook 与根据表单生成的 `inventory`）。**原仓库内 Go Agent（ft-client）源码已移除**；在线部署仍依赖 Agent 心跳上报时，可在同页切换到「在线 Agent」并提交在线部署。
+
+**机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 与作业中心仍用于在线机器列表与任务目标（见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)）。
 
 ---
 

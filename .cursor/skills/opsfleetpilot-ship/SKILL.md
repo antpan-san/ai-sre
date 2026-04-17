@@ -9,7 +9,7 @@ description: >-
 
 ## 触发条件（在 ai-sre-ship 之上叠加）
 
-在已满足 **`.cursor/rules/monorepo-release.mdc`** 与 **`.cursor/skills/ai-sre-ship/SKILL.md`** 的前提下，若本次变更触及 **OpsFleet** 相关路径或脚本，**另须**完整执行本文件：`ft-backend/`、`ft-front/`、`ft-client/`、`deploy/`、`ansible-agent/`，或 `scripts/deploy-opsfleet-remote.sh`、`scripts/build-all.sh`、`scripts/verify-opsfleet-deployment.sh`、`PRODUCT_DOC.md` 中与控制台部署强相关的内容。
+在已满足 **`.cursor/rules/monorepo-release.mdc`** 与 **`.cursor/skills/ai-sre-ship/SKILL.md`** 的前提下，若本次变更触及 **OpsFleet** 相关路径或脚本，**另须**完整执行本文件：`ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`，或 `scripts/deploy-opsfleet-remote.sh`、`scripts/build-all.sh`、`scripts/verify-opsfleet-deployment.sh`、`PRODUCT_DOC.md` 中与控制台部署强相关的内容。
 
 OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshuai/Documents/work/code/ai-sre`**。默认远程 **`root@172.16.195.128`**，远端目录 **`/root/sre`**（与 `scripts/deploy-opsfleet-remote.sh` 中 `OPSFLEET_REMOTE_DIR` 默认一致；**不要**与仅 CLI 的 `scripts/deploy-remote.sh` 混淆）。
 
@@ -24,7 +24,7 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 | 前端静态资源 | 构建在仓库 `dist/web/`，部署时同步到 **`/var/www/opsfleetpilot/`**（`OPSFLEET_WEB_ROOT`），由 Nginx `root` 提供（**勿**用 `/root/...` 作 `root`，`www-data` 无法读） |
 | Nginx | 由 `deploy/nginx.opsfleet.conf.template` 生成站点配置，反代 `/ft-api`、`/api`、`/ws`、`/uploads`、`/health` 等 |
 
-**不包含**：`ft-client`（Agent 需装在受管机，独立发布）。
+**历史**：原 **ft-client**（Go Agent）源码曾在本仓，现已移除；在线部署若仍依赖 Agent 协议，需由运维侧自行提供兼容二进制或从其他分支构建。
 
 **GitHub**：仅源码；`bin/`、`dist/` 等在 `.gitignore` 中，禁止提交构建产物。
 
@@ -34,7 +34,7 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 - [ ] 与 **ai-sre 同仓** 的布局描述、`make build-opsfleet`/`scripts/build-all.sh`、产物路径与 **Nginx 端口**（默认 **9080**）是否一致  
 - [ ] **`scripts/deploy-opsfleet-remote.sh`**（非 `deploy-remote.sh`）与环境变量（含 `OPSFLEET_BACKEND_PORT`）是否写清  
-- [ ] **ft-client** 与 Web 进程边界；**仓库不存二进制**  
+- [ ] **Agent 与 Web 进程边界**（若文档仍提及在线 Agent）；**仓库不存二进制**  
 
 若变更影响部署或访问方式，**必须**在同一批提交中更新文档。
 

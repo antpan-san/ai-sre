@@ -28,20 +28,6 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '登录', requireAuth: false }
   },
   {
-    path: '/machine',
-    name: 'Machine',
-    component: () => import('../components/layout/MainLayout.vue'),
-    meta: { title: '机器管理', requireAuth: true, roles: ['admin', 'user'] },
-    children: [
-      {
-        path: 'list',
-        name: 'MachineList',
-        component: () => import('../views/machine/MachineList.vue'),
-        meta: { title: '机器管理', requireAuth: true, roles: ['admin', 'user'] }
-      }
-    ]
-  },
-  {
     path: '/user',
     name: 'User',
     component: () => import('../components/layout/MainLayout.vue'),
