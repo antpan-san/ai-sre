@@ -4,7 +4,7 @@
 
 # OpsFleetPilot
 
-企业级服务器运维管理与 Kubernetes 集群部署平台：**Web 前端（Vue3）+ API（Golang/Gin）**；历史 **ft-client** Agent 源码曾在此仓，**现已移除**，在线能力仍以服务端 API 与（若部署）兼容 Agent 二进制为准。可作为整体运维 / AIOps 产品体系的 **Web UI 控制台**（与 CLI 类工具如 ai-sre 等配合使用）。
+企业级服务器运维管理与 Kubernetes 集群部署平台：**Web 前端（Vue3）+ API（Golang/Gin）**；同仓还提供 **`opsfleet-executor`** 二进制（与 **ai-sre** 相同的技能包与 CLI 语义），部署在**受管机**上用于本地排障与 Runbook 生成（见根目录 `README.md`、`PRODUCT_DOC.md` 架构节）。历史 **ft-client** Agent 源码曾在此仓，**现已移除**，在线能力仍以服务端 API 与（若部署）兼容 Agent 二进制为准。可作为整体运维 / AIOps 产品体系的 **Web UI 控制台**（与 CLI 类工具如 ai-sre 等配合使用）。
 
 详细功能与模块说明见 **[PRODUCT_DOC.md](../PRODUCT_DOC.md)**。
 

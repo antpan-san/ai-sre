@@ -10,7 +10,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 **当前版本**：以运行环境为准，执行 `./ai-sre version`（与源码中 `internal/cli/version.go` 的 `cliVersion` 对齐，当前为 **0.3.x**）。
 
-本仓库为 **单一 Git 仓库**：根目录 **CLI（ai-sre）** 与 **OpsFleetPilot（Web + API）** 并排共存。**OpsFleetPilot** 包含 `ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`；产品总览见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)，历史说明见 [`docs/opsfleet-README.md`](docs/opsfleet-README.md)。控制台构建：`make build-opsfleet`（产物 `bin/opsfleet-backend`、`dist/web/`）。
+本仓库为 **单一 Git 仓库**：根目录 **CLI（ai-sre）**、**OpsFleet 本地执行器（`opsfleet-executor`）** 与 **OpsFleetPilot（Web + API）** 并排共存。**OpsFleetPilot** 包含 `ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`；**`opsfleet-executor`** 与 `ai-sre` **共用同一套技能包与执行语义**（`analyze` / `ask` / `runbook` 等），用于部署在**受管机**上本地执行。产品总览见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)，历史说明见 [`docs/opsfleet-README.md`](docs/opsfleet-README.md)。控制台构建：`make build-opsfleet`（产物 `bin/opsfleet-backend`、`dist/web/`）。
 
 ---
 
@@ -109,6 +109,7 @@ go build -o ai-sre .
 make vet          # go vet ./...
 make test         # go test ./...
 make build        # 生成 ./ai-sre
+make build-executor   # 生成 bin/opsfleet-executor（与 ai-sre 同引擎，供受管机使用）
 make clean        # 删除本机 ai-sre、bin/、dist/、OpsFleet 常见构建产物
 ```
 
@@ -174,6 +175,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | `internal/quota` | 每日 LLM 调用计数（`~/.cache/ai-sre`） |
 | `internal/assets/skills/*.yaml` | 内置技能 |
 | `internal/assets/knowledge/*.md` | 内置知识片段 |
+| `cmd/opsfleet-executor` | OpsFleet 本地执行器入口（调用 `internal/cli`，与 `ai-sre` 同子命令） |
 | `ft-backend/` | OpsFleetPilot API（Gin），独立 `go.mod` |
 | `ft-front/` | OpsFleetPilot Web（Vue3 + Vite） |
 | `deploy/` | Nginx / systemd 模板与生产配置示例 |

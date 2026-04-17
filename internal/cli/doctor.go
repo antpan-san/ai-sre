@@ -16,7 +16,7 @@ func doctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "自检：运行时、配置目录、凭据、配额、技能与知识库加载（不调用 LLM）",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			fmt.Println("== ai-sre doctor ==")
+			fmt.Printf("== %s doctor ==\n", progName)
 			fmt.Printf("go_runtime: %s\n", runtime.Version())
 			fmt.Printf("cli_version: %s\n", cliVersion)
 
@@ -57,7 +57,7 @@ func doctorCmd() *cobra.Command {
 				fmt.Printf("knowledge_chunks: %d\n", len(kb.Chunks))
 			}
 
-			fmt.Println("hint: LLM 联通性请用: ai-sre ask \"ping\" 或 SHORT=1 bash scripts/remote-e2e.sh")
+			fmt.Printf("hint: LLM 联通性请用: %s ask \"ping\" 或 SHORT=1 bash scripts/remote-e2e.sh\n", progName)
 			return nil
 		},
 	}

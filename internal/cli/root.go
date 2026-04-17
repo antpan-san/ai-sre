@@ -18,6 +18,8 @@ import (
 )
 
 var (
+	// progName is the argv0-style program name (ai-sre vs opsfleet-executor); set by newRoot.
+	progName          string
 	configFile        string
 	keyFile           string
 	verbose           bool
@@ -36,27 +38,50 @@ var (
 	setKV             map[string]string
 )
 
-// Execute runs the Cobra root (entry from main).
+// Execute runs the Cobra root (entry from main) as ai-sre.
 func Execute() {
-	if err := newRoot().Execute(); err != nil {
+	ExecuteAs("ai-sre")
+}
+
+// ExecuteAs runs the same CLI tree under a different program name (e.g. opsfleet-executor on managed hosts).
+func ExecuteAs(programName string) {
+	if err := newRoot(programName).Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func newRoot() *cobra.Command {
-	root := &cobra.Command{
-		Use:     "ai-sre",
-		Aliases: []string{"ops-ai"},
-		Short:   "AI SRE Copilot — 故障诊断、Runbook、知识问答",
-		Long: `CLI 工具：技能包（Skill Pack）+ Prompt + 可选轻量 RAG + DeepSeek LLM。
+func newRoot(programName string) *cobra.Command {
+	progName = programName
+	var short, long string
+	if programName == "opsfleet-executor" {
+		short = "OpsFleet 本地执行器 — 与 ai-sre 相同的技能包与执行语义"
+		long = fmt.Sprintf(`在需要部署或运维的受管机器上运行；与 ai-sre 共用同一套技能包（YAML）、Prompt、轻量 RAG 与 LLM 编排（需凭据）。
+子命令与 flag 与 ai-sre 一致：analyze / ask / runbook / skills / doctor / version。
 示例:
-  ai-sre analyze kafka --lag 100000
-  ai-sre analyze k8s --pod pending
-  ai-sre ask "kafka lag 高怎么办"
-  ai-sre runbook "pod频繁重启"
-  ai-sre skills list`,
+  %s analyze kafka --lag 100000
+  %s analyze k8s --pod pending
+  %s ask "kafka lag 高怎么办"
+  %s runbook "pod频繁重启"
+  %s skills list`, programName, programName, programName, programName, programName)
+	} else {
+		short = "AI SRE Copilot — 故障诊断、Runbook、知识问答"
+		long = fmt.Sprintf(`CLI 工具：技能包（Skill Pack）+ Prompt + 可选轻量 RAG + DeepSeek LLM。
+示例:
+  %s analyze kafka --lag 100000
+  %s analyze k8s --pod pending
+  %s ask "kafka lag 高怎么办"
+  %s runbook "pod频繁重启"
+  %s skills list`, programName, programName, programName, programName, programName)
+	}
+	root := &cobra.Command{
+		Use:          programName,
+		Short:        short,
+		Long:         long,
 		SilenceUsage: true,
+	}
+	if programName == "ai-sre" {
+		root.Aliases = []string{"ops-ai"}
 	}
 	root.PersistentFlags().StringVar(&configFile, "config", "", "path to config.yaml (api_key, optional base_url, model); default: ~/.config/ai-sre/config.yaml")
 	root.PersistentFlags().StringVar(&keyFile, "key-file", "", "path to file containing API key only (overrides default api_key file if --config not set)")
@@ -78,9 +103,6 @@ func analyzeCmd() *cobra.Command {
 
 k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashLoopBackOff）。
 也可用 --issue pending|crashloop。`,
-		Example: `  ai-sre analyze kafka --lag 100000 --topic orders
-  ai-sre analyze k8s --pod pending
-  ai-sre -o json analyze kafka --lag 1`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := buildContextMap()
@@ -108,6 +130,9 @@ k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashL
 	cmd.Flags().StringVar(&upstream, "upstream", "", "Nginx upstream 名称或服务名")
 	cmd.Flags().StringVar(&latency, "latency", "", "延迟描述，如 50ms、p99=20ms")
 	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
+	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
+  %s analyze k8s --pod pending
+  %s -o json analyze kafka --lag 1`, progName, progName, progName)
 	return cmd
 }
 
@@ -170,7 +195,7 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "print version",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println("ai-sre", cliVersion)
+			fmt.Println(progName, cliVersion)
 		},
 	}
 }
@@ -220,10 +245,10 @@ func bootstrap() (*engine.Engine, error) {
 	kDir := knowledgeExtraDir
 	if limits != nil && strings.EqualFold(limits.Tier, "free") {
 		if sDir != "" && verbose {
-			fmt.Fprintf(os.Stderr, "[ai-sre] tier=free: ignoring --skills-dir\n")
+			fmt.Fprintf(os.Stderr, "[%s] tier=free: ignoring --skills-dir\n", progName)
 		}
 		if kDir != "" && verbose {
-			fmt.Fprintf(os.Stderr, "[ai-sre] tier=free: ignoring --knowledge-dir\n")
+			fmt.Fprintf(os.Stderr, "[%s] tier=free: ignoring --knowledge-dir\n", progName)
 		}
 		sDir, kDir = "", ""
 	}
@@ -235,11 +260,11 @@ func bootstrap() (*engine.Engine, error) {
 		return nil, err
 	}
 	if verbose {
-		fmt.Fprintf(os.Stderr, "[ai-sre] llm credentials file: %s\n", credSrc)
+		fmt.Fprintf(os.Stderr, "[%s] llm credentials file: %s\n", progName, credSrc)
 		if limits != nil && limits.Tier != "" {
-			fmt.Fprintf(os.Stderr, "[ai-sre] tier=%s max_llm_calls_per_day=%d\n", limits.Tier, limits.MaxLLMCallsPerDay)
+			fmt.Fprintf(os.Stderr, "[%s] tier=%s max_llm_calls_per_day=%d\n", progName, limits.Tier, limits.MaxLLMCallsPerDay)
 		}
-		fmt.Fprintf(os.Stderr, "[ai-sre] loaded %d skill(s), %d knowledge chunk(s)\n", len(skills.Packs), len(kb.Chunks))
+		fmt.Fprintf(os.Stderr, "[%s] loaded %d skill(s), %d knowledge chunk(s)\n", progName, len(skills.Packs), len(kb.Chunks))
 	}
 	return &engine.Engine{Skills: skills, RAG: kb, LLM: client}, nil
 }

@@ -12,6 +12,12 @@ echo "==> go build ft-backend -> bin/opsfleet-backend"
   go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-backend" .
 )
 
+echo "==> go build opsfleet-executor (same skill engine as ai-sre) -> bin/opsfleet-executor"
+(
+  cd "$ROOT"
+  go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-executor" ./cmd/opsfleet-executor
+)
+
 echo "==> npm build ft-front -> dist/web"
 (
   cd ft-front
@@ -25,6 +31,7 @@ echo "==> npm build ft-front -> dist/web"
 
 echo "==> OK"
 echo "    Backend: $ROOT/bin/opsfleet-backend"
+echo "    Executor: $ROOT/bin/opsfleet-executor  (copy to managed hosts as needed)"
 echo "    Static:  $ROOT/dist/web/"
 echo "    Run API from directory ft-backend (conf/config.yaml):"
 echo "      cd ft-backend && ../bin/opsfleet-backend"

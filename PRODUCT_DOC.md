@@ -19,8 +19,9 @@ OpsFleetPilot 是一款企业级服务器运维管理与 Kubernetes 集群部署
 
 核心特点：
 
-- B/S + C/S 混合架构（Web 前端 + 服务端 + 客户端 Agent）
-- 反向心跳指令下发模型（Client 主动轮询，Server 不主动连接）
+- B/S + C/S 混合架构（Web 前端 + 服务端 + 可选在线 Agent；K8s 主路径为离线 Ansible 包）
+- **本地执行器 `opsfleet-executor`**：与 **ai-sre** 同一套技能包与执行语义，部署在受管机或运维机上
+- 反向心跳指令下发模型（历史 Agent；在线能力仍依赖兼容协议）
 - 内网机器可被远程管理（支持 NAT / 内网环境）
 - 运维标准化、流程化
 - 支持 Master/Worker 集群拓扑自动识别
@@ -31,7 +32,40 @@ OpsFleetPilot 是一款企业级服务器运维管理与 Kubernetes 集群部署
 
 # 二、系统架构
 
-## 2.1 架构模型
+## 2.1 架构模型（含 ai-sre 与 opsfleet-executor）
+
+**控制面**：Web + API 仍为中心；**执行面**区分三类进程：
+
+| 组件 | 部署位置 | 角色 |
+|------|----------|------|
+| **ai-sre** | 工程师本机 / CI | 与仓库同源的 CLI：技能包 + Prompt + RAG + LLM，用于排障与 Runbook |
+| **opsfleet-executor** | **需要部署或运维的受管机器**（或该机上的运维账号） | **与 ai-sre 概念一致、子命令与 flag 相同** 的二进制；同一套 `analyze` / `ask` / `runbook` / `skills` / `doctor`，凭据仍使用 `~/.config/ai-sre/`（或 `--config` / `--key-file`） |
+| **ft-backend + ft-front** | 运维控制台服务器 | 纳管、任务、K8s 向导、离线包生成等 |
+
+```
+  工程师工作站                         控制台服务器                 受管机（目标部署/运维节点）
+ ┌─────────────┐                   ┌──────────────────┐            ┌─────────────────────┐
+ │   ai-sre    │   （可选）         │  ft-front        │            │ opsfleet-executor   │
+ │  技能+LLM    │                   │  Web UI         │  HTTP/WS   │  同左：技能+LLM        │
+ └─────────────┘                   └────────┬─────────┘            │  （与 ai-sre 同语义）   │
+                                           │                       └──────────┬──────────┘
+                                    ┌──────▼──────┐                           │
+                                    │ ft-backend  │◄──── 心跳/任务（若启用在线 Agent）
+                                    │ Gin + PG+Redis                         │
+                                    └──────┬──────┘                           │
+                                           │                                 │
+                         Ansible 离线包 / SSH ────────────────────────────────┘
+                                           │
+                                    ┌──────▼──────┐
+                                    │ ansible-agent│  （K8s 主路径：zip + install.sh）
+                                    └─────────────┘
+```
+
+**说明**：`opsfleet-executor` 与 `ai-sre` **共用同一 Go 模块内的 CLI 实现**（`internal/cli`，入口为 `cmd/opsfleet-executor`），保证行为一致；构建命令见根目录 `README.md` 与 `Makefile` 的 `build-executor`。
+
+## 2.1.1 历史：ft-client 拓扑（协议参考）
+
+以下模型在 **ft-client 源码已移除** 后仍可作为在线 Agent 协议参考；与 **2.1** 中的执行器 **不** 等同：`opsfleet-executor` 对齐 **ai-sre**，而非旧 Agent 心跳协议。
 
 ```
                 ┌──────────────┐
