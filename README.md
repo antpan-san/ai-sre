@@ -109,6 +109,7 @@ go build -o ai-sre .
 make vet          # go vet ./...
 make test         # go test ./...
 make build        # 生成 ./ai-sre
+make clean        # 删除本机 ai-sre、bin/、dist/、OpsFleet/Agent 常见构建产物
 ```
 
 CI 或发布前建议：`go test ./... && go vet ./...`（`scripts/remote-e2e.sh` 的静态阶段已包含 `go test`）。
@@ -149,6 +150,14 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 ---
 
+## 标准约定（同仓）
+
+- **OpsFleet 后端仅使用** `ft-backend/conf/config.yaml`（由 `deploy/config.production.example.yaml` 复制编辑）；仓库内**不得**再保留根路径 `ft-backend/config.yaml` 等重复配置，以免误用。
+- **勿提交**：本机编译产物（`ai-sre`、`bin/`、`dist/`、`ft-client/ft-client`、`ft-backend/opsfleet-backend`）、`node_modules`、vim `*.swp`（见根目录 `.gitignore`）。
+- **CLI 凭据**：仅用 `~/.config/ai-sre/`，与 OpsFleet 的 PostgreSQL/JWT 配置无关。
+
+---
+
 ## 仓库布局
 
 | 路径 | 说明 |
@@ -171,6 +180,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | `deploy/` | Nginx / systemd 模板与生产配置示例 |
 | `ansible-agent/` | K8s/Ansible 相关 playbook |
 | `PRODUCT_DOC.md` | OpsFleetPilot 产品文档 |
+| `docs/` | 归档说明、客户端相关 PRD 等（如 `docs/opsfleet-README.md`、`docs/ft-client-prd-machines.txt`） |
 | `scripts/deploy-remote.sh` | 同步本仓并编译 **ai-sre CLI**（默认远端 `/root/sre`） |
 | `scripts/deploy-opsfleet-remote.sh` | 同步本仓并构建 **OpsFleet**（Nginx + systemd，`build-all.sh`） |
 | `scripts/build-all.sh` | 仅构建 OpsFleet 后端 + 前端静态资源 |

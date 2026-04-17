@@ -14,5 +14,6 @@ config.local.yaml
 /dist/
 ft-front/dist/
 ft-backend/opsfleet-backend
+ft-client/ft-client
 *.dll
 *.so

@@ -1,4 +1,4 @@
-.PHONY: build vet test install build-opsfleet vet-opsfleet
+.PHONY: build vet test install build-opsfleet vet-opsfleet clean
 BINARY=ai-sre
 
 build:
@@ -19,3 +19,12 @@ build-opsfleet:
 
 vet-opsfleet:
 	cd ft-backend && go vet ./...
+
+# 清理本地构建产物（不删除站点配置与密钥）
+clean:
+	rm -f $(BINARY)
+	rm -f ft-backend/opsfleet-backend
+	rm -f ft-client/ft-client
+	rm -rf bin dist
+	rm -rf ft-front/dist
+	find . -name '*.swp' -delete 2>/dev/null || true
