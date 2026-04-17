@@ -1,0 +1,17 @@
+# /etc/systemd/system/kube-scheduler.service
+[Unit]
+Description=Kubernetes Scheduler
+After=kube-apiserver.service
+Requires=kube-apiserver.service
+
+[Service]
+ExecStart={{ remote_dest }}/bin/kube-scheduler \
+  --config={{ k8s_base_dir }}/kube-scheduler.yaml \
+  --v=2
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

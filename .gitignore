@@ -1,8 +1,18 @@
 /ai-sre
 *.exe
 .DS_Store
+*.swp
+.*.swp
 .env
 .env.local
 config.local.yaml
 **/api_key
 **/credentials
+
+# OpsFleetPilot 构建产物（同仓根目录）
+/bin/
+/dist/
+ft-front/dist/
+ft-backend/opsfleet-backend
+*.dll
+*.so

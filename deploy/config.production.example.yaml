@@ -1,0 +1,39 @@
+# 复制为 ft-backend/conf/config.yaml（勿提交真实密码；仅服务器本地保留）
+server:
+  host: 0.0.0.0
+  port: "8080"
+  read_timeout: 30
+  write_timeout: 30
+database:
+  host: 127.0.0.1
+  port: "5432"
+  user: postgres
+  password: "change-me"
+  dbname: opsfleetpilot
+  sslmode: disable
+  timezone: Asia/Shanghai
+jwt:
+  secret_key: change-me-in-production
+  access_token_exp: 15
+  refresh_token_exp: 1440
+file:
+  upload_dir: uploads
+  max_file_size: 1073741824
+  chunk_size: 1048576
+  allowed_formats:
+    - jpg
+    - png
+    - pdf
+    - txt
+    - zip
+    - rar
+redis:
+  host: 127.0.0.1
+  port: "6379"
+  # 无密码的本地 Redis 请用 ""；与 redis.conf requirepass 一致
+  password: ""
+  db: 0
+client:
+  encrypt_key: change-me-in-production
+log:
+  level: info

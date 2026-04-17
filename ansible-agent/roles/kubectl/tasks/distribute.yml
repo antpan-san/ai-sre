@@ -1,0 +1,34 @@
+- name: Ensure Binaris Directory Exists
+  file:
+    path: "{{ k8s_extract_dir }}/bin"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+
+- name: Copy Kubernetes kubectl binaries
+  ansible.builtin.copy:
+    src: "{{ local_cache_dir }}/kubernetes/server/bin/{{ item }}"
+    dest: "{{ k8s_extract_dir }}/bin/{{ item }}"
+    mode: '0755'
+    owner: root
+    group: root
+  with_items:
+#    - kube-apiserver
+#    - kube-controller-manager
+#    - kube-scheduler
+#    - kube-proxy
+#    - kubelet
+    - kubectl
+#    - kubeadm
+
+- name: Create symlinks in /usr/local/bin
+  ansible.builtin.file:
+    src: "{{ k8s_extract_dir }}/bin/{{ item }}"
+    dest: "{{ remote_dest }}/bin/{{ item }}"
+    state: link
+    force: yes
+  with_items:
+    - kubectl
+#    - kubelet
+#    - kubeadm

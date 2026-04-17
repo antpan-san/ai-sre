@@ -1,0 +1,99 @@
+---
+- name: Cleanup kube-apiserver deployment
+  hosts: kube_control_plane
+  become: yes
+  gather_facts: yes
+
+  vars:
+    bin_symlinks:
+      - kube-apiserver
+      - kube-controller-manager
+      - kube-scheduler
+      - kube-proxy
+      - kubelet
+      - kubectl
+      - kubeadm
+
+  tasks:
+    # --------------------------------
+    # Stop kube-apiserver service
+    # --------------------------------
+    - name: Stop kube-apiserver service if exists
+      ansible.builtin.systemd:
+        name: kube-apiserver
+        state: stopped
+        enabled: false
+        daemon_reload: yes
+      ignore_errors: yes
+
+    # --------------------------------
+    # Remove systemd service file
+    # --------------------------------
+    - name: Remove kube-apiserver systemd unit
+      ansible.builtin.file:
+        path: /etc/systemd/system/kube-apiserver.service
+        state: absent
+
+    # --------------------------------
+    # Remove kube-apiserver config
+    # --------------------------------
+    - name: Remove kube-apiserver config
+      ansible.builtin.file:
+        path: /etc/kubernetes/kube-apiserver-config.yaml
+        state: absent
+
+    # --------------------------------
+    # Remove certificates
+    # --------------------------------
+    - name: Remove kube-apiserver certificates and keys
+      ansible.builtin.file:
+        path: "{{ k8s_cert_dir }}/{{ item }}"
+        state: absent
+      loop:
+        - apiserver.key
+        - apiserver.crt
+        - apiserver.csr
+        - apiserver_kubelet_client.crt
+        - apiserver_kubelet_client.csr
+        - apiserver_kubelet_client.key
+        - etcd_ca.crt
+        - etcd_client.crt
+        - etcd_client.key
+        - k8s_ca.crt
+        - k8s_ca.csr
+        - k8s_ca.key
+        - k8s_sa.key
+        - k8s_sa.pub
+
+    # --------------------------------
+    # Remove Kubernetes binaries
+    # --------------------------------
+    - name: Remove Kubernetes server binaries
+      ansible.builtin.file:
+        path: "{{ remote_dest }}/bin/{{ item }}"
+        state: absent
+      with_items:
+        - kube-apiserver
+
+    - name: Remove Kubernetes symlinks
+      ansible.builtin.file:
+        path: "/usr/local/bin/{{ item }}"
+        state: absent
+      loop: "{{ bin_symlinks }}"
+
+    # --------------------------------
+    # Optionally remove other directories
+    # --------------------------------
+    - name: Check if /etc/kubernetes/pki is empty
+      ansible.builtin.find:
+        path: "{{ k8s_cert_dir }}"
+        file_type: any
+        recurse: false
+      register: kubernetes_pki_files
+
+    - name: Remove /opt/kubernetes/pki if empty
+      ansible.builtin.file:
+        path: "{{ k8s_cert_dir }}"
+        state: absent
+      when:
+        - kubernetes_pki_files.matched == 0

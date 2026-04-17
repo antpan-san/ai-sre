@@ -1,0 +1,6 @@
+- import_tasks: download.yml
+- import_tasks: distribute.yml
+- import_tasks: etcd_initial.yml
+- import_tasks: install.yml
+- import_tasks: health_check.yml
+

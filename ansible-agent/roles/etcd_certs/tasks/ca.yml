@@ -1,0 +1,72 @@
+- name: Ensure CA directory
+  file:
+    path: "{{ etcd_cert_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ etcd_cert_dir }}/etcd_ca.key"
+    size: 4096
+    state: present
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate etcd CA CSR
+  community.crypto.openssl_csr:
+    path: "{{ etcd_cert_dir }}/etcd_ca.csr"
+    privatekey_path: "{{ etcd_cert_dir }}/etcd_ca.key"
+    common_name: "etcd-root-ca"
+    basic_constraints:
+      - "CA:TRUE"
+    basic_constraints_critical: true
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    key_usage_critical: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate CA self-signed certificate using openssl
+  community.crypto.x509_certificate:
+    path: "{{ etcd_cert_dir }}/etcd_ca.crt"
+    csr_path: "{{ etcd_cert_dir }}/etcd_ca.csr"
+    privatekey_path: "{{ etcd_cert_dir }}/etcd_ca.key"
+    provider: selfsigned
+    selfsigned_not_after: +3650d # 10年有效期
+    selfsigned_digest: sha256
+    backup: yes # 覆盖前备份旧证书
+  tags: ca
+    
+  delegate_to: localhost
+  run_once: true
+
+# - 增加 client 端密钥
+- name: Generate etcd client private key
+  community.crypto.openssl_privatekey:
+    path: "{{ etcd_cert_dir }}/etcd_client.key"
+    size: 2048
+    state: present
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate etcd client CSR
+  community.crypto.openssl_csr:
+    path: "{{ etcd_cert_dir }}/etcd_client.csr"
+    privatekey_path: "{{ etcd_cert_dir }}/etcd_client.key"
+    common_name: "etcd-client"
+  delegate_to: localhost
+  run_once: true
+
+- name: Sign etcd client certificate with CA
+  community.crypto.x509_certificate:
+    path: "{{ etcd_cert_dir }}/etcd_client.crt"
+    csr_path: "{{ etcd_cert_dir }}/etcd_client.csr"
+    provider: ownca
+    ownca_path: "{{ etcd_cert_dir }}/etcd_ca.crt"
+    ownca_privatekey_path: "{{ etcd_cert_dir }}/etcd_ca.key"
+    ownca_not_after: +3650d
+  delegate_to: localhost
+  run_once: true

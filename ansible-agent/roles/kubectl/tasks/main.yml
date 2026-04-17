@@ -1,0 +1,3 @@
+- import_tasks: init.yml
+- import_tasks: distribute.yml
+- import_tasks: admin-kubeconfig.yml

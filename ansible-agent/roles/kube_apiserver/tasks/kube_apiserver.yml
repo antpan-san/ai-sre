@@ -1,0 +1,155 @@
+# kube_apiserver Certs
+- name: Create Kube_apiServer Private Key
+  community.crypto.openssl_privatekey:
+    path: "{{ k8s_cert_dir }}/apiserver.key"
+    size: 2048
+    type: RSA
+    mode: '0600'
+  delegate_to: localhost
+
+- name: Create kube-apiserver CSR
+  community.crypto.openssl_csr:
+    path: "{{ k8s_cert_dir }}/apiserver.csr"
+    privatekey_path: "{{ k8s_cert_dir }}/apiserver.key"
+    common_name: kube-apiserver
+    subject_alt_name: >-
+      {{
+        (
+          dns_names
+          | map('regex_replace', '^', 'DNS:')
+          | list
+        )
+        +
+        (
+          ipSANS
+          | map('regex_replace', '^', 'IP:')
+          | list
+        )
+      }}
+    state: present
+  delegate_to: localhost
+  run_once: true
+
+
+- name: Sign Cert Kube_apiServer
+  community.crypto.x509_certificate:
+    path: "{{ k8s_cert_dir }}/apiserver.crt"
+    csr_path: "{{ k8s_cert_dir }}/apiserver.csr"
+    provider: ownca
+    ownca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    ownca_privatekey_path: "{{ k8s_cert_dir }}/k8s_ca.key"
+    ownca_not_after: +3650d
+  delegate_to: localhost
+
+# ----- apiserver -> kubelet client cert -----
+- name: Create kube-apiserver to kubelet private key
+  community.crypto.openssl_privatekey:
+    path: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+    size: 2048
+    type: RSA
+    mode: '0600'
+  delegate_to: localhost
+
+- name: Create kube-apiserver to kubelet CSR
+  community.crypto.openssl_csr:
+    path: "{{ k8s_cert_dir }}/apiserver_kubelet_client.csr"
+    privatekey_path: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+    common_name: "kube-apiserver"
+    organization_name: "system:masters"
+    state: present
+  delegate_to: localhost
+
+- name: Issuing kube-apiserver -> kubelet client certificates
+  community.crypto.x509_certificate:
+    path: "{{ k8s_cert_dir }}/apiserver_kubelet_client.crt"
+    csr_path: "{{ k8s_cert_dir }}/apiserver_kubelet_client.csr"
+    provider: ownca
+    ownca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    ownca_privatekey_path: "{{ k8s_cert_dir }}/k8s_ca.key"
+    ownca_not_after: +3650d
+  delegate_to: localhost
+
+# -------------------------------
+# ServiceAccount Key
+# -------------------------------
+- name: "Create ServiceAccount PrivateKey"
+  community.crypto.openssl_privatekey:
+    path: "{{ k8s_cert_dir }}/k8s_sa.key"
+    size: 4096
+    type: RSA
+    mode: 0600
+  delegate_to: localhost
+
+- name: "Create ServiceAccount Certificates"
+  community.crypto.openssl_publickey:
+    privatekey_path: "{{ k8s_cert_dir }}/k8s_sa.key"
+    path: "{{ k8s_cert_dir }}/k8s_sa.pub"
+    mode: 0644
+  delegate_to: localhost
+
+# ---------------------------------
+# Distribute config
+# ---------------------------------
+- name: Create kube-apiserver config directory
+  file:
+    path: /etc/kubernetes
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Distribute config to control plane
+  template:
+    src: kube-apiserver-config.yaml.j2
+    dest: /etc/kubernetes/kube-apiserver-config.yaml
+    owner: root
+    group: root
+    mode: '0644'  
+
+# ----------------------------------
+# Distribute systemd Service
+# ----------------------------------
+- name: Distribute Systemd Service to plane
+  template:
+    src: kube-apiserver.service.j2
+    dest: /etc/systemd/system/kube-apiserver.service
+    owner: root
+    group: root
+    mode: '0644'
+
+# ------------------------------------
+# Systemd Service Managed
+# ------------------------------------
+- name: Make Sure a service unit is running
+  ansible.builtin.systemd_service:
+    state: restarted
+    name: kube-apiserver
+    daemon_reload: true
+    enabled: true
+
+# ------------------------------------
+# Health Check
+# ------------------------------------
+- name: Wait for apiserver port
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 6443
+    timeout: 120
+
+- name: Wait for kube-apiserver to become live
+  ansible.builtin.uri:
+    url: https://127.0.0.1:6443/livez?verbose
+    method: GET
+    client_cert: "{{ k8s_cert_dir }}/apiserver_kubelet_client.crt"
+    client_key: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+    ca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    validate_certs: true
+    return_content: true
+    status_code: [200, 500]
+  register: apiserver_livez
+  retries: 30
+  delay: 5
+  until:
+    - apiserver_livez.status == 200
+    - "'livez check passed' in apiserver_livez.content"
+

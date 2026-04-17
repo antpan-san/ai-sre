@@ -1,0 +1,4 @@
+- hosts: kube_control_plane
+  become: true
+  roles:
+    - role: ../roles/kube_apiserver

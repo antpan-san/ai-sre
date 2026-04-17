@@ -1,0 +1,67 @@
+- name: Create cert directory
+  file:
+    path: "{{ etcd_cert_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0750"
+
+# ---------------- CA ----------------
+- name: Copy CA cert
+  copy:
+    src: "{{ etcd_cert_dir }}/etcd_ca.crt"
+    dest: "{{ etcd_cert_dir }}/etcd_ca.crt"
+    owner: root
+    group: root
+    mode: "0644"
+
+# ---------------- Server ----------------
+- name: Copy server cert
+  copy:
+    src: "{{ etcd_cert_dir }}/{{ inventory_hostname }}-server.crt"
+    dest: "{{ etcd_cert_dir }}/etcd_server.crt"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy server key
+  copy:
+    src: "{{ etcd_cert_dir }}/{{ inventory_hostname }}-server.key"
+    dest: "{{ etcd_cert_dir }}/etcd_server.key"
+    owner: root
+    group: root
+    mode: "0600"
+
+# ---------------- Peer ----------------
+- name: Copy peer cert
+  copy:
+    src: "{{ etcd_cert_dir }}/{{ inventory_hostname }}-peer.crt"
+    dest: "{{ etcd_cert_dir }}/etcd_peer.crt"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy peer key
+  copy:
+    src: "{{ etcd_cert_dir }}/{{ inventory_hostname }}-peer.key"
+    dest: "{{ etcd_cert_dir }}/etcd_peer.key"
+    owner: root
+    group: root
+    mode: "0600"
+
+# ---------------- Client ----------------
+- name: Copy Client crt
+  copy:
+    src: "{{ etcd_cert_dir }}/etcd_client.crt"
+    dest: "{{ etcd_cert_dir }}/etcd_client.crt"
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Copy Client Key
+  copy:
+    src: "{{ etcd_cert_dir }}/etcd_client.key"
+    dest: "{{ etcd_cert_dir }}/etcd_client.key"
+    owner: root
+    group: root
+    mode: "0600"

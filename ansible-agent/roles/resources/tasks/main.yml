@@ -1,0 +1,33 @@
+- name: Ensure Directory is exists
+  ansible.builtin.file:
+    path: "{{ local_cache_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  run_once: true
+
+- name: Download Official kubernetes binnary zip
+  ansible.builtin.get_url:
+    url: "{{ download_protocol }}{{ download_domain }}/kubernetes/{{ kubernetes_version }}/{{ arch_version }}/{{ k8s_package_name }}.tar.gz"
+    dest: "{{ k8s_package_tar }}"
+    mode: '0644'
+    checksum: "sha512:{{ k8s_checksum }}"
+  delegate_to: localhost
+  run_once: true
+
+
+- name: Extract tarball on control node
+  ansible.builtin.unarchive:
+    src: "{{ k8s_package_tar }}"
+    dest: "{{ local_cache_dir }}"
+    remote_src: yes
+    creates: "{{ k8s_extract_dir }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Create kubernetes directory on nodes
+  ansible.builtin.file:
+    path: "{{ remote_dest }}/kubernetes/bin"
+    state: directory
+    mode: '0755'
+

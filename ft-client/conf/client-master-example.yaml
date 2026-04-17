@@ -1,0 +1,67 @@
+# =============================================================================
+# OpsFleetPilot Client Agent 配置文件 - Master 节点示例
+# =============================================================================
+# 本配置适用于 master 角色节点，负责管理多个 worker 节点
+
+# Server 连接配置
+server:
+  url: "https://172.27.28.207:8080"        # Server 地址 (支持 http/https)
+
+# Client 身份配置
+client:
+  id: ""                               # Client ID，留空则自动生成
+  version: "1.0.0"                     # 当前版本号
+  business_module: "production"        # 业务模块标识
+  role: "master"                       # 节点角色: master(主控)
+
+# 集群拓扑配置
+cluster:
+  id: "prod-cluster-01"                # 集群唯一标识 (必填)
+  name: "生产集群-01"                   # 集群显示名称
+
+# 鉴权配置
+auth:
+  token: "your-secret-token-here"      # Bearer Token (生产环境必须配置)
+
+# 心跳配置
+heartbeat:
+  interval: 5                          # 心跳间隔(秒)，默认5秒
+  retry_interval: 10                   # 心跳失败后重试间隔(秒)
+  max_failures: 3                      # 连续失败N次后告警
+
+# 受控节点管理配置 (master 必配)
+node_manager:
+  enabled: true                        # 启用节点管理
+  probe_interval: 30                   # 节点探测间隔(秒)
+  probe_timeout: 10                    # 单次探测超时(秒) - SSH 采集需要更长时间
+
+# 受控节点列表 (master 管理的 worker 节点)
+managed_nodes:
+  - ip: "192.168.1.101"
+    hostname: "worker-node-1"
+    ssh_port: 22
+    ssh_user: "root"
+    ssh_key: "/root/.ssh/id_rsa"
+  - ip: "192.168.1.102"
+    hostname: "worker-node-2"
+    ssh_port: 22
+    ssh_user: "root"
+    ssh_key: "/root/.ssh/id_rsa"
+  - ip: "192.168.1.103"
+    hostname: "worker-node-3"
+    ssh_port: 22
+    ssh_user: "root"
+    ssh_key: "/root/.ssh/id_rsa"
+
+# 日志配置
+log:
+  level: "info"                        # 日志级别: debug, info, warn, error
+  file: "logs/ft-client-master.log"   # 日志文件路径
+  max_size: 100                        # 单文件最大 MB
+  max_backups: 3                       # 保留历史文件数
+
+# TLS 配置
+tls:
+  enabled: false                       # 是否启用 TLS 验证
+  ca_cert: ""                          # CA 证书文件路径
+  skip_verify: false                   # 是否跳过证书验证(仅开发环境)

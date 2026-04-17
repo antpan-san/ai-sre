@@ -1,0 +1,24 @@
+- name: Ensure local cache dir exists on control node
+  ansible.builtin.file:
+    path: "{{ local_cache_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  run_once: true
+
+- name: Download etcd tarball if not exists
+  ansible.builtin.get_url:
+    url: "{{ download_protocol }}{{ download_domain }}/etcd/{{ etcd_version }}/{{ etcd_package_name }}.tar.gz"
+    dest: "{{ etcd_package_tar }}"
+    mode: '0644'
+  delegate_to: localhost
+  run_once: true
+
+- name: Extract etcd tarball on control node
+  ansible.builtin.unarchive:
+    src: "{{ etcd_package_tar }}"
+    dest: "{{ local_cache_dir }}"
+    remote_src: no
+  delegate_to: localhost
+  run_once: true
+

@@ -1,0 +1,79 @@
+- name: Ensure Binaries Directory Exsits
+  file:
+    path: "{{ remote_dest }}/bin"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy kubernetes server binaries
+  ansible.builtin.copy:
+    src: "{{ k8s_extract_dir }}/server/bin/{{ item }}"
+    dest: "{{ remote_dest }}/bin/{{ item }}"
+    mode: '0755'
+    owner: root
+    group: root
+  with_items:
+#    - kube-apiserver
+    - kube-controller-manager
+#    - kube-scheduler
+#    - kube-proxy
+#    - kubelet
+#    - kubectl
+#    - kubeadm
+
+
+- name: Copy kube-controller-manager cert to node
+  copy:
+    src: "{{ k8s_cert_dir }}/kube_controller_manager.crt"
+    dest: "{{ k8s_cert_dir }}/kube_controller_manager.crt"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy kube-controller-manager key to node
+  copy:
+    src: "{{ k8s_cert_dir }}/kube_controller_manager.key"
+    dest: "{{ k8s_cert_dir }}/kube_controller_manager.key"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Copy k8s CA cert to node
+  copy:
+    src: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    dest: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install kube-controller-manager systemd unit
+  template:
+    src: kube-controller-manager.service.j2
+    dest: /etc/systemd/system/kube-controller-manager.service
+    mode: '0644'
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: Enable and start kube-controller-manager
+  systemd:
+    name: kube-controller-manager
+    enabled: true
+    state: started
+
+# --------------------------------
+# Check Health
+# --------------------------------
+- name: Check controller-manager health
+  command: >
+    curl -k https://127.0.0.1:10257/healthz
+    --cert "{{ k8s_cert_dir }}/kube_controller_manager.crt"
+    --key "{{ k8s_cert_dir }}/kube_controller_manager.key"
+  register: cm_health
+  changed_when: false
+
+- debug:
+    var: cm_health.stdout
+

@@ -1,0 +1,52 @@
+- name: Generate server private key
+  community.crypto.openssl_privatekey:
+    path: "{{ etcd_cert_dir }}/{{ etcd_host }}-server.key"
+
+- name: Generate server CSR
+  community.crypto.openssl_csr:
+    path: "{{ etcd_cert_dir }}/{{ etcd_host }}-server.csr"
+    privatekey_path: "{{ etcd_cert_dir }}/{{ etcd_host }}-server.key"
+    common_name: "{{ etcd_host }}"
+    subject_alt_name:
+      - "IP:{{ hostvars[etcd_host].ansible_host }}"
+      - "DNS:{{ etcd_host }}"
+      - "DNS:localhost"
+      - "IP:127.0.0.1"
+
+- name: Create extension config file for server certificate
+  copy:
+    content: |
+      [ v3_req ]
+      extendedKeyUsage = serverAuth, clientAuth
+      keyUsage = digitalSignature, keyEncipherment
+      basicConstraints = CA:FALSE
+      subjectAltName = @alt_names
+      
+      [ alt_names ]
+      IP.1 = {{ hostvars[etcd_host].ansible_host }}
+      DNS.1 = {{ etcd_host }}
+      DNS.2 = localhost
+      IP.2 = 127.0.0.1
+    dest: "{{ etcd_cert_dir }}/{{ etcd_host }}-server-ext.cnf"
+    mode: 0644
+
+- name: Sign server certificate with openssl command
+  command:
+    cmd: >
+      openssl x509 -req -in "{{ etcd_cert_dir }}/{{ etcd_host }}-server.csr"
+      -CA "{{ etcd_cert_dir }}/etcd_ca.crt"
+      -CAkey "{{ etcd_cert_dir }}/etcd_ca.key"
+      -CAcreateserial
+      -out "{{ etcd_cert_dir }}/{{ etcd_host }}-server.crt"
+      -days 3650
+      -extfile "{{ etcd_cert_dir }}/{{ etcd_host }}-server-ext.cnf"
+      -extensions v3_req
+  args:
+    creates: "{{ etcd_cert_dir }}/{{ etcd_host }}-server.crt"
+  register: cert_result
+  changed_when: "'Certificate request self-signature ok' in cert_result.stdout or cert_result.changed"
+
+- name: Clean up temporary extension file
+  file:
+    path: "{{ etcd_cert_dir }}/{{ etcd_host }}-server-ext.cnf"
+    state: absent

@@ -1,0 +1,15 @@
+[Unit]
+Description=OpsFleetPilot API (ft-backend)
+After=network.target postgresql.service redis-server.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/OPSFLEET_ROOT/ft-backend
+ExecStart=/OPSFLEET_ROOT/bin/opsfleet-backend
+Restart=on-failure
+RestartSec=5
+Environment=GIN_MODE=release
+
+[Install]
+WantedBy=multi-user.target

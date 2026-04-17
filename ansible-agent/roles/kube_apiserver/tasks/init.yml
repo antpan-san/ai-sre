@@ -1,0 +1,90 @@
+- name: Ensure Kubernetes CA directory
+  file:
+    path: "{{ k8s_cert_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate CA private key
+  community.crypto.openssl_privatekey:
+    path: "{{ k8s_cert_dir }}/k8s_ca.key"
+    size: 4096
+    state: present
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate k8s CA CSR
+  community.crypto.openssl_csr:
+    path: "{{ k8s_cert_dir }}/k8s_ca.csr"
+    privatekey_path: "{{ k8s_cert_dir }}/k8s_ca.key"
+    common_name: "k8s-root-ca"
+    basic_constraints:
+      - "CA:TRUE"
+    basic_constraints_critical: true
+    key_usage:
+      - keyCertSign
+      - cRLSign
+    key_usage_critical: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate k8s crt cert
+  community.crypto.x509_certificate:
+    path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    csr_path: "{{ k8s_cert_dir }}/k8s_ca.csr"
+    privatekey_path: "{{ k8s_cert_dir }}/k8s_ca.key"
+    provider: selfsigned
+    selfsigned_not_after: +3650d # 10年有效期
+    selfsigned_digest: sha256
+    backup: yes # 覆盖前备份旧证书
+  tags: ca
+    
+  delegate_to: localhost
+  run_once: true
+
+
+# download k8s resources
+- name: Ensure Directory is exists
+  ansible.builtin.file:
+    path: "{{ local_cache_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  run_once: true
+
+- name: Check kubernetes package exists and checksum
+  ansible.builtin.stat:
+    path: "{{ k8s_package_tar }}"
+    checksum_algorithm: sha512
+  register: k8s_pkg_stat
+  delegate_to: localhost
+  run_once: true
+
+- name: Download Official kubernetes binnary zip
+  ansible.builtin.get_url:
+    url: "{{ download_protocol }}{{ download_domain }}/kubernetes/{{ kubernetes_version }}/{{ arch_version }}/{{ k8s_package_name }}.tar.gz"
+    dest: "{{ k8s_package_tar }}"
+    mode: '0644'
+    checksum: "sha512:{{ k8s_checksum }}"
+  when: >
+    not k8s_pkg_stat.stat.exists or
+    k8s_pkg_stat.stat.checksum != k8s_checksum
+  delegate_to: localhost
+  run_once: true
+
+
+- name: Extract tarball on control node
+  ansible.builtin.unarchive:
+    src: "{{ k8s_package_tar }}"
+    dest: "{{ local_cache_dir }}"
+    remote_src: yes
+    creates: "{{ k8s_extract_dir }}"
+  delegate_to: localhost
+  run_once: true
+
+#- name: Create kubernetes directory on nodes
+#  ansible.builtin.file:
+#    path: "{{ remote_dest }}/kubernetes/bin"
+#    state: directory
+#    mode: '0755'

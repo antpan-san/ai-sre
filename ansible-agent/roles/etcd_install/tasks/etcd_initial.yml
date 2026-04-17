@@ -1,0 +1,82 @@
+---
+# =========================================================
+# Etcd cluster initialization logic (SAFE & IDEMPOTENT)
+# =========================================================
+
+# ---------------------------------------------------------
+# 1. Define bootstrap node (cluster-level, once)
+# ---------------------------------------------------------
+- name: Define etcd bootstrap node
+  set_fact:
+    etcd_bootstrap_node: "{{ groups['etcd'][0] }}"
+  run_once: true
+
+
+# ---------------------------------------------------------
+# 2. Check whether etcd cluster has been initialized
+#    ONLY check on bootstrap node
+# ---------------------------------------------------------
+- name: Check etcd data dir on bootstrap node
+  stat:
+    path: "{{ etcd_data_dir }}/member"
+  register: etcd_bootstrap_data
+  delegate_to: "{{ etcd_bootstrap_node }}"
+  run_once: true
+
+
+# ---------------------------------------------------------
+# 3. Decide etcd cluster state (GLOBAL decision)
+#    IMPORTANT: same value for ALL nodes
+# ---------------------------------------------------------
+- name: Decide etcd cluster state (GLOBAL)
+  set_fact:
+    etcd_cluster_state: "{{ 'existing' if etcd_bootstrap_data.stat.exists else 'new' }}"
+  run_once: true
+
+
+# ---------------------------------------------------------
+# 4. Build etcd initial-cluster string (GLOBAL)
+#    Format: name=https://IP:peer_port
+# ---------------------------------------------------------
+- name: Build etcd initial cluster string
+  set_fact:
+    etcd_initial_cluster: >-
+      {{
+        groups['etcd']
+        | zip(groups['etcd'] | map('extract', hostvars, 'ansible_host'))
+        | map('join', '=https://')
+        | map('regex_replace', '$', ':' ~ etcd_peer_port)
+        | join(',')
+      }}
+  run_once: true
+
+
+
+# ---------------------------------------------------------
+# 5. Ensure etcd data dir exists (bootstrap node)
+# ---------------------------------------------------------
+- name: Ensure etcd data dir exists on bootstrap node
+  file:
+    path: "{{ etcd_data_dir }}"
+    state: directory
+    owner: root
+    group: root
+    mode: '0700'
+  delegate_to: "{{ etcd_bootstrap_node }}"
+  run_once: true
+
+# ---------------------------------------------------------
+# 6. (Optional but STRONGLY recommended)
+#    Mark cluster initialized after first successful bootstrap
+# ---------------------------------------------------------
+- name: Mark etcd cluster initialized (sentinel file)
+  file:
+    path: "{{ etcd_data_dir }}/.cluster_initialized"
+    state: touch
+    owner: root
+    group: root
+    mode: '0644'
+  when: etcd_cluster_state == 'new'
+  delegate_to: "{{ etcd_bootstrap_node }}"
+  run_once: true
+

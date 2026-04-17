@@ -1,0 +1,43 @@
+# =========================================================
+# Etcd cluster health check (Idempotent, cluster-wide)
+# =========================================================
+
+- name: Wait for etcd client ports to be reachable
+  wait_for:
+    host: "{{ hostvars[item].ansible_host }}"
+    port: "{{ etcd_client_port }}"
+    timeout: 60        # 防止节点启动慢
+    delay: 5
+  loop: "{{ groups['etcd'] }}"
+  loop_control:
+    label: "{{ item }}"
+  delegate_to: localhost
+
+- name: Check etcd endpoint health for each node
+  block:
+    - name: Run etcdctl endpoint health
+      command: >
+        etcdctl
+        --endpoints=https://{{ hostvars[item].ansible_host }}:{{ etcd_client_port }}
+        --cacert={{ etcd_ca_cert }}
+        --cert={{ etcd_server_cert }}
+        --key={{ etcd_server_key }}
+        endpoint health
+      environment:
+        ETCDCTL_API: "3"
+      register: etcd_health_result
+      retries: 5
+      delay: 5
+      until: etcd_health_result.rc == 0
+      failed_when: etcd_health_result.rc != 0
+      loop: "{{ groups['etcd'] }}"
+      loop_control:
+        label: "{{ item }}"
+
+    - name: Show healthy endpoints
+      debug:
+        msg: "{{ item }} is healthy"
+      loop: "{{ groups['etcd'] }}"
+      loop_control:
+        label: "{{ item }}"
+

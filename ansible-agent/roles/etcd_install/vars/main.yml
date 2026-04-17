@@ -1,0 +1,2 @@
+# etcd_install 角色变量
+# 所有全局变量已统一到 group_vars/all.yml 中

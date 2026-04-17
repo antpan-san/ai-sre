@@ -1,0 +1,73 @@
+- name: Ensure ansible user exists
+  user:
+    name: ansible
+    state: present
+    shell: /bin/bash
+    create_home: yes
+    groups: sudo
+    append: yes
+
+- name: Create .ssh directory
+  file:
+    path: /home/ansible/.ssh
+    state: directory
+    mode: '0700'
+    owner: ansible
+    group: ansible
+
+- name: Add SSH public key
+  ansible.posix.authorized_key:
+    user: ansible
+    state: present
+    key: "{{ lookup('file','/root/.ssh/ansible_id_rsa.pub') }}"
+
+- name: Add ansible user to sudoers
+  copy:
+    dest: /etc/sudoers.d/ansible
+    content: "ansible ALL=(ALL) NOPASSWD:ALL"
+    owner: root
+    group: root
+    mode: '0440'
+
+
+
+
+
+      #- name: swap off
+      #  ansible.builtin.command: swapoff -a
+      #
+      #- name: Comment out swap line in /etc/fstab
+      #  ansible.builtin.lineinfile:
+      #    path: /etc/fstab
+      #    regexp: '^.*swap.*$'
+      #    line: '# \1'
+      #    state: present
+
+- name: Check if swap is enabled
+  ansible.builtin.command: swapon --summary
+  register: swap_status
+  changed_when: false
+  failed_when: false
+
+- name: Disable swap immediately
+  ansible.builtin.command: swapoff -a
+  when: swap_status.stdout != ""
+
+- name: Disable swap permanently in /etc/fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\s*([^#].*\s+swap\s+.*)$'
+    line: '# \1'
+    backrefs: yes
+
+- name: Set system hostname
+  hostname:
+    name: "{{ inventory_hostname }}"
+
+- name: Manage cluster hosts ectries
+  blockinfile:
+    path: /etc/hosts
+    create: true
+    marker: "# {mark} ANSIBLE MANAGED CLUSTER HOSTS"
+    block: "{{ lookup('template', 'hosts.block.j2') }}"
+

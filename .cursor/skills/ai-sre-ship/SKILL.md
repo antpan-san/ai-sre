@@ -1,15 +1,20 @@
 ---
 name: ai-sre-ship
 description: >-
-  After any code change in the ai-sre repository: updates README product usage before push, deploys to
-  root@172.16.195.128:/root/sre, runs remote tests, re-verifies README after release, then pushes to
-  git@github.com:antpan-san/ai-sre.git. Use whenever ai-sre code is edited—do not wait for an explicit
-  deploy request.
+  Mandatory after ANY change under /Users/panshuai/Documents/work/code/ai-sre (entire monorepo):
+  README check, deploy-remote.sh to root@172.16.195.128:/root/sre, remote smoke, README re-check, push.
+  Also see .cursor/rules/monorepo-release.mdc and opsfleetpilot-ship when touching ft-*/deploy/ansible.
 ---
 
 # ai-sre 发布与同步（强制工作流）
 
-在 **ai-sre** 项目（`/Users/panshuai/Documents/work/code/ai-sre`）中**每次完成代码修改后**，代理必须按顺序执行本流程；用户已配置 **root@172.16.195.128** 免密 SSH。
+## 触发条件（必须）
+
+在 **`/Users/panshuai/Documents/work/code/ai-sre` 仓库内对任意路径、任意类型文件的修改**（代码、配置、脚本、文档、`.cursor` 规则与 skill 等）完成后，代理**必须**按本文件执行发布流程，**不要**等待用户再说「发布」。若用户**明确**声明豁免（例如仅本地试验、禁止 SSH），则按其声明缩小步骤，但仍须完成可执行的 README 与自检。
+
+仓库同仓参数与 **Cursor 规则**见 **`.cursor/rules/monorepo-release.mdc`**（`alwaysApply`）；本 skill 为具体步骤。
+
+在 **ai-sre** 项目（`/Users/panshuai/Documents/work/code/ai-sre`）中**每次完成上述修改后**，代理必须按顺序执行本流程；用户已配置 **root@172.16.195.128** 免密 SSH。
 
 ## 固定参数
 
@@ -20,6 +25,8 @@ description: >-
 | GitHub 远程 | `git@github.com:antpan-san/ai-sre.git` |
 | 本地项目根 | `/Users/panshuai/Documents/work/code/ai-sre` |
 | 产品使用文档 | 仓库根目录 **`README.md`**（唯一权威用户手册，须与代码同步） |
+
+**同仓说明**：根目录另含 **OpsFleetPilot**（`ft-backend/`、`ft-front/` 等）。本工作流 **`scripts/deploy-remote.sh`** 仅同步并构建 **ai-sre CLI**；若变更 OpsFleet 全栈部署，使用 **`scripts/deploy-opsfleet-remote.sh`**（见 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**）。
 
 ---
 
@@ -133,4 +140,6 @@ ssh root@172.16.195.128 'cd /root/sre && go mod download && go vet ./... && go b
 
 ## 与用户提示的关系
 
-只要本轮对话中**改动了 ai-sre 代码**，在完成修改后**自动应用本 skill**（含 README 维护与发布后复核），除非用户明确说「仅本地、不要部署/不要改 README」。
+只要本轮对话中**改动了本仓库（`/Users/panshuai/Documents/work/code/ai-sre`）内任意文件**，在完成修改后**自动应用本 skill**（含 README 维护、`deploy-remote.sh`、发布后复核与 push），除非用户明确说「仅本地、不要部署/不要改 README/不要 push」。
+
+若变更同时涉及 OpsFleet 路径，**还须**执行 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**（见 **`.cursor/rules/monorepo-release.mdc`**）。

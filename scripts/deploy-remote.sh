@@ -16,6 +16,10 @@ rsync -avz \
   --exclude 'ai-sre' \
   --exclude '.DS_Store' \
   --exclude '.env' \
+  --exclude 'bin' \
+  --exclude 'dist' \
+  --exclude 'ft-front/node_modules' \
+  --exclude 'ft-front/dist' \
   "$PROJECT_ROOT/" \
   "$REMOTE_USER_HOST:$REMOTE_DIR/"
 

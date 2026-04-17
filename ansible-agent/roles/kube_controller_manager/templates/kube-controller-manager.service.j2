@@ -1,0 +1,27 @@
+[Unit]
+Description=Kubernetes Controller Manager
+After=kube-apiserver.service
+Requires=kube-apiserver.service
+
+[Service]
+ExecStart=/usr/local/bin/kube-controller-manager \
+  --kubeconfig="{{ k8s_base_dir }}/controller-manager.kubeconfig" \
+  --leader-elect=true \
+  --cluster-name={{ cluster_name }} \
+  --root-ca-file={{ k8s_cert_dir }}/k8s_ca.crt \
+  --service-account-private-key-file={{ k8s_cert_dir }}/k8s_sa.key \
+  --cluster-signing-cert-file={{ k8s_cert_dir }}/k8s_ca.crt \
+  --cluster-signing-key-file={{ k8s_cert_dir }}/k8s_ca.key \
+  --use-service-account-credentials=true \
+  --controllers=*,bootstrapsigner,tokencleaner \
+  --service-cluster-ip-range={{ service_cluster_ip_range }} \
+  --allocate-node-cidrs=true \
+  --cluster-cidr={{ pod_cluster_cidr }} \
+  --v=2
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+

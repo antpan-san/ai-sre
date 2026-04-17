@@ -1,0 +1,33 @@
+[Unit]
+Description=etcd
+Documentation=https://github.com/coreos/etcd
+
+[Service]
+Type=notify
+Restart=always
+RestartSec=5s
+LimitNOFILE=40000
+TimeoutStartSec=0
+
+ExecStart=/usr/local/bin/etcd \
+  --name={{ inventory_hostname }} \
+  --data-dir={{ etcd_data_dir }} \
+  --listen-client-urls="https://{{ ansible_host }}:{{ etcd_client_port }}" \
+  --advertise-client-urls="https://{{ ansible_host }}:{{ etcd_client_port }}" \
+  --listen-peer-urls="https://{{ ansible_host }}:{{ etcd_peer_port }}" \
+  --initial-advertise-peer-urls="https://{{ ansible_host }}:{{ etcd_peer_port }}" \
+  --initial-cluster={{ etcd_initial_cluster }} \
+  --initial-cluster-token={{ etcd_cluster_token }} \
+  --initial-cluster-state={{ etcd_cluster_state }} \
+  --cert-file={{ etcd_server_cert }} \
+  --key-file={{ etcd_server_key }} \
+  --trusted-ca-file={{ etcd_ca_cert }} \
+  --client-cert-auth=true \
+  --peer-cert-file={{ etcd_peer_cert }} \
+  --peer-key-file={{ etcd_peer_key }} \
+  --peer-trusted-ca-file={{ etcd_ca_cert }} \
+  --peer-client-cert-auth=true
+
+[Install]
+WantedBy=multi-user.target
+

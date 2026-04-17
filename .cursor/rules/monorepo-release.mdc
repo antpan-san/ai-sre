@@ -1,0 +1,16 @@
+---
+description: 任意仓库变更后必须执行发布 skill（ai-sre 同仓）
+alwaysApply: true
+---
+
+# 发布后工作流（强制）
+
+工作区根目录：`/Users/panshuai/Documents/work/code/ai-sre`（**ai-sre** 与 **OpsFleetPilot** 同仓）。
+
+在本仓库内对**任意文件**做出编辑、新增或删除后（含 `internal/`、`main.go`、`ft-*`、`deploy/`、`scripts/`、`README.md`、`docs/`、`.cursor/**` 等），在结束本轮任务前**必须**：
+
+1. 使用 **Read** 打开并遵循 **`.cursor/skills/ai-sre-ship/SKILL.md`** 的完整流程（README 核对、默认执行 `./scripts/deploy-remote.sh` 与远程冒烟、`git push` 等），除非用户在本轮对话中**明确**写出「不部署 / 不调远程 / 不改 README」等豁免。
+2. 若本次变更触及以下**任一**路径或主题，**另须**遵循 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**：`ft-backend/`、`ft-front/`、`ft-client/`、`deploy/`、`ansible-agent/`，或 `scripts/deploy-opsfleet-remote.sh`、`scripts/build-all.sh`、`scripts/verify-opsfleet-deployment.sh`、与 OpsFleet 部署相关的根 `README` 段落。
+
+不得在未执行对应 skill 要求的情况下宣称发布完成或催促用户直接 `git push`。
+**两条 skill 叠加时**：先完成 `ai-sre-ship` 中与本次变更相关的步骤，再按 `opsfleetpilot-ship` 执行 OpsFleet 全栈部署（若适用）。

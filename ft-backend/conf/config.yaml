@@ -1,0 +1,39 @@
+server:
+    host: 0.0.0.0
+    port: "8080"
+    read_timeout: 30
+    write_timeout: 30
+database:
+    host: 127.0.0.1
+    port: "5432"
+    user: postgres
+    password: "postgres"
+    dbname: opsfleetpilot
+    sslmode: disable
+    timezone: Asia/Shanghai
+jwt:
+    secret_key: 123456
+    access_token_exp: 15
+    refresh_token_exp: 1440
+file:
+    upload_dir: uploads
+    max_file_size: 1073741824
+    chunk_size: 1048576
+    allowed_formats:
+        - jpg
+        - png
+        - pdf
+        - txt
+        - zip
+        - rar
+redis:
+    host: 127.0.0.1
+    port: "6379"
+    password: "123456"
+    db: 0
+
+client:
+    encrypt_key: 123456
+
+log:
+    level: debug

@@ -1,0 +1,4 @@
+- import_tasks: init.yml
+- import_tasks: kube_controller_manager.yml
+- import_tasks: kubeconfig.yml
+- import_tasks: distribute.yml

@@ -1,0 +1,60 @@
+---
+- name: Clean etcd on control node
+  hosts: control
+  gather_facts: false
+  tasks:
+
+    - name: Remove etcd cache directory
+      file:
+        path: "{{ local_cache_dir }}"
+        state: absent
+
+    - name: Remove CA and generated certs on control node
+      file:
+        path: "{{ etcd_cert_dir }}"
+        state: absent
+
+    - name: Remove downloaded etcd tarball
+      file:
+        path: "{{ local_cache_dir }}/etcd-*.tar.gz"
+        state: absent
+      ignore_errors: yes
+
+
+- name: Clean etcd on etcd nodes
+  hosts: etcd
+  gather_facts: false
+  tasks:
+
+    - name: Stop etcd service if running
+      systemd:
+        name: etcd
+        state: stopped
+        daemon_reload: yes
+      ignore_errors: yes
+
+    - name: Remove systemd service file
+      file:
+        path: "{{ etcd_systemd_file }}"
+        state: absent
+
+    - name: Remove etcd data directory
+      file:
+        path: "{{ etcd_data_dir }}"
+        state: absent
+
+    - name: Remove etcd certificate directory
+      file:
+        path: "{{ etcd_cert_dir }}"
+        state: absent
+
+    - name: Remove etcd binaries
+      file:
+        path: "{{ etcd_bin_dir }}/etcd"
+        state: absent
+
+    - name: Remove etcdctl binary
+      file:
+        path: "{{ etcd_bin_dir }}/etcdctl"
+        state: absent
+

@@ -1,0 +1,22 @@
+- name: Ensure /usr/local/bin directory exists
+  ansible.builtin.file:
+    path: "/usr/local/bin"
+    state: directory
+    mode: '0755'
+
+- name: Copy etcd binaries directly to /usr/local/bin
+  ansible.builtin.copy:
+    src: "{{ local_cache_dir }}/{{ etcd_package_name }}/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    mode: '0755'
+    force: yes
+  with_items:
+    - etcd
+    - etcdctl
+
+- name: Remove any old etcd installation in /usr/local/etcd
+  ansible.builtin.file:
+    path: "/usr/local/etcd"
+    state: absent
+  ignore_errors: yes
+

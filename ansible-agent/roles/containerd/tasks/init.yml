@@ -1,0 +1,61 @@
+- name: Ensure Directory is exists
+  ansible.builtin.file:
+    path: "{{ local_cache_dir }}"
+    state: directory
+    mode: '0755'
+  delegate_to: localhost
+  run_once: true
+
+- name: Check kubernetes package exists and checksum
+  ansible.builtin.stat:
+    path: "{{ k8s_package_tar }}"
+    checksum_algorithm: sha512
+  register: k8s_pkg_stat
+  delegate_to: localhost
+  run_once: true
+
+- name: Download Official containerd binnary tarball
+  ansible.builtin.get_url:
+    url: "{{ download_protocol }}{{ download_domain }}/containerd/{{ containerd_version }}/{{ arch_version }}/{{ containerd_package_name }}"
+    dest: "{{ local_cache_dir }}/{{ containerd_package_name }}"
+    mode: '0644'
+#    checksum: "sha512:{{ k8s_checksum }}"
+#  when: >
+#    not k8s_pkg_stat.stat.exists or
+#    k8s_pkg_stat.stat.checksum != k8s_checksum
+  delegate_to: localhost
+  run_once: true
+
+
+- name: Extract tarball on control node
+  ansible.builtin.unarchive:
+    src: "{{ local_cache_dir }}/{{ containerd_package_name }}"
+    dest: "{{ containerd_package_tar }}"
+    remote_src: yes
+    creates: "{{ containerd_package_tar }}"
+  delegate_to: localhost
+  run_once: true
+
+- name: Download Official runc binnary file
+  ansible.builtin.get_url:
+    url: "{{ download_protocol }}{{ download_domain }}/runc/{{ runc_version }}/{{ arch_version }}/{{ runc_package_name }}"
+    dest: "{{ local_cache_dir }}/{{ runc_package_name }}"
+    mode: '0644'
+  delegate_to: localhost
+  run_once: true
+
+- name: Download Official CNI plugins tarball
+  ansible.builtin.get_url:
+    url: "{{ download_protocol }}/{{ download_domain }}/cni-plugins/{{ cni_plugins_version }}/{{ arch_version }}/{{ cni_plugins_package_name }}"
+    dest: "{{ local_cache_dir }}/{{ cni_plugins_package_name }}"
+    mode: '0644'
+  delegate_to: localhost
+  run_once: true
+
+- name: Extract cni-plugins tarball to nodes
+  ansible.builtin.unarchive:
+    src: "{{ local_cache_dir }}/{{ cni_plugins_package_name }}"
+    dest: "{{ extract_cni_plugins_dir }}"
+    mode: '0755'
+  delegate_to: localhost
+  run_once: true

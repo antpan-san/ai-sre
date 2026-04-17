@@ -1,0 +1,8 @@
+- name: Reload systemd
+  command: systemctl daemon-reexec
+    
+- name: Restart etcd
+  systemd:
+    name: etcd
+    state: restarted
+    enabled: true

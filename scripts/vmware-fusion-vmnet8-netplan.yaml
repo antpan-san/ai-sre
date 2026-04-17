@@ -1,0 +1,24 @@
+# 与 VMware Fusion 默认 NAT（vmnet8）一致：子网 172.16.195.0/24
+# 宿主机 Mac 侧一般为 172.16.195.1，NAT 网关为 172.16.195.2（见 /Library/Preferences/VMware Fusion/vmnet8/nat.conf）
+# 用法（在 Ubuntu 虚拟机内）：
+#   sudo cp scripts/vmware-fusion-vmnet8-netplan.yaml /etc/netplan/00-installer-config.yaml
+#   sudo chmod 600 /etc/netplan/00-installer-config.yaml
+#   sudo netplan apply
+#
+# 将下方 172.16.195.11 换成你想要的同网段地址（如 172.16.195.128），勿使用 192.168.56.x（除非已把 Fusion vmnet8 改成 192.168.56.0/24）
+
+network:
+  version: 2
+  ethernets:
+    ens160:
+      dhcp4: false
+      dhcp6: false
+      addresses:
+        - 172.16.195.11/24
+      routes:
+        - to: default
+          via: 172.16.195.2
+      nameservers:
+        addresses:
+          - 8.8.8.8
+          - 223.5.5.5

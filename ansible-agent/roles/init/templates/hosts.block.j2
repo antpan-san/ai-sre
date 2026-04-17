@@ -1,0 +1,4 @@
+{% for host in groups['etcd'] %}
+{{ hostvars[host].ansible_host }} {{ host }}
+{% endfor %}
+

@@ -1,0 +1,39 @@
+apiVersion: apiserver.config.k8s.io/v1
+kind: APIServerConfiguration
+advertiseAddress: {{ advertise_address | default( (groups['kube_control_plane'] | first) | regex_replace('.*', hostvars[groups['kube_control_plane'][0]].ansible_host) ) }}
+bindAddress: 0.0.0.0
+securePort: 6443
+serviceClusterIPRange: "10.96.0.0/12"
+clusterName: kubernetes
+etcd:
+  servers:
+{% for host in groups['etcd'] %}
+    - https://{{ hostvars[host]['ansible_host'] | default(host) }}:2379
+{% endfor %}
+  clientTLS:
+    caFile: "{{ k8s_cert_dir }}/etcd/etcd_ca.crt"
+    certFile: "{{ k8s_cert_dir }}/etcd/etcd_client.crt"
+    keyFile: "{{ k8s_cert_dir }}/etcd/etcd_client.key"
+tls:
+  certFile: "{{ k8s_cert_dir }}/apiserver.crt"
+  privateKeyFile: "{{ k8s_cert_dir }}/apiserver.key"
+authentication:
+  clientCAFile: "{{ k8s_cert_dir }}/k8s_ca.crt"
+  anonymous:
+    enabled: false
+authorization:
+  modes:
+    - Node
+    - RBAC
+admission:
+  pluginNames:
+    - NodeRestriction
+serviceAccount:
+  issuer: https://kubernetes.default.svc.cluster.local
+  signingKeyFile: "{{ k8s_cert_dir }}/k8s_sa.key"
+  keyFile: "{{ k8s_cert_dir }}/k8s_sa.pub"
+kubeletConnection:
+  certificateFile: "{{ k8s_cert_dir }}/apiserver_kubelet_client.crt"
+  keyFile: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+allowPrivileged: true
+apiServerCount: {{ api_server_count | default(1) }}

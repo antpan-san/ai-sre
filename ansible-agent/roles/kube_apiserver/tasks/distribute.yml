@@ -1,0 +1,58 @@
+- name: Ensure Binaris Directory Exists
+  file:
+    path: "{{ remote_dest }}/bin"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+  
+- name: Copy Kubernetes server binaries
+  ansible.builtin.copy:
+    src: "{{ k8s_extract_dir }}/server/bin/{{ item }}"
+    dest: "{{ remote_dest }}/bin/{{ item }}"
+    mode: '0755'
+    owner: root
+    group: root
+  with_items:
+    - kube-apiserver
+#    - kube-controller-manager
+#    - kube-scheduler
+#    - kube-proxy
+#    - kubelet
+    - kubectl
+    - kubeadm
+
+- name: Create symlinks in /usr/local/bin
+  ansible.builtin.file:
+    src: "{{ remote_dest }}/kubernetes/bin/{{ item }}"
+    dest: "{{ remote_dest }}/bin/{{ item }}"
+    state: link
+    force: yes
+  with_items:
+    - kubectl
+#    - kubelet
+    - kubeadm
+
+- name: Copy kube-apiserver to etcd crt
+  copy:
+    src: "{{ etcd_cert_dir }}/etcd_client.crt"
+    dest: "{{ k8s_cert_dir }}/etcd_client.crt"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy kube-apiserver to etcd key
+  copy:
+    src: "{{ etcd_cert_dir }}/etcd_client.key"
+    dest: "{{ k8s_cert_dir }}/etcd_client.key"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Copy etcd CA crt to Client
+  copy:
+    src: "{{ etcd_cert_dir }}/etcd_ca.crt"
+    dest: "{{ k8s_cert_dir }}/etcd_ca.crt"
+    owner: root
+    group: root
+    mode: '0644'

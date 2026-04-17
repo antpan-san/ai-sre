@@ -1,0 +1,5 @@
+- hosts: k8s_cluster
+  become: yes
+  become_user: root
+  roles:
+    - role: ../roles/init

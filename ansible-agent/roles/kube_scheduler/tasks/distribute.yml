@@ -1,0 +1,86 @@
+- name: Ensure Binaries Directory Exsits
+  file:
+    path: "{{ remote_dest }}/bin"
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Copy kubernetes server binaries
+  ansible.builtin.copy:
+    src: "{{ k8s_extract_dir }}/server/bin/{{ item }}"
+    dest: "{{ remote_dest }}/bin/{{ item }}"
+    mode: '0755'
+    owner: root
+    group: root
+  with_items:
+#    - kube-apiserver
+#    - kube-controller-manager
+    - kube-scheduler
+#    - kube-proxy
+#    - kubelet
+#    - kubectl
+#    - kubeadm
+
+
+- name: Copy kube-scheduler cert to node
+  copy:
+    src: "{{ k8s_cert_dir }}/kube_scheduler.crt"
+    dest: "{{ k8s_cert_dir }}/kube_scheduler.crt"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy kube-scheduler key to node
+  copy:
+    src: "{{ k8s_cert_dir }}/kube_scheduler.key"
+    dest: "{{ k8s_cert_dir }}/kube_scheduler.key"
+    owner: root
+    group: root
+    mode: '0600'
+
+- name: Copy k8s CA cert to node
+  copy:
+    src: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    dest: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Copy kube-scheduler.yaml to node
+  template:
+    src: kube-scheduler.yaml.j2
+    dest: "{{ k8s_base_dir }}/kube-scheduler.yaml"
+    owner: root
+    group: root
+    mode: '0644'
+
+- name: Install kube-scheduler systemd unit
+  template:
+    src: kube-scheduler.service.j2
+    dest: /etc/systemd/system/kube-scheduler.service
+    mode: '0644'
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: Enable and start kube-scheduler
+  systemd:
+    name: kube-scheduler
+    enabled: true
+    state: started
+
+# --------------------------------
+# Check Health
+# --------------------------------
+- name: Check kube-scheduler health
+  command: >
+    curl -k https://127.0.0.1:10259/healthz
+    --cert "{{ k8s_cert_dir }}/kube_scheduler.crt"
+    --key "{{ k8s_cert_dir }}/kube_scheduler.key"
+  register: sc_health
+  changed_when: false
+
+- debug:
+    var: sc_health.stdout

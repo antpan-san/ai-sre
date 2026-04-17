@@ -1,0 +1,5 @@
+- hosts: etcd
+  become: true
+  roles:
+    - role: ../roles/etcd_certs
+    - role: ../roles/etcd_install

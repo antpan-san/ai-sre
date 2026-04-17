@@ -1,0 +1,10 @@
+- name: Generate peer certificates from inventory
+  include_tasks:
+    file: peer_single.yml
+    apply:
+      delegate_to: localhost
+      run_once: false
+  loop: "{{ groups['etcd'] }}"
+  loop_control:
+    loop_var: etcd_host
+
