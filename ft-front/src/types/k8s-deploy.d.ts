@@ -48,9 +48,12 @@ export interface ClusterBasicInfo {
 
 // 节点配置（executorNode 为执行部署的 Agent 节点，masterNodes/workerNodes 为 K8s 集群节点）
 export interface NodeConfig {
-  executorNode?: string;   // 执行部署的 Agent 所在机器 UUID（可选，不填则用首个 Master）
+  executorNode?: string;   // 在线部署：Agent 所在机器 UUID（离线包模式可不填）
   masterNodes: string[];
   workerNodes: string[];
+  /** 离线安装包：节点 IP/主机名（与 masterNodes 二选一为主流程） */
+  masterHosts?: string[];
+  workerHosts?: string[];
   masterLabels?: Record<string, string>;
   workerLabels?: Record<string, string>;
   masterTaints?: Taint[];
@@ -144,6 +147,8 @@ export interface K8sDeploySubmitRequest {
   executorNode?: string;   // 执行部署的 Agent 节点 UUID（可选）
   masterNodes: string[];   // UUIDs
   workerNodes: string[];
+  masterHosts?: string[];
+  workerHosts?: string[];
   masterLabels?: Record<string, string>;
   workerLabels?: Record<string, string>;
   masterTaints?: Taint[];

@@ -1,3 +1,4 @@
+import axios from 'axios'
 import request from '../utils/request'
 import type {
   GetK8sVersionsParams,
@@ -16,6 +17,65 @@ import type {
   DeployConfig,
 } from '../types/k8s-deploy'
 
+/** 将嵌套 DeployConfig 转为后端扁平 K8sDeployRequest（在线部署 / 离线包共用） */
+export function buildK8sDeployFlatBody(config: DeployConfig): SubmitDeployConfigParams {
+  const { clusterBasicInfo: basic, nodeConfig: nodes, coreComponentsConfig: core,
+    networkConfig: net, storageConfig: storage, advancedConfig: adv } = config
+
+  return {
+    clusterName: basic.clusterName,
+    version: basic.version,
+    deployMode: basic.deployMode,
+    imageSource: basic.imageSource,
+    customRegistry: basic.customRegistry,
+    registryUsername: basic.registryUsername,
+    registryPassword: basic.registryPassword,
+
+    executorNode: nodes.executorNode,
+    masterNodes: nodes.masterNodes,
+    workerNodes: nodes.workerNodes,
+    masterHosts: nodes.masterHosts ?? [],
+    workerHosts: nodes.workerHosts ?? [],
+    masterLabels: nodes.masterLabels,
+    workerLabels: nodes.workerLabels,
+    masterTaints: nodes.masterTaints,
+    workerTaints: nodes.workerTaints,
+
+    kubeProxyMode: core.kubeProxyMode,
+    enableRBAC: core.enableRBAC,
+    enablePodSecurityPolicy: core.enablePodSecurityPolicy,
+    enableAudit: core.enableAudit,
+    auditPolicy: core.auditPolicy,
+    pauseImage: core.pauseImage,
+
+    networkPlugin: net.networkPlugin,
+    podCidr: net.podCIDR,
+    serviceCidr: net.serviceCIDR,
+    dnsServiceIP: net.dnsServiceIP,
+    clusterDomain: net.clusterDomain,
+    calicoConfig: net.calicoConfig as Record<string, unknown> | undefined,
+    flannelConfig: net.flannelConfig as Record<string, unknown> | undefined,
+
+    defaultStorageClass: storage.defaultStorageClass,
+    storageProvisioner: storage.storageProvisioner,
+    storageConfig: {
+      localPath: storage.localPathConfig,
+      nfs: storage.nfsConfig,
+      csi: storage.csiConfig,
+    },
+
+    enableNodeLocalDNS: adv.enableNodeLocalDNS,
+    enableMetricsServer: adv.enableMetricsServer,
+    enableDashboard: adv.enableDashboard,
+    enablePrometheus: adv.enablePrometheus,
+    enableIngressNginx: adv.enableIngressNginx,
+    enableHelm: adv.enableHelm,
+    extraKubeletArgs: adv.extraKubeletArgs,
+    extraKubeProxyArgs: adv.extraKubeProxyArgs,
+    extraAPIServerArgs: adv.extraAPIServerArgs,
+  }
+}
+
 /** 获取支持的 K8s 版本列表 */
 export const getK8sVersions = (params?: GetK8sVersionsParams): Promise<GetK8sVersionsResponse> => {
   return request.get('/api/k8s/deploy/versions', { params })
@@ -32,71 +92,57 @@ export const checkClusterName = (params: CheckClusterNameParams): Promise<CheckC
 }
 
 /**
- * 提交 K8s 集群部署配置。
- * 将前端嵌套的 DeployConfig 转换为后端期望的扁平 K8sDeployRequest 格式，
- * 包含 7 个步骤的全量配置，供后端生成完整 Ansible 脚本。
+ * 提交 K8s 集群部署配置（在线：经 Agent 执行 Ansible）。
  */
 export const submitDeployConfig = (config: DeployConfig): Promise<SubmitDeployConfigResponse> => {
-  const { clusterBasicInfo: basic, nodeConfig: nodes, coreComponentsConfig: core,
-          networkConfig: net, storageConfig: storage, advancedConfig: adv } = config
+  return request.post('/api/k8s/deploy/submit', buildK8sDeployFlatBody(config))
+}
 
-  const body: SubmitDeployConfigParams = {
-    // Step 1
-    clusterName:        basic.clusterName,
-    version:            basic.version,
-    deployMode:         basic.deployMode,
-    imageSource:        basic.imageSource,
-    customRegistry:     basic.customRegistry,
-    registryUsername:   basic.registryUsername,
-    registryPassword:   basic.registryPassword,
-
-    // Step 2
-    executorNode:  nodes.executorNode,
-    masterNodes:   nodes.masterNodes,
-    workerNodes:   nodes.workerNodes,
-    masterLabels:  nodes.masterLabels,
-    workerLabels:  nodes.workerLabels,
-    masterTaints:  nodes.masterTaints,
-    workerTaints:  nodes.workerTaints,
-
-    // Step 3
-    kubeProxyMode:            core.kubeProxyMode,
-    enableRBAC:               core.enableRBAC,
-    enablePodSecurityPolicy:  core.enablePodSecurityPolicy,
-    enableAudit:              core.enableAudit,
-    auditPolicy:              core.auditPolicy,
-    pauseImage:               core.pauseImage,
-
-    // Step 4
-    networkPlugin: net.networkPlugin,
-    podCidr:       net.podCIDR,
-    serviceCidr:   net.serviceCIDR,
-    dnsServiceIP:  net.dnsServiceIP,
-    clusterDomain: net.clusterDomain,
-    calicoConfig:  net.calicoConfig  as Record<string, unknown> | undefined,
-    flannelConfig: net.flannelConfig as Record<string, unknown> | undefined,
-
-    // Step 5
-    defaultStorageClass:  storage.defaultStorageClass,
-    storageProvisioner:   storage.storageProvisioner,
-    storageConfig: {
-      localPath: storage.localPathConfig,
-      nfs:       storage.nfsConfig,
-      csi:       storage.csiConfig,
+/**
+ * 生成离线 zip 安装包（Ubuntu 24.04 上一键 sudo bash install.sh），浏览器直接下载。
+ * 依赖 masterHosts / workerHosts，不经 Agent。
+ */
+export async function downloadOfflineBundle(config: DeployConfig): Promise<void> {
+  const body = buildK8sDeployFlatBody(config)
+  const token = localStorage.getItem('token')
+  const base = import.meta.env.VITE_BASE_API || '/ft-api'
+  const res = await axios.post(`${base}/api/k8s/deploy/bundle`, body, {
+    responseType: 'blob',
+    timeout: 300000,
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-
-    // Step 6
-    enableNodeLocalDNS:  adv.enableNodeLocalDNS,
-    enableMetricsServer: adv.enableMetricsServer,
-    enableDashboard:     adv.enableDashboard,
-    enablePrometheus:    adv.enablePrometheus,
-    enableIngressNginx:  adv.enableIngressNginx,
-    enableHelm:          adv.enableHelm,
-    extraKubeletArgs:    adv.extraKubeletArgs,
-    extraKubeProxyArgs:  adv.extraKubeProxyArgs,
-    extraAPIServerArgs:  adv.extraAPIServerArgs,
+  })
+  const blob = res.data as Blob
+  if (blob.type && blob.type.includes('application/json')) {
+    const text = await blob.text()
+    try {
+      const j = JSON.parse(text) as { msg?: string; message?: string }
+      throw new Error(j.msg || j.message || '生成失败')
+    } catch (e) {
+      if (e instanceof Error && e.message !== 'Unexpected end of JSON input') throw e
+      throw new Error(text || '生成失败')
+    }
   }
-  return request.post('/api/k8s/deploy/submit', body)
+  const cd = res.headers['content-disposition'] as string | undefined
+  let name = 'opsfleet-k8s-bundle.zip'
+  if (cd) {
+    const m = cd.match(/filename\*=UTF-8''([^;]+)|filename="([^"]+)"|filename=([^;\s]+)/)
+    const raw = m ? (m[1] || m[2] || m[3]) : ''
+    if (raw) {
+      try {
+        name = decodeURIComponent(raw)
+      } catch {
+        name = raw
+      }
+    }
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = name
+  a.click()
+  URL.revokeObjectURL(url)
 }
 
 /** 获取 K8s 集群部署进度 */

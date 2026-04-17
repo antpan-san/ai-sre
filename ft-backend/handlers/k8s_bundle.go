@@ -1,0 +1,291 @@
+package handlers
+
+import (
+	"archive/zip"
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"ft-backend/common/logger"
+	"ft-backend/common/response"
+
+	"github.com/gin-gonic/gin"
+)
+
+// GenerateK8sOfflineBundle 根据表单配置打包 ansible-agent + inventory + install.sh，供 Ubuntu 24.04 上一键执行。
+// 不依赖 ft-client / 机器管理；需用户填写 masterHosts（及 workerHosts）。
+func GenerateK8sOfflineBundle(c *gin.Context) {
+	var req K8sDeployRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的请求参数: "+err.Error())
+		return
+	}
+	masters := normalizeHostList(req.MasterHosts)
+	workers := normalizeHostList(req.WorkerHosts)
+	if len(masters) == 0 {
+		response.BadRequest(c, "请至少填写一个 control plane 节点 IP（masterHosts）")
+		return
+	}
+
+	ansibleDir := resolveAnsibleAgentDir()
+	if ansibleDir == "" {
+		logger.Error("ansible-agent directory not found (set OPSFLEET_ANSIBLE_DIR or run from repo with ../ansible-agent)")
+		response.ServerError(c, "服务器未找到 ansible-agent 目录，无法生成离线包")
+		return
+	}
+
+	masterIP := masters[0]
+	inventoryContent := generateAnsibleInventoryFromHosts(masters, workers)
+	groupVarsContent := generateAnsibleGroupVars(req, masterIP)
+
+	buf, err := buildK8sOfflineZip(req.ClusterName, ansibleDir, inventoryContent, groupVarsContent)
+	if err != nil {
+		logger.Error("build offline zip: %v", err)
+		response.ServerError(c, "打包失败: "+err.Error())
+		return
+	}
+
+	safeName := sanitizeBundleFilePrefix(req.ClusterName)
+	filename := fmt.Sprintf("opsfleet-k8s-%s-%s.zip", safeName, time.Now().Format("20060102-150405"))
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, filename))
+	c.Header("Content-Length", fmt.Sprintf("%d", buf.Len()))
+	c.Data(http.StatusOK, "application/zip", buf.Bytes())
+}
+
+func normalizeHostList(in []string) []string {
+	out := make([]string, 0, len(in))
+	for _, s := range in {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		out = append(out, s)
+	}
+	return out
+}
+
+func sanitizeBundleFilePrefix(name string) string {
+	b := strings.Builder{}
+	for _, r := range strings.ToLower(name) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' {
+			b.WriteRune(r)
+		} else if r == ' ' || r == '_' {
+			b.WriteRune('-')
+		}
+	}
+	s := b.String()
+	if s == "" {
+		return "cluster"
+	}
+	return s
+}
+
+// resolveAnsibleAgentDir 查找仓库内 ansible-agent（相对 ft-backend 工作目录一般为 ..）。
+func resolveAnsibleAgentDir() string {
+	if d := os.Getenv("OPSFLEET_ANSIBLE_DIR"); d != "" {
+		if st, err := os.Stat(d); err == nil && st.IsDir() {
+			return d
+		}
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	candidates := []string{
+		filepath.Join(wd, "..", "ansible-agent"),
+		filepath.Join(wd, "ansible-agent"),
+	}
+	for _, cand := range candidates {
+		if st, err := os.Stat(cand); err == nil && st.IsDir() {
+			if _, err := os.Stat(filepath.Join(cand, "playbooks")); err == nil {
+				return filepath.Clean(cand)
+			}
+		}
+	}
+	return ""
+}
+
+func generateAnsibleInventoryFromHosts(masters, workers []string) string {
+	inv := "[control]\nlocalhost ansible_connection=local\n\n"
+	inv += "[kube_control_plane]\n"
+	for i, ip := range masters {
+		name := fmt.Sprintf("k8s-master-%d", i)
+		inv += fmt.Sprintf("%s ansible_host=%s\n", name, ip)
+	}
+	inv += "\n[kube_node]\n"
+	for i, ip := range workers {
+		name := fmt.Sprintf("k8s-worker-%d", i)
+		inv += fmt.Sprintf("%s ansible_host=%s\n", name, ip)
+	}
+	inv += "\n[etcd]\n"
+	for i, ip := range masters {
+		name := fmt.Sprintf("k8s-master-%d", i)
+		inv += fmt.Sprintf("%s ansible_host=%s\n", name, ip)
+	}
+	inv += "\n[k8s_cluster:children]\nkube_control_plane\nkube_node\n\n"
+	inv += "[all:vars]\nansible_user=root\nansible_ssh_common_args='-o StrictHostKeyChecking=no'\n"
+	return inv
+}
+
+func buildK8sOfflineZip(clusterName, ansibleRoot, inventory, groupVars string) (*bytes.Buffer, error) {
+	buf := new(bytes.Buffer)
+	zw := zip.NewWriter(buf)
+
+	addString := func(name, content string) error {
+		w, err := zw.Create(name)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(w, strings.NewReader(content))
+		return err
+	}
+
+	readme := fmt.Sprintf(`OpsFleetPilot Kubernetes 离线安装包
+集群名称: %s
+生成时间(UTC): %s
+
+适用: Ubuntu 24.04 LTS（强烈推荐），需 root 或 sudo；执行节点需能通过 SSH 以 root 访问 inventory 中的各节点（已配置 ansible_user=root）。
+
+步骤:
+ 1. 解压: unzip opsfleet-k8s-*.zip && cd 解压目录
+ 2. 执行: sudo bash install.sh
+
+说明:
+ - ansible-agent/ 为内置 Playbook；inventory/ 为根据控制台表单生成的清单与变量。
+ - 若仅单机 All-in-One，可只填一个 master IP；多节点需提前配置好主机名解析或纯 IP SSH。
+ - 网络与镜像参数已写入 inventory/group_vars/all.yml。
+`, clusterName, time.Now().UTC().Format(time.RFC3339))
+
+	if err := addString("README.txt", readme); err != nil {
+		zw.Close()
+		return nil, err
+	}
+	if err := addString("inventory/hosts.ini", inventory); err != nil {
+		zw.Close()
+		return nil, err
+	}
+	if err := addString("inventory/group_vars/all.yml", groupVars); err != nil {
+		zw.Close()
+		return nil, err
+	}
+
+	// 嵌入 ansible-agent 目录树
+	err := filepath.Walk(ansibleRoot, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(ansibleRoot, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		// 跳过编辑器临时文件与隐藏目录
+		base := filepath.Base(path)
+		if strings.HasPrefix(base, ".") && base != ".gitignore" {
+			if info.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if strings.HasSuffix(path, ".swp") {
+			return nil
+		}
+		zipPath := filepath.Join("ansible-agent", filepath.ToSlash(rel))
+		if info.IsDir() {
+			return nil
+		}
+		w, err := zw.Create(zipPath)
+		if err != nil {
+			return err
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(w, f)
+		closeErr := f.Close()
+		if copyErr != nil {
+			return copyErr
+		}
+		return closeErr
+	})
+	if err != nil {
+		zw.Close()
+		return nil, err
+	}
+
+	installSh := renderOfflineInstallScript()
+	if err := addString("install.sh", installSh); err != nil {
+		zw.Close()
+		return nil, err
+	}
+
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+	return buf, nil
+}
+
+func renderOfflineInstallScript() string {
+	// 与 generateK8sDeployScript 步骤一致，但使用包内路径；在控制节点本机执行（与 inventory 中 control 段 localhost 一致时需能 SSH 到各节点）。
+	return `#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+STATE_FILE="$ROOT/.opsfleet-k8s-state"
+rm -f "$STATE_FILE"
+
+echo "=== OpsFleetPilot K8s 离线安装（Ubuntu 24.04+） ==="
+if [[ -r /etc/os-release ]]; then
+  # shellcheck source=/dev/null
+  . /etc/os-release
+  echo "检测到: $PRETTY_NAME"
+  if [[ "${VERSION_ID:-}" != "24.04" ]]; then
+    echo "提示: 建议在 Ubuntu 24.04 LTS 上运行；继续执行..."
+  fi
+fi
+
+if [[ "${EUID:-0}" -ne 0 ]]; then
+  echo "请使用 root 或 sudo 运行: sudo bash install.sh"
+  exit 1
+fi
+
+export DEBIAN_FRONTEND=noninteractive
+apt-get update -qq
+apt-get install -y python3 python3-pip ansible sshpass openssh-client rsync
+
+ANSIBLE_DIR="$ROOT/ansible-agent"
+INV="$ROOT/inventory/hosts.ini"
+VARS_DIR="$ROOT/inventory/group_vars"
+mkdir -p "$VARS_DIR"
+# group_vars 已随包携带
+export ANSIBLE_HOST_KEY_CHECKING=False
+cd "$ANSIBLE_DIR"
+
+run() {
+  local step="$1"
+  local pb="$2"
+  echo "=== ${step} ==="
+  ansible-playbook -i "$INV" "$pb" || { echo "FAILED at ${pb}"; exit 1; }
+  echo "${step}" >> "$STATE_FILE"
+}
+
+run "Step 1/7: init" "playbooks/0-init.yml"
+run "Step 2/7: resources" "playbooks/resources.yml"
+run "Step 3/7: etcd" "playbooks/etcd.yml"
+run "Step 4/7: kube-apiserver" "playbooks/kube_apiserver_install.yml"
+run "Step 5/7: kube-controller-manager" "playbooks/kube_controller_manager_install.yml"
+run "Step 6/7: kube-scheduler" "playbooks/kube_scheduler_install.yml"
+run "Step 7/7: kubectl" "playbooks/kubectl.yml"
+
+echo "=== 完成 ==="
+kubectl get nodes 2>/dev/null || echo "请登录各节点检查 kubelet / 网络插件（Calico 等）是否已按 group_vars 后续部署"
+`
+}

@@ -176,7 +176,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | `internal/assets/knowledge/*.md` | 内置知识片段 |
 | `ft-backend/` | OpsFleetPilot API（Gin），独立 `go.mod` |
 | `ft-front/` | OpsFleetPilot Web（Vue3 + Vite） |
-| `ft-client/` | 节点 Agent（Go），独立 `go.mod` |
+| `ft-client/` | 节点 Agent（已不作为主路径；K8s 推荐「离线安装包」下载执行，见下） |
 | `deploy/` | Nginx / systemd 模板与生产配置示例 |
 | `ansible-agent/` | K8s/Ansible 相关 playbook |
 | `PRODUCT_DOC.md` | OpsFleetPilot 产品文档 |
@@ -200,6 +200,8 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 本地开发：在 `ft-backend` 配置 `conf/config.yaml` 后 `go run .`；在 `ft-front` 执行 `npm install && npm run dev`（Vite 代理 `/ft-api`）。
 
 **OpsFleet 控制台登录**：数据库迁移脚本初始化时默认用户名为 **`admin`**、密码为明文 **`password`**（bcrypt）。生产环境请修改；忘记密码可在数据库所在机执行 **`ft-backend/database/reset_admin_password_pg.sql`**（将 **`admin`** 重置为 **`123456`**，与当前运维约定一致）。
+
+**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP，点击 **「生成并下载离线安装包（zip）」**；在 **Ubuntu 24.04** 上解压后执行 **`sudo bash install.sh`** 完成 Ansible 编排安装（包内含 `ansible-agent` Playbook 与根据表单生成的 `inventory`，**不依赖 ft-client Agent**）。侧栏已隐藏「机器管理」入口；仍需 Agent 的旧流程可在同页切换到「在线 Agent」并提交在线部署。
 
 ---
 

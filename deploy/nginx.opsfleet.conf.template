@@ -5,6 +5,8 @@ server {
     # 显式监听所有 IPv4 网卡，便于外网/内网浏览器访问（勿仅绑定 127.0.0.1）
     listen 0.0.0.0:@OPSFLEET_UI_PORT@;
     server_name _;
+    # K8s 离线安装包（zip）可能较大
+    client_max_body_size 128m;
     # 静态资源须放在 www-data 可读路径（勿用 /root/...，Nginx worker 默认无法进入 /root）
     root @OPSFLEET_WEB_ROOT@;
     index index.html;

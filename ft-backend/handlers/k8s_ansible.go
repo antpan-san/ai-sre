@@ -26,10 +26,13 @@ type K8sDeployRequest struct {
 	RegistryUsername string `json:"registryUsername"`
 	RegistryPassword string `json:"registryPassword"`
 
-	// Step 2 — Nodes
+	// Step 2 — Nodes（UUID，来自机器管理 + Agent）
 	ExecutorNode string                 `json:"executorNode"` // 执行部署的 Agent 节点（可选，不填则回退到首个 Master）
-	MasterNodes  []string               `json:"masterNodes" binding:"required"`
+	MasterNodes  []string               `json:"masterNodes"`
 	WorkerNodes  []string               `json:"workerNodes"`
+	// 离线安装包：直接填节点 IP/主机名，无需 Agent（与 MasterNodes 二选一）
+	MasterHosts []string `json:"masterHosts"`
+	WorkerHosts []string `json:"workerHosts"`
 	MasterLabels map[string]string      `json:"masterLabels"`
 	WorkerLabels map[string]string      `json:"workerLabels"`
 
@@ -369,6 +372,10 @@ func SubmitK8sDeployWithAnsible(c *gin.Context) {
 	var req K8sDeployRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		response.BadRequest(c, "无效的请求参数: "+err.Error())
+		return
+	}
+	if len(req.MasterHosts) > 0 {
+		response.BadRequest(c, "在线部署不能填写 masterHosts；请使用控制台「生成离线安装包」下载后在目标机执行")
 		return
 	}
 	if len(req.MasterNodes) == 0 {

@@ -29,10 +29,6 @@
           <el-icon><PieChart /></el-icon>
           <template #title>仪表盘</template>
         </el-menu-item>
-        <el-menu-item index="/machine/list">
-          <el-icon><Grid /></el-icon>
-          <template #title>机器管理</template>
-        </el-menu-item>
         <el-menu-item index="/service/deploy">
           <el-icon><Setting /></el-icon>
           <template #title>服务管理</template>

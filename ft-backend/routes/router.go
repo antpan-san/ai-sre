@@ -113,6 +113,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/k8s/deploy/logs", handlers.GetK8sDeployLogs)
 		protected.GET("/k8s/deploy/records", handlers.GetK8sDeployRecords)
 		protected.GET("/k8s/clusters", handlers.GetK8sClusters)
+		protected.POST("/k8s/deploy/bundle", handlers.GenerateK8sOfflineBundle)
 
 		// ---- Proxy Configuration ----
 		protected.GET("/proxy/config/list", handlers.GetProxyConfigList)

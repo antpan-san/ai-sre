@@ -2,7 +2,12 @@
   <div class="k8s-deploy-form">
     <div class="page-header">
       <h2>部署 Kubernetes 集群</h2>
-      <p class="page-desc">通过分步向导配置 Kubernetes 集群部署参数</p>
+      <p class="page-desc">通过分步向导配置参数；推荐下载离线包在 Ubuntu 24.04 上一键安装（无需 Agent）。</p>
+      <div class="bundle-actions">
+        <el-button type="primary" :loading="downloadingBundle" @click="handleDownloadBundle">
+          生成并下载离线安装包（zip）
+        </el-button>
+      </div>
     </div>
 
     <!-- 步骤条 -->
@@ -201,40 +206,78 @@
             class="step-alert"
           />
 
-          <el-form-item label="执行节点（Agent 所在机器）" required class="executor-select-item">
-            <el-select
-              v-model="deployConfig.nodeConfig.executorNode"
-              placeholder="选择执行部署任务的机器（需在线且已安装 Agent）"
-              clearable
-              style="width: 100%"
-            >
-              <el-option
-                v-for="m in selectableExecutors"
-                :key="m.id"
-                :label="`${m.name || '未命名'} (${m.ip})`"
-                :value="m.id"
-              >
-                <span>{{ m.name || '未命名' }}</span>
-                <span style="color: var(--el-text-color-secondary); margin-left: 8px">{{ m.ip }}</span>
-              </el-option>
-            </el-select>
+          <el-form-item label="部署方式">
+            <el-switch
+              v-model="offlineBundleMode"
+              inline-prompt
+              active-text="离线安装包"
+              inactive-text="在线 Agent"
+            />
+            <span class="mode-hint">离线模式：页顶下载 zip，Ubuntu 24.04 执行 <code>sudo bash install.sh</code></span>
           </el-form-item>
 
-          <el-alert
-            title="主节点至少需要 2 核 CPU 和 4 GB 内存，建议选择性能较好的机器"
-            type="info"
-            :closable="false"
-            show-icon
-            class="step-alert"
-          />
+          <template v-if="offlineBundleMode">
+            <el-alert
+              title="填写节点 IP，主节点至少一行；与机器管理、Agent 无关。"
+              type="success"
+              :closable="false"
+              show-icon
+              class="step-alert"
+            />
+            <el-form-item label="控制平面 IP（必填，每行一个）" required>
+              <el-input
+                v-model="masterHostsText"
+                type="textarea"
+                :rows="5"
+                placeholder="例如：&#10;192.168.1.10&#10;192.168.1.11"
+              />
+            </el-form-item>
+            <el-form-item label="工作节点 IP（可选）">
+              <el-input
+                v-model="workerHostsText"
+                type="textarea"
+                :rows="4"
+                placeholder="每行一个 Worker IP"
+              />
+            </el-form-item>
+          </template>
 
-          <NodeSelect
-            :machines="machines"
-            :modelValue="{ masterNodes: deployConfig.nodeConfig.masterNodes, workerNodes: deployConfig.nodeConfig.workerNodes }"
-            @update:modelValue="(v) => { deployConfig.nodeConfig.masterNodes = v.masterNodes; deployConfig.nodeConfig.workerNodes = v.workerNodes }"
-            masterTitle="控制平面节点"
-            workerTitle="工作节点（数据平面）"
-          />
+          <template v-else>
+            <el-form-item label="执行节点（Agent 所在机器）" required class="executor-select-item">
+              <el-select
+                v-model="deployConfig.nodeConfig.executorNode"
+                placeholder="选择执行部署任务的机器（需在线且已安装 Agent）"
+                clearable
+                style="width: 100%"
+              >
+                <el-option
+                  v-for="m in selectableExecutors"
+                  :key="m.id"
+                  :label="`${m.name || '未命名'} (${m.ip})`"
+                  :value="m.id"
+                >
+                  <span>{{ m.name || '未命名' }}</span>
+                  <span style="color: var(--el-text-color-secondary); margin-left: 8px">{{ m.ip }}</span>
+                </el-option>
+              </el-select>
+            </el-form-item>
+
+            <el-alert
+              title="主节点至少需要 2 核 CPU 和 4 GB 内存，建议选择性能较好的机器"
+              type="info"
+              :closable="false"
+              show-icon
+              class="step-alert"
+            />
+
+            <NodeSelect
+              :machines="machines"
+              :modelValue="{ masterNodes: deployConfig.nodeConfig.masterNodes, workerNodes: deployConfig.nodeConfig.workerNodes }"
+              @update:modelValue="(v) => { deployConfig.nodeConfig.masterNodes = v.masterNodes; deployConfig.nodeConfig.workerNodes = v.workerNodes }"
+              masterTitle="控制平面节点"
+              workerTitle="工作节点（数据平面）"
+            />
+          </template>
 
           <el-divider content-position="left">标签与污点</el-divider>
 
@@ -641,8 +684,14 @@
       <el-button v-if="activeStep < 6" type="primary" @click="nextStep" :loading="validating">
         下一步
       </el-button>
-      <el-button v-if="activeStep === 6" type="success" :loading="submitting" @click="submitDeploy">
-        开始部署
+      <el-button
+        v-if="activeStep === 6"
+        type="success"
+        :loading="submitting"
+        :disabled="offlineBundleMode"
+        @click="submitDeploy"
+      >
+        开始在线部署
       </el-button>
     </div>
   </div>
@@ -669,7 +718,8 @@ import KeyValueGroup from '@/components/k8s/KeyValueGroup.vue'
 import {
   getK8sVersions,
   checkClusterName,
-  submitDeployConfig
+  submitDeployConfig,
+  downloadOfflineBundle
 } from '../../../api/k8s-deploy'
 import type {
   DeployConfig,
@@ -705,6 +755,11 @@ const step6FormRef = ref<FormInstance>()
 const activeStep = ref(0)
 const validating = ref(false)
 const submitting = ref(false)
+const downloadingBundle = ref(false)
+/** true：离线 zip（推荐）；false：经 Agent 在线部署 */
+const offlineBundleMode = ref(true)
+const masterHostsText = ref('')
+const workerHostsText = ref('')
 const k8sVersions = ref<K8sVersion[]>([])
 
 // 使用 machineStore 作为数据源，与机器管理页共享状态，WebSocket 心跳会实时更新 status
@@ -749,6 +804,8 @@ const deployConfig = reactive<DeployConfig>({
     executorNode: '' as string,
     masterNodes: [] as string[],
     workerNodes: [] as string[],
+    masterHosts: [] as string[],
+    workerHosts: [] as string[],
     masterLabels: {},
     workerLabels: {},
     masterTaints: [],
@@ -870,10 +927,16 @@ const step4Rules = {
 
 // ---------- 确认页计算属性 ----------
 const executorConfirmText = computed(() => {
+  if (offlineBundleMode.value) {
+    const m = deployConfig.nodeConfig.masterHosts?.length
+      ? deployConfig.nodeConfig.masterHosts.join(', ')
+      : masterHostsText.value.trim().split(/\r?\n/).map(s => s.trim()).filter(Boolean).join(', ')
+    return m || '（请在节点步骤填写 IP）'
+  }
   const id = deployConfig.nodeConfig.executorNode
   if (!id) return '未选择'
-  const m = machines.value.find(x => x.id === id)
-  return m ? `${m.name || '未命名'} (${m.ip})` : id.slice(0, 8) + '…'
+  const mm = machines.value.find(x => x.id === id)
+  return mm ? `${mm.name || '未命名'} (${mm.ip})` : id.slice(0, 8) + '…'
 })
 
 const imageSourceText = computed(() => {
@@ -931,6 +994,12 @@ function goToProgress(deployId: string) {
 // ---------- 初始化 ----------
 onMounted(() => {
   k8sDeployStore.restoreInto(deployConfig as DeployConfig, activeStep)
+  if (deployConfig.nodeConfig.masterHosts?.length) {
+    masterHostsText.value = deployConfig.nodeConfig.masterHosts.join('\n')
+  }
+  if (deployConfig.nodeConfig.workerHosts?.length) {
+    workerHostsText.value = deployConfig.nodeConfig.workerHosts.join('\n')
+  }
   loadK8sVersions()
   loadMachines()
   k8sDeployStore.fetchDeployRecords()
@@ -985,13 +1054,24 @@ const nextStep = async () => {
     }
     // 步骤 2 校验
     else if (activeStep.value === 1) {
-      if (!deployConfig.nodeConfig.executorNode) {
-        ElMessage.warning('请选择执行节点（Agent 所在机器）')
-        return
-      }
-      if (deployConfig.nodeConfig.masterNodes.length === 0) {
-        ElMessage.warning('请至少选择一个 K8s 控制平面节点')
-        return
+      if (offlineBundleMode.value) {
+        const masters = parseHostLines(masterHostsText.value)
+        const workers = parseHostLines(workerHostsText.value)
+        deployConfig.nodeConfig.masterHosts = masters
+        deployConfig.nodeConfig.workerHosts = workers
+        if (masters.length === 0) {
+          ElMessage.warning('请至少填写一行控制平面节点 IP')
+          return
+        }
+      } else {
+        if (!deployConfig.nodeConfig.executorNode) {
+          ElMessage.warning('请选择执行节点（Agent 所在机器）')
+          return
+        }
+        if (deployConfig.nodeConfig.masterNodes.length === 0) {
+          ElMessage.warning('请至少选择一个 K8s 控制平面节点')
+          return
+        }
       }
     }
     // 步骤 4 校验
@@ -1006,8 +1086,43 @@ const nextStep = async () => {
   }
 }
 
-// ---------- 提交部署 ----------
+function parseHostLines(s: string): string[] {
+  return s.split(/\r?\n/).map(x => x.trim()).filter(Boolean)
+}
+
+// ---------- 下载离线包 ----------
+const handleDownloadBundle = async () => {
+  if (!deployConfig.clusterBasicInfo.clusterName?.trim()) {
+    ElMessage.warning('请填写集群名称')
+    return
+  }
+  if (!deployConfig.clusterBasicInfo.version) {
+    ElMessage.warning('请选择 K8s 版本')
+    return
+  }
+  deployConfig.nodeConfig.masterHosts = parseHostLines(masterHostsText.value)
+  deployConfig.nodeConfig.workerHosts = parseHostLines(workerHostsText.value)
+  if (deployConfig.nodeConfig.masterHosts.length === 0) {
+    ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
+    return
+  }
+  downloadingBundle.value = true
+  try {
+    await downloadOfflineBundle(deployConfig as DeployConfig)
+    ElMessage.success('已开始下载 zip 安装包')
+  } catch (e: any) {
+    ElMessage.error(e?.message || '生成失败')
+  } finally {
+    downloadingBundle.value = false
+  }
+}
+
+// ---------- 提交部署（在线 Agent） ----------
 const submitDeploy = async () => {
+  if (offlineBundleMode.value) {
+    ElMessage.warning('当前为离线安装包模式，请使用页面顶部「生成并下载」按钮，勿使用在线部署')
+    return
+  }
   submitting.value = true
   try {
     const res = await submitDeployConfig(deployConfig as DeployConfig)
@@ -1050,6 +1165,22 @@ const submitDeploy = async () => {
   color: #6b7280;
   font-size: 14px;
   margin: 0;
+}
+
+.bundle-actions {
+  margin-top: 12px;
+}
+
+.mode-hint {
+  margin-left: 12px;
+  color: #6b7280;
+  font-size: 13px;
+}
+.mode-hint code {
+  font-size: 12px;
+  padding: 2px 6px;
+  background: #f3f4f6;
+  border-radius: 4px;
 }
 
 .deploy-status-block {
