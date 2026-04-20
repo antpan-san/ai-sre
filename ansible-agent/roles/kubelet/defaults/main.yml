@@ -1,0 +1,4 @@
+---
+kubelet_bin_src: "{{ k8s_extract_dir }}/server/bin/kubelet"
+cni_plugins_local_tar: "{{ local_cache_dir }}/cni-plugins-linux-{{ arch_version }}-{{ cni_plugins_version }}.tgz"
+pause_image: "registry.k8s.io/pause:3.10"

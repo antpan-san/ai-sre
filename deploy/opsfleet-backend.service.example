@@ -10,6 +10,8 @@ ExecStart=/OPSFLEET_ROOT/bin/opsfleet-backend
 Restart=on-failure
 RestartSec=5
 Environment=GIN_MODE=release
+# 可选：K8s 制品镜像 manifest（见 deploy/k8s-mirror/README.md）；不存在则忽略
+EnvironmentFile=-/etc/opsfleet/backend.env
 
 [Install]
 WantedBy=multi-user.target

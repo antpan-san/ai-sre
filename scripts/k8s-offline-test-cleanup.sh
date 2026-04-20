@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 在跑过 install.sh 的「控制机」上，将环境恢复到接近测试前（实验室/回归用）。
-# 默认：停常见 systemd 单元、删解压目录与 .opsfleet-k8s-state、保留 /var/cache/opsfleet-k8s。
+# 默认：停常见 systemd 单元（含 containerd/kubelet/kube-proxy 等与 pre_cleanup 对齐）、删解压目录与 .opsfleet-k8s-state、保留 /var/cache/opsfleet-k8s。
 # --purge-cache   清空二进制缓存目录
 # --deep          额外删 /etc/kubernetes、/var/lib/etcd、部分 /usr/local/bin 二进制（破坏性，谨慎）
 # 用法：sudo bash scripts/k8s-offline-test-cleanup.sh [/root/某解压目录 ...]
@@ -35,7 +35,8 @@ if [[ ${#DIRS[@]} -eq 0 ]]; then
 fi
 
 echo "=== 停止常见测试服务（未安装则忽略）==="
-for svc in kube-controller-manager kube-scheduler kube-apiserver etcd; do
+# 与 playbooks/pre_cleanup.yml 顺序类似：先工作负载再 etcd/API
+for svc in kube-proxy kubelet kube-controller-manager kube-scheduler kube-apiserver etcd containerd; do
   systemctl stop "$svc" 2>/dev/null || true
   systemctl disable "$svc" 2>/dev/null || true
 done
@@ -59,10 +60,11 @@ fi
 
 if [[ "$DEEP" -eq 1 ]]; then
   echo "=== --deep：删除集群数据与常见二进制（不可逆）==="
-  rm -rf /etc/kubernetes /var/lib/etcd
+  rm -rf /etc/kubernetes /var/lib/etcd /var/lib/kubelet /var/lib/kube-proxy 2>/dev/null || true
   rm -f /usr/local/bin/etcd /usr/local/bin/etcdctl
   rm -f /usr/local/bin/kube-apiserver /usr/local/bin/kube-controller-manager \
-        /usr/local/bin/kube-scheduler /usr/local/bin/kubectl /usr/local/bin/kubeadm 2>/dev/null || true
+        /usr/local/bin/kube-scheduler /usr/local/bin/kubectl /usr/local/bin/kubeadm \
+        /usr/local/bin/kubelet /usr/local/bin/kube-proxy 2>/dev/null || true
 fi
 
 echo "=== k8s-offline-test-cleanup 完成 ==="

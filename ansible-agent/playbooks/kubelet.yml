@@ -1,0 +1,9 @@
+# 依赖：etcd、control plane、kubectl、containerd 已就绪；inventory 与 group_vars 已注入。
+- hosts: k8s_cluster
+  become: true
+  pre_tasks:
+    - name: Load OpsFleet K8s bundle group_vars (alongside inventory/hosts.ini)
+      ansible.builtin.include_vars:
+        file: "{{ inventory_dir }}/group_vars/all.yml"
+  roles:
+    - role: ../roles/kubelet

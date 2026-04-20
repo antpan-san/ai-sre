@@ -1,0 +1,9 @@
+[Unit]
+Description=OpsFleet K8s artifact mirror sync
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/opsfleet/k8s-mirror.env
+ExecStart=/usr/local/bin/k8s-mirror-sync.sh
+ExecStartPost=/usr/local/bin/k8s-mirror-generate-manifest.sh

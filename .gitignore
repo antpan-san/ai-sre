@@ -16,3 +16,6 @@ ft-front/dist/
 ft-backend/opsfleet-backend
 *.dll
 *.so
+
+# K8s 离线包 zip（本地 gen-k8s-bundle 产物，勿入库）
+/opsfleet-k8s-*.zip

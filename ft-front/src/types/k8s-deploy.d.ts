@@ -43,6 +43,10 @@ export interface ClusterBasicInfo {
   /** 目标节点 CPU 架构（与 kubernetes/etcd linux 二进制一致；Fusion ARM 虚机选 arm64） */
   cpuArch: 'amd64' | 'arm64';
   imageSource: 'default' | 'aliyun' | 'tencent' | 'custom';
+  /** 覆盖 ansible download_domain（内网制品机）；留空使用 inventory/group_vars/all.yml 默认 */
+  downloadDomain?: string;
+  /** 覆盖 download_protocol，如 http:// 或 https:// */
+  downloadProtocol?: string;
   customRegistry?: string;
   registryUsername?: string;
   registryPassword?: string;
@@ -145,6 +149,8 @@ export interface K8sDeploySubmitRequest {
   /** amd64 | arm64 */
   archVersion?: string;
   imageSource: string;
+  downloadDomain?: string;
+  downloadProtocol?: string;
   customRegistry?: string;
   registryUsername?: string;
   registryPassword?: string;

@@ -1,0 +1,16 @@
+[Unit]
+Description=Kubernetes kube-proxy
+Documentation=https://kubernetes.io/docs/reference/command-line-tools-reference/kube-proxy/
+After=network.target kubelet.service
+Wants=kubelet.service
+
+[Service]
+ExecStart=/usr/local/bin/kube-proxy \
+  --kubeconfig={{ k8s_base_dir }}/kube-proxy.conf \
+  --proxy-mode={{ kube_proxy_mode | default('iptables') }}
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -14,7 +14,7 @@ description: >-
 
 仓库同仓参数与 **Cursor 规则**见 **`.cursor/rules/monorepo-release.mdc`**（`alwaysApply`）；本 skill 为具体步骤。
 
-在 **ai-sre** 项目（`/Users/panshuai/Documents/work/code/ai-sre`）中**每次完成上述修改后**，代理必须按顺序执行本流程；用户已配置 **root@192.168.56.11** 免密 SSH。
+在 **ai-sre** 项目（`/Users/panshuai/Documents/work/code/ai-sre`）中**每次完成上述修改后**，代理必须按顺序执行本流程；用户已配置 **root@192.168.56.11** 免密 SSH。该地址为**本地虚拟机**常用内网 IP，与 **OpsFleet** 全栈部署（`deploy-opsfleet-remote.sh`）、可选 **K8s 制品镜像**（`deploy/k8s-mirror`）、以及 **K8s 离线测试**共用同一台实验机时，**不要**在文档中写成互不相干的多台机器，除非用户明确区分。
 
 ## 固定参数
 

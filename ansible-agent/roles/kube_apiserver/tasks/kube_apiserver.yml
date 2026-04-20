@@ -87,6 +87,24 @@
     mode: 0644
   delegate_to: localhost
 
+# 证书在 delegate_to localhost 的控制机上生成；需同步到本 control plane 节点，kube-apiserver 才能读取。
+- name: Sync k8s API certificates from Ansible controller to this control plane host
+  ansible.builtin.copy:
+    src: "{{ k8s_cert_dir }}/{{ item.name }}"
+    dest: "{{ k8s_cert_dir }}/{{ item.name }}"
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop:
+    - { name: k8s_ca.crt, mode: "0644" }
+    - { name: k8s_ca.key, mode: "0600" }
+    - { name: apiserver.crt, mode: "0644" }
+    - { name: apiserver.key, mode: "0600" }
+    - { name: apiserver_kubelet_client.crt, mode: "0644" }
+    - { name: apiserver_kubelet_client.key, mode: "0600" }
+    - { name: k8s_sa.key, mode: "0600" }
+    - { name: k8s_sa.pub, mode: "0644" }
+
 # ---------------------------------
 # Distribute config
 # ---------------------------------

@@ -1,0 +1,25 @@
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+address: 0.0.0.0
+authentication:
+  anonymous:
+    enabled: false
+  webhook:
+    enabled: true
+  x509:
+    clientCAFile: {{ k8s_cert_dir }}/k8s_ca.crt
+authorization:
+  mode: Webhook
+cgroupDriver: systemd
+clusterDNS:
+  - {{ dns_service_ip }}
+clusterDomain: {{ cluster_domain }}
+containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
+imageServiceEndpoint: unix:///run/containerd/containerd.sock
+cniBinDir: /opt/cni/bin
+cniConfDir: /etc/cni/net.d
+failSwapOn: false
+serializeImagePulls: false
+tlsCertFile: {{ k8s_cert_dir }}/kubelet-server.crt
+tlsPrivateKeyFile: {{ k8s_cert_dir }}/kubelet-server.key
+sandboxImage: {{ pause_image }}

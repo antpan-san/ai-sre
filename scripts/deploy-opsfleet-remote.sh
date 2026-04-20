@@ -98,6 +98,20 @@ if command -v getenforce >/dev/null 2>&1 && [ "$(getenforce 2>/dev/null)" = "Enf
 fi
 
 sed "s|/OPSFLEET_ROOT|${R}|g" deploy/opsfleet-backend.service.example > /etc/systemd/system/opsfleet-backend.service
+
+# 首次部署时写入 K8s 制品镜像地址（与 ansible download_domain 对齐；可事后编辑 /etc/opsfleet/backend.env）
+install -d -m 755 /etc/opsfleet
+if [[ ! -f /etc/opsfleet/backend.env ]]; then
+  cat > /etc/opsfleet/backend.env <<'ENV'
+# OpsFleet 后端环境变量（systemd EnvironmentFile）
+# K8s 制品页 /api/k8s/mirror/catalog 会代理拉取该 URL 的 manifest.json
+# 同机仅跑 Nginx 制品站时可改为 http://127.0.0.1
+OPSFLEET_K8S_MIRROR_BASE_URL=http://192.168.56.11
+ENV
+  chmod 600 /etc/opsfleet/backend.env
+  echo "Created /etc/opsfleet/backend.env (edit OPSFLEET_K8S_MIRROR_* if needed)"
+fi
+
 systemctl daemon-reload
 systemctl enable opsfleet-backend
 systemctl restart opsfleet-backend

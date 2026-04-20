@@ -214,6 +214,31 @@
               </el-col>
             </el-row>
 
+            <el-row :gutter="20">
+              <el-col :span="8">
+                <el-form-item label="内网制品地址" prop="downloadDomain">
+                  <el-input
+                    v-model="deployConfig.clusterBasicInfo.downloadDomain"
+                    placeholder="留空则用 inventory 默认 download_domain"
+                    clearable
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
+                <el-form-item label="下载协议" prop="downloadProtocol">
+                  <el-input
+                    v-model="deployConfig.clusterBasicInfo.downloadProtocol"
+                    placeholder="默认 http://"
+                    clearable
+                  />
+                </el-form-item>
+              </el-col>
+            </el-row>
+            <p class="form-hint" style="margin: -8px 0 12px 0">
+              与 Kubernetes/etcd/CNI 等二进制下载相关；默认值仅维护在 ansible-agent 的
+              <code>inventory/group_vars/all.yml</code>（download_domain），此处填写则覆盖。选「阿里云」时服务端二进制走公网，CNI 插件亦走公网。
+            </p>
+
             <template v-if="deployConfig.clusterBasicInfo.imageSource === 'custom'">
               <el-divider content-position="left">自定义镜像仓库</el-divider>
               <el-row :gutter="20">
@@ -711,6 +736,16 @@
                 <span class="confirm-label">镜像源</span>
                 <span class="confirm-value">{{ imageSourceText }}</span>
               </div>
+              <div
+                v-if="deployConfig.clusterBasicInfo.downloadDomain?.trim() || deployConfig.clusterBasicInfo.downloadProtocol?.trim()"
+                class="confirm-row"
+              >
+                <span class="confirm-label">制品覆盖</span>
+                <span class="confirm-value">
+                  {{ deployConfig.clusterBasicInfo.downloadProtocol?.trim() || '（默认）' }}
+                  {{ deployConfig.clusterBasicInfo.downloadDomain?.trim() || '—' }}
+                </span>
+              </div>
             </div>
 
             <!-- 节点 -->
@@ -940,7 +975,9 @@ const deployConfig = reactive<DeployConfig>({
     version: '',
     deployMode: 'cluster',
     cpuArch: 'arm64',
-    imageSource: 'aliyun'
+    imageSource: 'aliyun',
+    downloadDomain: '',
+    downloadProtocol: ''
   },
   nodeConfig: {
     executorNode: '' as string,

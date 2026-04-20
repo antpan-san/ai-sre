@@ -1,7 +1,9 @@
 # 基础配置
 arch_version: "amd64"
+# 内网制品下载：仅此一处为默认主机名/IP，不写死在 Go/前端；部署时可由 OpsFleet 合并块或 UI 覆盖 download_domain / download_protocol。
+# 镜像站目录约定（示例）： kubernetes/<ver>/<arch>/... 、 etcd/<ver>/... 、 cni-plugins/<ver>/... （与下方 URL 模板一致）
 download_protocol: "http://"
-download_domain: "10.10.120.144"
+download_domain: "192.168.56.11"
 # 持久缓存：跨多次 install.sh / 测试复用已下载 tarball（get_url 与 checksum 一致则跳过）
 local_cache_dir: "/var/cache/opsfleet-k8s"
 remote_dest: "/usr/local"
@@ -49,6 +51,7 @@ cni_plugins_version: "v1.9.0"
 # Kubernetes 插件配置
 calico_version: "v3.31.3"
 coredns_version: "v1.13.1"
+coredns_image: "registry.k8s.io/coredns/coredns:{{ coredns_version }}"
 
 # Kubernetes 集群证书信息
 # k8s_cert:
@@ -89,3 +92,10 @@ cluster_name: kubernetes
 
 service_cluster_ip_range: "10.96.0.0/12"
 pod_cluster_cidr: "10.244.0.0/16"
+# 当前 playbooks/k8s_addons.yml 仅自动下发 Flannel（与 pod_cluster_cidr 对齐）；Calico 等需后续接入。
+network_plugin: "flannel"
+# 集群 DNS（kubelet / CoreDNS Service）
+dns_service_ip: "10.96.0.10"
+cluster_domain: "cluster.local"
+# CNI 插件离线包（与内网制品站路径一致；选「阿里云」镜像源时由 OpsFleet 覆盖为 GitHub）
+cni_plugins_download_url: "{{ download_protocol }}{{ download_domain }}/cni-plugins/{{ cni_plugins_version }}/cni-plugins-linux-{{ arch_version }}-{{ cni_plugins_version }}.tgz"

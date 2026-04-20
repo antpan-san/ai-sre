@@ -1,0 +1,20 @@
+[Unit]
+Description=Kubernetes Kubelet
+Documentation=https://kubernetes.io/docs/reference/command-line-tools-reference/kubelet/
+After=containerd.service network-online.target
+Wants=network-online.target
+Requires=containerd.service
+
+[Service]
+ExecStart=/usr/local/bin/kubelet \
+  --hostname-override={{ inventory_hostname }} \
+  --kubeconfig={{ k8s_base_dir }}/kubelet.conf \
+  --config={{ k8s_base_dir }}/kubelet/config.yaml \
+  --root-dir=/var/lib/kubelet \
+  --pod-manifest-path=/etc/kubernetes/manifests
+
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

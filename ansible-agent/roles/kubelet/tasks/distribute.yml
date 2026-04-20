@@ -1,0 +1,67 @@
+---
+- name: Ensure kubernetes directories on node
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: "0755"
+  loop:
+    - "{{ k8s_base_dir }}"
+    - "{{ k8s_cert_dir }}"
+    - "{{ k8s_base_dir }}/kubelet"
+    - /etc/kubernetes/manifests
+    - /var/lib/kubelet
+
+- name: Copy cluster CA to node
+  ansible.builtin.copy:
+    src: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    dest: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Copy kubelet client certificate material to node
+  ansible.builtin.copy:
+    src: "{{ k8s_cert_dir }}/kubelet-{{ inventory_hostname }}-client.{{ item.ext }}"
+    dest: "{{ k8s_cert_dir }}/kubelet-client.{{ item.ext }}"
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop:
+    - { ext: crt, mode: "0644" }
+    - { ext: key, mode: "0600" }
+
+- name: Copy kubelet server certificate material to node
+  ansible.builtin.copy:
+    src: "{{ k8s_cert_dir }}/kubelet-{{ inventory_hostname }}-server.{{ item.ext }}"
+    dest: "{{ k8s_cert_dir }}/kubelet-server.{{ item.ext }}"
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop:
+    - { ext: crt, mode: "0644" }
+    - { ext: key, mode: "0600" }
+
+- name: Install kubelet binary
+  ansible.builtin.copy:
+    src: "{{ kubelet_bin_src }}"
+    dest: /usr/local/bin/kubelet
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Render kubelet kubeconfig
+  ansible.builtin.template:
+    src: kubelet.conf.j2
+    dest: "{{ k8s_base_dir }}/kubelet.conf"
+    mode: "0600"
+    owner: root
+    group: root
+
+- name: Render kubelet configuration
+  ansible.builtin.template:
+    src: kubelet-config.yaml.j2
+    dest: "{{ k8s_base_dir }}/kubelet/config.yaml"
+    mode: "0644"
+    owner: root
+    group: root
+  notify: Restart kubelet

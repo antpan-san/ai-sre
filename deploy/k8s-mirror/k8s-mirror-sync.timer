@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily K8s mirror sync
+
+[Timer]
+OnCalendar=daily
+Persistent=true
+RandomizedDelaySec=3600
+Unit=k8s-mirror-sync.service
+
+[Install]
+WantedBy=timers.target

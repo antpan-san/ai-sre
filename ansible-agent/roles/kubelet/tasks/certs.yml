@@ -1,0 +1,15 @@
+---
+- name: Ensure PKI directory exists on Ansible controller for kubelet material
+  ansible.builtin.file:
+    path: "{{ k8s_cert_dir }}"
+    state: directory
+    mode: "0700"
+  delegate_to: localhost
+  run_once: true
+
+- name: Generate kubelet client and server certificates for each cluster node
+  ansible.builtin.include_tasks: kubelet_node_certs.yml
+  loop: "{{ groups['k8s_cluster'] | default([]) }}"
+  loop_control:
+    loop_var: kubelet_node
+  run_once: true

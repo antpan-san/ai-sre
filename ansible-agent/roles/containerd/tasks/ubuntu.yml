@@ -1,0 +1,29 @@
+---
+- name: Install containerd and runc (Ubuntu)
+  ansible.builtin.apt:
+    name:
+      - containerd
+      - runc
+    state: present
+    update_cache: true
+
+- name: Ensure containerd config exists
+  ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+  args:
+    creates: /etc/containerd/config.toml
+  changed_when: true
+  notify: Restart containerd
+
+- name: Set SystemdCgroup = true for kubelet (match cgroupDriver=systemd)
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup\s*=\s*false'
+    replace: "SystemdCgroup = true"
+  notify: Restart containerd
+
+- name: Enable and start containerd
+  ansible.builtin.systemd_service:
+    name: containerd
+    state: started
+    enabled: true
+    daemon_reload: true

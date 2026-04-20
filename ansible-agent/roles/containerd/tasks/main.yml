@@ -1,0 +1,3 @@
+---
+# Ubuntu 24.04：使用发行版 containerd + runc，避免内网 mirror 未同步完整 tarball 时无法安装。
+- import_tasks: ubuntu.yml

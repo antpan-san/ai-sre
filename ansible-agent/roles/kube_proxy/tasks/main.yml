@@ -1,0 +1,3 @@
+---
+- import_tasks: certs.yml
+- import_tasks: distribute.yml

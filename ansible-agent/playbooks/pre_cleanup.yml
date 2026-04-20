@@ -10,7 +10,7 @@
     - name: Stop and disable common K8s/etcd systemd units
       ansible.builtin.shell: |
         set -e
-        for u in kube-controller-manager kube-scheduler kube-apiserver etcd; do
+        for u in kube-proxy kubelet kube-controller-manager kube-scheduler kube-apiserver etcd containerd; do
           systemctl stop "$u" 2>/dev/null || true
           systemctl disable "$u" 2>/dev/null || true
         done
@@ -28,6 +28,8 @@
         - /etc/systemd/system/kube-apiserver.service
         - /etc/systemd/system/kube-controller-manager.service
         - /etc/systemd/system/kube-scheduler.service
+        - /etc/systemd/system/kubelet.service
+        - /etc/systemd/system/kube-proxy.service
       failed_when: false
 
     - name: Reload systemd after unit removal

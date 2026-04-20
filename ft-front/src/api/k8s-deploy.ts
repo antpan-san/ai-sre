@@ -29,6 +29,12 @@ export function buildK8sDeployFlatBody(config: DeployConfig): SubmitDeployConfig
     archVersion: basic.cpuArch,
     // 与后端 normalizeImageSource 一致，避免首尾空格导致未命中阿里云公网下载覆盖
     imageSource: typeof basic.imageSource === 'string' ? basic.imageSource.trim() : basic.imageSource,
+    ...(basic.downloadDomain?.trim()
+      ? { downloadDomain: basic.downloadDomain.trim() }
+      : {}),
+    ...(basic.downloadProtocol?.trim()
+      ? { downloadProtocol: basic.downloadProtocol.trim() }
+      : {}),
     customRegistry: basic.customRegistry,
     registryUsername: basic.registryUsername,
     registryPassword: basic.registryPassword,

@@ -1,0 +1,2 @@
+---
+kube_proxy_bin_src: "{{ k8s_extract_dir }}/server/bin/kube-proxy"

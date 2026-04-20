@@ -66,6 +66,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: 'Kubernetes部署进度', requireAuth: true, roles: ['admin'] }
       },
       {
+        path: 'k8s-mirror',
+        name: 'K8sMirrorCatalog',
+        component: () => import('../views/service/k8s-mirror/K8sMirrorCatalog.vue'),
+        meta: { title: 'K8s制品镜像', requireAuth: true, roles: ['admin'] }
+      },
+      {
         path: 'k8s/clusters',
         name: 'K8sClusterList',
         component: () => import('../views/service/k8s-deploy/K8sClusterList.vue'),

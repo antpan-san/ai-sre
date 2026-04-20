@@ -1,0 +1,10 @@
+---
+# 在所有集群节点安装 containerd（CRI），供 kubelet 使用。
+- hosts: k8s_cluster
+  become: true
+  pre_tasks:
+    - name: Load OpsFleet K8s bundle group_vars (alongside inventory/hosts.ini)
+      ansible.builtin.include_vars:
+        file: "{{ inventory_dir }}/group_vars/all.yml"
+  roles:
+    - role: ../roles/containerd

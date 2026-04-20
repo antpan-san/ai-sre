@@ -44,6 +44,10 @@
             <el-icon><Connection /></el-icon>
             <template #title>Kubernetes 部署</template>
           </el-menu-item>
+          <el-menu-item index="/service/k8s-mirror">
+            <el-icon><Download /></el-icon>
+            <template #title>K8s 制品镜像</template>
+          </el-menu-item>
           <el-menu-item index="/service/linux">
             <el-icon><Cpu /></el-icon>
             <template #title>Linux 服务管理</template>
@@ -180,7 +184,8 @@ import {
   Operation,
   Connection,
   Cpu,
-  Link
+  Link,
+  Download
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { wsService } from '../../utils/websocket'
@@ -192,6 +197,7 @@ const routeIconMap: Record<string, any> = {
   '/service': Box,
   '/service/deploy': Operation,
   '/service/k8s-deploy': Connection,
+  '/service/k8s-mirror': Download,
   '/service/linux': Cpu,
   '/proxy': Link,
   '/monitoring': Monitor,

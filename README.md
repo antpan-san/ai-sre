@@ -183,7 +183,8 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | `PRODUCT_DOC.md` | OpsFleetPilot 产品文档 |
 | `docs/` | 归档说明、客户端相关 PRD 等（如 `docs/opsfleet-README.md`、`docs/ft-client-prd-machines.txt`） |
 | `scripts/deploy-remote.sh` | 同步本仓并编译 **ai-sre CLI**（默认远端 `/root/sre`） |
-| `scripts/deploy-opsfleet-remote.sh` | 同步本仓并构建 **OpsFleet**（Nginx + systemd，`build-all.sh`） |
+| `scripts/deploy-opsfleet-remote.sh` | 同步本仓并构建 **OpsFleet**（Nginx + systemd，`build-all.sh`；可创建 `/etc/opsfleet/backend.env`） |
+| `deploy/k8s-mirror/` | K8s 内网制品同步脚本、manifest、Nginx 示例（部署在制品机，常与 192.168.56.11 同机） |
 | `scripts/build-all.sh` | 仅构建 OpsFleet 后端 + 前端静态资源 |
 | `scripts/remote-e2e.sh` | CLI 端到端冒烟 |
 
@@ -197,6 +198,8 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | 仅 vet 后端 Go | `make vet-opsfleet` |
 | 远程全栈部署（无 Docker） | `./scripts/deploy-opsfleet-remote.sh`（默认远端目录与 `DEPLOY_REMOTE_DIR` 一致：`/root/sre`；可用 `OPSFLEET_REMOTE_DIR` 覆盖） |
 | 部署后自检（在服务器上） | `bash scripts/verify-opsfleet-deployment.sh` |
+
+**实验室虚拟机 `root@192.168.56.11`（本地 root 免密）**：与 **ai-sre** `deploy-remote.sh`、**OpsFleet** `deploy-opsfleet-remote.sh` 使用**同一默认主机**；可在该机上另部署 **K8s 内网制品站**（`deploy/k8s-mirror/README.md`，持久目录默认 `/var/lib/opsfleet-k8s-mirror`）。全栈部署脚本**首次**可在远端创建 **`/etc/opsfleet/backend.env`**，设置 **`OPSFLEET_K8S_MIRROR_BASE_URL`**（默认 `http://192.168.56.11`），供控制台 **「K8s 制品镜像」** 页代理展示 `manifest.json` 与 SHA512。**发布顺序**见 **`.cursor/rules/monorepo-release.mdc`**：先 **ai-sre-ship** → 若改 OpsFleet 则 **opsfleetpilot-ship** → 若改 K8s 离线/制品 则 **k8s-offline-deploy-test** → 最后 **`git push`**。
 
 本地开发：在 `ft-backend` 配置 `conf/config.yaml` 后 `go run .`；在 `ft-front` 执行 `npm install && npm run dev`（Vite 代理 `/ft-api`）。
 

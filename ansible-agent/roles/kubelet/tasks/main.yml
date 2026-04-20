@@ -1,0 +1,5 @@
+---
+- import_tasks: cni.yml
+- import_tasks: certs.yml
+- import_tasks: distribute.yml
+- import_tasks: kubelet_service.yml

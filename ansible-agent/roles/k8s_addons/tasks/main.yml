@@ -1,0 +1,37 @@
+---
+- name: Wait for kube-apiserver on this control plane node
+  ansible.builtin.wait_for:
+    host: 127.0.0.1
+    port: 6443
+    timeout: 180
+  run_once: true
+
+- name: Render Flannel manifest
+  ansible.builtin.template:
+    src: kube-flannel.yml.j2
+    dest: /tmp/opsfleet-flannel.yml
+    mode: "0644"
+  run_once: true
+  when: network_plugin | default('flannel') == 'flannel'
+
+- name: Apply Flannel
+  ansible.builtin.command: kubectl apply -f /tmp/opsfleet-flannel.yml
+  environment:
+    KUBECONFIG: "{{ k8s_base_dir }}/admin.conf"
+  run_once: true
+  changed_when: true
+  when: network_plugin | default('flannel') == 'flannel'
+
+- name: Render CoreDNS manifest
+  ansible.builtin.template:
+    src: coredns.yaml.j2
+    dest: /tmp/opsfleet-coredns.yaml
+    mode: "0644"
+  run_once: true
+
+- name: Apply CoreDNS
+  ansible.builtin.command: kubectl apply -f /tmp/opsfleet-coredns.yaml
+  environment:
+    KUBECONFIG: "{{ k8s_base_dir }}/admin.conf"
+  run_once: true
+  changed_when: true

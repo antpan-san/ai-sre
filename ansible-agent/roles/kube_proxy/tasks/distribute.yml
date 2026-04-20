@@ -1,0 +1,66 @@
+---
+- name: Install kube-proxy dependencies (Ubuntu)
+  ansible.builtin.apt:
+    name:
+      - conntrack
+      - ipset
+    state: present
+    update_cache: false
+
+- name: Ensure PKI directory on node
+  ansible.builtin.file:
+    path: "{{ k8s_cert_dir }}"
+    state: directory
+    mode: "0755"
+
+- name: Copy cluster CA for kube-proxy kubeconfig
+  ansible.builtin.copy:
+    src: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    dest: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    mode: "0644"
+    owner: root
+    group: root
+
+- name: Copy kube-proxy client certificate material to node
+  ansible.builtin.copy:
+    src: "{{ k8s_cert_dir }}/kube-proxy.{{ item.ext }}"
+    dest: "{{ k8s_cert_dir }}/kube-proxy.{{ item.ext }}"
+    mode: "{{ item.mode }}"
+    owner: root
+    group: root
+  loop:
+    - { ext: crt, mode: "0644" }
+    - { ext: key, mode: "0600" }
+
+- name: Install kube-proxy binary
+  ansible.builtin.copy:
+    src: "{{ kube_proxy_bin_src }}"
+    dest: /usr/local/bin/kube-proxy
+    mode: "0755"
+    owner: root
+    group: root
+
+- name: Render kube-proxy kubeconfig
+  ansible.builtin.template:
+    src: kube-proxy.conf.j2
+    dest: "{{ k8s_base_dir }}/kube-proxy.conf"
+    mode: "0600"
+    owner: root
+    group: root
+  notify: Restart kube-proxy
+
+- name: Install kube-proxy systemd unit
+  ansible.builtin.template:
+    src: kube-proxy.service.j2
+    dest: /etc/systemd/system/kube-proxy.service
+    mode: "0644"
+    owner: root
+    group: root
+  notify: Restart kube-proxy
+
+- name: Enable and start kube-proxy
+  ansible.builtin.systemd_service:
+    name: kube-proxy
+    state: started
+    enabled: true
+    daemon_reload: true

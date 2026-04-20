@@ -16,7 +16,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// K8sDeployRequest matches the frontend K8s deploy form (all 7 steps).
+// K8sDeployRequest matches the frontend K8s deploy form (Ansible 流水线多步).
 type K8sDeployRequest struct {
 	// Step 1 — Basic
 	ClusterName      string `json:"clusterName" binding:"required"`
@@ -77,6 +77,11 @@ type K8sDeployRequest struct {
 
 	// 离线 install.sh / 在线执行脚本：是否在 Step 0 运行 playbooks/pre_cleanup.yml（非交互）
 	PreDeployCleanup bool `json:"preDeployCleanup"`
+
+	// 内网制品下载（可选）：覆盖 ansible-agent/inventory/group_vars/all.yml 中的 download_domain / download_protocol。
+	// 留空则使用 zip 内合并后的 inventory 默认值（仅改机房时编辑 all.yml 即可，无需改代码）。
+	DownloadDomain   string `json:"downloadDomain"`
+	DownloadProtocol string `json:"downloadProtocol"`
 }
 
 // kvPair is a generic key-value pair from the frontend form.
@@ -105,6 +110,25 @@ func normalizeImageSource(s string) string {
 		return "default"
 	}
 	return s
+}
+
+// normalizeDownloadProtocol 将 UI/CLI 输入规范为 ansible 使用的前缀（如 http://、https://）。
+func normalizeDownloadProtocol(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	low := strings.ToLower(p)
+	switch low {
+	case "http", "http://":
+		return "http://"
+	case "https", "https://":
+		return "https://"
+	}
+	if strings.HasSuffix(p, "://") {
+		return p
+	}
+	return p + "://"
 }
 
 // generateAnsibleInventory produces a dynamic Ansible inventory based on the deploy request.
@@ -159,7 +183,8 @@ func generateAnsibleGroupVars(req K8sDeployRequest, masterIP string) string {
 	}
 	networkPlugin := req.NetworkPlugin
 	if networkPlugin == "" {
-		networkPlugin = "calico"
+		// Ansible 流水线当前内置 Flannel + CoreDNS；Calico 等需后续接入。
+		networkPlugin = "flannel"
 	}
 	kubeProxyMode := req.KubeProxyMode
 	if kubeProxyMode == "" {
@@ -223,6 +248,13 @@ arch_version: "%s"
 		cpuArch,
 	)
 
+	if d := strings.TrimSpace(req.DownloadDomain); d != "" {
+		vars += fmt.Sprintf("download_domain: \"%s\"\n", d)
+	}
+	if p := strings.TrimSpace(req.DownloadProtocol); p != "" {
+		vars += fmt.Sprintf("download_protocol: \"%s\"\n", normalizeDownloadProtocol(p))
+	}
+
 	if req.CustomRegistry != "" {
 		vars += fmt.Sprintf("custom_registry: \"%s\"\n", req.CustomRegistry)
 		if req.RegistryUsername != "" {
@@ -283,6 +315,8 @@ k8s_server_tarball_url: "https://dl.k8s.io/{{ kubernetes_version }}/{{ k8s_packa
 k8s_server_tarball_checksum: "sha512:https://dl.k8s.io/{{ kubernetes_version }}/{{ k8s_package_name }}.tar.gz.sha512"
 etcd_download_url: "https://github.com/etcd-io/etcd/releases/download/{{ etcd_version }}/{{ etcd_package_name }}.tar.gz"
 k8s_image_repository: "registry.aliyuncs.com/google_containers"
+# CNI 插件走公网（与内网 download_domain 解耦）
+cni_plugins_download_url: "https://github.com/containernetworking/plugins/releases/download/{{ cni_plugins_version }}/cni-plugins-linux-{{ arch_version }}-{{ cni_plugins_version }}.tgz"
 `
 	}
 
@@ -336,37 +370,54 @@ cp "$TEMP_VARS" "$ANSIBLE_DIR/inventory/group_vars/all.yml"
 
 cd "$ANSIBLE_DIR"
 %s
-echo "=== Step 1/7: System Initialization ==="
+echo "=== Step 1/11: System Initialization ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/0-init.yml || { echo "FAILED: init"; exit 1; }
 echo "init" >> "$STATE_FILE"
 
-echo "=== Step 2/7: Download Resources ==="
+echo "=== Step 2/11: Download Resources ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/resources.yml || { echo "FAILED: resources"; exit 1; }
 echo "resources" >> "$STATE_FILE"
 
-echo "=== Step 3/7: Deploy etcd Cluster ==="
+echo "=== Step 3/11: Deploy etcd Cluster ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/etcd.yml || { echo "FAILED: etcd"; exit 1; }
 echo "etcd" >> "$STATE_FILE"
 
-echo "=== Step 4/7: Deploy kube-apiserver ==="
+echo "=== Step 4/11: Deploy kube-apiserver ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_apiserver_install.yml || { echo "FAILED: apiserver"; exit 1; }
 echo "apiserver" >> "$STATE_FILE"
 
-echo "=== Step 5/7: Deploy kube-controller-manager ==="
+echo "=== Step 5/11: Deploy kube-controller-manager ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_controller_manager_install.yml || { echo "FAILED: controller-manager"; exit 1; }
 echo "controller_manager" >> "$STATE_FILE"
 
-echo "=== Step 6/7: Deploy kube-scheduler ==="
+echo "=== Step 6/11: Deploy kube-scheduler ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_scheduler_install.yml || { echo "FAILED: scheduler"; exit 1; }
 echo "scheduler" >> "$STATE_FILE"
 
-echo "=== Step 7/7: Install kubectl ==="
+echo "=== Step 7/11: Install kubectl ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubectl.yml || { echo "FAILED: kubectl"; exit 1; }
 echo "kubectl" >> "$STATE_FILE"
+
+echo "=== Step 8/11: Install containerd ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/containerd.yml || { echo "FAILED: containerd"; exit 1; }
+echo "containerd" >> "$STATE_FILE"
+
+echo "=== Step 9/11: Install kubelet ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubelet.yml || { echo "FAILED: kubelet"; exit 1; }
+echo "kubelet" >> "$STATE_FILE"
+
+echo "=== Step 10/11: Install kube-proxy ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_proxy.yml || { echo "FAILED: kube-proxy"; exit 1; }
+echo "kube_proxy" >> "$STATE_FILE"
+
+echo "=== Step 11/11: Apply addons (Flannel + CoreDNS) ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/k8s_addons.yml || { echo "FAILED: k8s_addons"; exit 1; }
+echo "k8s_addons" >> "$STATE_FILE"
 
 echo "=== K8s Deployment Completed Successfully! ==="
 rm -f "$TEMP_INVENTORY" "$TEMP_VARS"
 kubectl get nodes || echo "WARNING: kubectl check failed"
+kubectl get pods -A || true
 `, deployStateFile, inventoryContent, groupVarsContent, preBlock)
 }
 
@@ -379,9 +430,9 @@ STATE_FILE="` + deployStateFile + `"
 echo "=== OpsFleetPilot K8s Deploy Cleanup (restore to pre-deploy state) ==="
 
 cleanup_kubectl() {
-  systemctl stop kubelet 2>/dev/null || true
-  rm -f /usr/local/bin/kubectl /usr/local/bin/kubelet
-  rm -rf /root/.kube /etc/kubernetes/kubelet.conf 2>/dev/null || true
+  systemctl stop kube-proxy kubelet 2>/dev/null || true
+  rm -f /usr/local/bin/kubectl /usr/local/bin/kubelet /usr/local/bin/kube-proxy
+  rm -rf /root/.kube /etc/kubernetes/kubelet.conf /etc/kubernetes/kube-proxy.conf 2>/dev/null || true
 }
 cleanup_scheduler() {
   systemctl stop kube-scheduler 2>/dev/null || true

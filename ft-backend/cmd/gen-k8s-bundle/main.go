@@ -29,6 +29,8 @@ func main() {
 	imageSource := flag.String("imageSource", "aliyun", "image/binary mirror: default|aliyun|tencent|custom")
 	arch := flag.String("arch", "arm64", "target cpu arch: amd64|arm64 (match uname -m on nodes)")
 	preCleanup := flag.Bool("preCleanup", false, "embed install.sh default: run Step 0 pre_cleanup playbook (non-interactive)")
+	downloadDomain := flag.String("downloadDomain", "", "override inventory download_domain (empty = use ansible-agent/inventory/group_vars/all.yml default)")
+	downloadProtocol := flag.String("downloadProtocol", "", "override download_protocol, e.g. http:// or https://")
 	flag.Parse()
 
 	masters := splitCSV(*master)
@@ -42,6 +44,8 @@ func main() {
 		EnableRBAC:          true,
 		DefaultStorageClass: true,
 		PreDeployCleanup:    *preCleanup,
+		DownloadDomain:      *downloadDomain,
+		DownloadProtocol:    *downloadProtocol,
 	}
 	data, err := handlers.BuildK8sOfflineZip(req)
 	if err != nil {

@@ -26,4 +26,23 @@ curl -sfS "http://127.0.0.1:${UI_PORT}/health" && echo "" || {
 echo "-- 静态目录（Nginx root，须 www-data 可读）--"
 test -f "$STATIC_ROOT/index.html" && echo "$STATIC_ROOT/index.html OK" || echo "WARN: 缺少 $STATIC_ROOT/index.html（部署脚本应 rsync 自 dist/web）"
 
+if [[ -r /etc/opsfleet/backend.env ]]; then
+  # shellcheck disable=SC1091
+  set -a
+  source /etc/opsfleet/backend.env
+  set +a
+fi
+MIRROR_BASE="${OPSFLEET_K8S_MIRROR_BASE_URL:-}"
+if [[ -n "$MIRROR_BASE" ]]; then
+  echo "-- K8s 制品 manifest（OPSFLEET_K8S_MIRROR_BASE_URL=$MIRROR_BASE）--"
+  if curl -sfS --connect-timeout 8 "${MIRROR_BASE%/}/manifest.json" -o /tmp/.opsfleet-mirror-check.json 2>/dev/null; then
+    echo "manifest.json OK ($(wc -c </tmp/.opsfleet-mirror-check.json) bytes)"
+    rm -f /tmp/.opsfleet-mirror-check.json
+  else
+    echo "WARN: 无法拉取 ${MIRROR_BASE%/}/manifest.json — 若需「K8s 制品镜像」页，请在同机部署 deploy/k8s-mirror（见 deploy/k8s-mirror/README.md）"
+  fi
+else
+  echo "-- K8s 制品 manifest：未配置 OPSFLEET_K8S_MIRROR_BASE_URL（可选，见 /etc/opsfleet/backend.env）--"
+fi
+
 echo "=== 若浏览器仍无法打开，请检查：云安全组/防火墙是否放行 TCP ${UI_PORT}；访问 URL 是否为 http://<服务器IP>:${UI_PORT}/ ==="

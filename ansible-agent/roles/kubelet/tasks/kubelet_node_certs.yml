@@ -1,0 +1,62 @@
+---
+- name: Create kubelet client key ({{ kubelet_node }})
+  community.crypto.openssl_privatekey:
+    path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-client.key"
+    size: 2048
+    type: RSA
+    mode: "0600"
+  delegate_to: localhost
+
+- name: Create kubelet client CSR ({{ kubelet_node }})
+  community.crypto.openssl_csr:
+    path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-client.csr"
+    privatekey_path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-client.key"
+    common_name: "system:node:{{ kubelet_node }}"
+    organization_name: "system:nodes"
+    extended_key_usage:
+      - clientAuth
+    state: present
+  delegate_to: localhost
+
+- name: Sign kubelet client certificate ({{ kubelet_node }})
+  community.crypto.x509_certificate:
+    path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-client.crt"
+    csr_path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-client.csr"
+    provider: ownca
+    ownca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    ownca_privatekey_path: "{{ k8s_cert_dir }}/k8s_ca.key"
+    ownca_not_after: +3650d
+  delegate_to: localhost
+
+- name: Create kubelet server key ({{ kubelet_node }})
+  community.crypto.openssl_privatekey:
+    path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-server.key"
+    size: 2048
+    type: RSA
+    mode: "0600"
+  delegate_to: localhost
+
+- name: Create kubelet server CSR ({{ kubelet_node }})
+  community.crypto.openssl_csr:
+    path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-server.csr"
+    privatekey_path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-server.key"
+    common_name: "system:node:{{ kubelet_node }}"
+    organization_name: "system:nodes"
+    subject_alt_name:
+      - "DNS:{{ kubelet_node }}"
+      - "IP:{{ hostvars[kubelet_node].ansible_host }}"
+      - "IP:127.0.0.1"
+    extended_key_usage:
+      - serverAuth
+    state: present
+  delegate_to: localhost
+
+- name: Sign kubelet server certificate ({{ kubelet_node }})
+  community.crypto.x509_certificate:
+    path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-server.crt"
+    csr_path: "{{ k8s_cert_dir }}/kubelet-{{ kubelet_node }}-server.csr"
+    provider: ownca
+    ownca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+    ownca_privatekey_path: "{{ k8s_cert_dir }}/k8s_ca.key"
+    ownca_not_after: +3650d
+  delegate_to: localhost

@@ -11,7 +11,7 @@ description: >-
 
 在已满足 **`.cursor/rules/monorepo-release.mdc`** 与 **`.cursor/skills/ai-sre-ship/SKILL.md`** 的前提下，若本次变更触及 **OpsFleet** 相关路径或脚本，**另须**完整执行本文件：`ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`，或 `scripts/deploy-opsfleet-remote.sh`、`scripts/build-all.sh`、`scripts/verify-opsfleet-deployment.sh`、`PRODUCT_DOC.md` 中与控制台部署强相关的内容。
 
-OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshuai/Documents/work/code/ai-sre`**。默认远程 **`root@192.168.56.11`**，远端目录 **`/root/sre`**（与 `scripts/deploy-opsfleet-remote.sh` 中 `OPSFLEET_REMOTE_DIR` 默认一致；**不要**与仅 CLI 的 `scripts/deploy-remote.sh` 混淆）。
+OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshuai/Documents/work/code/ai-sre`**。默认远程 **`root@192.168.56.11`**（本地虚拟机、**root** 免密，与 **ai-sre-ship** 相同主机），远端目录 **`/root/sre`**（与 `scripts/deploy-opsfleet-remote.sh` 中 `OPSFLEET_REMOTE_DIR` 默认一致；**不要**与仅 CLI 的 `scripts/deploy-remote.sh` 混淆）。**同一 VM** 还可部署 **K8s 内网制品站**（`deploy/k8s-mirror/`，持久目录 `/var/lib/opsfleet-k8s-mirror`）；后端通过 **`/etc/opsfleet/backend.env`** 的 **`OPSFLEET_K8S_MIRROR_BASE_URL`** 拉取 `manifest.json`（首次全栈部署脚本可创建该文件）。
 
 ## 服务范围（「所有服务」）
 
@@ -46,10 +46,13 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 1. **更新 README**（见上）并暂存相关文档。  
 2. **本地快速校验**（可选）：`make vet-opsfleet`；`make build-opsfleet` 确认能生成 `bin/` 与 `dist/web/`（勿提交）。  
-3. **远程部署**：`./scripts/deploy-opsfleet-remote.sh`（rsync → 远端 `scripts/build-all.sh` → Nginx + systemd → `curl /health`）。  
-4. **失败处理**：若构建失败，在远端或本地 `make build-opsfleet` 复现；修复后再推送。  
-5. **Git**：`git add -A && git commit && git push`。**确认未误加 `bin/`、`dist/`。**  
-6. **汇报**：说明访问地址 `http://<host>:9080/`、服务状态、提交哈希。
+3. **远程部署**：`./scripts/deploy-opsfleet-remote.sh`（rsync → 远端 `scripts/build-all.sh` → Nginx + systemd → `curl /health`；**首次**可在远端创建 **`/etc/opsfleet/backend.env`**，含 **`OPSFLEET_K8S_MIRROR_BASE_URL=http://192.168.56.11`**，供控制台「K8s 制品镜像」页使用）。  
+4. **部署后自检（远端）**：`bash scripts/verify-opsfleet-deployment.sh`（含可选 **manifest** 探测；若未部署 `deploy/k8s-mirror` 会出现 WARN，属预期）。  
+5. **失败处理**：若构建失败，在远端或本地 `make build-opsfleet` 复现；修复后再推送。  
+6. **Git**：`git add -A && git commit && git push`。**确认未误加 `bin/`、`dist/`。**  
+7. **汇报**：说明访问地址 `http://<host>:9080/`、服务状态、提交哈希；若本次改了 K8s 制品相关，说明 manifest 检查结果。
+
+**与 K8s 离线 Skill**：若变更命中 `ansible-agent`、`k8s_bundle`、`deploy/k8s-mirror` 等，在 **`git push` 前**还须满足 **`.cursor/skills/k8s-offline-deploy-test/SKILL.md`** 最低限度（`go build`、`gen-k8s-bundle`；能 SSH **192.168.56.11** 时建议验证 manifest）。
 
 ## 固定参数（可覆盖）
 
