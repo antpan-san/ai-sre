@@ -2,7 +2,7 @@
 name: ai-sre-ship
 description: >-
   Mandatory after ANY change under /Users/panshuai/Documents/work/code/ai-sre (entire monorepo):
-  README check, deploy-remote.sh to root@172.16.195.128:/root/sre, remote smoke, README re-check, push.
+  README check, deploy-remote.sh to root@192.168.56.11:/root/sre, remote smoke, README re-check, push.
   Also see .cursor/rules/monorepo-release.mdc and opsfleetpilot-ship when touching ft-*/deploy/ansible.
 ---
 
@@ -14,13 +14,13 @@ description: >-
 
 仓库同仓参数与 **Cursor 规则**见 **`.cursor/rules/monorepo-release.mdc`**（`alwaysApply`）；本 skill 为具体步骤。
 
-在 **ai-sre** 项目（`/Users/panshuai/Documents/work/code/ai-sre`）中**每次完成上述修改后**，代理必须按顺序执行本流程；用户已配置 **root@172.16.195.128** 免密 SSH。
+在 **ai-sre** 项目（`/Users/panshuai/Documents/work/code/ai-sre`）中**每次完成上述修改后**，代理必须按顺序执行本流程；用户已配置 **root@192.168.56.11** 免密 SSH。
 
 ## 固定参数
 
 | 项 | 值 |
 |----|-----|
-| 远程主机 | `root@172.16.195.128` |
+| 远程主机 | `root@192.168.56.11` |
 | 远程目录 | `/root/sre`（不存在则创建） |
 | GitHub 远程 | `git@github.com:antpan-san/ai-sre.git` |
 | 本地项目根 | `/Users/panshuai/Documents/work/code/ai-sre` |
@@ -115,14 +115,14 @@ git push -u origin main
 ## 手动等价命令（无 deploy-remote.sh 时）
 
 ```bash
-ssh root@172.16.195.128 "mkdir -p /root/sre"
+ssh root@192.168.56.11 "mkdir -p /root/sre"
 rsync -avz \
   --exclude '.git' \
   --exclude 'ai-sre' \
   --exclude '.DS_Store' \
   /Users/panshuai/Documents/work/code/ai-sre/ \
-  root@172.16.195.128:/root/sre/
-ssh root@172.16.195.128 'cd /root/sre && go mod download && go vet ./... && go build -o ai-sre . && ./ai-sre version'
+  root@192.168.56.11:/root/sre/
+ssh root@192.168.56.11 'cd /root/sre && go mod download && go vet ./... && go build -o ai-sre . && ./ai-sre version'
 ```
 
 ---
@@ -130,7 +130,7 @@ ssh root@172.16.195.128 'cd /root/sre && go mod download && go vet ./... && go b
 ## 远程环境前提
 
 - 目标机需可执行 `go`（Ubuntu 示例：`apt-get install -y golang-go`）。
-- 本机已配置到 `root@172.16.195.128` 的免密 SSH。
+- 本机已配置到 `root@192.168.56.11` 的免密 SSH。
 
 ## 失败处理
 

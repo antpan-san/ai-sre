@@ -2,7 +2,7 @@
 # Deploy ai-sre sources to remote SRE host and run build smoke tests.
 set -euo pipefail
 
-REMOTE_USER_HOST="${DEPLOY_REMOTE:-root@172.16.195.128}"
+REMOTE_USER_HOST="${DEPLOY_REMOTE:-root@192.168.56.11}"
 REMOTE_DIR="${DEPLOY_REMOTE_DIR:-/root/sre}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"

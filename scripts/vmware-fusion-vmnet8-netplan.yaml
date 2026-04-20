@@ -5,7 +5,7 @@
 #   sudo chmod 600 /etc/netplan/00-installer-config.yaml
 #   sudo netplan apply
 #
-# 将下方 172.16.195.11 换成你想要的同网段地址（如 172.16.195.128），勿使用 192.168.56.x（除非已把 Fusion vmnet8 改成 192.168.56.0/24）
+# 将下方 172.16.195.11 换成你想要的同网段地址（如 172.16.195.128）；若需当前项目默认部署节点 192.168.56.11，请改用 scripts/vmware-fusion-192.168.56-netplan.yaml
 
 network:
   version: 2

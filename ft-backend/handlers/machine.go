@@ -377,7 +377,7 @@ func RegisterWorkerNodes(c *gin.Context) {
 
 	for _, w := range req.Workers {
 		// Trim all string fields to guard against accidental leading/trailing whitespace
-		// entered in the UI — e.g. " 172.16.195.128" would miss the ip-based lookup and
+		// entered in the UI — e.g. " 192.168.56.11" would miss the ip-based lookup and
 		// then fail on the fingerprint/client_id unique constraints.
 		ip := strings.TrimSpace(w.IP)
 		port := w.SSHPort

@@ -3,7 +3,7 @@
 # GitHub 仅源码；bin/、dist/ 在 .gitignore 中，由部署机在本地生成。
 set -euo pipefail
 
-REMOTE="${OPSFLEET_REMOTE:-root@172.16.195.128}"
+REMOTE="${OPSFLEET_REMOTE:-root@192.168.56.11}"
 # 与 ai-sre 默认部署目录一致（同仓单拷贝）；可用 OPSFLEET_REMOTE_DIR 覆盖
 REMOTE_DIR="${OPSFLEET_REMOTE_DIR:-/root/sre}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

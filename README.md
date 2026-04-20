@@ -125,7 +125,7 @@ CI 或发布前建议：`go test ./... && go vet ./...`（`scripts/remote-e2e.sh
 
 ## 远程部署与冒烟（团队环境）
 
-默认将本仓库同步到 **`root@172.16.195.128:/root/sre`**；冒烟脚本还会在远程执行 `go vet`、`go test`、`go build`、`./ai-sre doctor` 等（见 `scripts/remote-e2e.sh`）。
+默认将本仓库同步到 **`root@192.168.56.11:/root/sre`**；冒烟脚本还会在远程执行 `go vet`、`go test`、`go build`、`./ai-sre doctor` 等（见 `scripts/remote-e2e.sh`）。
 
 在**仓库根目录**执行：
 

@@ -11,7 +11,7 @@ description: >-
 
 在已满足 **`.cursor/rules/monorepo-release.mdc`** 与 **`.cursor/skills/ai-sre-ship/SKILL.md`** 的前提下，若本次变更触及 **OpsFleet** 相关路径或脚本，**另须**完整执行本文件：`ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`，或 `scripts/deploy-opsfleet-remote.sh`、`scripts/build-all.sh`、`scripts/verify-opsfleet-deployment.sh`、`PRODUCT_DOC.md` 中与控制台部署强相关的内容。
 
-OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshuai/Documents/work/code/ai-sre`**。默认远程 **`root@172.16.195.128`**，远端目录 **`/root/sre`**（与 `scripts/deploy-opsfleet-remote.sh` 中 `OPSFLEET_REMOTE_DIR` 默认一致；**不要**与仅 CLI 的 `scripts/deploy-remote.sh` 混淆）。
+OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshuai/Documents/work/code/ai-sre`**。默认远程 **`root@192.168.56.11`**，远端目录 **`/root/sre`**（与 `scripts/deploy-opsfleet-remote.sh` 中 `OPSFLEET_REMOTE_DIR` 默认一致；**不要**与仅 CLI 的 `scripts/deploy-remote.sh` 混淆）。
 
 ## 服务范围（「所有服务」）
 
@@ -55,7 +55,7 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 | 环境变量 | 默认 |
 |----------|------|
-| `OPSFLEET_REMOTE` | `root@172.16.195.128` |
+| `OPSFLEET_REMOTE` | `root@192.168.56.11` |
 | `OPSFLEET_REMOTE_DIR` | `/root/sre` |
 | `OPSFLEET_UI_PORT` | `9080` |
 | `OPSFLEET_BACKEND_PORT` | `8080` |
