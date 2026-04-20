@@ -1,17 +1,23 @@
 <template>
   <div class="k8s-deploy-form page-shell page-shell--wizard">
-    <div class="page-header">
-      <h2>部署 Kubernetes 集群</h2>
-      <p class="page-desc">通过分步向导配置参数；推荐下载离线包在 Ubuntu 24.04 上一键安装（无需 Agent）。</p>
-      <div class="bundle-actions">
-        <el-button type="primary" :loading="downloadingBundle" @click="handleDownloadBundle">
-          生成并下载离线安装包（zip）
-        </el-button>
+    <header class="page-header">
+      <div class="page-header-inner">
+        <span class="page-kicker">Kubernetes</span>
+        <h2 class="page-title">部署 Kubernetes 集群</h2>
+        <p class="page-desc">
+          分步完成集群参数配置；支持<strong>离线安装包</strong>（Ubuntu 24.04 解压后一键执行）或<strong>在线部署</strong>（经已安装 Agent 的节点执行）。
+        </p>
       </div>
-    </div>
+    </header>
 
-    <!-- 步骤条 -->
-    <el-steps :active="activeStep" class="deploy-steps" align-center finish-status="success">
+    <!-- 步骤条（简洁横条，减少视觉噪音） -->
+    <el-steps
+      :active="activeStep"
+      class="deploy-steps"
+      align-center
+      finish-status="success"
+      simple
+    >
       <el-step v-for="(s, i) in stepsMeta" :key="i" :title="s.title" :icon="s.icon" />
     </el-steps>
 
@@ -267,7 +273,7 @@
               active-text="离线安装包"
               inactive-text="在线 Agent"
             />
-            <span class="mode-hint">离线模式：页顶下载 zip，Ubuntu 24.04 执行 <code>sudo bash install.sh</code></span>
+            <span class="mode-hint">离线模式：在<strong>最后一步「部署确认」</strong>生成 zip；Ubuntu 24.04 执行 <code>sudo bash install.sh</code></span>
           </el-form-item>
 
           <template v-if="offlineBundleMode">
@@ -646,7 +652,31 @@
         </div>
 
         <!-- ========== 步骤 7: 部署确认 ========== -->
-        <div v-show="activeStep === 6" class="step-section">
+        <div v-show="activeStep === 6" class="step-section step-section--confirm">
+          <div
+            class="confirm-hero"
+            :class="offlineBundleMode ? 'confirm-hero--offline' : 'confirm-hero--online'"
+          >
+            <div class="confirm-hero-icon" aria-hidden="true">
+              <el-icon v-if="offlineBundleMode" :size="28"><FolderOpened /></el-icon>
+              <el-icon v-else :size="28"><Promotion /></el-icon>
+            </div>
+            <div class="confirm-hero-text">
+              <h4 class="confirm-hero-title">
+                {{ offlineBundleMode ? '离线安装包' : '在线部署' }}
+              </h4>
+              <p class="confirm-hero-desc">
+                <template v-if="offlineBundleMode">
+                  请核对下方配置；确认无误后，点击页面底部<strong>「生成并下载离线安装包」</strong>获取 zip，在控制机解压后执行
+                  <code>sudo bash install.sh</code>。
+                </template>
+                <template v-else>
+                  请核对下方配置；确认无误后，点击页面底部<strong>「开始在线部署」</strong>由 Agent 执行安装。
+                </template>
+              </p>
+            </div>
+          </div>
+
           <div class="confirm-grid">
             <!-- 集群基础 -->
             <div class="confirm-block">
@@ -733,24 +763,48 @@
       </div>
     </div>
 
-    <!-- ==================== 底部操作栏 ==================== -->
+    <!-- ==================== 底部操作栏（最后一步仅展示与当前模式匹配的主操作） ==================== -->
     <div class="step-actions">
-      <el-button v-if="activeStep > 0" @click="prevStep" :disabled="submitting">
+      <el-button
+        v-if="activeStep > 0"
+        @click="prevStep"
+        :disabled="submitting || downloadingBundle"
+      >
         上一步
       </el-button>
       <div class="action-spacer" />
-      <el-button v-if="activeStep < 6" type="primary" @click="nextStep" :loading="validating">
+      <el-button
+        v-if="activeStep < 6"
+        type="primary"
+        class="step-next-btn"
+        @click="nextStep"
+        :loading="validating"
+      >
         下一步
       </el-button>
-      <el-button
-        v-if="activeStep === 6"
-        type="success"
-        :loading="submitting"
-        :disabled="offlineBundleMode"
-        @click="submitDeploy"
-      >
-        开始在线部署
-      </el-button>
+      <template v-if="activeStep === 6">
+        <el-button
+          v-if="offlineBundleMode"
+          type="primary"
+          size="large"
+          class="primary-finish-btn"
+          :loading="downloadingBundle"
+          @click="handleDownloadBundle"
+        >
+          <el-icon class="primary-finish-btn-icon"><Download /></el-icon>
+          生成并下载离线安装包
+        </el-button>
+        <el-button
+          v-else
+          type="success"
+          size="large"
+          class="primary-finish-btn"
+          :loading="submitting"
+          @click="submitDeploy"
+        >
+          开始在线部署
+        </el-button>
+      </template>
     </div>
   </div>
 </template>
@@ -767,7 +821,10 @@ import {
   Connection,
   Coin,
   Operation,
-  CircleCheck
+  CircleCheck,
+  Download,
+  FolderOpened,
+  Promotion
 } from '@element-plus/icons-vue'
 import NodeSelect from '@/components/k8s/NodeSelect.vue'
 import LabelGroup from '@/components/k8s/LabelGroup.vue'
@@ -807,7 +864,11 @@ const stepsMeta = [
   { title: '网络配置', desc: '选择网络插件并配置 Pod/Service CIDR', icon: markRaw(Connection) },
   { title: '存储配置', desc: '配置默认存储类和存储供应器', icon: markRaw(Coin) },
   { title: '高级配置', desc: '选择可选组件及额外启动参数', icon: markRaw(Operation) },
-  { title: '部署确认', desc: '确认所有配置无误后提交部署', icon: markRaw(CircleCheck) }
+  {
+    title: '部署确认',
+    desc: '核对摘要：离线模式在此生成 zip，在线模式在此提交部署',
+    icon: markRaw(CircleCheck)
+  }
 ]
 
 // ---------- 表单 Refs ----------
@@ -1190,7 +1251,7 @@ const handleDownloadBundle = async () => {
 // ---------- 提交部署（在线 Agent） ----------
 const submitDeploy = async () => {
   if (offlineBundleMode.value) {
-    ElMessage.warning('当前为离线安装包模式，请使用页面顶部「生成并下载」按钮，勿使用在线部署')
+    ElMessage.warning('当前为离线安装包模式，请使用页面底部「生成并下载离线安装包」')
     return
   }
   submitting.value = true
@@ -1255,28 +1316,53 @@ const submitDeploy = async () => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .page-header {
-  text-align: center;
-}
-
-.page-header h2 {
-  color: var(--el-color-primary);
-  margin: 0 0 6px 0;
-  font-size: 26px;
-  font-weight: 600;
-}
-
-.page-desc {
-  color: #6b7280;
-  font-size: 14px;
   margin: 0;
 }
 
-.bundle-actions {
-  margin-top: 12px;
+.page-header-inner {
+  text-align: center;
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 20px 20px 18px;
+  border-radius: 14px;
+  background: linear-gradient(165deg, var(--el-color-primary-light-9) 0%, #fff 55%);
+  border: 1px solid var(--el-border-color-lighter);
+  box-shadow: 0 1px 2px rgba(30, 64, 175, 0.06);
+}
+
+.page-kicker {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--el-color-primary);
+  margin-bottom: 8px;
+}
+
+.page-title {
+  color: var(--el-text-color-primary);
+  margin: 0 0 10px;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.page-desc {
+  color: var(--el-text-color-secondary);
+  font-size: 14px;
+  line-height: 1.65;
+  margin: 0;
+}
+
+.page-desc strong {
+  color: var(--el-text-color-regular);
+  font-weight: 600;
 }
 
 .mode-hint {
@@ -1356,7 +1442,83 @@ const submitDeploy = async () => {
 }
 
 .deploy-steps {
-  margin-bottom: 8px;
+  margin-bottom: 4px;
+  padding: 2px 0 8px;
+}
+
+.deploy-steps :deep(.el-step__title) {
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+/* 确认页：模式说明 + 摘要 */
+.step-section--confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.confirm-hero {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.confirm-hero--offline {
+  background: linear-gradient(120deg, #ecfdf5 0%, #f0fdf4 40%, #fff 100%);
+  border-color: #a7f3d0;
+}
+
+.confirm-hero--online {
+  background: linear-gradient(120deg, #eff6ff 0%, #f0f7ff 45%, #fff 100%);
+  border-color: var(--el-color-primary-light-9);
+}
+
+.confirm-hero-icon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255, 255, 255, 0.85);
+  color: var(--el-color-primary);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+}
+
+.confirm-hero--offline .confirm-hero-icon {
+  color: #059669;
+}
+
+.confirm-hero-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.confirm-hero-title {
+  margin: 0 0 6px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+}
+
+.confirm-hero-desc {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--el-text-color-regular);
+}
+
+.confirm-hero-desc code {
+  font-size: 12px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid var(--el-border-color-lighter);
 }
 
 /* ==================== 步骤卡片（统一风格） ==================== */
@@ -1484,10 +1646,16 @@ const submitDeploy = async () => {
 }
 
 .confirm-block {
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
+  background: var(--el-fill-color-blank);
+  border: 1px solid var(--el-border-color-lighter);
   border-radius: 10px;
   padding: 18px 20px;
+  transition: box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.confirm-block:hover {
+  border-color: var(--el-border-color);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
 }
 
 .confirm-block-full {
@@ -1496,11 +1664,11 @@ const submitDeploy = async () => {
 
 .confirm-block-title {
   margin: 0 0 12px 0;
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
-  color: #1890ff;
+  color: var(--el-color-primary);
   padding-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .confirm-row {
@@ -1525,15 +1693,37 @@ const submitDeploy = async () => {
   word-break: break-all;
 }
 
-/* ==================== 底部操作 ==================== */
+/* ==================== 底部操作（sticky，便于长确认页仍能看到主操作） ==================== */
 .step-actions {
   display: flex;
   align-items: center;
-  padding-top: 4px;
+  gap: 12px;
+  padding: 16px 4px 8px;
+  margin-top: 8px;
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #fff 18%);
+  border-top: 1px solid var(--el-border-color-lighter);
 }
-
 .action-spacer {
   flex: 1;
+}
+
+.primary-finish-btn {
+  min-width: 220px;
+  font-weight: 600;
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+.primary-finish-btn-icon {
+  margin-right: 6px;
+  vertical-align: -0.15em;
+}
+
+.step-next-btn {
+  min-width: 108px;
 }
 
 /* ==================== 响应式 ==================== */
