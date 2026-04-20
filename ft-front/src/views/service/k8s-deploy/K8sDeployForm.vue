@@ -29,6 +29,38 @@
       <div class="step-card-body">
         <!-- ========== 步骤 1: 基础集群信息 ========== -->
         <div v-show="activeStep === 0" class="step-section">
+          <el-alert type="warning" :closable="false" show-icon class="k8s-prereq-alert">
+            <template #title>运行离线安装包前：执行环境（必读）</template>
+            <div class="k8s-prereq-body">
+              <p>
+                <strong>谁在执行</strong>：<code>install.sh</code> 会在<strong>你运行命令的那台 Ubuntu 机</strong>上安装 Ansible，并通过
+                <strong>SSH 以用户 root</strong>登录下面步骤里填写的<strong>所有节点 IP</strong>。
+              </p>
+              <p>
+                <strong>典型报错</strong>：若最终脚本或 Ansible 出现
+                <code>Permission denied (publickey,password)</code>，说明<strong>本机还不能免密登录各节点 root</strong>，须先完成下方「最少步骤」，再执行 <code>sudo bash install.sh</code>。
+              </p>
+              <p><strong>最少步骤（推荐）</strong></p>
+              <ol class="k8s-prereq-ol">
+                <li>
+                  在<strong>同一台将执行</strong> <code>install.sh</code> 的机器上（建议 root 下操作），若没有密钥可执行：
+                  <code>ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519</code>
+                </li>
+                <li>
+                  为<strong>每一个</strong>节点 IP 拷贝公钥（每个 IP 执行一次）：
+                  <code>ssh-copy-id -i ~/.ssh/id_ed25519.pub root@&lt;节点IP&gt;</code>
+                </li>
+                <li>
+                  验证：<code>ssh root@&lt;节点IP&gt;</code> 能直接进入，无密码提示。
+                </li>
+              </ol>
+              <p class="k8s-prereq-muted">
+                说明：日志里若出现 <code>No VM guests are running outdated hypervisor (qemu)</code> 为系统 apt 提示，可忽略；
+                当前清单使用 <code>ansible_user=root</code>，不支持交互式输入 SSH 密码。
+              </p>
+            </div>
+          </el-alert>
+
           <!-- 正在部署：通过 WS 实时展示当前进行中的部署 -->
           <div v-if="runningDeploy" class="deploy-status-block">
             <div class="deploy-status-header">
@@ -198,6 +230,14 @@
 
         <!-- ========== 步骤 2: 节点配置 ========== -->
         <div v-show="activeStep === 1" class="step-section" v-loading="activeStep === 1 && machineStore.loading">
+          <el-alert
+            v-if="offlineBundleMode"
+            title="离线包：你在下方填写的每个 IP，都必须能从「将执行 install.sh 的机器」免密 SSH 为 root；未完成则会在 Step 1/7 init 失败。"
+            type="warning"
+            :closable="false"
+            show-icon
+            class="step-alert"
+          />
           <el-alert
             title="执行节点负责运行 Ansible 部署任务，需与 K8s 集群节点网络互通（SSH）。执行节点可与集群节点分离。"
             type="info"
@@ -735,8 +775,16 @@ const machineStore = useMachineStore()
 
 // ---------- 步骤元信息（统一每步的标题、描述、图标） ----------
 const stepsMeta = [
-  { title: '基础集群信息', desc: '配置集群名称、版本和镜像源等基础参数', icon: markRaw(Monitor) },
-  { title: '节点配置', desc: '选择主节点和工作节点，配置标签与污点', icon: markRaw(Cpu) },
+  {
+    title: '基础集群信息',
+    desc: '先阅读下方「运行离线包前」前置条件；再填写集群名称、版本与镜像源',
+    icon: markRaw(Monitor)
+  },
+  {
+    title: '节点配置',
+    desc: '填写节点 IP（离线包）或 Agent；所有 IP 须已能从执行机免密 SSH 为 root',
+    icon: markRaw(Cpu)
+  },
   { title: '核心组件配置', desc: '设置 kube-proxy 模式、RBAC 及审计策略', icon: markRaw(SetUp) },
   { title: '网络配置', desc: '选择网络插件并配置 Pod/Service CIDR', icon: markRaw(Connection) },
   { title: '存储配置', desc: '配置默认存储类和存储供应器', icon: markRaw(Coin) },
@@ -1142,6 +1190,44 @@ const submitDeploy = async () => {
 
 <style scoped>
 /* ==================== 页面布局 ==================== */
+.k8s-prereq-alert {
+  margin-bottom: 8px;
+}
+
+.k8s-prereq-body {
+  font-size: 13px;
+  line-height: 1.65;
+  color: #374151;
+}
+
+.k8s-prereq-body p {
+  margin: 0 0 10px;
+}
+
+.k8s-prereq-ol {
+  margin: 6px 0 12px 1.25rem;
+  padding-left: 0.25rem;
+}
+
+.k8s-prereq-ol li {
+  margin-bottom: 8px;
+}
+
+.k8s-prereq-body code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #1f2937;
+}
+
+.k8s-prereq-muted {
+  margin-top: 8px !important;
+  margin-bottom: 0 !important;
+  font-size: 12px;
+  color: #6b7280;
+}
+
 .k8s-deploy-form {
   width: 100%;
   padding: 0;

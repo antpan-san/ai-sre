@@ -150,15 +150,24 @@ func buildK8sOfflineZip(clusterName, ansibleRoot, inventory, groupVars string) (
 集群名称: %s
 生成时间(UTC): %s
 
-适用: Ubuntu 24.04 LTS（强烈推荐），需 root 或 sudo；执行节点需能通过 SSH 以 root 访问 inventory 中的各节点（已配置 ansible_user=root）。
+【必须先满足】在将要执行 install.sh 的那台机器上，能对 inventory 里每个节点 IP 免密 SSH 登录 root。
+若 ansible 报错 Permission denied (publickey,password)，说明未完成本项。
+
+最少操作示例（在「执行 install.sh 的机器」上，对每个节点 IP 各执行一次）:
+  ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
+  ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<节点IP>
+  ssh root@<节点IP>    # 确认无密码即可登录
+
+inventory 已设 ansible_user=root；当前不支持交互式输入 SSH 密码。
 
 步骤:
  1. 解压: unzip opsfleet-k8s-*.zip && cd 解压目录
- 2. 执行: sudo bash install.sh
+ 2. 执行: sudo bash install.sh（脚本开头会预检 SSH，失败会提示）
 
 说明:
  - ansible-agent/ 为内置 Playbook；inventory/ 为根据控制台表单生成的清单与变量。
- - 若仅单机 All-in-One，可只填一个 master IP；多节点需提前配置好主机名解析或纯 IP SSH。
+ - apt 输出里若出现 “No VM guests are running outdated hypervisor (qemu)” 可忽略。
+ - 若仅单机 All-in-One，可只填一个 master IP；多节点需提前能 SSH 到各 IP。
  - 网络与镜像参数已写入 inventory/group_vars/all.yml。
 `, clusterName, time.Now().UTC().Format(time.RFC3339))
 
@@ -267,6 +276,38 @@ VARS_DIR="$ROOT/inventory/group_vars"
 mkdir -p "$VARS_DIR"
 # group_vars 已随包携带
 export ANSIBLE_HOST_KEY_CHECKING=False
+
+preflight_ssh_roots() {
+  if [[ ! -f "$INV" ]]; then
+    echo "ERROR: 缺少 $INV"
+    exit 1
+  fi
+  local ips
+  ips=$(grep -oE 'ansible_host=[0-9.]+' "$INV" 2>/dev/null | cut -d= -f2 | sort -u) || true
+  if [[ -z "${ips// }" ]]; then
+    echo "WARN: 未从 inventory 解析到节点 IP，跳过 SSH 预检"
+    return 0
+  fi
+  echo "=== SSH 预检：本机须能免密登录 root@各节点（与 inventory 中 IP 一致）==="
+  local ip failed=0
+  for ip in $ips; do
+    if ssh -o BatchMode=yes -o StrictHostKeyChecking=no -o ConnectTimeout=12 "root@${ip}" "true" 2>/dev/null; then
+      echo "  OK  root@${ip}"
+    else
+      echo "  FAIL root@${ip} — 常见原因: 未配置免密。请先在同一台机器执行:"
+      echo "       ssh-copy-id -i ~/.ssh/id_ed25519.pub root@${ip}   # 或你的公钥路径"
+      echo "       再试: ssh root@${ip}"
+      failed=1
+    fi
+  done
+  if [[ "$failed" -ne 0 ]]; then
+    echo "ERROR: SSH 预检未通过，已中止。修正后请重新运行: sudo bash install.sh"
+    exit 1
+  fi
+}
+
+preflight_ssh_roots
+
 cd "$ANSIBLE_DIR"
 
 run() {
