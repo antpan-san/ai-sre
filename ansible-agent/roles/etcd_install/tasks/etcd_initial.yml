@@ -41,13 +41,7 @@
 - name: Build etcd initial cluster string
   set_fact:
     etcd_initial_cluster: >-
-      {{
-        groups['etcd']
-        | zip(groups['etcd'] | map('extract', hostvars, 'ansible_host'))
-        | map('join', '=https://')
-        | map('regex_replace', '$', ':' ~ etcd_peer_port)
-        | join(',')
-      }}
+      {% for h in groups['etcd'] %}{{ h }}=https://{{ hostvars[h].ansible_host }}:{{ etcd_peer_port }}{% if not loop.last %},{% endif %}{% endfor %}
   run_once: true
 
 

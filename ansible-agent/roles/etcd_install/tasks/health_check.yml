@@ -1,28 +1,34 @@
 # =========================================================
 # Etcd cluster health check (Idempotent, cluster-wide)
 # =========================================================
+# 勿 delegate_to localhost 从 control 探测各节点 etcd 端口：
+# 控制机若与 master 网段不通 / 防火墙仅放行本机 SSH，会误报 Timeout。
+# 改为在各 etcd 节点本机探测 127.0.0.1（需 etcd.service 同时监听 loopback）。
 
-- name: Wait for etcd client ports to be reachable
-  wait_for:
-    host: "{{ hostvars[item].ansible_host }}"
+- name: Wait for etcd client ports to be reachable (local on each member)
+  ansible.builtin.wait_for:
+    host: "127.0.0.1"
     port: "{{ etcd_client_port }}"
-    timeout: 60        # 防止节点启动慢
+    timeout: 120
     delay: 5
   loop: "{{ groups['etcd'] }}"
   loop_control:
     label: "{{ item }}"
-  delegate_to: localhost
+  delegate_to: "{{ item }}"
+  run_once: true
 
 - name: Check etcd endpoint health for each node
   block:
     - name: Run etcdctl endpoint health
-      command: >
-        etcdctl
-        --endpoints=https://{{ hostvars[item].ansible_host }}:{{ etcd_client_port }}
-        --cacert={{ etcd_ca_cert }}
-        --cert={{ etcd_server_cert }}
-        --key={{ etcd_server_key }}
-        endpoint health
+      ansible.builtin.command:
+        argv:
+          - etcdctl
+          - --endpoints=https://127.0.0.1:{{ etcd_client_port }}
+          - --cacert={{ etcd_ca_cert }}
+          - --cert={{ etcd_server_cert }}
+          - --key={{ etcd_server_key }}
+          - endpoint
+          - health
       environment:
         ETCDCTL_API: "3"
       register: etcd_health_result
@@ -33,11 +39,14 @@
       loop: "{{ groups['etcd'] }}"
       loop_control:
         label: "{{ item }}"
+      delegate_to: "{{ item }}"
+      run_once: true
 
     - name: Show healthy endpoints
-      debug:
+      ansible.builtin.debug:
         msg: "{{ item }} is healthy"
       loop: "{{ groups['etcd'] }}"
       loop_control:
         label: "{{ item }}"
+      run_once: true
 
