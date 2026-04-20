@@ -158,8 +158,9 @@ func buildK8sOfflineZip(clusterName, ansibleRoot, inventory, groupVars string) (
   ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<节点IP>
   ssh root@<节点IP>    # 确认无密码即可登录
 
-说明: install.sh 会自动生成 /root/.ssh/ansible_id_rsa(.pub)，供第 1 步 playbook 在节点上创建
-      ansible 用户并安装 authorized_key（与上面 root 免密是两件事）。
+说明: install.sh 会自动准备 /root/.ssh/ansible_id_rsa.pub（优先复制已有的 id_ed25519.pub / id_rsa.pub），
+      供第 1 步 playbook 在节点上创建 ansible 用户并写入 authorized_keys。
+      若曾使用旧版 zip，请重新下载离线包以更新 ansible-agent（旧包 init role 会报 lookup file 类错误）。
 
 inventory 已设 ansible_user=root；当前不支持交互式输入 SSH 密码。
 
@@ -280,16 +281,45 @@ mkdir -p "$VARS_DIR"
 # group_vars 已随包携带
 export ANSIBLE_HOST_KEY_CHECKING=False
 
-# ansible-agent roles/init 需从控制机读取此公钥并写入各节点的 ansible 用户；与免密 root 是两把不同的用途
+# ansible-agent roles/init 在控制机上读取 $PUB 并通过 slurp 写入各节点的 ansible 用户 authorized_keys（与 root 免密无关）
 ensure_ansible_controller_keypair() {
   mkdir -p /root/.ssh
   chmod 700 /root/.ssh
-  if [[ ! -f /root/.ssh/ansible_id_rsa.pub ]]; then
-    echo "=== 生成 /root/.ssh/ansible_id_rsa（init playbook 写入各节点 ansible 用户的 authorized_keys）==="
-    ssh-keygen -t ed25519 -N "" -f /root/.ssh/ansible_id_rsa -C "opsfleet-k8s-ansible"
+  local pub=/root/.ssh/ansible_id_rsa.pub
+  local priv=/root/.ssh/ansible_id_rsa
+  if [[ -f "$pub" ]]; then
+    echo "=== 已存在 $pub，供 init playbook 使用 ==="
+    return 0
   fi
+  if [[ -f /root/.ssh/id_ed25519.pub ]]; then
+    echo "=== 复制已有 /root/.ssh/id_ed25519.pub -> $pub（init playbook 需要此固定文件名）==="
+    cp -a /root/.ssh/id_ed25519.pub "$pub"
+    if [[ -f /root/.ssh/id_ed25519 ]] && [[ ! -f "$priv" ]]; then
+      cp -a /root/.ssh/id_ed25519 "$priv"
+      chmod 600 "$priv"
+    fi
+    return 0
+  fi
+  if [[ -f /root/.ssh/id_rsa.pub ]]; then
+    echo "=== 复制已有 /root/.ssh/id_rsa.pub -> $pub ==="
+    cp -a /root/.ssh/id_rsa.pub "$pub"
+    if [[ -f /root/.ssh/id_rsa ]] && [[ ! -f "$priv" ]]; then
+      cp -a /root/.ssh/id_rsa "$priv"
+      chmod 600 "$priv"
+    fi
+    return 0
+  fi
+  echo "=== 生成 $priv（init playbook 写入各节点 ansible 用户）==="
+  ssh-keygen -t ed25519 -N "" -f "$priv" -C "opsfleet-k8s-ansible"
 }
 ensure_ansible_controller_keypair
+
+# 旧离线包内 init role 曾用 lookup('file')；若仍存在则必须换用含 slurp 的新 ansible-agent
+if grep -q "lookup('file'" "$ANSIBLE_DIR/roles/init/tasks/main.yml" 2>/dev/null; then
+  echo "ERROR: 当前解压目录里的 ansible-agent 过旧（roles/init 仍含 lookup('file')）。"
+  echo "请从 OpsFleet 控制台重新「生成并下载离线安装包」，或 git 拉取最新仓库后重新解压再执行。"
+  exit 1
+fi
 
 preflight_ssh_roots() {
   if [[ ! -f "$INV" ]]; then
