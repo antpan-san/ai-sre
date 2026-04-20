@@ -119,6 +119,8 @@ export interface AdvancedConfig {
   enablePrometheus: boolean;
   enableIngressNginx: boolean;
   enableHelm: boolean;
+  /** 离线 install.sh / 在线部署脚本：是否在 Step 0 非交互执行预清理（停旧服务、删 etcd/K8s 数据等） */
+  preDeployCleanup?: boolean;
   extraKubeletArgs?: KeyValuePair[];
   extraKubeProxyArgs?: KeyValuePair[];
   extraAPIServerArgs?: KeyValuePair[];
@@ -187,6 +189,7 @@ export interface K8sDeploySubmitRequest {
   enablePrometheus?: boolean;
   enableIngressNginx?: boolean;
   enableHelm?: boolean;
+  preDeployCleanup?: boolean;
   extraKubeletArgs?: KeyValuePair[];
   extraKubeProxyArgs?: KeyValuePair[];
   extraAPIServerArgs?: KeyValuePair[];

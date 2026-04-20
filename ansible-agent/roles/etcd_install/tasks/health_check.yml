@@ -1,15 +1,15 @@
 # =========================================================
 # Etcd cluster health check (Idempotent, cluster-wide)
 # =========================================================
-# 勿 delegate_to localhost 从 control 探测各节点 etcd 端口：
-# 控制机若与 master 网段不通 / 防火墙仅放行本机 SSH，会误报 Timeout。
-# 改为在各 etcd 节点本机探测 127.0.0.1（需 etcd.service 同时监听 loopback）。
+# 在各 etcd 成员本机探测「本机 ansible_host:2379」（非 localhost）：
+# - 控制机到各节点可能不可达；127.0.0.1 需额外监听且可能与 TLS/SAN 不一致。
+# - etcd 已监听 https://ansible_host:2379，自连该 IP 即可。
 
-- name: Wait for etcd client ports to be reachable (local on each member)
+- name: Wait for etcd client ports to be reachable (per member, self IP)
   ansible.builtin.wait_for:
-    host: "127.0.0.1"
+    host: "{{ hostvars[item].ansible_host }}"
     port: "{{ etcd_client_port }}"
-    timeout: 120
+    timeout: 180
     delay: 5
   loop: "{{ groups['etcd'] }}"
   loop_control:
@@ -23,7 +23,7 @@
       ansible.builtin.command:
         argv:
           - etcdctl
-          - --endpoints=https://127.0.0.1:{{ etcd_client_port }}
+          - --endpoints=https://{{ hostvars[item].ansible_host }}:{{ etcd_client_port }}
           - --cacert={{ etcd_ca_cert }}
           - --cert={{ etcd_server_cert }}
           - --key={{ etcd_server_key }}

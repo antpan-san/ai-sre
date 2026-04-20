@@ -74,6 +74,9 @@ type K8sDeployRequest struct {
 
 	// Legacy catch-all (kept for backward compat)
 	Config json.RawMessage `json:"config"`
+
+	// 离线 install.sh / 在线执行脚本：是否在 Step 0 运行 playbooks/pre_cleanup.yml（非交互）
+	PreDeployCleanup bool `json:"preDeployCleanup"`
 }
 
 // kvPair is a generic key-value pair from the frontend form.
@@ -283,6 +286,12 @@ k8s_image_repository: "registry.aliyuncs.com/google_containers"
 `
 	}
 
+	if req.PreDeployCleanup {
+		vars += "\npre_deploy_cleanup: true\n"
+	} else {
+		vars += "\npre_deploy_cleanup: false\n"
+	}
+
 	return vars
 }
 
@@ -291,7 +300,14 @@ const deployStateFile = "/tmp/ofp-k8s-deploy-state"
 
 // generateK8sDeployScript creates a shell script that runs the Ansible playbooks in order.
 // 每完成一步即写入 DEPLOY_STATE_FILE，便于终止时按步骤做清理。
-func generateK8sDeployScript(inventoryContent, groupVarsContent string) string {
+func generateK8sDeployScript(inventoryContent, groupVarsContent string, preDeployCleanup bool) string {
+	preBlock := ""
+	if preDeployCleanup {
+		preBlock = `
+echo "=== Step 0: Pre-deploy cleanup (non-interactive) ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/pre_cleanup.yml || { echo "FAILED: pre_cleanup"; exit 1; }
+`
+	}
 	return fmt.Sprintf(`#!/bin/bash
 set -e
 STATE_FILE="%s"
@@ -319,7 +335,7 @@ VARS_EOF
 cp "$TEMP_VARS" "$ANSIBLE_DIR/inventory/group_vars/all.yml"
 
 cd "$ANSIBLE_DIR"
-
+%s
 echo "=== Step 1/7: System Initialization ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/0-init.yml || { echo "FAILED: init"; exit 1; }
 echo "init" >> "$STATE_FILE"
@@ -351,7 +367,7 @@ echo "kubectl" >> "$STATE_FILE"
 echo "=== K8s Deployment Completed Successfully! ==="
 rm -f "$TEMP_INVENTORY" "$TEMP_VARS"
 kubectl get nodes || echo "WARNING: kubectl check failed"
-`, deployStateFile, inventoryContent, groupVarsContent)
+`, deployStateFile, inventoryContent, groupVarsContent, preBlock)
 }
 
 // generateK8sCleanupScript 生成清理脚本：按部署步骤的逆序执行清理，严格恢复到部署前状态。
@@ -480,7 +496,7 @@ func SubmitK8sDeployWithAnsible(c *gin.Context) {
 	// Generate Ansible artifacts
 	inventoryContent := generateAnsibleInventory(req, machineMap)
 	groupVarsContent := generateAnsibleGroupVars(req, masterIP)
-	deployScript := generateK8sDeployScript(inventoryContent, groupVarsContent)
+	deployScript := generateK8sDeployScript(inventoryContent, groupVarsContent, req.PreDeployCleanup)
 
 	// Create K8s cluster record — store the full request config for auditability.
 	workerNodesJSON, _ := json.Marshal(req.WorkerNodes)

@@ -72,6 +72,7 @@ export function buildK8sDeployFlatBody(config: DeployConfig): SubmitDeployConfig
     enablePrometheus: adv.enablePrometheus,
     enableIngressNginx: adv.enableIngressNginx,
     enableHelm: adv.enableHelm,
+    preDeployCleanup: !!adv.preDeployCleanup,
     extraKubeletArgs: adv.extraKubeletArgs,
     extraKubeProxyArgs: adv.extraKubeProxyArgs,
     extraAPIServerArgs: adv.extraAPIServerArgs,

@@ -626,6 +626,16 @@
               </el-checkbox-group>
             </el-form-item>
 
+            <el-form-item label="部署前环境清理">
+              <el-switch v-model="deployConfig.advancedConfig.preDeployCleanup" />
+              <p class="pre-cleanup-hint">
+                开启后，离线 <code>install.sh</code> 与在线部署脚本会在 <strong>Step 0</strong> 自动执行预清理（非交互）：在各节点停止旧 etcd / 控制面服务并删除
+                <code>/var/lib/etcd</code>、<code>/etc/kubernetes</code> 等，便于重复安装。
+                打包默认写入开关；执行时仍可用环境变量覆盖，例如：
+                <code>OPSFLEET_OFFLINE_PRE_CLEANUP=0 sudo bash install.sh</code> 跳过清理。
+              </p>
+            </el-form-item>
+
             <el-divider content-position="left">额外启动参数</el-divider>
 
             <div class="extra-args-grid">
@@ -753,6 +763,10 @@
             <!-- 高级 -->
             <div class="confirm-block confirm-block-full">
               <h4 class="confirm-block-title">高级配置</h4>
+              <div class="confirm-row">
+                <span class="confirm-label">部署前清理</span>
+                <span class="confirm-value">{{ deployConfig.advancedConfig.preDeployCleanup ? '是（Step 0 非交互）' : '否' }}</span>
+              </div>
               <div class="confirm-row">
                 <span class="confirm-label">启用组件</span>
                 <span class="confirm-value">{{ enabledComponentsText || '无' }}</span>
@@ -974,6 +988,7 @@ const deployConfig = reactive<DeployConfig>({
     enablePrometheus: false,
     enableIngressNginx: false,
     enableHelm: true,
+    preDeployCleanup: false,
     extraKubeletArgs: [],
     extraKubeProxyArgs: [],
     extraAPIServerArgs: []
@@ -1375,6 +1390,21 @@ const submitDeploy = async () => {
   padding: 2px 6px;
   background: #f3f4f6;
   border-radius: 4px;
+}
+
+.pre-cleanup-hint {
+  margin: 8px 0 0;
+  max-width: 720px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--el-text-color-secondary);
+}
+
+.pre-cleanup-hint code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
 }
 
 .deploy-status-block {

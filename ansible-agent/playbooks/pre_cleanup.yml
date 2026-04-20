@@ -1,0 +1,53 @@
+---
+# 可选：在安装前非交互清理各集群节点上的旧 K8s/etcd 残留，便于重复部署。
+# 由 install.sh（离线）或 generateK8sDeployScript（在线）在 Step 0 调用。
+# 破坏性：会删除 /var/lib/etcd、/etc/kubernetes 及常见 systemd 单元；请仅在确认可重建时使用。
+
+- hosts: k8s_cluster
+  become: true
+  gather_facts: false
+  tasks:
+    - name: Stop and disable common K8s/etcd systemd units
+      ansible.builtin.shell: |
+        set -e
+        for u in kube-controller-manager kube-scheduler kube-apiserver etcd; do
+          systemctl stop "$u" 2>/dev/null || true
+          systemctl disable "$u" 2>/dev/null || true
+        done
+        systemctl daemon-reload 2>/dev/null || true
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+    - name: Remove systemd unit files for etcd and control plane
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /etc/systemd/system/etcd.service
+        - /etc/systemd/system/kube-apiserver.service
+        - /etc/systemd/system/kube-controller-manager.service
+        - /etc/systemd/system/kube-scheduler.service
+      failed_when: false
+
+    - name: Reload systemd after unit removal
+      ansible.builtin.command: systemctl daemon-reload
+      changed_when: false
+
+    - name: Remove etcd and Kubernetes data directories (destructive)
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /var/lib/etcd
+        - /etc/kubernetes
+      failed_when: false
+
+    - name: Remove etcd binaries from common install path
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - /usr/local/bin/etcd
+        - /usr/local/bin/etcdctl
+      failed_when: false

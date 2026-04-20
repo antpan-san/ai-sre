@@ -28,6 +28,7 @@ func main() {
 	worker := flag.String("worker", "", "worker hosts, comma-separated")
 	imageSource := flag.String("imageSource", "aliyun", "image/binary mirror: default|aliyun|tencent|custom")
 	arch := flag.String("arch", "arm64", "target cpu arch: amd64|arm64 (match uname -m on nodes)")
+	preCleanup := flag.Bool("preCleanup", false, "embed install.sh default: run Step 0 pre_cleanup playbook (non-interactive)")
 	flag.Parse()
 
 	masters := splitCSV(*master)
@@ -40,6 +41,7 @@ func main() {
 		WorkerHosts:         splitCSV(*worker),
 		EnableRBAC:          true,
 		DefaultStorageClass: true,
+		PreDeployCleanup:    *preCleanup,
 	}
 	data, err := handlers.BuildK8sOfflineZip(req)
 	if err != nil {
