@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard">
+  <div class="dashboard page-shell page-shell--dashboard">
     <div class="page-header">
       <h2>仪表盘</h2>
       <el-button 
@@ -371,10 +371,6 @@ const navigateToServiceList = () => {
 </script>
 
 <style scoped>
-.dashboard {
-  padding: 20px;
-}
-
 .page-header {
   display: flex;
   justify-content: space-between;

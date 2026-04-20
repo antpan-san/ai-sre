@@ -3,7 +3,7 @@
     <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ 'sidebar-collapsed': isCollapse }">
       <div class="sidebar-header">
-        <h2 class="logo" v-show="!isCollapse">FleetPilot</h2>
+        <h2 class="logo" v-show="!isCollapse">OpsFleetPilot</h2>
         <el-button
           type="text"
           class="collapse-btn"
@@ -16,7 +16,9 @@
         </el-button>
       </div>
       <el-menu
+        :key="menuRemountKey"
         :default-active="activeMenu"
+        :default-openeds="menuDefaultOpeneds"
         class="el-menu-vertical-demo"
         @select="handleMenuSelect"
         background-color="#001529"
@@ -29,20 +31,26 @@
           <el-icon><PieChart /></el-icon>
           <template #title>仪表盘</template>
         </el-menu-item>
-        <el-menu-item index="/service/deploy">
-          <el-icon><Setting /></el-icon>
-          <template #title>服务管理</template>
-        </el-menu-item>
-        <el-menu-item index="/service/k8s-deploy">
-          <el-icon><Setting /></el-icon>
-          <template #title>Kubernetes部署</template>
-        </el-menu-item>
-        <el-menu-item index="/service/linux">
-          <el-icon><Setting /></el-icon>
-          <template #title>Linux服务管理</template>
-        </el-menu-item>
+        <el-sub-menu index="service-delivery">
+          <template #title>
+            <el-icon><Box /></el-icon>
+            <span>服务与交付</span>
+          </template>
+          <el-menu-item index="/service/deploy">
+            <el-icon><Operation /></el-icon>
+            <template #title>服务部署</template>
+          </el-menu-item>
+          <el-menu-item index="/service/k8s-deploy">
+            <el-icon><Connection /></el-icon>
+            <template #title>Kubernetes 部署</template>
+          </el-menu-item>
+          <el-menu-item index="/service/linux">
+            <el-icon><Cpu /></el-icon>
+            <template #title>Linux 服务管理</template>
+          </el-menu-item>
+        </el-sub-menu>
         <el-menu-item index="/proxy/config">
-          <el-icon><DataAnalysis /></el-icon>
+          <el-icon><Link /></el-icon>
           <template #title>代理配置</template>
         </el-menu-item>
         <el-sub-menu index="/monitoring">
@@ -94,40 +102,12 @@
     <div class="main-content" :class="{ 'sidebar-collapsed': isCollapse }">
       <!-- 头部 -->
       <header class="header">
-        <div class="header-left">
-          <el-icon class="hamburger" @click="isCollapse = !isCollapse">
-            <svg v-if="isCollapse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="24" height="24"><path d="M877.824 505.728l-480.64 480.64c-12.544 12.544-32.96 12.544-45.504 0-12.544-12.544-12.544-32.96 0-45.504l458.112-458.112-458.112-458.112c-12.544-12.544-12.544-32.96 0-45.504 12.544-12.544 32.96-12.544 45.504 0l480.64 480.64c12.544 12.544 12.544 32.96 0 45.504z" fill="currentColor"/></svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="24" height="24"><path d="M867.84 512c0 12.544-10.048 22.528-22.528 22.528h-616.96l294.4 294.4c12.544 12.544 12.544 32.96 0 45.504-12.544 12.544-32.96 12.544-45.504 0l-360.96-360.96c-12.544-12.544-12.544-32.96 0-45.504l360.96-360.96c12.544-12.544 32.96-12.544 45.504 0 12.544 12.544 12.544 32.96 0 45.504l-294.4 294.4h616.96c12.544 0 22.528 10.048 22.528 22.528z" fill="currentColor"/></svg>
-          </el-icon>
-        </div>
-
-        <!-- 全局搜索 -->
-        <div class="search-container">
-          <el-input
-            v-model="searchText"
-            placeholder="全局搜索"
-            clearable
-            class="search-input"
-            @keyup.enter="handleSearch"
-          >
-            <template #prefix>
-              <el-icon color="#9ca3af">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="18" height="18"><path d="M909.6 854.5L649.9 594.8C690.2 542.7 712 479 712 412c0-80.2-31.3-155.4-87.9-212.1-56.6-56.7-132-87.9-212.1-87.9s-155.5 31.3-212.1 87.9C143.2 256.5 112 331.8 112 412c0 80.3 31.3 155.6 87.9 212.2 56.6 56.6 132 87.8 212.1 87.8 66.9 0 130.6-21.8 182.7-62l259.7 259.6a8.2 8.2 0 0011.6 0l43.6-43.5a8.2 8.2 0 000-11.6zM504 768C364.9 768 256 659.1 256 520s108.9-248 248-248 248 108.9 248 248-108.9 248-248 248z" fill="currentColor"/></svg>
-              </el-icon>
-            </template>
-          </el-input>
+        <div class="header-brand">
+          <span class="header-brand-title">OpsFleetPilot</span>
+          <span class="header-brand-sub">运维控制台</span>
         </div>
 
         <div class="header-right">
-          <!-- 通知图标 -->
-          <div class="notification">
-            <el-badge :value="notificationCount" :max="99">
-              <el-icon @click="showNotification">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="24" height="24"><path d="M512 64c247.4 0 448 200.6 448 448 0 123.1-59.2 232.8-153.5 303.9 26.4 60.5 9.4 131.7-46.4 171.4-28.9 20.2-62.1 31.7-96.6 31.7H260.9c-34.5 0-67.7-11.5-96.6-31.7-55.8-39.7-72.8-110.9-46.4-171.4C125.2 744.8 66 635.1 66 512c0-247.4 200.6-448 446-448zm0 824c23.2 0 45.7-4.3 66.5-12.1 38.7-13.9 63.8-50.9 63.8-92.8H381.7c0 41.9 25.1 78.9 63.8 92.8 20.8 7.8 43.3 12.1 66.5 12.1zM512 128c-33.1 0-60 26.9-60 60v264c0 33.1 26.9 60 60 60s60-26.9 60-60V188c0-33.1-26.9-60-60-60z" fill="currentColor"/></svg>
-              </el-icon>
-            </el-badge>
-          </div>
-
           <!-- 用户信息 -->
           <el-dropdown>
             <span class="user-info">
@@ -158,7 +138,7 @@
           <el-breadcrumb separator="/" class="custom-breadcrumb">
             <el-breadcrumb-item :to="{ path: '/' }" class="breadcrumb-item">
               <el-icon class="breadcrumb-icon"><House /></el-icon>
-              <span>FleetPilot</span>
+              <span>OpsFleetPilot</span>
             </el-breadcrumb-item>
             <el-breadcrumb-item
               v-for="(routeItem, index) in breadcrumbItems"
@@ -185,7 +165,23 @@
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { User, Setting, SwitchButton, ArrowDown, PieChart, DataAnalysis, Monitor, House, Management, Tools, Lock, DocumentCopy } from '@element-plus/icons-vue'
+import {
+  User,
+  SwitchButton,
+  ArrowDown,
+  PieChart,
+  Monitor,
+  House,
+  Management,
+  Tools,
+  Lock,
+  DocumentCopy,
+  Box,
+  Operation,
+  Connection,
+  Cpu,
+  Link
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { wsService } from '../../utils/websocket'
 import { useMachineStore } from '../../stores/machine'
@@ -193,10 +189,11 @@ import { useMachineStore } from '../../stores/machine'
 // 路由路径到图标的映射
 const routeIconMap: Record<string, any> = {
   '/dashboard': PieChart,
-  '/service': Setting,
-  '/service/deploy': Setting,
-  '/service/k8s-deploy': Setting,
-  '/proxy': DataAnalysis,
+  '/service': Box,
+  '/service/deploy': Operation,
+  '/service/k8s-deploy': Connection,
+  '/service/linux': Cpu,
+  '/proxy': Link,
   '/monitoring': Monitor,
   '/job': Management,
   '/security-audit': Lock,
@@ -214,27 +211,20 @@ const router = useRouter()
 // 侧边栏折叠状态
 const isCollapse = ref(false)
 
-// 搜索文本
-const searchText = ref('')
+// 子菜单随路由展开（与分组 index 一致）
+const menuDefaultOpeneds = computed(() => {
+  const p = route.path
+  const open: string[] = []
+  if (p.startsWith('/service')) open.push('service-delivery')
+  if (p.startsWith('/monitoring')) open.push('/monitoring')
+  if (p.startsWith('/security-audit')) open.push('/security-audit')
+  if (p.startsWith('/advanced')) open.push('/advanced')
+  if (p.startsWith('/init-tools')) open.push('/init-tools')
+  return open
+})
 
-// 通知数量
-const notificationCount = ref(3)
-
-// 处理搜索
-const handleSearch = () => {
-  if (searchText.value.trim()) {
-    // 这里可以实现全局搜索逻辑
-    console.log('搜索:', searchText.value)
-    // 例如：跳转到搜索结果页面或触发搜索API
-  }
-}
-
-// 显示通知
-const showNotification = () => {
-  // 这里可以实现通知面板的显示逻辑
-  console.log('显示通知列表')
-  // 例如：打开通知抽屉或弹窗
-}
+/** 仅当「应展开的子菜单集合」变化时 remount，以应用 default-openeds 且减少闪烁 */
+const menuRemountKey = computed(() => menuDefaultOpeneds.value.join('|'))
 
 // 获取当前用户信息
 const currentUser = computed(() => {
@@ -421,8 +411,9 @@ const handleLogout = () => {
 
 .logo {
   margin: 0;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 600;
+  letter-spacing: -0.02em;
   color: #fff;
   white-space: nowrap;
   transition: opacity 0.3s ease;
@@ -463,67 +454,41 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 16px;
+  padding: 0 20px;
+  gap: 16px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
   position: sticky;
   top: 0;
   z-index: 900;
 }
 
-.header-left {
+.header-brand {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  flex-shrink: 1;
 }
 
-.hamburger {
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
+.header-brand-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #111827;
+  letter-spacing: -0.02em;
 }
 
-.hamburger:hover {
-  background-color: #f3f4f6;
-}
-
-/* 搜索容器 */
-.search-container {
-  flex: 1;
-  max-width: 400px;
-  margin: 0 24px;
-}
-
-.search-input {
-  width: 100%;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  transition: border-color 0.3s;
-}
-
-.search-input:focus-within {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+.header-brand-sub {
+  font-size: 13px;
+  color: #6b7280;
+  font-weight: 400;
 }
 
 /* 头部右侧 */
 .header-right {
   display: flex;
   align-items: center;
-  gap: 16px;
-}
-
-/* 通知 */
-.notification {
-  position: relative;
-  cursor: pointer;
-  padding: 8px;
-  border-radius: 4px;
-  transition: background-color 0.3s;
-}
-
-.notification:hover {
-  background-color: #f3f4f6;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 /* 用户信息 */

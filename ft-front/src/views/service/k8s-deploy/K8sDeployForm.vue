@@ -1,5 +1,5 @@
 <template>
-  <div class="k8s-deploy-form">
+  <div class="k8s-deploy-form page-shell page-shell--wizard">
     <div class="page-header">
       <h2>部署 Kubernetes 集群</h2>
       <p class="page-desc">通过分步向导配置参数；推荐下载离线包在 Ubuntu 24.04 上一键安装（无需 Agent）。</p>
@@ -1144,7 +1144,7 @@ const submitDeploy = async () => {
 /* ==================== 页面布局 ==================== */
 .k8s-deploy-form {
   width: 100%;
-  padding: 20px 24px;
+  padding: 0;
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -1155,7 +1155,7 @@ const submitDeploy = async () => {
 }
 
 .page-header h2 {
-  color: #1890ff;
+  color: var(--el-color-primary);
   margin: 0 0 6px 0;
   font-size: 26px;
   font-weight: 600;

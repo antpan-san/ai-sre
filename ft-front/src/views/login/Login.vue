@@ -2,7 +2,7 @@
   <div class="login-container">
     <div class="login-box">
       <h2 class="login-title">OpsFleetPilot</h2>
-      <p class="login-subtitle">运维管理平台</p>
+      <p class="login-subtitle">运维控制台</p>
       <el-form
         ref="loginFormRef"
         :model="loginForm"

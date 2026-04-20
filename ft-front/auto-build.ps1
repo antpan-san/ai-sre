@@ -1,7 +1,7 @@
 # PowerShell自动构建脚本
 # 监听src目录的文件变化，自动执行npm run build命令
 
-Write-Host "=== FleetPilot前端自动构建脚本 ===" -ForegroundColor Green
+Write-Host "=== OpsFleetPilot 前端自动构建脚本 ===" -ForegroundColor Green
 Write-Host "监听目录: $PSScriptRoot\src" -ForegroundColor Cyan
 Write-Host "按 Ctrl+C 停止脚本" -ForegroundColor Yellow
 

@@ -1,5 +1,5 @@
 <template>
-  <div class="service-deploy">
+  <div class="service-deploy page-shell page-shell--crud">
     <div class="page-header">
       <h2>服务部署</h2>
     </div>
@@ -278,7 +278,7 @@ const handleReset = () => {
 
 <style scoped>
 .service-deploy {
-  padding: 16px;
+  padding: 0;
   width: 100%;
   display: flex;
   flex-direction: column;
@@ -296,7 +296,7 @@ const handleReset = () => {
 
 .page-header h2 {
   margin: 0;
-  color: #1890ff;
+  color: var(--el-color-primary);
   font-size: 20px;
   font-weight: 600;
 }

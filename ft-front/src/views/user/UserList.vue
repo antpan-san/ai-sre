@@ -1,5 +1,5 @@
 <template>
-  <div class="user-list">
+  <div class="user-list page-shell page-shell--crud">
     <div class="page-header">
       <h2>用户管理</h2>
     </div>
@@ -443,10 +443,6 @@ const resetUserForm = () => {
 </script>
 
 <style scoped>
-.user-list {
-  padding: 20px;
-}
-
 .page-header h2 {
   margin: 0 0 20px 0;
   color: #303133;
