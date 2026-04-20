@@ -143,3 +143,5 @@ ssh root@172.16.195.128 'cd /root/sre && go mod download && go vet ./... && go b
 只要本轮对话中**改动了本仓库（`/Users/panshuai/Documents/work/code/ai-sre`）内任意文件**，在完成修改后**自动应用本 skill**（含 README 维护、`deploy-remote.sh`、发布后复核与 push），除非用户明确说「仅本地、不要部署/不要改 README/不要 push」。
 
 若变更同时涉及 OpsFleet 路径，**还须**执行 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**（见 **`.cursor/rules/monorepo-release.mdc`**）。
+
+若变更涉及 **Kubernetes 离线包 / ansible-agent K8s / `k8s_bundle` / 控制台 K8s 部署页**，**还须**执行 **`.cursor/skills/k8s-offline-deploy-test/SKILL.md`**（最低限度：`ft-backend` 可构建、`gen-k8s-bundle` 可打 zip；有测试机则完整 `install.sh`）。详见 **`.cursor/rules/monorepo-release.mdc`** 第 3 条。

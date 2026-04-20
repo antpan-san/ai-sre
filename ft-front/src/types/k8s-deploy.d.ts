@@ -40,6 +40,8 @@ export interface ClusterBasicInfo {
   clusterName: string;
   version: string;
   deployMode: 'single' | 'cluster';
+  /** 目标节点 CPU 架构（与 kubernetes/etcd linux 二进制一致；Fusion ARM 虚机选 arm64） */
+  cpuArch: 'amd64' | 'arm64';
   imageSource: 'default' | 'aliyun' | 'tencent' | 'custom';
   customRegistry?: string;
   registryUsername?: string;
@@ -138,6 +140,8 @@ export interface K8sDeploySubmitRequest {
   clusterName: string;
   version: string;
   deployMode: string;
+  /** amd64 | arm64 */
+  archVersion?: string;
   imageSource: string;
   customRegistry?: string;
   registryUsername?: string;

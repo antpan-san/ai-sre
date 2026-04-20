@@ -26,7 +26,9 @@ export function buildK8sDeployFlatBody(config: DeployConfig): SubmitDeployConfig
     clusterName: basic.clusterName,
     version: basic.version,
     deployMode: basic.deployMode,
-    imageSource: basic.imageSource,
+    archVersion: basic.cpuArch,
+    // 与后端 normalizeImageSource 一致，避免首尾空格导致未命中阿里云公网下载覆盖
+    imageSource: typeof basic.imageSource === 'string' ? basic.imageSource.trim() : basic.imageSource,
     customRegistry: basic.customRegistry,
     registryUsername: basic.registryUsername,
     registryPassword: basic.registryPassword,

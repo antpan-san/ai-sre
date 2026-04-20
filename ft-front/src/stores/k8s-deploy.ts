@@ -34,6 +34,9 @@ export const useK8sDeployStore = defineStore('k8s-deploy', () => {
   function restoreInto(config: DeployConfig, activeStepRef: { value: number }) {
     if (savedDeployConfig.value) {
       deepMergeInto(config, savedDeployConfig.value)
+      if (!config.clusterBasicInfo.cpuArch) {
+        config.clusterBasicInfo.cpuArch = 'arm64'
+      }
     }
     if (savedActiveStep.value != null && savedActiveStep.value >= 0) {
       activeStepRef.value = savedActiveStep.value

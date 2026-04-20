@@ -6,12 +6,29 @@
   delegate_to: localhost
   run_once: true
 
+- name: Stat kubernetes server tarball (persistent cache; get_url 校验一致则跳过下载)
+  ansible.builtin.stat:
+    path: "{{ k8s_package_tar }}"
+    checksum_algorithm: sha512
+  register: k8s_server_tar_stat
+  delegate_to: localhost
+  run_once: true
+
+- name: Report artifact cache status
+  ansible.builtin.debug:
+    msg: >-
+      local_cache_dir={{ local_cache_dir }} | path={{ k8s_package_tar }} |
+      exists={{ k8s_server_tar_stat.stat.exists | default(false) }} (checksum 由 get_url 与远程 sha512 比对，一致则跳过下载)
+  delegate_to: localhost
+  run_once: true
+
 - name: Download Official kubernetes binnary zip
   ansible.builtin.get_url:
-    url: "{{ download_protocol }}{{ download_domain }}/kubernetes/{{ kubernetes_version }}/{{ arch_version }}/{{ k8s_package_name }}.tar.gz"
+    url: "{{ k8s_server_tarball_url }}"
     dest: "{{ k8s_package_tar }}"
     mode: '0644'
-    checksum: "sha512:{{ k8s_checksum }}"
+    checksum: "{{ k8s_server_tarball_checksum }}"
+    timeout: 3600
   delegate_to: localhost
   run_once: true
 
@@ -21,7 +38,7 @@
     src: "{{ k8s_package_tar }}"
     dest: "{{ local_cache_dir }}"
     remote_src: yes
-    creates: "{{ k8s_extract_dir }}"
+    creates: "{{ k8s_extract_dir }}/server/bin/kube-apiserver"
   delegate_to: localhost
   run_once: true
 

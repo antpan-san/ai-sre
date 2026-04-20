@@ -180,7 +180,19 @@
             </el-row>
 
             <el-row :gutter="20">
-              <el-col :span="12">
+              <el-col :span="8">
+                <el-form-item label="运行环境 CPU 架构" prop="cpuArch">
+                  <el-select
+                    v-model="deployConfig.clusterBasicInfo.cpuArch"
+                    placeholder="与 install.sh 所在机及节点一致"
+                    style="width: 100%"
+                  >
+                    <el-option label="amd64 (x86_64)" value="amd64" />
+                    <el-option label="arm64 (AArch64 / Apple Silicon 虚拟机)" value="arm64" />
+                  </el-select>
+                </el-form-item>
+              </el-col>
+              <el-col :span="8">
                 <el-form-item label="镜像源" prop="imageSource">
                   <el-select
                     v-model="deployConfig.clusterBasicInfo.imageSource"
@@ -652,6 +664,10 @@
                 <span class="confirm-value">{{ deployConfig.clusterBasicInfo.deployMode === 'cluster' ? '多节点' : '单节点' }}</span>
               </div>
               <div class="confirm-row">
+                <span class="confirm-label">CPU 架构</span>
+                <span class="confirm-value">{{ deployConfig.clusterBasicInfo.cpuArch || 'arm64' }}</span>
+              </div>
+              <div class="confirm-row">
                 <span class="confirm-label">镜像源</span>
                 <span class="confirm-value">{{ imageSourceText }}</span>
               </div>
@@ -848,7 +864,8 @@ const deployConfig = reactive<DeployConfig>({
     clusterName: '',
     version: '',
     deployMode: 'cluster',
-    imageSource: 'default'
+    cpuArch: 'arm64',
+    imageSource: 'aliyun'
   },
   nodeConfig: {
     executorNode: '' as string,
@@ -950,6 +967,9 @@ const step1Rules = computed(() => ({
   ],
   version: [
     { required: true, message: '请选择 K8s 版本', trigger: 'change' }
+  ],
+  cpuArch: [
+    { required: true, message: '请选择 CPU 架构', trigger: 'change' }
   ],
   imageSource: [
     { required: true, message: '请选择镜像源', trigger: 'change' }

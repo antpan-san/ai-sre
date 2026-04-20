@@ -1,6 +1,6 @@
 - hosts: control
   become: true
   vars_files:
-    - ../inventory/group_vars/all.yml
+    - ../../inventory/group_vars/all.yml
   roles:
     - role: ../roles/resources

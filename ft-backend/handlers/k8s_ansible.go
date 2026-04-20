@@ -3,6 +3,7 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"ft-backend/common/logger"
 	"ft-backend/common/redis"
@@ -22,6 +23,8 @@ type K8sDeployRequest struct {
 	Version          string `json:"version"     binding:"required"`
 	DeployMode       string `json:"deployMode"`    // single | ha
 	ImageSource      string `json:"imageSource"`   // default | aliyun | tencent | custom
+	// ArchVersion 节点 CPU 架构（linux：amd64 | arm64），与 kubernetes/etcd 二进制一致；空则默认 amd64。
+	ArchVersion      string `json:"archVersion"`
 	CustomRegistry   string `json:"customRegistry"`
 	RegistryUsername string `json:"registryUsername"`
 	RegistryPassword string `json:"registryPassword"`
@@ -77,6 +80,28 @@ type K8sDeployRequest struct {
 type kvPair struct {
 	Key   string `json:"key"`
 	Value string `json:"value"`
+}
+
+// normalizeK8sCPUArch maps UI / uname 常见写法到 ansible 使用的 linux 架构名。
+func normalizeK8sCPUArch(s string) string {
+	a := strings.ToLower(strings.TrimSpace(s))
+	switch a {
+	case "", "x86_64", "amd64":
+		return "amd64"
+	case "aarch64", "arm64":
+		return "arm64"
+	default:
+		return "amd64"
+	}
+}
+
+// normalizeImageSource 统一镜像源字段，避免 JSON 首尾空格、大小写导致「选了阿里云却未命中 dl.k8s.io 覆盖」。
+func normalizeImageSource(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	if s == "" {
+		return "default"
+	}
+	return s
 }
 
 // generateAnsibleInventory produces a dynamic Ansible inventory based on the deploy request.
@@ -137,14 +162,12 @@ func generateAnsibleGroupVars(req K8sDeployRequest, masterIP string) string {
 	if kubeProxyMode == "" {
 		kubeProxyMode = "iptables"
 	}
-	imageSource := req.ImageSource
-	if imageSource == "" {
-		imageSource = "default"
-	}
+	imageSource := normalizeImageSource(req.ImageSource)
 	storageProvisioner := req.StorageProvisioner
 	if storageProvisioner == "" {
 		storageProvisioner = "local-path"
 	}
+	cpuArch := normalizeK8sCPUArch(req.ArchVersion)
 
 	// Build optional component flags as YAML booleans.
 	boolStr := func(b bool) string {
@@ -182,11 +205,15 @@ kube_proxy_mode: "%s"
 
 # Image source
 image_source: "%s"
+
+# CPU / binary arch (amd64=x86_64, arm64=AArch64/Apple Silicon 虚拟机常见)
+arch_version: "%s"
 `,
 		req.Version, req.ClusterName, masterIP,
 		podCIDR, serviceCIDR, dnsServiceIP, clusterDomain,
 		networkPlugin, kubeProxyMode,
 		imageSource,
+		cpuArch,
 	)
 
 	if req.CustomRegistry != "" {
@@ -240,6 +267,17 @@ enable_helm: %s
 	vars += extraArgsYAML(req.ExtraKubeletArgs, "extra_kubelet_args")
 	vars += extraArgsYAML(req.ExtraKubeProxyArgs, "extra_kube_proxy_args")
 	vars += extraArgsYAML(req.ExtraAPIServerArgs, "extra_apiserver_args")
+
+	// 阿里云镜像源：Kubernetes 官方分发域（与阿里云文档常用做法一致：二进制 tarball + 远程校验收据；镜像仓库前缀供 sandbox/coredns 等拉取）
+	if imageSource == "aliyun" {
+		vars += `
+# Aliyun image source — public download URLs (Ansible 会展开 {{ }} 占位符)
+k8s_server_tarball_url: "https://dl.k8s.io/{{ kubernetes_version }}/{{ k8s_package_name }}.tar.gz"
+k8s_server_tarball_checksum: "sha512:https://dl.k8s.io/{{ kubernetes_version }}/{{ k8s_package_name }}.tar.gz.sha512"
+etcd_download_url: "https://github.com/etcd-io/etcd/releases/download/{{ etcd_version }}/{{ etcd_package_name }}.tar.gz"
+k8s_image_repository: "registry.aliyuncs.com/google_containers"
+`
+	}
 
 	return vars
 }
