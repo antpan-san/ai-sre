@@ -1,0 +1,5 @@
+---
+# 与 inventory/group_vars/all.yml、install.sh 中 mkdir 保持一致。
+# 当 group_vars 未参与解析时仍保证 resources 角色可运行（避免 local_cache_dir undefined）。
+local_cache_dir: "/var/cache/opsfleet-k8s"
+remote_dest: "/usr/local"

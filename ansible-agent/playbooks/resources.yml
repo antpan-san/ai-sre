@@ -1,6 +1,11 @@
+# 使用 inventory_dir 显式加载与「-i .../inventory/hosts.ini」同级的 group_vars/all.yml。
+# 勿仅用 vars_files: ../../inventory/...：在 ansible-playbook 从 ansible-agent 目录执行时，
+# 相对路径解析与 inventory 自动加载不一致时会导致变量未注入，出现 local_cache_dir undefined。
 - hosts: control
   become: true
-  vars_files:
-    - ../../inventory/group_vars/all.yml
+  pre_tasks:
+    - name: Load OpsFleet K8s bundle group_vars (alongside inventory/hosts.ini)
+      ansible.builtin.include_vars:
+        file: "{{ inventory_dir }}/group_vars/all.yml"
   roles:
     - role: ../roles/resources
