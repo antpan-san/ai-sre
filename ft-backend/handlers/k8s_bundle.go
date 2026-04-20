@@ -158,6 +158,9 @@ func buildK8sOfflineZip(clusterName, ansibleRoot, inventory, groupVars string) (
   ssh-copy-id -i ~/.ssh/id_ed25519.pub root@<节点IP>
   ssh root@<节点IP>    # 确认无密码即可登录
 
+说明: install.sh 会自动生成 /root/.ssh/ansible_id_rsa(.pub)，供第 1 步 playbook 在节点上创建
+      ansible 用户并安装 authorized_key（与上面 root 免密是两件事）。
+
 inventory 已设 ansible_user=root；当前不支持交互式输入 SSH 密码。
 
 步骤:
@@ -276,6 +279,17 @@ VARS_DIR="$ROOT/inventory/group_vars"
 mkdir -p "$VARS_DIR"
 # group_vars 已随包携带
 export ANSIBLE_HOST_KEY_CHECKING=False
+
+# ansible-agent roles/init 需从控制机读取此公钥并写入各节点的 ansible 用户；与免密 root 是两把不同的用途
+ensure_ansible_controller_keypair() {
+  mkdir -p /root/.ssh
+  chmod 700 /root/.ssh
+  if [[ ! -f /root/.ssh/ansible_id_rsa.pub ]]; then
+    echo "=== 生成 /root/.ssh/ansible_id_rsa（init playbook 写入各节点 ansible 用户的 authorized_keys）==="
+    ssh-keygen -t ed25519 -N "" -f /root/.ssh/ansible_id_rsa -C "opsfleet-k8s-ansible"
+  fi
+}
+ensure_ansible_controller_keypair
 
 preflight_ssh_roots() {
   if [[ ! -f "$INV" ]]; then

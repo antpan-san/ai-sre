@@ -1,0 +1,4 @@
+---
+# 运行 ansible-playbook 的机器（执行 install.sh 的控制机）上公钥路径；
+# install.sh 若不存在会生成 /root/.ssh/ansible_id_rsa(.pub)。
+k8s_init_controller_pubkey_path: /root/.ssh/ansible_id_rsa.pub

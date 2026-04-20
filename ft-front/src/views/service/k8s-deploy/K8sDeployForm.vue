@@ -55,8 +55,10 @@
                 </li>
               </ol>
               <p class="k8s-prereq-muted">
-                说明：日志里若出现 <code>No VM guests are running outdated hypervisor (qemu)</code> 为系统 apt 提示，可忽略；
-                当前清单使用 <code>ansible_user=root</code>，不支持交互式输入 SSH 密码。
+                说明：<code>install.sh</code> 会在控制机生成 <code>/root/.ssh/ansible_id_rsa</code>，供初始化 playbook 在节点上创建系统用户
+                <code>ansible</code> 并写入公钥（与「root 免密」是两套机制）。日志里若出现
+                <code>No VM guests are running outdated hypervisor (qemu)</code> 为 apt 提示，可忽略。
+                清单使用 <code>ansible_user=root</code>，不支持交互式 SSH 密码。
               </p>
             </div>
           </el-alert>

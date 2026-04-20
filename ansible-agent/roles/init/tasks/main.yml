@@ -1,47 +1,65 @@
-- name: Ensure ansible user exists
-  user:
+---
+# 控制机公钥路径见 defaults/main.yml；install.sh 会生成 /root/.ssh/ansible_id_rsa.pub
+- name: Read controller SSH public key (跑 ansible-playbook 的机器)
+  ansible.builtin.slurp:
+    src: "{{ k8s_init_controller_pubkey_path }}"
+  delegate_to: localhost
+  connection: local
+  run_once: true
+  register: k8s_controller_pubkey_slurp
+
+- name: Check if local system user ansible already exists
+  ansible.builtin.command: id -u ansible
+  changed_when: false
+  failed_when: false
+  register: k8s_init_id_ansible
+
+# 已存在时避免再走「创建」路径，杜绝 useradd: user 'ansible' already exists
+- name: Create ansible user (first install)
+  ansible.builtin.user:
     name: ansible
     state: present
     shell: /bin/bash
-    create_home: yes
+    home: /home/ansible
+    create_home: true
     groups: sudo
-    append: yes
+    append: true
+  when: k8s_init_id_ansible.rc != 0
 
-- name: Create .ssh directory
-  file:
+- name: Ensure ansible user attributes (user already exists)
+  ansible.builtin.user:
+    name: ansible
+    state: present
+    shell: /bin/bash
+    home: /home/ansible
+    create_home: true
+    groups: sudo
+    append: true
+  when: k8s_init_id_ansible.rc == 0
+
+- name: Create .ssh directory for ansible user
+  ansible.builtin.file:
     path: /home/ansible/.ssh
     state: directory
-    mode: '0700'
+    mode: "0700"
     owner: ansible
     group: ansible
 
-- name: Add SSH public key
+- name: Authorize controller pubkey for ansible user
   ansible.posix.authorized_key:
     user: ansible
     state: present
-    key: "{{ lookup('file','/root/.ssh/ansible_id_rsa.pub') }}"
+    key: "{{ k8s_controller_pubkey_slurp.content | b64decode | trim }}"
+  when: k8s_controller_pubkey_slurp.content is defined
 
-- name: Add ansible user to sudoers
-  copy:
+- name: Add ansible user to passwordless sudo
+  ansible.builtin.copy:
     dest: /etc/sudoers.d/ansible
-    content: "ansible ALL=(ALL) NOPASSWD:ALL"
+    content: "ansible ALL=(ALL) NOPASSWD:ALL\n"
     owner: root
     group: root
-    mode: '0440'
-
-
-
-
-
-      #- name: swap off
-      #  ansible.builtin.command: swapoff -a
-      #
-      #- name: Comment out swap line in /etc/fstab
-      #  ansible.builtin.lineinfile:
-      #    path: /etc/fstab
-      #    regexp: '^.*swap.*$'
-      #    line: '# \1'
-      #    state: present
+    mode: "0440"
+    validate: /usr/sbin/visudo -cf %s
 
 - name: Check if swap is enabled
   ansible.builtin.command: swapon --summary
@@ -51,23 +69,22 @@
 
 - name: Disable swap immediately
   ansible.builtin.command: swapoff -a
-  when: swap_status.stdout != ""
+  when: swap_status.stdout | length > 0
 
 - name: Disable swap permanently in /etc/fstab
   ansible.builtin.lineinfile:
     path: /etc/fstab
     regexp: '^\s*([^#].*\s+swap\s+.*)$'
     line: '# \1'
-    backrefs: yes
+    backrefs: true
 
 - name: Set system hostname
-  hostname:
+  ansible.builtin.hostname:
     name: "{{ inventory_hostname }}"
 
-- name: Manage cluster hosts ectries
-  blockinfile:
+- name: Manage cluster hosts entries
+  ansible.builtin.blockinfile:
     path: /etc/hosts
     create: true
     marker: "# {mark} ANSIBLE MANAGED CLUSTER HOSTS"
     block: "{{ lookup('template', 'hosts.block.j2') }}"
-
