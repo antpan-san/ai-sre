@@ -25,6 +25,7 @@ rsync -avz \
   --exclude 'ft-front/dist' \
   --exclude '.DS_Store' \
   --exclude '.env' \
+  --exclude '*.zip' \
   "$ROOT/" \
   "$REMOTE:$REMOTE_DIR/"
 

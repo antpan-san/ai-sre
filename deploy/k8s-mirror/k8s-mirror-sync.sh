@@ -9,7 +9,7 @@ if [[ -f "$ENV_FILE" ]]; then
 fi
 
 MIRROR_ROOT="${MIRROR_ROOT:-/var/lib/opsfleet-k8s-mirror}"
-KUBERNETES_VERSION="${KUBERNETES_VERSION:-v1.35.0}"
+KUBERNETES_VERSION="${KUBERNETES_VERSION:-v1.35.4}"
 KUBERNETES_ARCHS="${KUBERNETES_ARCHS:-amd64 arm64}"
 ETCD_VERSION="${ETCD_VERSION:-v3.6.7}"
 ETCD_ARCHS="${ETCD_ARCHS:-amd64 arm64}"
@@ -33,11 +33,12 @@ dl() {
 }
 
 # --- Kubernetes server tarball ---
+# 上游布局：https://dl.k8s.io/<ver>/kubernetes-server-linux-<arch>.tar.gz（路径中无 /amd64/ 段）
 for arch in $KUBERNETES_ARCHS; do
   pkg="kubernetes-server-linux-${arch}.tar.gz"
   rel="kubernetes/${KUBERNETES_VERSION}/${arch}/${pkg}"
   dest="${MIRROR_ROOT}/${rel}"
-  url="${K8S_UPSTREAM}/${KUBERNETES_VERSION}/${arch}/${pkg}"
+  url="${K8S_UPSTREAM}/${KUBERNETES_VERSION}/${pkg}"
   dl "$url" "$dest"
   # 官方 sha512 旁路保存（可选校验）
   if ! [[ -f "${dest}.sha512" ]]; then

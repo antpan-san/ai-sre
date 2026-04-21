@@ -664,7 +664,7 @@ WHERE NOT EXISTS (
 -- 16.4  K8s 版本
 INSERT INTO k8s_versions (version, is_active)
 SELECT v, TRUE FROM (
-    VALUES ('v1.35.0'), ('v1.34.3'), ('v1.32.11'),
+    VALUES ('v1.35.4'), ('v1.34.3'), ('v1.32.11'),
            ('v1.32.6'), ('v1.30.0'), ('v1.28.15')
 ) AS t(v)
 WHERE NOT EXISTS (

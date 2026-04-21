@@ -171,7 +171,7 @@ func initK8sVersions() {
 		logger.Info("Seeding default K8s versions")
 
 		defaultVersions := []string{
-			"v1.35.0", "v1.32.11", "v1.34.3",
+			"v1.35.4", "v1.32.11", "v1.34.3",
 			"v1.32.6", "v1.28.15", "v1.30.0",
 		}
 
