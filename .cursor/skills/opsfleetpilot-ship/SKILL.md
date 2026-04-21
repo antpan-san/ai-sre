@@ -2,10 +2,12 @@
 name: opsfleetpilot-ship
 description: >-
   When OpsFleet paths change in ai-sre monorepo (ft-backend, ft-front, deploy, ansible-agent, opsfleet scripts):
-  update README/docs, run deploy-opsfleet-remote.sh, nginx+systemd, health, push. Trigger per monorepo-release.mdc.
+  update README/docs, run deploy-opsfleet-remote.sh, nginx+systemd, health, push. Invoked from release-deploy / monorepo-release.mdc.
 ---
 
 # OpsFleetPilot 发布与全栈部署（强制工作流）
+
+**总入口**：**`.cursor/skills/release-deploy/SKILL.md`**。本文件在触及 OpsFleet 路径时**叠加**在 `ai-sre-ship` 之上执行。
 
 ## 触发条件（在 ai-sre-ship 之上叠加）
 

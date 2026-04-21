@@ -147,7 +147,7 @@ SHORT=1 bash scripts/remote-e2e.sh   # vet/test/build/version/doctor/skills list
 bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 ```
 
-详细发布步骤与 **README 须在 push 前、发布后保持更新** 的要求，见 **`.cursor/skills/ai-sre-ship/SKILL.md`**；**任意本仓文件变更**在 Cursor 中还应遵循 **`.cursor/rules/monorepo-release.mdc`**（总规则），涉及 OpsFleet 时另见 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**。
+**发布总入口（Cursor Agent）**：**`.cursor/skills/release-deploy/SKILL.md`** → 再按场景执行 **`.cursor/skills/ai-sre-ship/SKILL.md`**（CLI 同步与 push）、**`.cursor/skills/opsfleetpilot-ship/SKILL.md`**（全栈）、**`.cursor/skills/k8s-offline-deploy-test/SKILL.md`**（K8s 离线）。**README 须在 push 前、发布后保持更新**。**任意本仓文件变更**还应遵循 **`.cursor/rules/monorepo-release.mdc`**（`alwaysApply`）。
 
 ---
 
@@ -199,7 +199,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | 远程全栈部署（无 Docker） | `./scripts/deploy-opsfleet-remote.sh`（默认远端目录与 `DEPLOY_REMOTE_DIR` 一致：`/root/sre`；可用 `OPSFLEET_REMOTE_DIR` 覆盖） |
 | 部署后自检（在服务器上） | `bash scripts/verify-opsfleet-deployment.sh` |
 
-**实验室虚拟机 `root@192.168.56.11`（本地 root 免密）**：与 **ai-sre** `deploy-remote.sh`、**OpsFleet** `deploy-opsfleet-remote.sh` 使用**同一默认主机**；可在该机上另部署 **K8s 内网制品站**（`deploy/k8s-mirror/README.md`，持久目录默认 `/var/lib/opsfleet-k8s-mirror`）。全栈部署脚本**首次**可在远端创建 **`/etc/opsfleet/backend.env`**，设置 **`OPSFLEET_K8S_MIRROR_BASE_URL`**（默认 `http://192.168.56.11`），供控制台 **「K8s 制品镜像」** 页代理展示 `manifest.json` 与 SHA512。**发布顺序**见 **`.cursor/rules/monorepo-release.mdc`**：先 **ai-sre-ship** → 若改 OpsFleet 则 **opsfleetpilot-ship** → 若改 K8s 离线/制品 则 **k8s-offline-deploy-test** → 最后 **`git push`**。
+**实验室虚拟机 `root@192.168.56.11`（本地 root 免密）**：与 **ai-sre** `deploy-remote.sh`、**OpsFleet** `deploy-opsfleet-remote.sh` 使用**同一默认主机**；可在该机上另部署 **K8s 内网制品站**（`deploy/k8s-mirror/README.md`，持久目录默认 `/var/lib/opsfleet-k8s-mirror`）。全栈部署脚本**首次**可在远端创建 **`/etc/opsfleet/backend.env`**，设置 **`OPSFLEET_K8S_MIRROR_BASE_URL`**（默认 `http://192.168.56.11`），供控制台 **「K8s 制品镜像」** 页代理展示 `manifest.json` 与 SHA512。**发布顺序**见 **`.cursor/skills/release-deploy/SKILL.md`** 与 **`.cursor/rules/monorepo-release.mdc`**：**release-deploy** 总清单 → **ai-sre-ship** → 若改 OpsFleet 则 **opsfleetpilot-ship** → 若改 K8s 离线/制品 则 **k8s-offline-deploy-test** → 最后 **`git push`**。
 
 本地开发：在 `ft-backend` 配置 `conf/config.yaml` 后 `go run .`；在 `ft-front` 执行 `npm install && npm run dev`（Vite 代理 `/ft-api`）。
 

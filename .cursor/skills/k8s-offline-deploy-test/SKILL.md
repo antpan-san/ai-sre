@@ -12,6 +12,7 @@ description: >-
 
 ## 与仓库强制工作流的关系
 
+- **总入口**：**`.cursor/skills/release-deploy/SKILL.md`**。
 - **`.cursor/rules/monorepo-release.mdc`**（`alwaysApply: true`）要求：凡改动命中 **ansible-agent K8s、`k8s_bundle`、`k8s_ansible`、K8s 部署前端、`gen-k8s-bundle`** 等，在 **`git push` 之前**须完成本 Skill 中与本次变更匹配的步骤（至少 **构建 + 打 zip**；有 SSH 则完整装测）。
 - 与 **`.cursor/skills/ai-sre-ship/SKILL.md`**、**`opsfleetpilot-ship`** 叠加时，顺序见 `monorepo-release.mdc`。
 
