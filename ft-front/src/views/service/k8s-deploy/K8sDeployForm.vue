@@ -5,7 +5,7 @@
         <span class="page-kicker">Kubernetes</span>
         <h2 class="page-title">部署 Kubernetes 集群</h2>
         <p class="page-desc">
-          分步完成集群参数配置；支持<strong>离线安装包</strong>（Ubuntu 24.04 解压后一键执行）或<strong>在线部署</strong>（经已安装 Agent 的节点执行）。
+          离线：生成<strong>一键命令</strong>或 zip，在 Ubuntu 24.04 控制机执行；在线：由 Agent 执行 Ansible。
         </p>
       </div>
     </header>
@@ -35,39 +35,71 @@
       <div class="step-card-body">
         <!-- ========== 步骤 1: 基础集群信息 ========== -->
         <div v-show="activeStep === 0" class="step-section">
-          <el-alert type="warning" :closable="false" show-icon class="k8s-prereq-alert">
-            <template #title>运行离线安装包前：执行环境（必读）</template>
-            <div class="k8s-prereq-body">
-              <p>
-                <strong>谁在执行</strong>：<code>install.sh</code> 会在<strong>你运行命令的那台 Ubuntu 机</strong>上安装 Ansible，并通过
-                <strong>SSH 以用户 root</strong>登录下面步骤里填写的<strong>所有节点 IP</strong>。
-              </p>
-              <p>
-                <strong>典型报错</strong>：若最终脚本或 Ansible 出现
-                <code>Permission denied (publickey,password)</code>，说明<strong>本机还不能免密登录各节点 root</strong>，须先完成下方「最少步骤」，再执行 <code>sudo bash install.sh</code>。
-              </p>
-              <p><strong>最少步骤（推荐）</strong></p>
-              <ol class="k8s-prereq-ol">
-                <li>
-                  在<strong>同一台将执行</strong> <code>install.sh</code> 的机器上（建议 root 下操作），若没有密钥可执行：
-                  <code>ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519</code>
-                </li>
-                <li>
-                  为<strong>每一个</strong>节点 IP 拷贝公钥（每个 IP 执行一次）：
-                  <code>ssh-copy-id -i ~/.ssh/id_ed25519.pub root@&lt;节点IP&gt;</code>
-                </li>
-                <li>
-                  验证：<code>ssh root@&lt;节点IP&gt;</code> 能直接进入，无密码提示。
-                </li>
-              </ol>
-              <p class="k8s-prereq-muted">
-                说明：<code>install.sh</code> 会在控制机生成 <code>/root/.ssh/ansible_id_rsa</code>，供初始化 playbook 在节点上创建系统用户
-                <code>ansible</code> 并写入公钥（与「root 免密」是两套机制）。日志里若出现
-                <code>No VM guests are running outdated hypervisor (qemu)</code> 为 apt 提示，可忽略。
-                清单使用 <code>ansible_user=root</code>，不支持交互式 SSH 密码。
-              </p>
-            </div>
-          </el-alert>
+          <el-collapse v-model="stepAuxOpen" class="step-aux-collapse">
+            <el-collapse-item name="ssh" title="离线安装必读：控制机须能免密 SSH 各节点 root（展开查看操作）">
+              <div class="k8s-prereq-body">
+                <p class="k8s-prereq-lead">
+                  <code>install.sh</code> 在<strong>你执行命令的 Ubuntu 机</strong>上跑 Ansible，并以 <strong>root</strong> 连所有节点 IP。若报
+                  <code>Permission denied</code>，先完成下列步骤。
+                </p>
+                <ol class="k8s-prereq-ol">
+                  <li>
+                    控制机：<code>ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519</code>（若已有密钥可跳过）
+                  </li>
+                  <li>对每个节点：<code>ssh-copy-id -i ~/.ssh/id_ed25519.pub root@&lt;IP&gt;</code></li>
+                  <li>验证：<code>ssh root@&lt;IP&gt;</code> 无密码</li>
+                </ol>
+                <p class="k8s-prereq-muted">
+                  脚本会另建 <code>ansible</code> 用户与密钥；清单为 <code>ansible_user=root</code>，不支持交互式密码。
+                </p>
+              </div>
+            </el-collapse-item>
+            <el-collapse-item
+              :title="`部署记录（${k8sDeployStore.deployRecords.length} 条）`"
+              name="records"
+            >
+              <div class="deploy-records-inner">
+                <div class="deploy-records-header">
+                  <el-button type="primary" link size="small" :loading="k8sDeployStore.loadingRecords" @click="k8sDeployStore.fetchDeployRecords">
+                    刷新
+                  </el-button>
+                </div>
+                <el-table
+                  :data="k8sDeployStore.deployRecords"
+                  stripe
+                  size="small"
+                  max-height="200"
+                  class="deploy-records-table"
+                >
+                  <el-table-column prop="clusterName" label="集群" min-width="100" show-overflow-tooltip />
+                  <el-table-column prop="status" label="状态" width="80" align="center">
+                    <template #default="{ row }">
+                      <el-tag
+                        :type="row.status === 'success' ? 'success' : row.status === 'failed' ? 'danger' : row.status === 'running' || row.status === 'pending' ? 'warning' : 'info'"
+                        size="small"
+                      >
+                        {{ statusLabel(row.status) }}
+                      </el-tag>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="progress" label="进度" width="72" align="center">
+                    <template #default="{ row }">{{ row.progress }}%</template>
+                  </el-table-column>
+                  <el-table-column prop="createdAt" label="时间" width="140">
+                    <template #default="{ row }">{{ formatRecordTime(row.createdAt) }}</template>
+                  </el-table-column>
+                  <el-table-column label="" width="64" align="center" fixed="right">
+                    <template #default="{ row }">
+                      <el-button type="primary" link size="small" @click="goToProgress(row.deployId)">查看</el-button>
+                    </template>
+                  </el-table-column>
+                </el-table>
+                <div v-if="k8sDeployStore.deployRecords.length === 0 && !k8sDeployStore.loadingRecords" class="deploy-records-empty">
+                  暂无记录
+                </div>
+              </div>
+            </el-collapse-item>
+          </el-collapse>
 
           <!-- 正在部署：通过 WS 实时展示当前进行中的部署 -->
           <div v-if="runningDeploy" class="deploy-status-block">
@@ -92,55 +124,6 @@
           </div>
 
           <!-- 部署记录：与机器管理同源，展示历史与状态 -->
-          <div class="deploy-records-block">
-            <div class="deploy-records-header">
-              <span class="deploy-records-title">部署记录</span>
-              <el-button type="primary" link size="small" :loading="k8sDeployStore.loadingRecords" @click="k8sDeployStore.fetchDeployRecords">
-                刷新
-              </el-button>
-            </div>
-            <el-table
-              :data="k8sDeployStore.deployRecords"
-              stripe
-              size="small"
-              max-height="220"
-              class="deploy-records-table"
-            >
-              <el-table-column prop="clusterName" label="集群名称" min-width="120" show-overflow-tooltip />
-              <el-table-column prop="status" label="状态" width="90" align="center">
-                <template #default="{ row }">
-                  <el-tag
-                    :type="row.status === 'success' ? 'success' : row.status === 'failed' ? 'danger' : row.status === 'running' || row.status === 'pending' ? 'warning' : 'info'"
-                    size="small"
-                  >
-                    {{ statusLabel(row.status) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
-              <el-table-column prop="progress" label="进度" width="100" align="center">
-                <template #default="{ row }">
-                  {{ row.progress }}%
-                </template>
-              </el-table-column>
-              <el-table-column prop="currentStep" label="当前步骤" min-width="140" show-overflow-tooltip />
-              <el-table-column prop="createdAt" label="创建时间" width="165">
-                <template #default="{ row }">
-                  {{ formatRecordTime(row.createdAt) }}
-                </template>
-              </el-table-column>
-              <el-table-column label="操作" width="100" align="center" fixed="right">
-                <template #default="{ row }">
-                  <el-button type="primary" link size="small" @click="goToProgress(row.deployId)">
-                    查看
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-            <div v-if="k8sDeployStore.deployRecords.length === 0 && !k8sDeployStore.loadingRecords" class="deploy-records-empty">
-              暂无部署记录
-            </div>
-          </div>
-
           <el-divider content-position="left">基础集群信息</el-divider>
           <el-form
             ref="step1FormRef"
@@ -234,9 +217,8 @@
                 </el-form-item>
               </el-col>
             </el-row>
-            <p class="form-hint" style="margin: -8px 0 12px 0">
-              与 Kubernetes/etcd/CNI 等二进制下载相关；默认值仅维护在 ansible-agent 的
-              <code>inventory/group_vars/all.yml</code>（download_domain），此处填写则覆盖。选「阿里云」时服务端二进制走公网，CNI 插件亦走公网。
+            <p class="form-hint form-hint--compact">
+              留空则用 inventory 默认 <code>download_domain</code>；填写则覆盖。选「阿里云」时二进制多走公网。
             </p>
 
             <template v-if="deployConfig.clusterBasicInfo.imageSource === 'custom'">
@@ -275,40 +257,25 @@
 
         <!-- ========== 步骤 2: 节点配置 ========== -->
         <div v-show="activeStep === 1" class="step-section" v-loading="activeStep === 1 && machineStore.loading">
-          <el-alert
-            v-if="offlineBundleMode"
-            title="离线包：你在下方填写的每个 IP，都必须能从「将执行 install.sh 的机器」免密 SSH 为 root；未完成则会在 Step 1/7 init 失败。"
-            type="warning"
-            :closable="false"
-            show-icon
-            class="step-alert"
-          />
-          <el-alert
-            title="执行节点负责运行 Ansible 部署任务，需与 K8s 集群节点网络互通（SSH）。执行节点可与集群节点分离。"
-            type="info"
-            :closable="false"
-            show-icon
-            class="step-alert"
-          />
-
-          <el-form-item label="部署方式">
-            <el-switch
-              v-model="offlineBundleMode"
-              inline-prompt
-              active-text="离线安装包"
-              inactive-text="在线 Agent"
-            />
-            <span class="mode-hint">离线模式：在<strong>最后一步「部署确认」</strong>生成 zip；Ubuntu 24.04 执行 <code>sudo bash install.sh</code></span>
+          <el-form-item label="部署方式" class="node-mode-form-item">
+            <div class="node-mode-row">
+              <el-switch
+                v-model="offlineBundleMode"
+                inline-prompt
+                active-text="离线"
+                inactive-text="在线 Agent"
+              />
+              <span class="mode-hint-inline">
+                {{
+                  offlineBundleMode
+                    ? '填写 IP；最后一步可生成一键命令或 zip（须满足步骤 1 中 SSH 免密说明）'
+                    : '选择执行机与各节点；须网络互通并已装 Agent'
+                }}
+              </span>
+            </div>
           </el-form-item>
 
           <template v-if="offlineBundleMode">
-            <el-alert
-              title="填写节点 IP，主节点至少一行；与机器管理、Agent 无关。"
-              type="success"
-              :closable="false"
-              show-icon
-              class="step-alert"
-            />
             <el-form-item label="控制平面 IP（必填，每行一个）" required>
               <el-input
                 v-model="masterHostsText"
@@ -346,14 +313,6 @@
                 </el-option>
               </el-select>
             </el-form-item>
-
-            <el-alert
-              title="主节点至少需要 2 核 CPU 和 4 GB 内存，建议选择性能较好的机器"
-              type="info"
-              :closable="false"
-              show-icon
-              class="step-alert"
-            />
 
             <NodeSelect
               :machines="machines"
@@ -654,10 +613,8 @@
             <el-form-item label="部署前环境清理">
               <el-switch v-model="deployConfig.advancedConfig.preDeployCleanup" />
               <p class="pre-cleanup-hint">
-                开启后，离线 <code>install.sh</code> 与在线部署脚本会在 <strong>Step 0</strong> 自动执行预清理（非交互）：在各节点停止旧 etcd / 控制面服务并删除
-                <code>/var/lib/etcd</code>、<code>/etc/kubernetes</code> 等，便于重复安装。
-                打包默认写入开关；执行时仍可用环境变量覆盖，例如：
-                <code>OPSFLEET_OFFLINE_PRE_CLEANUP=0 sudo bash install.sh</code> 跳过清理。
+                开启后 Step 0 会非交互清理各节点旧 K8s/etcd 数据，便于重复装。执行时可设
+                <code>OPSFLEET_OFFLINE_PRE_CLEANUP=0</code> 跳过。
               </p>
             </el-form-item>
 
@@ -698,18 +655,57 @@
             </div>
             <div class="confirm-hero-text">
               <h4 class="confirm-hero-title">
-                {{ offlineBundleMode ? '离线安装包' : '在线部署' }}
+                {{ offlineBundleMode ? '离线交付' : '在线部署' }}
               </h4>
               <p class="confirm-hero-desc">
                 <template v-if="offlineBundleMode">
-                  请核对下方配置；确认无误后，点击页面底部<strong>「生成并下载离线安装包」</strong>获取 zip，在控制机解压后执行
-                  <code>sudo bash install.sh</code>。
+                  核对摘要后，可<strong>生成一键安装命令</strong>（推荐）或<strong>下载 zip</strong>。命令在控制机执行，须已安装
+                  <code>ai-sre</code>。
                 </template>
                 <template v-else>
-                  请核对下方配置；确认无误后，点击页面底部<strong>「开始在线部署」</strong>由 Agent 执行安装。
+                  核对无误后点击底部<strong>开始在线部署</strong>，由 Agent 执行 Ansible。
                 </template>
               </p>
             </div>
+          </div>
+
+          <!-- 离线：安装命令展示区（生成后常驻，可复制） -->
+          <div v-if="offlineBundleMode" class="offline-install-panel">
+            <div class="offline-install-panel__head">
+              <h4 class="offline-install-panel__title">一键安装命令</h4>
+              <el-button
+                v-if="lastInvite"
+                type="primary"
+                size="small"
+                @click="copyInstallCommand"
+              >
+                <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
+                复制命令
+              </el-button>
+            </div>
+            <p v-if="!lastInvite" class="offline-install-panel__placeholder">
+              点击下方<strong>「生成一键安装命令」</strong>后，将在此显示完整命令与资源 ID（无需仅依赖弹窗或下载 zip）。
+            </p>
+            <template v-else>
+              <el-descriptions :column="2" size="small" border class="invite-meta-desc">
+                <el-descriptions-item label="资源 ID">
+                  <span class="mono-ellipsis" :title="lastInvite.id">{{ lastInvite.id }}</span>
+                </el-descriptions-item>
+                <el-descriptions-item label="有效期至">
+                  {{ formatInviteExpiry(lastInvite.expiresAt) }}
+                </el-descriptions-item>
+              </el-descriptions>
+              <el-input
+                type="textarea"
+                :rows="3"
+                readonly
+                :model-value="lastInvite.installCommand"
+                class="install-command-textarea"
+              />
+              <p class="offline-install-panel__warn">
+                命令含下载密钥，请勿泄露；过期后请在本页重新生成。
+              </p>
+            </template>
           </div>
 
           <div class="confirm-grid">
@@ -752,17 +748,25 @@
             <div class="confirm-block">
               <h4 class="confirm-block-title">节点配置</h4>
               <div class="confirm-row">
-                <span class="confirm-label">执行节点</span>
-                <span class="confirm-value">{{ executorConfirmText }}</span>
+                <span class="confirm-label">{{ offlineBundleMode ? '控制平面 IP' : '执行节点' }}</span>
+                <span class="confirm-value confirm-value--wrap">{{ executorConfirmText }}</span>
               </div>
-              <div class="confirm-row">
-                <span class="confirm-label">控制平面节点</span>
-                <span class="confirm-value">{{ deployConfig.nodeConfig.masterNodes.length }} 个</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">工作节点</span>
-                <span class="confirm-value">{{ deployConfig.nodeConfig.workerNodes.length }} 个</span>
-              </div>
+              <template v-if="!offlineBundleMode">
+                <div class="confirm-row">
+                  <span class="confirm-label">控制平面</span>
+                  <span class="confirm-value">{{ deployConfig.nodeConfig.masterNodes.length }} 台</span>
+                </div>
+                <div class="confirm-row">
+                  <span class="confirm-label">工作节点</span>
+                  <span class="confirm-value">{{ deployConfig.nodeConfig.workerNodes.length }} 台</span>
+                </div>
+              </template>
+              <template v-else>
+                <div class="confirm-row">
+                  <span class="confirm-label">工作节点 IP</span>
+                  <span class="confirm-value confirm-value--wrap">{{ confirmWorkerPreview }}</span>
+                </div>
+              </template>
             </div>
 
             <!-- 网络 -->
@@ -817,7 +821,7 @@
       <el-button
         v-if="activeStep > 0"
         @click="prevStep"
-        :disabled="submitting || downloadingBundle"
+        :disabled="submitting || downloadingBundle || creatingInvite"
       >
         上一步
       </el-button>
@@ -838,6 +842,7 @@
           size="large"
           class="primary-finish-btn"
           :loading="creatingInvite"
+          :disabled="downloadingBundle"
           @click="handleCreateInstallRef"
         >
           <el-icon class="primary-finish-btn-icon"><Promotion /></el-icon>
@@ -849,10 +854,11 @@
           size="large"
           class="primary-finish-btn"
           :loading="downloadingBundle"
+          :disabled="creatingInvite"
           @click="handleDownloadBundle"
         >
           <el-icon class="primary-finish-btn-icon"><Download /></el-icon>
-          生成并下载离线安装包
+          下载离线安装包（zip）
         </el-button>
         <el-button
           v-else
@@ -872,7 +878,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import {
   Monitor,
@@ -884,7 +890,8 @@ import {
   CircleCheck,
   Download,
   FolderOpened,
-  Promotion
+  Promotion,
+  DocumentCopy
 } from '@element-plus/icons-vue'
 import NodeSelect from '@/components/k8s/NodeSelect.vue'
 import LabelGroup from '@/components/k8s/LabelGroup.vue'
@@ -913,21 +920,21 @@ const machineStore = useMachineStore()
 const stepsMeta = [
   {
     title: '基础集群信息',
-    desc: '先阅读下方「运行离线包前」前置条件；再填写集群名称、版本与镜像源',
+    desc: '集群名称、版本、架构、镜像源与可选制品覆盖',
     icon: markRaw(Monitor)
   },
   {
     title: '节点配置',
-    desc: '填写节点 IP（离线包）或 Agent；所有 IP 须已能从执行机免密 SSH 为 root',
+    desc: '离线填 IP 或在线选 Agent 与节点；标签与污点可选',
     icon: markRaw(Cpu)
   },
-  { title: '核心组件配置', desc: '设置 kube-proxy 模式、RBAC 及审计策略', icon: markRaw(SetUp) },
-  { title: '网络配置', desc: '选择网络插件并配置 Pod/Service CIDR', icon: markRaw(Connection) },
-  { title: '存储配置', desc: '配置默认存储类和存储供应器', icon: markRaw(Coin) },
-  { title: '高级配置', desc: '选择可选组件及额外启动参数', icon: markRaw(Operation) },
+  { title: '核心组件配置', desc: 'kube-proxy、RBAC、审计等', icon: markRaw(SetUp) },
+  { title: '网络配置', desc: 'CNI、Pod/Service CIDR', icon: markRaw(Connection) },
+  { title: '存储配置', desc: '存储类与供应器', icon: markRaw(Coin) },
+  { title: '高级配置', desc: '可选组件与额外参数', icon: markRaw(Operation) },
   {
     title: '部署确认',
-    desc: '核对摘要：离线模式在此生成 zip，在线模式在此提交部署',
+    desc: '核对摘要；离线可生成命令或 zip',
     icon: markRaw(CircleCheck)
   }
 ]
@@ -945,6 +952,15 @@ const validating = ref(false)
 const submitting = ref(false)
 const downloadingBundle = ref(false)
 const creatingInvite = ref(false)
+/** 步骤 1：折叠区默认收起，减少首屏噪音 */
+const stepAuxOpen = ref<string[]>([])
+/** 离线一键安装接口返回，用于最后一步展示 */
+const lastInvite = ref<{
+  id: string
+  expiresAt: string
+  installRef: string
+  installCommand: string
+} | null>(null)
 /** true：离线 zip（推荐）；false：经 Agent 在线部署 */
 const offlineBundleMode = ref(true)
 const masterHostsText = ref('')
@@ -1151,6 +1167,16 @@ const enabledComponentsText = computed(() => {
   return items.join('、')
 })
 
+const confirmWorkerPreview = computed(() => {
+  const fromCfg = deployConfig.nodeConfig.workerHosts?.length
+    ? deployConfig.nodeConfig.workerHosts
+    : workerHostsText.value
+        .split(/\r?\n/)
+        .map((x) => x.trim())
+        .filter(Boolean)
+  return fromCfg.length ? fromCfg.join('、') : '无'
+})
+
 // ---------- 状态持久化：跳转后返回仍保留已填写的步骤与数据 ----------
 watch(
   () => ({ config: deployConfig, step: activeStep.value }),
@@ -1187,6 +1213,24 @@ function goToProgress(deployId: string) {
   router.push({ path: '/service/k8s-deploy/progress', query: { deployId } })
 }
 
+function formatInviteExpiry(iso: string): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString('zh-CN')
+  } catch {
+    return iso
+  }
+}
+
+function copyInstallCommand() {
+  const cmd = lastInvite.value?.installCommand
+  if (!cmd) return
+  navigator.clipboard.writeText(cmd).then(
+    () => ElMessage.success('已复制安装命令'),
+    () => ElMessage.error('复制失败，请手动选择文本复制')
+  )
+}
+
 // ---------- 初始化 ----------
 onMounted(() => {
   k8sDeployStore.restoreInto(deployConfig as DeployConfig, activeStep)
@@ -1204,6 +1248,10 @@ onMounted(() => {
 // 切换到节点配置步骤时刷新机器列表，确保与机器管理页状态一致
 watch(activeStep, (step) => {
   if (step === 1) loadMachines()
+})
+
+watch(offlineBundleMode, () => {
+  lastInvite.value = null
 })
 
 const loadK8sVersions = async () => {
@@ -1309,17 +1357,18 @@ const handleCreateInstallRef = async () => {
       ''
     )
     const data = await createK8sBundleInvite(deployConfig as DeployConfig, publicApiBase)
+    lastInvite.value = {
+      id: data.id,
+      expiresAt: data.expiresAt,
+      installRef: data.installRef,
+      installCommand: data.installCommand
+    }
     try {
       await navigator.clipboard.writeText(data.installCommand)
-      ElMessage.success('安装命令已复制到剪贴板')
+      ElMessage.success('已生成并复制安装命令，可在上方卡片再次查看或复制')
     } catch {
-      ElMessage.info('请手动复制安装命令')
+      ElMessage.success('已生成安装命令，请在上方案块内复制')
     }
-    await ElMessageBox.alert(
-      `资源 ID：${data.id}\n有效期至：${data.expiresAt}\n\n在控制机执行（已尝试自动复制）：\n\n${data.installCommand}\n\n说明：目标机需已安装 ai-sre；安装引用勿泄露（含下载密钥）。`,
-      '一键安装命令',
-      { confirmButtonText: '关闭' }
-    )
   } catch (e: any) {
     ElMessage.error(e?.message || '生成失败')
   } finally {
@@ -1356,7 +1405,7 @@ const handleDownloadBundle = async () => {
 // ---------- 提交部署（在线 Agent） ----------
 const submitDeploy = async () => {
   if (offlineBundleMode.value) {
-    ElMessage.warning('当前为离线安装包模式，请使用页面底部「生成并下载离线安装包」')
+    ElMessage.warning('当前为离线模式，请使用最后一步的「一键安装命令」或「下载 zip」')
     return
   }
   submitting.value = true
@@ -1378,14 +1427,42 @@ const submitDeploy = async () => {
 
 <style scoped>
 /* ==================== 页面布局 ==================== */
-.k8s-prereq-alert {
+.step-aux-collapse {
+  margin-bottom: 16px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  overflow: hidden;
+  --el-collapse-header-height: 44px;
+}
+
+.step-aux-collapse :deep(.el-collapse-item__header) {
+  font-weight: 600;
+  font-size: 13px;
+  padding: 0 14px;
+  background: var(--el-fill-color-light);
+}
+
+.step-aux-collapse :deep(.el-collapse-item__wrap) {
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.step-aux-collapse :deep(.el-collapse-item__content) {
+  padding: 12px 14px 14px;
+}
+
+.deploy-records-inner .deploy-records-header {
+  justify-content: flex-end;
   margin-bottom: 8px;
 }
 
 .k8s-prereq-body {
   font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.6;
   color: #374151;
+}
+
+.k8s-prereq-lead {
+  margin: 0 0 10px;
 }
 
 .k8s-prereq-body p {
@@ -1470,6 +1547,24 @@ const submitDeploy = async () => {
   font-weight: 600;
 }
 
+.node-mode-form-item {
+  margin-bottom: 16px;
+}
+
+.node-mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.mode-hint-inline {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: min(560px, 100%);
+}
+
 .mode-hint {
   margin-left: 12px;
   color: #6b7280;
@@ -1480,6 +1575,11 @@ const submitDeploy = async () => {
   padding: 2px 6px;
   background: #f3f4f6;
   border-radius: 4px;
+}
+
+.btn-icon-left {
+  margin-right: 4px;
+  vertical-align: -0.12em;
 }
 
 .pre-cleanup-hint {
@@ -1527,14 +1627,6 @@ const submitDeploy = async () => {
 .deploy-status-step {
   margin-left: 12px;
   color: var(--el-text-color-regular);
-}
-
-.deploy-records-block {
-  margin-bottom: 20px;
-  padding: 14px 16px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  background: var(--el-fill-color-blank);
 }
 
 .deploy-records-header {
@@ -1639,6 +1731,73 @@ const submitDeploy = async () => {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--el-border-color-lighter);
+}
+
+.offline-install-panel {
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.offline-install-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
+.offline-install-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+}
+
+.offline-install-panel__placeholder {
+  margin: 0;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.65;
+}
+
+.invite-meta-desc {
+  margin-bottom: 12px;
+}
+
+.install-command-textarea :deep(textarea) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.offline-install-panel__warn {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--el-color-warning-dark-2);
+}
+
+.mono-ellipsis {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  word-break: break-all;
+}
+
+.confirm-value--wrap {
+  flex: 1;
+  min-width: 0;
+  text-align: right;
+  line-height: 1.5;
+}
+
+.form-hint--compact {
+  margin: -6px 0 12px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
 }
 
 /* ==================== 步骤卡片（统一风格） ==================== */
