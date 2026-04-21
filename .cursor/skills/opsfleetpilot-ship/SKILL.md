@@ -66,6 +66,8 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 **后端路由**：`ft-backend` 使用 **`middleware.StripOptionalFtAPIPrefix()`**，即使 Nginx **`proxy_pass`** 未去掉 **`/ft-api`** 前缀，**`/ft-api/api/...`** 仍可命中 Gin 路由；生产仍推荐模板中带尾斜杠的 **`proxy_pass`**（见 **`deploy/nginx.opsfleet.conf.template`** 注释）。
 
+**Nginx Host 头**：反代到后端时须使用 **`proxy_set_header Host $http_host;`**（并建议 **`X-Forwarded-Host` / `X-Forwarded-Port`**）。使用 **`$host`** 会丢掉监听端口（如 **:9080**），导致 **`install-ai-sre.sh`** 内嵌的 **`API_BASE`** 指向 **80**，内层 **`curl .../cli/ai-sre`** **404**。模板已按此配置。
+
 ## 固定参数（可覆盖）
 
 | 环境变量 | 默认 |
