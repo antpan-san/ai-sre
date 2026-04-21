@@ -44,17 +44,27 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 在 **`./scripts/deploy-opsfleet-remote.sh` 成功且健康检查通过** 后，再快速核对 README 与线上行为。
 
-## 执行顺序
+## 执行顺序（上线必做）
 
-1. **更新 README**（见上）并暂存相关文档。  
-2. **本地快速校验**（可选）：`make vet-opsfleet`；`make build-opsfleet` 确认能生成 `bin/` 与 `dist/web/`（勿提交）。  
-3. **远程部署**：`./scripts/deploy-opsfleet-remote.sh`（rsync → 远端 `scripts/build-all.sh` 产出 **`bin/ai-sre`**、**`bin/opsfleet-backend`** 等 → 每次向 **`/etc/opsfleet/backend.env`** 写入 **`OPSFLEET_AISRE_BINARY_PATH=<REMOTE_DIR>/bin/ai-sre`**，保证控制台 **「curl 安装 ai-sre」** 与 **`/api/k8s/deploy/cli/ai-sre`** 始终为**本次构建的最新 CLI**；另含 **`OPSFLEET_K8S_MIRROR_BASE_URL`** 供制品页）。  
-4. **部署后自检（远端）**：`bash scripts/verify-opsfleet-deployment.sh`（含可选 **manifest** 探测；若未部署 `deploy/k8s-mirror` 会出现 WARN，属预期）。  
-5. **失败处理**：若构建失败，在远端或本地 `make build-opsfleet` 复现；修复后再推送。  
-6. **Git**：`git add -A && git commit && git push`。**确认未误加 `bin/`、`dist/`。**  
-7. **汇报**：说明访问地址 `http://<host>:9080/`、服务状态、提交哈希；若本次改了 K8s 制品相关，说明 manifest 检查结果。
+与 **`.cursor/skills/release-deploy/SKILL.md`** 中「OpsFleet 上线顺序」表一致；代理须**实际执行**下列命令（除非用户豁免 SSH），不得只写说明。
+
+1. **更新 README**（见上）并暂存相关文档（若本次影响用户可见部署方式）。  
+2. **本地快速校验**（可选）：`make vet-opsfleet` 或 `cd ft-backend && go build -o /dev/null .`；`make build-opsfleet` 仅用于本地复现（**勿提交** `bin/`、`dist/`）。  
+3. **全栈远程部署**（仓库根）：`./scripts/deploy-opsfleet-remote.sh`  
+   - rsync 源码 → 远端 **`scripts/build-all.sh`** → **`bin/opsfleet-backend`**、**`bin/ai-sre`**、**`dist/web/`** → 同步 **`/var/www/opsfleetpilot/`** → 渲染 Nginx → **`systemctl restart opsfleet-backend`**  
+   - 每次向 **`/etc/opsfleet/backend.env`** 追加/刷新 **`OPSFLEET_AISRE_BINARY_PATH=<REMOTE_DIR>/bin/ai-sre`**（控制台 **curl 安装 ai-sre**、**GET /ft-api/api/k8s/deploy/cli/ai-sre** 依赖此项）  
+4. **部署后自检**（SSH 到部署机，在 **`$OPSFLEET_REMOTE_DIR`** 下）：`bash scripts/verify-opsfleet-deployment.sh`  
+   - 必看：**systemd active**、**/health**、**静态 index.html**、**GET /ft-api/api/k8s/deploy/cli/ai-sre?arch=amd64 → 200**、**GET /ft-api/api/k8s/deploy/install-ai-sre.sh** 返回以 **`#!`** 开头的 shell（动态脚本；若 404/HTML 检查 Nginx **`location /ft-api/`** 与后端 **`StripOptionalFtAPIPrefix`**）  
+   - **manifest.json**：未部署 `deploy/k8s-mirror` 时 WARN 可接受  
+5. **CLI 同步**（同主机常规仍执行）：仓库根 **`./scripts/deploy-remote.sh`**（仅 **ai-sre** 二进制构建，与全栈共用目录时不冲突）。  
+6. **冒烟**：仓库根 **`SHORT=1 bash scripts/remote-e2e.sh`**（见 **ai-sre-ship**）。  
+7. **失败处理**：构建或 health 失败 → **`journalctl -u opsfleet-backend -n 120`**、**`nginx -t`**、远端 **`go build`** 复现；修复后从步骤 3 重跑。  
+8. **Git**：**确认未误加 `bin/`、`dist/`** → `git add` → `commit` → **`git push origin main`**。  
+9. **汇报**：`http://<host>:9080/`、verify 摘要、**install-ai-sre.sh** 是否 OK、提交哈希。
 
 **与 K8s 离线 Skill**：若变更命中 `ansible-agent`、`k8s_bundle`、`deploy/k8s-mirror` 等，在 **`git push` 前**还须满足 **`.cursor/skills/k8s-offline-deploy-test/SKILL.md`** 最低限度（`go build`、`gen-k8s-bundle`；能 SSH **192.168.56.11** 时建议验证 manifest）。
+
+**后端路由**：`ft-backend` 使用 **`middleware.StripOptionalFtAPIPrefix()`**，即使 Nginx **`proxy_pass`** 未去掉 **`/ft-api`** 前缀，**`/ft-api/api/...`** 仍可命中 Gin 路由；生产仍推荐模板中带尾斜杠的 **`proxy_pass`**（见 **`deploy/nginx.opsfleet.conf.template`** 注释）。
 
 ## 固定参数（可覆盖）
 

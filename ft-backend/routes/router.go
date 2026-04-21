@@ -14,6 +14,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.Default()
+	r.Use(middleware.StripOptionalFtAPIPrefix())
 	r.Use(middleware.CORS())
 	r.Use(func(c *gin.Context) {
 		c.Set("config", cfg)

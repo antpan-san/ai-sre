@@ -657,7 +657,7 @@
           <div v-if="offlineBundleMode" class="confirm-cmd-card">
             <div class="confirm-cmd-card__head">
               <span class="confirm-cmd-card__title">安装 ai-sre（控制机）</span>
-              <el-button type="primary" size="small" link @click="copyInstallAiSreCurl">
+              <el-button type="primary" size="small" link @click.stop="copyInstallAiSreCurl">
                 <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
                 复制
               </el-button>
@@ -674,7 +674,7 @@
             <div class="confirm-cmd-card__head">
               <span class="confirm-cmd-card__title">安装 Kubernetes 集群（控制机）</span>
               <template v-if="lastInvite">
-                <el-button type="primary" size="small" link @click="copyBootstrapCommand">
+                <el-button type="primary" size="small" link @click.stop="copyBootstrapCommand">
                   <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
                   复制推荐命令
                 </el-button>
@@ -705,7 +705,7 @@
                     :model-value="lastInvite.installCommand"
                     class="install-command-textarea"
                   />
-                  <el-button type="primary" size="small" link class="confirm-optional-copy" @click="copyInstallCommand">
+                  <el-button type="primary" size="small" link class="confirm-optional-copy" @click.stop="copyInstallCommand">
                     复制
                   </el-button>
                 </el-collapse-item>
@@ -715,7 +715,7 @@
 
           <el-collapse v-model="confirmAuxOpen" class="confirm-aux-collapse">
             <el-collapse-item title="部署需求说明（复制，不含密钥）" name="doc">
-              <el-button type="primary" size="small" @click="copyDeployRequirement">
+              <el-button type="primary" size="small" @click.stop="copyDeployRequirement">
                 <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
                 复制全文
               </el-button>
@@ -892,6 +892,36 @@ import { useMachineStore } from '../../../stores/machine'
 const router = useRouter()
 const k8sDeployStore = useK8sDeployStore()
 const machineStore = useMachineStore()
+
+/** 非 HTTPS / 部分浏览器下 Clipboard API 不可用，降级到 execCommand */
+async function copyTextToClipboard(text: string): Promise<void> {
+  const fallback = (): void => {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.setAttribute('readonly', '')
+    ta.style.position = 'fixed'
+    ta.style.left = '-9999px'
+    document.body.appendChild(ta)
+    ta.select()
+    try {
+      if (!document.execCommand('copy')) {
+        throw new Error('execCommand copy failed')
+      }
+    } finally {
+      document.body.removeChild(ta)
+    }
+  }
+
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(text)
+      return
+    } catch {
+      // 权限或策略失败时再试降级
+    }
+  }
+  fallback()
+}
 
 // ---------- 步骤元信息（统一每步的标题、描述、图标） ----------
 const stepsMeta = [
@@ -1252,7 +1282,7 @@ function formatInviteExpiry(iso: string): string {
 function copyInstallCommand() {
   const cmd = lastInvite.value?.installCommand
   if (!cmd) return
-  navigator.clipboard.writeText(cmd).then(
+  void copyTextToClipboard(cmd).then(
     () => ElMessage.success('已复制 ai-sre 集群命令'),
     () => ElMessage.error('复制失败，请手动选择文本复制')
   )
@@ -1261,7 +1291,7 @@ function copyInstallCommand() {
 function copyBootstrapCommand() {
   const cmd = lastInvite.value?.bootstrapCommand
   if (!cmd) return
-  navigator.clipboard.writeText(cmd).then(
+  void copyTextToClipboard(cmd).then(
     () => ElMessage.success('已复制集群安装命令'),
     () => ElMessage.error('复制失败，请手动选择文本复制')
   )
@@ -1270,7 +1300,7 @@ function copyBootstrapCommand() {
 function copyInstallAiSreCurl() {
   const cmd = installAiSreCurlCommand.value
   if (!cmd?.trim()) return
-  navigator.clipboard.writeText(cmd).then(
+  void copyTextToClipboard(cmd).then(
     () => ElMessage.success('已复制安装 ai-sre 命令'),
     () => ElMessage.error('复制失败')
   )
@@ -1279,7 +1309,7 @@ function copyInstallAiSreCurl() {
 function copyDeployRequirement() {
   const text = deployRequirementText.value
   if (!text?.trim()) return
-  navigator.clipboard.writeText(text).then(
+  void copyTextToClipboard(text).then(
     () => ElMessage.success('已复制部署需求说明'),
     () => ElMessage.error('复制失败，请手动全选文本复制')
   )

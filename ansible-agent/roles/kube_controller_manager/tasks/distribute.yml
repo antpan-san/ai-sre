@@ -67,25 +67,18 @@
 # Check Health（服务刚起时 10257 可能尚未监听，做轮询避免瞬时失败）
 # --------------------------------
 - name: Wait for controller-manager /healthz
-  ansible.builtin.command:
-    argv:
-      - curl
-      - -k
-      - -sS
-      - -f
-      - https://127.0.0.1:10257/healthz
-      - --cert
-      - "{{ k8s_cert_dir }}/kube_controller_manager.crt"
-      - --key
-      - "{{ k8s_cert_dir }}/kube_controller_manager.key"
+  ansible.builtin.uri:
+    url: https://127.0.0.1:10257/healthz
+    validate_certs: false
+    return_content: true
+    status_code: 200
   register: cm_health
-  until: cm_health.rc == 0
+  until: cm_health.status == 200 and (cm_health.content | default('') | trim) == 'ok'
   retries: 40
   delay: 3
-  changed_when: false
 
 - name: Controller-manager health response
   ansible.builtin.debug:
-    msg: "{{ cm_health.stdout | default('') | trim }}"
-  when: cm_health.stdout is defined
+    msg: "{{ cm_health.content | default('') | trim }}"
+  when: cm_health.content is defined
 

@@ -54,6 +54,13 @@ if [[ -n "$AISRE" && -f "$AISRE" ]]; then
   else
     echo "WARN: GET .../cli/ai-sre 返回 HTTP $code（预期 200；检查 opsfleet-backend 与 install-ai-sre 路由）"
   fi
+  echo "-- 安装脚本（动态生成，须 HTTP 200 且为 bash shebang）--"
+  sh_head=$(curl -sfS --connect-timeout 8 "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/install-ai-sre.sh" | head -c 32 || true)
+  if [[ "$sh_head" == '#!'* ]]; then
+    echo "GET /ft-api/api/k8s/deploy/install-ai-sre.sh OK"
+  else
+    echo "WARN: GET .../install-ai-sre.sh 异常（预期以 #! 开头；检查 Nginx /ft-api 反代与后端 StripOptionalFtAPIPrefix）"
+  fi
 else
   echo "-- ai-sre 分发：未设置 OPSFLEET_AISRE_BINARY_PATH 或文件不存在（请执行 deploy-opsfleet-remote.sh 刷新 build-all + backend.env）--"
 fi
