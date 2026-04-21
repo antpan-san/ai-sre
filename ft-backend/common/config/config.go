@@ -19,9 +19,16 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	File     FileConfig     `yaml:"file"`
 	Redis    RedisConfig    `yaml:"redis"`
+	Opsfleet OpsfleetConfig `yaml:"opsfleet"`
 	Log      struct {
 		Level string `yaml:"level"`
 	} `yaml:"log"`
+}
+
+// OpsfleetConfig 控制台扩展（K8s 部署页 curl 安装 ai-sre 等）。
+type OpsfleetConfig struct {
+	// AiSreBinaryPath 服务器上已构建的 Linux ai-sre 可执行文件绝对路径，用于公开下载（amd64/arm64 暂共用同一文件时请保证与目标机架构一致）。
+	AiSreBinaryPath string `yaml:"ai_sre_binary_path"`
 }
 
 type ServerConfig struct {

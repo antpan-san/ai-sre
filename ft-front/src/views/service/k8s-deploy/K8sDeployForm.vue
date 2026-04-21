@@ -5,7 +5,7 @@
         <span class="page-kicker">Kubernetes</span>
         <h2 class="page-title">部署 Kubernetes 集群</h2>
         <p class="page-desc">
-          离线：一键命令（ai-sre 或 curl+bootstrap）、或 zip；在控制机执行一次即可；在线：由 Agent 执行 Ansible。
+          离线：固定 curl 安装 ai-sre、生成集群命令；在线：Agent 执行。
         </p>
       </div>
     </header>
@@ -643,272 +643,153 @@
           </el-form>
         </div>
 
-        <!-- ========== 步骤 7: 部署确认 ========== -->
+        <!-- ========== 步骤 7: 部署确认（精简：核心命令 + 摘要） ========== -->
         <div v-show="activeStep === 6" class="step-section step-section--confirm">
-          <div
-            class="confirm-hero"
-            :class="offlineBundleMode ? 'confirm-hero--offline' : 'confirm-hero--online'"
-          >
-            <div class="confirm-hero-icon" aria-hidden="true">
-              <el-icon v-if="offlineBundleMode" :size="28"><FolderOpened /></el-icon>
-              <el-icon v-else :size="28"><Promotion /></el-icon>
+          <p v-if="offlineBundleMode" class="confirm-lead">
+            在<strong>一台控制机</strong>上执行（须已对本单各节点 <strong>root 免密 SSH</strong>）。安装集群任选：先装
+            <code>ai-sre</code> 再执行一键命令，或直接用下方「集群安装」的 curl（需 python3）。
+          </p>
+          <p v-else class="confirm-lead confirm-lead--online">
+            核对后点击<strong>开始在线部署</strong>；进度见「部署进度」。
+          </p>
+
+          <!-- 离线：固定展示 — 安装 ai-sre（全站统一路径） -->
+          <div v-if="offlineBundleMode" class="confirm-cmd-card">
+            <div class="confirm-cmd-card__head">
+              <span class="confirm-cmd-card__title">安装 ai-sre（控制机）</span>
+              <el-button type="primary" size="small" link @click="copyInstallAiSreCurl">
+                <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
+                复制
+              </el-button>
             </div>
-            <div class="confirm-hero-text">
-              <h4 class="confirm-hero-title">
-                {{ offlineBundleMode ? '离线交付' : '在线部署' }}
-              </h4>
-              <p class="confirm-hero-desc">
-                <template v-if="offlineBundleMode">
-                  核对摘要后，可<strong>生成一键安装命令</strong>（推荐）或<strong>下载 zip</strong>。
-                  <strong>真正的安装动作只发生在您选定的一台「控制机」上</strong>：在该机终端执行<strong>一条</strong>
-                  <code>sudo</code> 命令（或解压后执行 <code>install.sh</code>），即可完成<strong>拉包、解压与 Ansible 全流程</strong>，自动装齐本单所有节点，<strong>无需在每个节点上重复执行</strong>。一键方式须已安装
-                  <code>ai-sre</code>。
-                </template>
-                <template v-else>
-                  核对无误后点击底部<strong>开始在线部署</strong>，由 Agent 执行 Ansible。
-                </template>
-              </p>
-            </div>
+            <p class="confirm-cmd-card__hint">
+              固定命令（与当前控制台同源）。服务器须在 <code>conf/config.yaml</code> 配置
+              <code>opsfleet.ai_sre_binary_path</code> 指向 Linux 可执行文件。
+            </p>
+            <el-input type="textarea" :rows="2" readonly :model-value="installAiSreCurlCommand" class="install-command-textarea" />
           </div>
 
-          <el-alert
-            v-if="offlineBundleMode"
-            class="confirm-control-machine-alert"
-            type="success"
-            :closable="false"
-            show-icon
-          >
-            <template #title>在「目标控制机」上执行即可完成全部操作</template>
-            <div class="confirm-control-machine-alert__body">
-              <p>
-                <strong>控制机</strong>：您准备 SSH 登录、并运行安装命令的那<strong>一台</strong> Linux（建议 Ubuntu
-                24.04）。它与「K8s 节点」不同：节点由 Ansible 从控制机远程安装，<strong>不要在每个节点上各跑一遍安装命令</strong>。
-              </p>
-              <p>
-                <strong>三种方式（择一）</strong>：① 控制机已装 <code>ai-sre</code> 时执行
-                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code>；② <strong>未装 ai-sre</strong> 时用本页
-                <code>curl … bootstrap.sh | sudo bash</code>（仅需 <code>curl</code>、<code>python3</code>，由脚本拉 zip 并跑
-                <code>install.sh</code>）；③ 下载 zip 到控制机解压后执行 <code>sudo bash install.sh</code>。
-              </p>
-            </div>
-          </el-alert>
-
-          <!-- 离线：固定展示的安装操作说明（不依赖是否已生成命令） -->
-          <el-card v-if="offlineBundleMode" class="install-howto-card" shadow="never">
-            <template #header>
-              <span class="install-howto-card__title">安装操作说明</span>
-            </template>
-            <ol class="install-howto-ol">
-              <li>
-                在<strong>即将执行安装的 Ubuntu 控制机</strong>上，保证能<strong>免密 SSH root</strong> 登录本单填写的所有节点
-                IP（详见第 1 步折叠说明）。若选 <code>ai-sre</code> 或 zip 方式，请按需安装 CLI / Ansible（离线包内
-                <code>install.sh</code> 会引导）。
-              </li>
-              <li>
-                点击底部<strong>「生成一键安装命令」</strong>后，下方将给出两条可复制命令：<strong>A</strong>
-                <code>sudo ai-sre k8s install '…'</code>；<strong>B</strong>
-                <code>curl -fsSL '…/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'</code>（<strong>无需预装 ai-sre</strong>，需
-                <code>python3</code>）。均在<strong>控制机</strong>执行一次即可。
-              </li>
-              <li>
-                若选用 <strong>zip</strong>：点击「下载离线安装包」，将 zip 传到控制机解压后，在<strong>解压目录内</strong>执行
-                <code>sudo bash install.sh</code>。
-              </li>
-              <li>
-                当前控制台 API 基址（CLI / bootstrap 拉包会访问）：
-                <code class="install-howto-api">{{ publicApiBasePreview }}</code>
-              </li>
-            </ol>
-          </el-card>
-
-          <el-card v-else class="install-howto-card install-howto-card--online" shadow="never">
-            <template #header>
-              <span class="install-howto-card__title install-howto-card__title--online">操作说明</span>
-            </template>
-            <p class="install-howto-online-p">
-              核对摘要后点击底部<strong>「开始在线部署」</strong>。任务将由所选执行节点上的 Agent 拉取 Ansible 脚本执行；可在「部署进度」页查看日志。
-            </p>
-          </el-card>
-
-          <!-- 离线：安装命令展示区（生成后常驻，可复制） -->
-          <div v-if="offlineBundleMode" class="offline-install-panel">
-            <div class="offline-install-panel__head offline-install-panel__head--main">
-              <h4 class="offline-install-panel__title">控制机安装命令</h4>
-            </div>
-            <p class="offline-install-panel__lead">
-              在<strong>控制机</strong>终端执行下方<strong>任选一条</strong>整行命令（建议「复制」粘贴）。执行后将下载离线包、解压并运行
-              <code>install.sh</code>，由 Ansible 装齐本单全部节点；<strong>无需</strong>登录各节点再执行。
-            </p>
-            <p v-if="!lastInvite" class="offline-install-panel__placeholder">
-              点击下方<strong>「生成一键安装命令」</strong>后，将在此显示命令 A / B、资源 ID 与有效期。
-            </p>
-            <template v-else>
-              <el-descriptions :column="2" size="small" border class="invite-meta-desc">
-                <el-descriptions-item label="资源 ID">
-                  <span class="mono-ellipsis" :title="lastInvite.id">{{ lastInvite.id }}</span>
-                </el-descriptions-item>
-                <el-descriptions-item label="有效期至">
-                  {{ formatInviteExpiry(lastInvite.expiresAt) }}
-                </el-descriptions-item>
-              </el-descriptions>
-
-              <div class="offline-install-panel__subhead">
-                <span class="offline-install-panel__subhead-label">方式 A</span>
-                <span class="offline-install-panel__subhead-desc">已安装 <code>ai-sre</code> 时</span>
-                <el-button type="primary" size="small" link @click="copyInstallCommand">
-                  <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
-                  复制
-                </el-button>
-              </div>
-              <el-input
-                type="textarea"
-                :rows="2"
-                readonly
-                :model-value="lastInvite.installCommand"
-                class="install-command-textarea"
-              />
-
-              <div class="offline-install-panel__subhead offline-install-panel__subhead--b">
-                <span class="offline-install-panel__subhead-label">方式 B</span>
-                <span class="offline-install-panel__subhead-desc">未装 ai-sre（需 <code>curl</code>、<code>python3</code>）</span>
+          <!-- 离线：集群一键安装（生成后出现） -->
+          <div v-if="offlineBundleMode" class="confirm-cmd-card confirm-cmd-card--cluster">
+            <div class="confirm-cmd-card__head">
+              <span class="confirm-cmd-card__title">安装 Kubernetes 集群（控制机）</span>
+              <template v-if="lastInvite">
                 <el-button type="primary" size="small" link @click="copyBootstrapCommand">
                   <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
-                  复制
+                  复制推荐命令
                 </el-button>
-              </div>
+              </template>
+            </div>
+            <p v-if="!lastInvite" class="offline-install-panel__placeholder">
+              点击底部<strong>「生成一键安装命令」</strong>后出现命令（推荐，无需 ai-sre）。亦可下载 zip 后
+              <code>sudo bash install.sh</code>。
+            </p>
+            <template v-else>
+              <p class="confirm-cmd-card__meta">
+                资源 ID {{ lastInvite.id }} · 有效期至 {{ formatInviteExpiry(lastInvite.expiresAt) }}
+              </p>
+              <p class="confirm-cmd-card__hint">推荐（curl + python3，与 <code>ai-sre k8s install</code> 等价）。命令含密钥勿外泄。</p>
               <el-input
                 type="textarea"
                 :rows="3"
                 readonly
                 :model-value="lastInvite.bootstrapCommand"
-                class="install-command-textarea install-command-textarea--bootstrap"
+                class="install-command-textarea"
               />
-              <p class="offline-install-panel__warn">
-                以上命令均含下载密钥，请勿泄露；过期后请在本页重新生成。方式 B 由控制台提供公开
-                <code>bootstrap.sh</code>，凭引用中的 token 拉取 zip，行为与 <code>ai-sre k8s install</code> 等价。
-              </p>
+              <el-collapse v-model="optionalClusterCmdOpen" class="confirm-optional-collapse">
+                <el-collapse-item title="可选：已安装 ai-sre 时" name="a">
+                  <el-input
+                    type="textarea"
+                    :rows="2"
+                    readonly
+                    :model-value="lastInvite.installCommand"
+                    class="install-command-textarea"
+                  />
+                  <el-button type="primary" size="small" link class="confirm-optional-copy" @click="copyInstallCommand">
+                    复制
+                  </el-button>
+                </el-collapse-item>
+              </el-collapse>
             </template>
           </div>
 
-          <!-- 根据表单自动生成的需求说明（评审 / 工单 / 交接） -->
-          <div class="requirement-doc-panel">
-            <div class="requirement-doc-panel__head">
-              <h4 class="requirement-doc-panel__title">部署需求说明</h4>
+          <el-collapse v-model="confirmAuxOpen" class="confirm-aux-collapse">
+            <el-collapse-item title="部署需求说明（复制，不含密钥）" name="doc">
               <el-button type="primary" size="small" @click="copyDeployRequirement">
                 <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
                 复制全文
               </el-button>
-            </div>
-            <p class="requirement-doc-panel__hint">
-              由当前向导配置自动生成，随表单变化更新；可复制到邮件、工单或文档。<strong>不含</strong>一键命令中的下载密钥。
-            </p>
-            <pre class="requirement-pre" tabindex="0">{{ deployRequirementText }}</pre>
-          </div>
+              <pre class="requirement-pre requirement-pre--compact" tabindex="0">{{ deployRequirementText }}</pre>
+            </el-collapse-item>
+          </el-collapse>
 
-          <div class="confirm-grid">
-            <!-- 集群基础 -->
-            <div class="confirm-block">
-              <h4 class="confirm-block-title">集群基本信息</h4>
-              <div class="confirm-row">
-                <span class="confirm-label">集群名称</span>
-                <span class="confirm-value">{{ deployConfig.clusterBasicInfo.clusterName }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">K8s 版本</span>
-                <span class="confirm-value">{{ deployConfig.clusterBasicInfo.version }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">部署模式</span>
-                <span class="confirm-value">{{ deployConfig.clusterBasicInfo.deployMode === 'cluster' ? '多节点' : '单节点' }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">CPU 架构</span>
-                <span class="confirm-value">{{ deployConfig.clusterBasicInfo.cpuArch || 'arm64' }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">镜像源</span>
-                <span class="confirm-value">{{ imageSourceText }}</span>
-              </div>
-              <div
-                v-if="deployConfig.clusterBasicInfo.downloadDomain?.trim() || deployConfig.clusterBasicInfo.downloadProtocol?.trim()"
-                class="confirm-row"
-              >
-                <span class="confirm-label">制品覆盖</span>
-                <span class="confirm-value">
-                  {{ deployConfig.clusterBasicInfo.downloadProtocol?.trim() || '（默认）' }}
-                  {{ deployConfig.clusterBasicInfo.downloadDomain?.trim() || '—' }}
-                </span>
-              </div>
-            </div>
+          <el-descriptions
+            v-if="offlineBundleMode"
+            title="配置摘要"
+            :column="2"
+            size="small"
+            border
+            class="confirm-summary-desc"
+          >
+            <el-descriptions-item label="集群">
+              {{ deployConfig.clusterBasicInfo.clusterName || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="版本 / 架构">
+              {{ deployConfig.clusterBasicInfo.version || '—' }} · {{ deployConfig.clusterBasicInfo.cpuArch || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="模式">
+              {{ deployConfig.clusterBasicInfo.deployMode === 'cluster' ? '多节点' : '单节点' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="镜像">
+              {{ imageSourceText }}
+            </el-descriptions-item>
+            <el-descriptions-item label="控制平面" :span="2">
+              <span class="confirm-value--wrap">{{ executorConfirmText }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="工作节点" :span="2">
+              <span class="confirm-value--wrap">{{ confirmWorkerPreview }}</span>
+            </el-descriptions-item>
+            <el-descriptions-item label="网络" :span="2">
+              {{ deployConfig.networkConfig.networkPlugin }} · Pod {{ deployConfig.networkConfig.podCIDR }} · Service
+              {{ deployConfig.networkConfig.serviceCIDR }}
+            </el-descriptions-item>
+            <el-descriptions-item label="存储">
+              {{ deployConfig.storageConfig.storageProvisioner }} · 默认 SC
+              {{ deployConfig.storageConfig.defaultStorageClass ? '开' : '关' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="Step0 清理">
+              {{ deployConfig.advancedConfig.preDeployCleanup ? '是' : '否' }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="enabledComponentsText" label="可选组件" :span="2">
+              {{ enabledComponentsText }}
+            </el-descriptions-item>
+            <el-descriptions-item
+              v-if="deployConfig.clusterBasicInfo.downloadDomain?.trim() || deployConfig.clusterBasicInfo.downloadProtocol?.trim()"
+              label="制品覆盖"
+              :span="2"
+            >
+              {{ deployConfig.clusterBasicInfo.downloadProtocol?.trim() || '默认' }}
+              {{ deployConfig.clusterBasicInfo.downloadDomain?.trim() || '—' }}
+            </el-descriptions-item>
+          </el-descriptions>
 
-            <!-- 节点 -->
-            <div class="confirm-block">
-              <h4 class="confirm-block-title">节点配置</h4>
-              <div class="confirm-row">
-                <span class="confirm-label">{{ offlineBundleMode ? '控制平面 IP' : '执行节点' }}</span>
-                <span class="confirm-value confirm-value--wrap">{{ executorConfirmText }}</span>
-              </div>
-              <template v-if="!offlineBundleMode">
-                <div class="confirm-row">
-                  <span class="confirm-label">控制平面</span>
-                  <span class="confirm-value">{{ deployConfig.nodeConfig.masterNodes.length }} 台</span>
-                </div>
-                <div class="confirm-row">
-                  <span class="confirm-label">工作节点</span>
-                  <span class="confirm-value">{{ deployConfig.nodeConfig.workerNodes.length }} 台</span>
-                </div>
-              </template>
-              <template v-else>
-                <div class="confirm-row">
-                  <span class="confirm-label">工作节点 IP</span>
-                  <span class="confirm-value confirm-value--wrap">{{ confirmWorkerPreview }}</span>
-                </div>
-              </template>
-            </div>
-
-            <!-- 网络 -->
-            <div class="confirm-block">
-              <h4 class="confirm-block-title">网络配置</h4>
-              <div class="confirm-row">
-                <span class="confirm-label">网络插件</span>
-                <span class="confirm-value">{{ deployConfig.networkConfig.networkPlugin }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">Pod CIDR</span>
-                <span class="confirm-value">{{ deployConfig.networkConfig.podCIDR }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">Service CIDR</span>
-                <span class="confirm-value">{{ deployConfig.networkConfig.serviceCIDR }}</span>
-              </div>
-            </div>
-
-            <!-- 存储 -->
-            <div class="confirm-block">
-              <h4 class="confirm-block-title">存储配置</h4>
-              <div class="confirm-row">
-                <span class="confirm-label">存储供应器</span>
-                <span class="confirm-value">{{ deployConfig.storageConfig.storageProvisioner }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">默认存储类</span>
-                <span class="confirm-value">{{ deployConfig.storageConfig.defaultStorageClass ? '是' : '否' }}</span>
-              </div>
-            </div>
-
-            <!-- 高级 -->
-            <div class="confirm-block confirm-block-full">
-              <h4 class="confirm-block-title">高级配置</h4>
-              <div class="confirm-row">
-                <span class="confirm-label">部署前清理</span>
-                <span class="confirm-value">{{ deployConfig.advancedConfig.preDeployCleanup ? '是（Step 0 非交互）' : '否' }}</span>
-              </div>
-              <div class="confirm-row">
-                <span class="confirm-label">启用组件</span>
-                <span class="confirm-value">{{ enabledComponentsText || '无' }}</span>
-              </div>
-            </div>
-          </div>
+          <el-descriptions v-else title="配置摘要" :column="2" size="small" border class="confirm-summary-desc">
+            <el-descriptions-item label="集群">
+              {{ deployConfig.clusterBasicInfo.clusterName || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="版本">
+              {{ deployConfig.clusterBasicInfo.version || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="执行节点" :span="2">
+              {{ executorConfirmText }}
+            </el-descriptions-item>
+            <el-descriptions-item label="控制平面 / 工作节点">
+              {{ deployConfig.nodeConfig.masterNodes.length }} / {{ deployConfig.nodeConfig.workerNodes.length }} 台
+            </el-descriptions-item>
+            <el-descriptions-item label="网络" :span="2">
+              {{ deployConfig.networkConfig.networkPlugin }} · Pod {{ deployConfig.networkConfig.podCIDR }}
+            </el-descriptions-item>
+          </el-descriptions>
         </div>
       </div>
     </div>
@@ -986,7 +867,6 @@ import {
   Operation,
   CircleCheck,
   Download,
-  FolderOpened,
   Promotion,
   DocumentCopy
 } from '@element-plus/icons-vue'
@@ -1031,7 +911,7 @@ const stepsMeta = [
   { title: '高级配置', desc: '可选组件与额外参数', icon: markRaw(Operation) },
   {
     title: '部署确认',
-    desc: '离线：在控制机一条 sudo 命令或 install.sh 完成全集群；可复制需求说明',
+    desc: '离线：固定 curl 安装 ai-sre、生成集群命令、摘要',
     icon: markRaw(CircleCheck)
   }
 ]
@@ -1051,6 +931,10 @@ const downloadingBundle = ref(false)
 const creatingInvite = ref(false)
 /** 步骤 1：折叠区默认收起，减少首屏噪音 */
 const stepAuxOpen = ref<string[]>([])
+/** 部署确认：需求说明折叠，默认收起 */
+const confirmAuxOpen = ref<string[]>([])
+/** 已生成邀请时，「可选 ai-sre」命令折叠 */
+const optionalClusterCmdOpen = ref<string[]>([])
 /** 离线一键安装接口返回，用于最后一步展示 */
 const lastInvite = ref<{
   id: string
@@ -1280,83 +1164,43 @@ const publicApiBasePreview = computed(() =>
   `${window.location.origin}${import.meta.env.VITE_BASE_API || '/ft-api'}`.replace(/\/$/, '')
 )
 
-/** 部署确认页：可复制的需求说明全文（不含 installRef 密钥） */
+/** 全站固定：curl 安装 ai-sre（同源 API，脚本内再拉二进制） */
+const installAiSreCurlCommand = computed(
+  () => `curl -fsSL '${publicApiBasePreview.value}/api/k8s/deploy/install-ai-sre.sh' | sudo bash`
+)
+
+/** 部署确认页：精简需求说明（不含一键命令密钥） */
 const deployRequirementText = computed(() => {
-  const L: string[] = []
   const now = new Date().toLocaleString('zh-CN', { hour12: false })
   const name = deployConfig.clusterBasicInfo.clusterName?.trim() || '（未填写）'
   const ver = deployConfig.clusterBasicInfo.version || '—'
   const arch = deployConfig.clusterBasicInfo.cpuArch || 'amd64'
   const mode = deployConfig.clusterBasicInfo.deployMode === 'cluster' ? '多节点' : '单节点'
-
-  L.push('Kubernetes 集群部署需求说明（OpsFleet 控制台生成）')
-  L.push(`生成时间：${now}`)
-  L.push('')
-  L.push('【1. 目标】')
-  L.push(`部署集群「${name}」，Kubernetes ${ver}，节点 CPU 架构 ${arch}，规划模式 ${mode}。`)
-  L.push('')
-  L.push('【2. 交付方式与前置条件】')
-  if (offlineBundleMode.value) {
-    L.push('- 交付形态：离线（一键安装命令 ai-sre，或 zip + install.sh）。')
-    L.push('- 控制机：建议 Ubuntu 24.04 LTS；一键命令方式须已安装 ai-sre。')
-    L.push('- 连通性：控制机须以 root 免密 SSH 登录所有节点（见步骤 1 折叠说明）。')
-    L.push('- 制品：镜像源为「' + imageSourceText.value + '」；若填写内网制品地址则覆盖 inventory 默认 download_domain。')
-    L.push('')
-    L.push('【在控制机执行安装（离线必读）】')
-    L.push(
-      '- 「控制机」= 您 SSH 登录并执行命令的那一台 Linux；安装命令只在此机执行一次，不要在每个 K8s 节点各执行一遍。'
-    )
-    L.push(
-      '- 已装 ai-sre：sudo ai-sre k8s install \'ofpk8s1.…\'（整段以本页「方式 A」为准，含令牌，勿泄露）。'
-    )
-    L.push(
-      '- 未装 ai-sre：curl -fsSL \'<API>/api/k8s/deploy/bootstrap.sh\' | sudo bash -s -- \'ofpk8s1.…\'（见本页「方式 B」，需 python3；含令牌）。'
-    )
-    L.push('- Zip：将 zip 传到控制机解压后，在解压目录执行：sudo bash install.sh')
-    L.push(
-      '- 上述任一方式成功后，Ansible 由控制机发起，自动连接本单全部节点完成编排；节点侧无需再手动执行上述命令。'
-    )
-  } else {
-    L.push('- 交付形态：在线（由已注册 Agent 的执行节点执行 Ansible）。')
-    L.push('- 执行机与集群节点须网络互通，SSH 可达。')
-    L.push('- 镜像源：「' + imageSourceText.value + '」。')
-  }
-  L.push('')
-  L.push('【3. 节点清单】')
-  if (offlineBundleMode.value) {
-    const masters = deployConfig.nodeConfig.masterHosts?.length
+  const masters = offlineBundleMode.value
+    ? deployConfig.nodeConfig.masterHosts?.length
       ? deployConfig.nodeConfig.masterHosts
       : parseHostLines(masterHostsText.value)
-    const workers = deployConfig.nodeConfig.workerHosts?.length
+    : []
+  const workers = offlineBundleMode.value
+    ? deployConfig.nodeConfig.workerHosts?.length
       ? deployConfig.nodeConfig.workerHosts
       : parseHostLines(workerHostsText.value)
-    L.push('- 控制平面 IP：' + (masters.length ? masters.join('、') : '（请在「节点配置」填写）'))
-    L.push('- 工作节点 IP：' + (workers.length ? workers.join('、') : '无'))
-  } else {
-    L.push('- 执行节点：' + executorConfirmText.value)
-    L.push(`- 控制平面：已选 ${deployConfig.nodeConfig.masterNodes.length} 台（机器以控制台为准）。`)
-    L.push(`- 工作节点：已选 ${deployConfig.nodeConfig.workerNodes.length} 台。`)
-  }
-  L.push('')
-  L.push('【4. 网络与存储】')
-  L.push(`- 网络插件：${deployConfig.networkConfig.networkPlugin}；Pod CIDR ${deployConfig.networkConfig.podCIDR}；Service CIDR ${deployConfig.networkConfig.serviceCIDR}；DNS ${deployConfig.networkConfig.dnsServiceIP}。`)
-  L.push(
-    `- 存储：供应器 ${deployConfig.storageConfig.storageProvisioner}；默认 StorageClass ${deployConfig.storageConfig.defaultStorageClass ? '开启' : '关闭'}。`
-  )
-  L.push('')
-  L.push('【5. 其他】')
-  L.push(`- kube-proxy：${deployConfig.coreComponentsConfig.kubeProxyMode}；RBAC ${deployConfig.coreComponentsConfig.enableRBAC ? '开启' : '关闭'}。`)
-  L.push(`- 部署前环境清理（Step 0）：${deployConfig.advancedConfig.preDeployCleanup ? '开启' : '关闭'}。`)
-  L.push(`- 可选组件：${enabledComponentsText.value || '无'}。`)
-  if (offlineBundleMode.value && lastInvite.value) {
-    L.push('')
-    L.push('【6. 已登记的离线安装资源（仅元数据）】')
-    L.push(`- 资源 ID：${lastInvite.value.id}`)
-    L.push(`- 有效期至：${formatInviteExpiry(lastInvite.value.expiresAt)}`)
-    L.push('- 完整安装命令请在本页「一键安装命令」区查看；勿将命令粘贴进不受控渠道。')
-  }
-  L.push('')
-  L.push('—— 以上由向导根据当前表单生成，提交部署或下载前请业务方与执行方共同确认。')
+    : []
+  const L: string[] = [
+    `K8s 部署需求（OpsFleet ${now}）`,
+    '',
+    `集群「${name}」 ${ver} ${arch} ${mode} · 镜像 ${imageSourceText.value}`,
+    '',
+    offlineBundleMode.value
+      ? `节点：控制平面 ${masters.length ? masters.join('、') : '（未填）'}；工作 ${workers.length ? workers.join('、') : '无'}`
+      : `在线：执行 ${executorConfirmText.value}；控制/工作 ${deployConfig.nodeConfig.masterNodes.length}/${deployConfig.nodeConfig.workerNodes.length} 台`,
+    '',
+    `网络 ${deployConfig.networkConfig.networkPlugin} Pod ${deployConfig.networkConfig.podCIDR} Svc ${deployConfig.networkConfig.serviceCIDR}`,
+    `存储 ${deployConfig.storageConfig.storageProvisioner} · Step0 ${deployConfig.advancedConfig.preDeployCleanup ? '清理' : '不清理'} · ${enabledComponentsText.value || '无可选组件'}`,
+    '',
+    '离线：控制机 root 免密 SSH 各节点；安装命令见页面（含密钥勿写入本文）。',
+    '—— 表单生成，请业务与执行双方确认。',
+  ]
   return L.join('\n')
 })
 
@@ -1409,7 +1253,7 @@ function copyInstallCommand() {
   const cmd = lastInvite.value?.installCommand
   if (!cmd) return
   navigator.clipboard.writeText(cmd).then(
-    () => ElMessage.success('已复制方式 A（ai-sre）'),
+    () => ElMessage.success('已复制 ai-sre 集群命令'),
     () => ElMessage.error('复制失败，请手动选择文本复制')
   )
 }
@@ -1418,8 +1262,17 @@ function copyBootstrapCommand() {
   const cmd = lastInvite.value?.bootstrapCommand
   if (!cmd) return
   navigator.clipboard.writeText(cmd).then(
-    () => ElMessage.success('已复制方式 B（curl + bootstrap，无需 ai-sre）'),
+    () => ElMessage.success('已复制集群安装命令'),
     () => ElMessage.error('复制失败，请手动选择文本复制')
+  )
+}
+
+function copyInstallAiSreCurl() {
+  const cmd = installAiSreCurlCommand.value
+  if (!cmd?.trim()) return
+  navigator.clipboard.writeText(cmd).then(
+    () => ElMessage.success('已复制安装 ai-sre 命令'),
+    () => ElMessage.error('复制失败')
   )
 }
 
@@ -1865,234 +1718,68 @@ const submitDeploy = async () => {
   line-height: 1.35;
 }
 
-/* 确认页：模式说明 + 摘要 */
+/* 确认页：精简核心信息 */
 .step-section--confirm {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  /* 避免底部 sticky 操作栏挡住最后一段说明 */
+  gap: 16px;
   padding-bottom: 96px;
 }
 
-.install-howto-card {
-  border: 1px solid var(--el-color-success-light-5);
-  background: linear-gradient(180deg, var(--el-color-success-light-9) 0%, var(--el-bg-color) 48%);
-}
-
-.install-howto-card :deep(.el-card__header) {
-  padding: 12px 16px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.install-howto-card__title {
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--el-color-success-dark-2);
-}
-
-.install-howto-card--online {
-  border-color: var(--el-color-primary-light-5);
-  background: linear-gradient(180deg, var(--el-color-primary-light-9) 0%, var(--el-bg-color) 48%);
-}
-
-.install-howto-card__title--online {
-  color: var(--el-color-primary-dark-2);
-}
-
-.install-howto-online-p {
+.confirm-lead {
   margin: 0;
   font-size: 13px;
-  line-height: 1.7;
-  color: var(--el-text-color-primary);
-}
-
-.install-howto-ol {
-  margin: 0;
-  padding-left: 1.25rem;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--el-text-color-primary);
-}
-
-.install-howto-ol li {
-  margin-bottom: 10px;
-}
-
-.install-howto-ol li:last-child {
-  margin-bottom: 0;
-}
-
-.install-howto-api {
-  display: inline-block;
-  margin-top: 4px;
-  padding: 2px 8px;
-  font-size: 12px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-  word-break: break-all;
-}
-
-.confirm-hero {
-  display: flex;
-  align-items: flex-start;
-  gap: 16px;
-  padding: 18px 20px;
-  border-radius: 12px;
-  border: 1px solid var(--el-border-color-lighter);
-}
-
-.confirm-hero--offline {
-  background: linear-gradient(120deg, #ecfdf5 0%, #f0fdf4 40%, #fff 100%);
-  border-color: #a7f3d0;
-}
-
-.confirm-hero--online {
-  background: linear-gradient(120deg, #eff6ff 0%, #f0f7ff 45%, #fff 100%);
-  border-color: var(--el-color-primary-light-9);
-}
-
-.confirm-hero-icon {
-  flex-shrink: 0;
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.85);
-  color: var(--el-color-primary);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-}
-
-.confirm-hero--offline .confirm-hero-icon {
-  color: #059669;
-}
-
-.confirm-hero-text {
-  min-width: 0;
-  flex: 1;
-}
-
-.confirm-hero-title {
-  margin: 0 0 6px;
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--el-text-color-primary);
-}
-
-.confirm-hero-desc {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.65;
+  line-height: 1.6;
   color: var(--el-text-color-regular);
 }
 
-.confirm-hero-desc code {
-  font-size: 12px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.9);
-  border: 1px solid var(--el-border-color-lighter);
+.confirm-lead--online {
+  color: var(--el-text-color-secondary);
 }
 
-.confirm-control-machine-alert {
-  margin: 0;
-}
-
-.confirm-control-machine-alert :deep(.el-alert__title) {
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.4;
-}
-
-.confirm-control-machine-alert__body {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--el-text-color-regular);
-}
-
-.confirm-control-machine-alert__body p {
-  margin: 0 0 10px;
-}
-
-.confirm-control-machine-alert__body p:last-child {
-  margin-bottom: 0;
-}
-
-.confirm-control-machine-alert__body code {
-  font-size: 12px;
-  padding: 1px 5px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
-}
-
-.offline-install-panel {
-  padding: 18px 20px;
-  border-radius: 12px;
+.confirm-cmd-card {
+  padding: 16px 18px;
+  border-radius: 10px;
   border: 1px solid var(--el-border-color-lighter);
   background: var(--el-bg-color);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
-.offline-install-panel__head {
+.confirm-cmd-card--cluster {
+  border-color: var(--el-color-success-light-5);
+  background: linear-gradient(180deg, var(--el-color-success-light-9) 0%, var(--el-bg-color) 55%);
+}
+
+.confirm-cmd-card__head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 12px;
-  flex-wrap: wrap;
-}
-
-.offline-install-panel__head--main {
+  gap: 10px;
   margin-bottom: 8px;
-}
-
-.offline-install-panel__subhead {
-  display: flex;
-  align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
-  margin: 16px 0 8px;
 }
 
-.offline-install-panel__subhead--b {
-  margin-top: 20px;
-}
-
-.offline-install-panel__subhead-label {
-  font-size: 13px;
+.confirm-cmd-card__title {
+  font-size: 14px;
   font-weight: 700;
   color: var(--el-text-color-primary);
 }
 
-.offline-install-panel__subhead-desc {
+.confirm-cmd-card__hint {
+  margin: 0 0 10px;
   font-size: 12px;
+  line-height: 1.5;
   color: var(--el-text-color-secondary);
-  flex: 1;
-  min-width: 120px;
 }
 
-.offline-install-panel__subhead-desc code {
+.confirm-cmd-card__hint code {
   font-size: 11px;
 }
 
-.offline-install-panel__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--el-text-color-primary);
-}
-
-.offline-install-panel__lead {
-  margin: 0 0 14px;
-  font-size: 13px;
-  line-height: 1.65;
-  color: var(--el-text-color-primary);
-}
-
-.offline-install-panel__lead code {
+.confirm-cmd-card__meta {
+  margin: 0 0 8px;
   font-size: 12px;
+  color: var(--el-text-color-secondary);
+  word-break: break-all;
 }
 
 .offline-install-panel__placeholder {
@@ -2102,33 +1789,71 @@ const submitDeploy = async () => {
   line-height: 1.65;
 }
 
-.invite-meta-desc {
-  margin-bottom: 12px;
-}
-
 .install-command-textarea :deep(textarea) {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   font-size: 12px;
   line-height: 1.5;
 }
 
-.offline-install-panel__warn {
-  margin: 10px 0 0;
-  font-size: 12px;
-  color: var(--el-color-warning-dark-2);
-}
-
-.mono-ellipsis {
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
+.confirm-value--wrap {
+  line-height: 1.5;
   word-break: break-all;
 }
 
-.confirm-value--wrap {
-  flex: 1;
-  min-width: 0;
-  text-align: right;
+.confirm-aux-collapse {
+  border: 1px dashed var(--el-border-color);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--el-fill-color-lighter);
+}
+
+.confirm-aux-collapse :deep(.el-collapse-item__header) {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.requirement-pre--compact {
+  margin-top: 10px;
+  max-height: 220px;
+}
+
+.requirement-pre {
+  margin: 0;
+  padding: 12px 14px;
+  max-height: 320px;
+  overflow: auto;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
   line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--el-text-color-primary);
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
+}
+
+.confirm-summary-desc {
+  margin-top: 4px;
+}
+
+.confirm-summary-desc :deep(.el-descriptions__title) {
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.confirm-optional-collapse {
+  margin-top: 12px;
+  border: none;
+}
+
+.confirm-optional-collapse :deep(.el-collapse-item__wrap) {
+  border: none;
+}
+
+.confirm-optional-copy {
+  margin-top: 6px;
 }
 
 .form-hint--compact {
@@ -2136,52 +1861,6 @@ const submitDeploy = async () => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   line-height: 1.5;
-}
-
-.requirement-doc-panel {
-  padding: 18px 20px;
-  border-radius: 12px;
-  border: 1px dashed var(--el-border-color);
-  background: var(--el-fill-color-light);
-}
-
-.requirement-doc-panel__head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
-}
-
-.requirement-doc-panel__title {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 700;
-  color: var(--el-text-color-primary);
-}
-
-.requirement-doc-panel__hint {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.55;
-}
-
-.requirement-pre {
-  margin: 0;
-  padding: 14px 16px;
-  max-height: 420px;
-  overflow: auto;
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
-  font-size: 12px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-  word-break: break-word;
-  color: var(--el-text-color-primary);
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color);
-  border-radius: 8px;
 }
 
 /* ==================== 步骤卡片（统一风格） ==================== */
@@ -2301,61 +1980,6 @@ const submitDeploy = async () => {
   flex-shrink: 0;
 }
 
-/* ==================== 确认页网格 ==================== */
-.confirm-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20px;
-}
-
-.confirm-block {
-  background: var(--el-fill-color-blank);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  padding: 18px 20px;
-  transition: box-shadow 0.2s ease, border-color 0.2s ease;
-}
-
-.confirm-block:hover {
-  border-color: var(--el-border-color);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.confirm-block-full {
-  grid-column: 1 / -1;
-}
-
-.confirm-block-title {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.confirm-row {
-  display: flex;
-  margin-bottom: 8px;
-}
-
-.confirm-row:last-child {
-  margin-bottom: 0;
-}
-
-.confirm-label {
-  font-weight: 500;
-  min-width: 110px;
-  color: #6b7280;
-  font-size: 13px;
-}
-
-.confirm-value {
-  color: #374151;
-  font-size: 13px;
-  word-break: break-all;
-}
-
 /* ==================== 底部操作（sticky，便于长确认页仍能看到主操作） ==================== */
 .step-actions {
   display: flex;
@@ -2392,9 +2016,6 @@ const submitDeploy = async () => {
 /* ==================== 响应式 ==================== */
 @media (max-width: 1200px) {
   .extra-args-grid {
-    grid-template-columns: 1fr;
-  }
-  .confirm-grid {
     grid-template-columns: 1fr;
   }
 }

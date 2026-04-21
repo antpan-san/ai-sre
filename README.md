@@ -205,7 +205,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 **OpsFleet 控制台登录**：数据库迁移脚本初始化时默认用户名为 **`admin`**、密码为明文 **`password`**（bcrypt）。生产环境请修改；忘记密码可在数据库所在机执行 **`ft-backend/database/reset_admin_password_pg.sql`**（将 **`admin`** 重置为 **`123456`**，与当前运维约定一致）。
 
-**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP；离线交付可选：**①** 控制台生成 **`sudo ai-sre k8s install 'ofpk8s1.…'`**（目标机须已安装 `ai-sre`）；**②** **`curl -fsSL '<publicApiBase>/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'`**（**无需 ai-sre**，需 `python3`，由公开引导脚本拉 zip 并执行 `install.sh`）；**③** 下载 zip，在 **Ubuntu 24.04** 控制机解压后 **`sudo bash install.sh`**。包内含 `ansible-agent` Playbook 与 `inventory`。**运行安装命令的机器须已能免密 SSH 登录各节点 `root`**（向导第 1 步；`install.sh` 会预检 SSH）。脚本还会生成 **`/root/.ssh/ansible_id_rsa(.pub)`** 供 playbook 创建 **`ansible` 用户**。**原仓库内 Go Agent（ft-client）源码已移除**；在线部署可切「在线 Agent」。
+**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP。离线控制机：**固定安装 ai-sre**：`curl -fsSL '<publicApiBase>/api/k8s/deploy/install-ai-sre.sh' | sudo bash`（须在服务器 `ft-backend/conf/config.yaml` 配置 **`opsfleet.ai_sre_binary_path`** 指向已构建的 Linux `ai-sre` 可执行文件；可与 `deploy/config.production.example.yaml` 对齐）。集群安装：**①** `sudo ai-sre k8s install 'ofpk8s1.…'`；**②** `curl -fsSL '<publicApiBase>/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'`（需 `python3`）；**③** 下载 zip 后 **`sudo bash install.sh`**。包内含 `ansible-agent` 与 `inventory`。**控制机须能免密 SSH 各节点 `root`**。**原仓库内 Go Agent（ft-client）源码已移除**；在线部署可切「在线 Agent」。
 
 **机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 与作业中心仍用于在线机器列表与任务目标（见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)）。
 
