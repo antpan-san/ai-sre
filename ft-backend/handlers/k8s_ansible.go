@@ -82,6 +82,10 @@ type K8sDeployRequest struct {
 	// 留空则使用 zip 内合并后的 inventory 默认值（仅改机房时编辑 all.yml 即可，无需改代码）。
 	DownloadDomain   string `json:"downloadDomain"`
 	DownloadProtocol string `json:"downloadProtocol"`
+
+	// PublicAPIBase 仅用于创建 bundle-invite（生成 CLI 一键安装引用），须为浏览器可达的 API 基址（含 /ft-api 等前缀）。
+	// 写入 inventory 前会被清空，不参与 Ansible。
+	PublicAPIBase string `json:"publicApiBase,omitempty"`
 }
 
 // kvPair is a generic key-value pair from the frontend form.

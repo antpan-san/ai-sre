@@ -247,6 +247,21 @@ CREATE INDEX IF NOT EXISTS idx_k8s_clusters_status    ON k8s_clusters (status);
 CREATE INDEX IF NOT EXISTS idx_k8s_clusters_worker    ON k8s_clusters USING GIN (worker_nodes);
 
 -- ============================================================
+-- 7b. k8s_bundle_invites  —  K8s 离线包一键安装引用（仅存配置 JSON + 下载 token）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS k8s_bundle_invites (
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id        UUID         NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'
+                                  REFERENCES tenants(id),
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    request_payload  JSONB        NOT NULL,
+    download_token   VARCHAR(64)  NOT NULL,
+    expires_at       TIMESTAMPTZ  NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_k8s_bundle_invites_expires ON k8s_bundle_invites (expires_at);
+
+-- ============================================================
 -- 8. k8s_versions
 -- ============================================================
 CREATE TABLE IF NOT EXISTS k8s_versions (
@@ -718,6 +733,7 @@ COMMENT ON TABLE files            IS '上传文件元数据';
 COMMENT ON TABLE transfers        IS '文件传输记录';
 COMMENT ON TABLE shares           IS '文件分享链接';
 COMMENT ON TABLE k8s_clusters     IS 'Kubernetes 集群注册表';
+COMMENT ON TABLE k8s_bundle_invites IS 'K8s 离线安装配置登记（CLI 凭 id+token 拉 zip）';
 COMMENT ON TABLE k8s_versions     IS '可用 Kubernetes 版本';
 COMMENT ON TABLE operation_logs   IS '安全审计日志';
 COMMENT ON TABLE permissions      IS 'RBAC 权限定义';

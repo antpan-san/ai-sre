@@ -3,19 +3,31 @@ package cli
 import (
 	"archive/zip"
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 )
+
+// installRefPrefixV1 须与 ft-backend/handlers/k8s_bundle_invite.go 保持一致。
+const installRefPrefixV1 = "ofpk8s1."
+
+type installRefWire struct {
+	B string `json:"b"`
+	I string `json:"i"`
+	T string `json:"t"`
+}
 
 // k8sDeployAPIBody mirrors ft-backend/handlers.K8sDeployRequest JSON for POST /api/k8s/deploy/bundle.
 type k8sDeployAPIBody struct {
@@ -56,22 +68,20 @@ func k8sCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "k8s",
 		Short: "Kubernetes 离线包：对接 OpsFleet API 下载、本地安装与卸载清理",
-		Long: fmt.Sprintf(`与控制台「K8s 部署」表单使用同一套 POST /api/k8s/deploy/bundle 参数（JSON），无需手动上传 zip。
+		Long: fmt.Sprintf(`推荐：在控制台「部署确认」生成一键安装引用后，在控制机执行一行命令即可拉包并安装（无需上传 zip）。
 
 示例:
-  # 登录并下载离线包（API 基址与浏览器一致，含 /ft-api 前缀时一并写上）
-  %s k8s download --api-url http://192.168.56.11:9080/ft-api -u admin -p '***' \\
-    --cluster lab --version v1.35.4 --master 10.10.120.142 --worker 10.10.120.143 \\
-    --arch amd64 --image-source default -O ./bundle.zip
+  # 一键安装（installRef 由页面复制，整段单引号包裹）
+  sudo %s k8s install 'ofpk8s1.xxxxx…'
 
-  # 解压并执行安装（需 root 免密到各节点，与 README 一致）
+  # 仍支持本地下载 zip 后安装
+  %s k8s download --api-url http://192.168.56.11:9080/ft-api -u admin -p '***' \\
+    --cluster lab --version v1.35.4 --master 10.10.120.142 -O ./bundle.zip
   sudo %s k8s install --package ./bundle.zip
 
-  # 仅执行已解压目录中的 install.sh
   sudo %s k8s install --workdir /opt/opsfleet-k8s
 
-  # 卸载/清理集群节点残留（等同包内 playbooks/pre_cleanup.yml）
-  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName),
+  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName),
 	}
 	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sUninstallCmd())
 	return cmd
@@ -230,11 +240,22 @@ func k8sInstallCmd() *cobra.Command {
 		workdir string
 	)
 	cmd := &cobra.Command{
-		Use:   "install",
-		Short: "解压离线包并执行 install.sh（需 root/sudo；节点须已配置 root 免密）",
+		Use:   "install [install-ref]",
+		Short: "一键安装：控制台生成的 installRef；或解压 zip / 已解压目录执行 install.sh",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				if pkgPath != "" || workdir != "" {
+					return errors.New("已传入安装引用时，不要同时使用 --package 或 --workdir")
+				}
+				arg := strings.Trim(strings.TrimSpace(args[0]), `"'`)
+				if strings.HasPrefix(arg, installRefPrefixV1) {
+					return runInstallFromInviteRef(arg)
+				}
+				return runInstallFromBareInviteID(arg)
+			}
 			if pkgPath == "" && workdir == "" {
-				return errors.New("请指定 --package <zip> 或 --workdir <已解压目录>")
+				return errors.New("请传入安装引用：sudo " + progName + ` k8s install 'ofpk8s1.…'（由控制台生成），或使用 --package / --workdir`)
 			}
 			if pkgPath != "" && workdir != "" {
 				return errors.New("--package 与 --workdir 二选一")
@@ -254,26 +275,131 @@ func k8sInstallCmd() *cobra.Command {
 					fmt.Fprintf(os.Stderr, "[%s] extracted to %s\n", progName, dir)
 				}
 			}
-			installSh := filepath.Join(dir, "install.sh")
-			if st, err := os.Stat(installSh); err != nil || st.IsDir() {
-				return fmt.Errorf("在 %s 未找到 install.sh（请确认 --workdir 为离线包解压根目录）", dir)
-			}
-			var c *exec.Cmd
-			if os.Geteuid() == 0 {
-				c = exec.Command("bash", installSh)
-			} else {
-				c = exec.Command("sudo", "bash", installSh)
-			}
-			c.Dir = dir
-			c.Stdout = os.Stdout
-			c.Stderr = os.Stderr
-			c.Stdin = os.Stdin
-			return c.Run()
+			return runInstallSh(dir)
 		},
 	}
 	cmd.Flags().StringVar(&pkgPath, "package", "", "离线 zip 路径（将解压到临时目录后执行 install.sh）")
 	cmd.Flags().StringVar(&workdir, "workdir", "", "已解压的离线包根目录（含 install.sh、inventory/、ansible-agent/）")
 	return cmd
+}
+
+func runInstallSh(dir string) error {
+	installSh := filepath.Join(dir, "install.sh")
+	if st, err := os.Stat(installSh); err != nil || st.IsDir() {
+		return fmt.Errorf("在 %s 未找到 install.sh（请确认目录为离线包根路径）", dir)
+	}
+	var c *exec.Cmd
+	if os.Geteuid() == 0 {
+		c = exec.Command("bash", installSh)
+	} else {
+		c = exec.Command("sudo", "bash", installSh)
+	}
+	c.Dir = dir
+	c.Stdout = os.Stdout
+	c.Stderr = os.Stderr
+	c.Stdin = os.Stdin
+	return c.Run()
+}
+
+func runInstallFromInviteRef(ref string) error {
+	wire, err := decodeInstallRefV1(ref)
+	if err != nil {
+		return err
+	}
+	return downloadInviteZipAndRunInstall(wire.B, wire.I, wire.T)
+}
+
+func decodeInstallRefV1(ref string) (installRefWire, error) {
+	var z installRefWire
+	if !strings.HasPrefix(ref, installRefPrefixV1) {
+		return z, fmt.Errorf("安装引用须以 %s 开头（请在控制台点击「生成一键安装命令」）", installRefPrefixV1)
+	}
+	raw := ref[len(installRefPrefixV1):]
+	b, err := base64.RawURLEncoding.DecodeString(raw)
+	if err != nil {
+		return z, fmt.Errorf("解码安装引用失败: %w", err)
+	}
+	if err := json.Unmarshal(b, &z); err != nil {
+		return z, fmt.Errorf("解析安装引用失败: %w", err)
+	}
+	if strings.TrimSpace(z.B) == "" || strings.TrimSpace(z.I) == "" || strings.TrimSpace(z.T) == "" {
+		return z, errors.New("安装引用内容不完整")
+	}
+	return z, nil
+}
+
+func runInstallFromBareInviteID(idStr string) error {
+	if _, err := uuid.Parse(strings.TrimSpace(idStr)); err != nil {
+		return fmt.Errorf("无效的安装引用或资源 ID: %w", err)
+	}
+	base := strings.TrimRight(strings.TrimSpace(os.Getenv("OPSFLEET_API_URL")), "/")
+	tok := strings.TrimSpace(os.Getenv("OPSFLEET_BUNDLE_TOKEN"))
+	if base == "" || tok == "" {
+		return errors.New("仅传入资源 UUID 时需设置 OPSFLEET_API_URL 与 OPSFLEET_BUNDLE_TOKEN；请优先使用控制台生成的整段 installRef（ofpk8s1.…）")
+	}
+	return downloadInviteZipAndRunInstall(base, strings.TrimSpace(idStr), tok)
+}
+
+func downloadInviteZipAndRunInstall(apiBase, inviteID, token string) error {
+	base := strings.TrimRight(strings.TrimSpace(apiBase), "/")
+	endpoint, err := url.JoinPath(base, "api", "k8s", "deploy", "bundle-invite", inviteID, "zip")
+	if err != nil {
+		return err
+	}
+	u, err := url.Parse(endpoint)
+	if err != nil {
+		return err
+	}
+	q := u.Query()
+	q.Set("token", token)
+	u.RawQuery = q.Encode()
+	if verbose {
+		fmt.Fprintf(os.Stderr, "[%s] GET %s/api/k8s/deploy/bundle-invite/%s/zip\n", progName, base, inviteID)
+	}
+	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
+	if err != nil {
+		return err
+	}
+	client := &http.Client{Timeout: 15 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		return fmt.Errorf("拉取离线包 HTTP %d: %s", resp.StatusCode, truncateForErr(b, 2048))
+	}
+	ct := resp.Header.Get("Content-Type")
+	if strings.Contains(ct, "application/json") {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		return fmt.Errorf("服务器返回错误: %s", truncateForErr(b, 2048))
+	}
+	zipFile, err := os.CreateTemp("", "opsfleet-k8s-invite-*.zip")
+	if err != nil {
+		return err
+	}
+	zipPath := zipFile.Name()
+	defer func() { _ = os.Remove(zipPath) }()
+	if _, err := io.Copy(zipFile, resp.Body); err != nil {
+		zipFile.Close()
+		return err
+	}
+	if err := zipFile.Close(); err != nil {
+		return err
+	}
+	dir, err := os.MkdirTemp("", "opsfleet-k8s-install-*")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	if err := unzipFile(zipPath, dir); err != nil {
+		return err
+	}
+	if verbose {
+		fmt.Fprintf(os.Stderr, "[%s] invite bundle extracted to %s\n", progName, dir)
+	}
+	return runInstallSh(dir)
 }
 
 func k8sUninstallCmd() *cobra.Command {

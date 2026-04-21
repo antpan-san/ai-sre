@@ -83,6 +83,7 @@ func Migrate() error {
 		&models.PerformanceData{},
 		&models.K8sVersion{},
 		&models.K8sCluster{},
+		&models.K8sBundleInvite{},
 		&models.Task{},
 		&models.SubTask{},
 		&models.TaskLog{},

@@ -834,6 +834,17 @@
       <template v-if="activeStep === 6">
         <el-button
           v-if="offlineBundleMode"
+          type="success"
+          size="large"
+          class="primary-finish-btn"
+          :loading="creatingInvite"
+          @click="handleCreateInstallRef"
+        >
+          <el-icon class="primary-finish-btn-icon"><Promotion /></el-icon>
+          生成一键安装命令
+        </el-button>
+        <el-button
+          v-if="offlineBundleMode"
           type="primary"
           size="large"
           class="primary-finish-btn"
@@ -861,7 +872,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, watch, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import {
   Monitor,
@@ -883,7 +894,8 @@ import {
   getK8sVersions,
   checkClusterName,
   submitDeployConfig,
-  downloadOfflineBundle
+  downloadOfflineBundle,
+  createK8sBundleInvite
 } from '../../../api/k8s-deploy'
 import type {
   DeployConfig,
@@ -932,6 +944,7 @@ const activeStep = ref(0)
 const validating = ref(false)
 const submitting = ref(false)
 const downloadingBundle = ref(false)
+const creatingInvite = ref(false)
 /** true：离线 zip（推荐）；false：经 Agent 在线部署 */
 const offlineBundleMode = ref(true)
 const masterHostsText = ref('')
@@ -1274,6 +1287,46 @@ function parseHostLines(s: string): string[] {
 }
 
 // ---------- 下载离线包 ----------
+const handleCreateInstallRef = async () => {
+  if (!deployConfig.clusterBasicInfo.clusterName?.trim()) {
+    ElMessage.warning('请填写集群名称')
+    return
+  }
+  if (!deployConfig.clusterBasicInfo.version) {
+    ElMessage.warning('请选择 K8s 版本')
+    return
+  }
+  deployConfig.nodeConfig.masterHosts = parseHostLines(masterHostsText.value)
+  deployConfig.nodeConfig.workerHosts = parseHostLines(workerHostsText.value)
+  if (deployConfig.nodeConfig.masterHosts.length === 0) {
+    ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
+    return
+  }
+  creatingInvite.value = true
+  try {
+    const publicApiBase = `${window.location.origin}${import.meta.env.VITE_BASE_API || '/ft-api'}`.replace(
+      /\/$/,
+      ''
+    )
+    const data = await createK8sBundleInvite(deployConfig as DeployConfig, publicApiBase)
+    try {
+      await navigator.clipboard.writeText(data.installCommand)
+      ElMessage.success('安装命令已复制到剪贴板')
+    } catch {
+      ElMessage.info('请手动复制安装命令')
+    }
+    await ElMessageBox.alert(
+      `资源 ID：${data.id}\n有效期至：${data.expiresAt}\n\n在控制机执行（已尝试自动复制）：\n\n${data.installCommand}\n\n说明：目标机需已安装 ai-sre；安装引用勿泄露（含下载密钥）。`,
+      '一键安装命令',
+      { confirmButtonText: '关闭' }
+    )
+  } catch (e: any) {
+    ElMessage.error(e?.message || '生成失败')
+  } finally {
+    creatingInvite.value = false
+  }
+}
+
 const handleDownloadBundle = async () => {
   if (!deployConfig.clusterBasicInfo.clusterName?.trim()) {
     ElMessage.warning('请填写集群名称')

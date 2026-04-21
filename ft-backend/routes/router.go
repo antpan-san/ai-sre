@@ -37,6 +37,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// File download (public)
 		public.GET("/files/download/:file_id", handlers.DownloadFile)
 
+		// K8s 离线包：凭 invite id + token 下载（与控制台「一键安装引用」配套，无需 JWT）
+		public.GET("/k8s/deploy/bundle-invite/:id/zip", handlers.DownloadK8sBundleInviteZip)
+
 		// Client Agent endpoints (authenticated by client_id, not JWT)
 		public.POST("/v1/heartbeats", iotservice.HeartbeatCheck)
 		public.POST("/v1/task/report", handlers.ReportTaskResult)
@@ -114,6 +117,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/k8s/deploy/records", handlers.GetK8sDeployRecords)
 		protected.GET("/k8s/clusters", handlers.GetK8sClusters)
 		protected.POST("/k8s/deploy/bundle", handlers.GenerateK8sOfflineBundle)
+		protected.POST("/k8s/deploy/bundle-invite", handlers.CreateK8sBundleInvite)
 		protected.GET("/k8s/mirror/catalog", handlers.GetK8sMirrorCatalog)
 
 		// ---- Proxy Configuration ----
