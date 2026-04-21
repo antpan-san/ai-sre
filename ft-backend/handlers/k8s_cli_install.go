@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -26,7 +27,14 @@ func publicAPIBaseFromRequest(c *gin.Context) string {
 	if host == "" {
 		host = "127.0.0.1:8080"
 	}
-	return fmt.Sprintf("%s://%s/ft-api", scheme, strings.TrimRight(host, "/"))
+	host = strings.TrimRight(host, "/")
+	// 反代若只传 hostname（Nginx 曾用 $host 会丢端口），用 X-Forwarded-Port 补上，避免脚本内 curl 默认打 80
+	if _, _, err := net.SplitHostPort(host); err != nil {
+		if p := strings.TrimSpace(c.GetHeader("X-Forwarded-Port")); p != "" {
+			host = net.JoinHostPort(host, p)
+		}
+	}
+	return fmt.Sprintf("%s://%s/ft-api", scheme, host)
 }
 
 // ServeAiSreInstallScript 公开：在控制机执行 curl 管道安装 ai-sre 到 /usr/local/bin。
