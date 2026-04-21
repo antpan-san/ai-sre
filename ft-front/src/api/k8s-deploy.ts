@@ -120,6 +120,8 @@ export function createK8sBundleInvite(
   expiresAt: string
   installRef: string
   installCommand: string
+  /** 无 ai-sre 时：curl 拉引导脚本 + bash + python3 完成拉包与 install.sh */
+  bootstrapCommand: string
 }> {
   const body = {
     ...buildK8sDeployFlatBody(config),

@@ -205,7 +205,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 **OpsFleet 控制台登录**：数据库迁移脚本初始化时默认用户名为 **`admin`**、密码为明文 **`password`**（bcrypt）。生产环境请修改；忘记密码可在数据库所在机执行 **`ft-backend/database/reset_admin_password_pg.sql`**（将 **`admin`** 重置为 **`123456`**，与当前运维约定一致）。
 
-**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP，点击 **「生成并下载离线安装包（zip）」**；在 **Ubuntu 24.04** 上解压后执行 **`sudo bash install.sh`** 完成 Ansible 编排安装（包内含 `ansible-agent` Playbook 与根据表单生成的 `inventory`）。**运行 `install.sh` 的机器须已能免密 SSH 登录各节点 `root`**（向导第 1 步有前置说明；`install.sh` 会在运行 Ansible 前预检 SSH）。脚本还会自动生成 **`/root/.ssh/ansible_id_rsa(.pub)`**，供第 1 个 playbook 在节点上创建 **`ansible` 用户并授权**（与 root 免密是两套凭据）。**原仓库内 Go Agent（ft-client）源码已移除**；在线部署仍依赖 Agent 心跳上报时，可在同页切换到「在线 Agent」并提交在线部署。
+**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP；离线交付可选：**①** 控制台生成 **`sudo ai-sre k8s install 'ofpk8s1.…'`**（目标机须已安装 `ai-sre`）；**②** **`curl -fsSL '<publicApiBase>/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'`**（**无需 ai-sre**，需 `python3`，由公开引导脚本拉 zip 并执行 `install.sh`）；**③** 下载 zip，在 **Ubuntu 24.04** 控制机解压后 **`sudo bash install.sh`**。包内含 `ansible-agent` Playbook 与 `inventory`。**运行安装命令的机器须已能免密 SSH 登录各节点 `root`**（向导第 1 步；`install.sh` 会预检 SSH）。脚本还会生成 **`/root/.ssh/ansible_id_rsa(.pub)`** 供 playbook 创建 **`ansible` 用户**。**原仓库内 Go Agent（ft-client）源码已移除**；在线部署可切「在线 Agent」。
 
 **机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 与作业中心仍用于在线机器列表与任务目标（见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)）。
 

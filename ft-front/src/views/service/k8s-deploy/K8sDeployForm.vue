@@ -5,7 +5,7 @@
         <span class="page-kicker">Kubernetes</span>
         <h2 class="page-title">部署 Kubernetes 集群</h2>
         <p class="page-desc">
-          离线：生成<strong>一键命令</strong>或 zip，在 Ubuntu 24.04 控制机执行；在线：由 Agent 执行 Ansible。
+          离线：一键命令（ai-sre 或 curl+bootstrap）、或 zip；在控制机执行一次即可；在线：由 Agent 执行 Ansible。
         </p>
       </div>
     </header>
@@ -685,9 +685,10 @@
                 24.04）。它与「K8s 节点」不同：节点由 Ansible 从控制机远程安装，<strong>不要在每个节点上各跑一遍安装命令</strong>。
               </p>
               <p>
-                <strong>两种方式（二选一）</strong>：① 在控制机执行页面生成的
-                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code> 整行；② 将 zip 传到控制机解压后，在解压目录执行
-                <code>sudo bash install.sh</code>。任选其一执行成功后，即完成对本集群的交付编排。
+                <strong>三种方式（择一）</strong>：① 控制机已装 <code>ai-sre</code> 时执行
+                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code>；② <strong>未装 ai-sre</strong> 时用本页
+                <code>curl … bootstrap.sh | sudo bash</code>（仅需 <code>curl</code>、<code>python3</code>，由脚本拉 zip 并跑
+                <code>install.sh</code>）；③ 下载 zip 到控制机解压后执行 <code>sudo bash install.sh</code>。
               </p>
             </div>
           </el-alert>
@@ -699,20 +700,22 @@
             </template>
             <ol class="install-howto-ol">
               <li>
-                在<strong>即将执行安装的 Ubuntu 控制机</strong>上安装 <code>ai-sre</code>（若走 zip 方式也需 Python/Ansible
-                等环境，由离线包内脚本引导），并保证该机能
-                <strong>免密 SSH root</strong> 登录本单填写的所有节点 IP（详见第 1 步折叠说明）。
+                在<strong>即将执行安装的 Ubuntu 控制机</strong>上，保证能<strong>免密 SSH root</strong> 登录本单填写的所有节点
+                IP（详见第 1 步折叠说明）。若选 <code>ai-sre</code> 或 zip 方式，请按需安装 CLI / Ansible（离线包内
+                <code>install.sh</code> 会引导）。
               </li>
               <li>
-                点击页面底部<strong>「生成一键安装命令」</strong>，下方「一键安装命令」区将出现完整命令；<strong>仅在控制机</strong>终端粘贴执行：
-                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code>（引号内整段由控制台生成，勿截断）。
+                点击底部<strong>「生成一键安装命令」</strong>后，下方将给出两条可复制命令：<strong>A</strong>
+                <code>sudo ai-sre k8s install '…'</code>；<strong>B</strong>
+                <code>curl -fsSL '…/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'</code>（<strong>无需预装 ai-sre</strong>，需
+                <code>python3</code>）。均在<strong>控制机</strong>执行一次即可。
               </li>
               <li>
-                若选用 <strong>zip</strong>：点击「下载离线安装包」，将 zip 传到控制机并解压，在<strong>解压后的目录内</strong>执行
-                <code>sudo bash install.sh</code>（同样在控制机执行一次即可）。
+                若选用 <strong>zip</strong>：点击「下载离线安装包」，将 zip 传到控制机解压后，在<strong>解压目录内</strong>执行
+                <code>sudo bash install.sh</code>。
               </li>
               <li>
-                当前控制台 API 基址（一键拉包时 CLI 会访问）：
+                当前控制台 API 基址（CLI / bootstrap 拉包会访问）：
                 <code class="install-howto-api">{{ publicApiBasePreview }}</code>
               </li>
             </ol>
@@ -729,24 +732,15 @@
 
           <!-- 离线：安装命令展示区（生成后常驻，可复制） -->
           <div v-if="offlineBundleMode" class="offline-install-panel">
-            <div class="offline-install-panel__head">
-              <h4 class="offline-install-panel__title">一键安装命令</h4>
-              <el-button
-                v-if="lastInvite"
-                type="primary"
-                size="small"
-                @click="copyInstallCommand"
-              >
-                <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
-                复制命令
-              </el-button>
+            <div class="offline-install-panel__head offline-install-panel__head--main">
+              <h4 class="offline-install-panel__title">控制机安装命令</h4>
             </div>
             <p class="offline-install-panel__lead">
-              在<strong>控制机</strong>上打开终端，用具备 sudo 的用户执行下方<strong>整行</strong>命令（推荐直接「复制命令」粘贴）。执行后将自动下载离线包、解压并运行
-              <code>install.sh</code>，由 Ansible 连接本单全部节点完成安装；<strong>无需</strong>登录各节点再执行。
+              在<strong>控制机</strong>终端执行下方<strong>任选一条</strong>整行命令（建议「复制」粘贴）。执行后将下载离线包、解压并运行
+              <code>install.sh</code>，由 Ansible 装齐本单全部节点；<strong>无需</strong>登录各节点再执行。
             </p>
             <p v-if="!lastInvite" class="offline-install-panel__placeholder">
-              点击下方<strong>「生成一键安装命令」</strong>后，将在此显示完整命令与资源 ID（无需仅依赖弹窗或下载 zip）。
+              点击下方<strong>「生成一键安装命令」</strong>后，将在此显示命令 A / B、资源 ID 与有效期。
             </p>
             <template v-else>
               <el-descriptions :column="2" size="small" border class="invite-meta-desc">
@@ -757,15 +751,41 @@
                   {{ formatInviteExpiry(lastInvite.expiresAt) }}
                 </el-descriptions-item>
               </el-descriptions>
+
+              <div class="offline-install-panel__subhead">
+                <span class="offline-install-panel__subhead-label">方式 A</span>
+                <span class="offline-install-panel__subhead-desc">已安装 <code>ai-sre</code> 时</span>
+                <el-button type="primary" size="small" link @click="copyInstallCommand">
+                  <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
+                  复制
+                </el-button>
+              </div>
               <el-input
                 type="textarea"
-                :rows="3"
+                :rows="2"
                 readonly
                 :model-value="lastInvite.installCommand"
                 class="install-command-textarea"
               />
+
+              <div class="offline-install-panel__subhead offline-install-panel__subhead--b">
+                <span class="offline-install-panel__subhead-label">方式 B</span>
+                <span class="offline-install-panel__subhead-desc">未装 ai-sre（需 <code>curl</code>、<code>python3</code>）</span>
+                <el-button type="primary" size="small" link @click="copyBootstrapCommand">
+                  <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
+                  复制
+                </el-button>
+              </div>
+              <el-input
+                type="textarea"
+                :rows="3"
+                readonly
+                :model-value="lastInvite.bootstrapCommand"
+                class="install-command-textarea install-command-textarea--bootstrap"
+              />
               <p class="offline-install-panel__warn">
-                命令含下载密钥，请勿泄露；过期后请在本页重新生成。
+                以上命令均含下载密钥，请勿泄露；过期后请在本页重新生成。方式 B 由控制台提供公开
+                <code>bootstrap.sh</code>，凭引用中的 token 拉取 zip，行为与 <code>ai-sre k8s install</code> 等价。
               </p>
             </template>
           </div>
@@ -1037,6 +1057,7 @@ const lastInvite = ref<{
   expiresAt: string
   installRef: string
   installCommand: string
+  bootstrapCommand: string
 } | null>(null)
 /** true：离线 zip（推荐）；false：经 Agent 在线部署 */
 const offlineBundleMode = ref(true)
@@ -1286,7 +1307,10 @@ const deployRequirementText = computed(() => {
       '- 「控制机」= 您 SSH 登录并执行命令的那一台 Linux；安装命令只在此机执行一次，不要在每个 K8s 节点各执行一遍。'
     )
     L.push(
-      '- 一键（推荐）：sudo ai-sre k8s install \'ofpk8s1.…\'（整段以本页「一键安装命令」为准，含下载令牌，勿泄露）。'
+      '- 已装 ai-sre：sudo ai-sre k8s install \'ofpk8s1.…\'（整段以本页「方式 A」为准，含令牌，勿泄露）。'
+    )
+    L.push(
+      '- 未装 ai-sre：curl -fsSL \'<API>/api/k8s/deploy/bootstrap.sh\' | sudo bash -s -- \'ofpk8s1.…\'（见本页「方式 B」，需 python3；含令牌）。'
     )
     L.push('- Zip：将 zip 传到控制机解压后，在解压目录执行：sudo bash install.sh')
     L.push(
@@ -1385,7 +1409,16 @@ function copyInstallCommand() {
   const cmd = lastInvite.value?.installCommand
   if (!cmd) return
   navigator.clipboard.writeText(cmd).then(
-    () => ElMessage.success('已复制安装命令'),
+    () => ElMessage.success('已复制方式 A（ai-sre）'),
+    () => ElMessage.error('复制失败，请手动选择文本复制')
+  )
+}
+
+function copyBootstrapCommand() {
+  const cmd = lastInvite.value?.bootstrapCommand
+  if (!cmd) return
+  navigator.clipboard.writeText(cmd).then(
+    () => ElMessage.success('已复制方式 B（curl + bootstrap，无需 ai-sre）'),
     () => ElMessage.error('复制失败，请手动选择文本复制')
   )
 }
@@ -1529,13 +1562,14 @@ const handleCreateInstallRef = async () => {
       id: data.id,
       expiresAt: data.expiresAt,
       installRef: data.installRef,
-      installCommand: data.installCommand
+      installCommand: data.installCommand,
+      bootstrapCommand: data.bootstrapCommand
     }
     try {
-      await navigator.clipboard.writeText(data.installCommand)
-      ElMessage.success('已生成并复制安装命令，可在上方卡片再次查看或复制')
+      await navigator.clipboard.writeText(data.bootstrapCommand)
+      ElMessage.success('已生成；已复制「方式 B」命令（无需 ai-sre）。已装 CLI 可选用方式 A')
     } catch {
-      ElMessage.success('已生成安装命令，请在上方案块内复制')
+      ElMessage.success('已生成命令，请在上方案块内复制方式 A 或 B')
     }
   } catch (e: any) {
     ElMessage.error(e?.message || '生成失败')
@@ -2008,6 +2042,39 @@ const submitDeploy = async () => {
   gap: 12px;
   margin-bottom: 12px;
   flex-wrap: wrap;
+}
+
+.offline-install-panel__head--main {
+  margin-bottom: 8px;
+}
+
+.offline-install-panel__subhead {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 8px;
+}
+
+.offline-install-panel__subhead--b {
+  margin-top: 20px;
+}
+
+.offline-install-panel__subhead-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+}
+
+.offline-install-panel__subhead-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  flex: 1;
+  min-width: 120px;
+}
+
+.offline-install-panel__subhead-desc code {
+  font-size: 11px;
 }
 
 .offline-install-panel__title {

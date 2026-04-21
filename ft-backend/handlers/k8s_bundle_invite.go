@@ -3,6 +3,7 @@ package handlers
 import (
 	"crypto/rand"
 	"crypto/subtle"
+	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -19,6 +20,9 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 )
+
+//go:embed k8s_install_bootstrap.sh
+var k8sInstallBootstrapSH string
 
 // installRefPrefixV1 与 ai-sre CLI 保持一致：单字符串承载 API 基址 + 资源 UUID + 下载 token。
 const installRefPrefixV1 = "ofpk8s1."
@@ -91,12 +95,21 @@ func CreateK8sBundleInvite(c *gin.Context) {
 		return
 	}
 	cmd := fmt.Sprintf(`sudo ai-sre k8s install '%s'`, ref)
+	bootstrap := fmt.Sprintf(`curl -fsSL '%s/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- '%s'`, publicBase, ref)
 	response.OK(c, gin.H{
-		"id":             inv.ID.String(),
-		"expiresAt":      exp.Format(time.RFC3339),
-		"installRef":     ref,
-		"installCommand": cmd,
+		"id":               inv.ID.String(),
+		"expiresAt":        exp.Format(time.RFC3339),
+		"installRef":       ref,
+		"installCommand":   cmd,
+		"bootstrapCommand": bootstrap,
 	})
+}
+
+// ServeK8sInstallBootstrap 返回可在目标控制机执行的 bash 引导脚本（无需预装 ai-sre，依赖 python3）。
+func ServeK8sInstallBootstrap(c *gin.Context) {
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.Header("Cache-Control", "public, max-age=120")
+	c.String(http.StatusOK, k8sInstallBootstrapSH)
 }
 
 // DownloadK8sBundleInviteZip 公开下载（凭资源 ID + token），与 GenerateK8sOfflineBundle 产出相同 zip。

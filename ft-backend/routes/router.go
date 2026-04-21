@@ -39,6 +39,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// K8s 离线包：凭 invite id + token 下载（与控制台「一键安装引用」配套，无需 JWT）
 		public.GET("/k8s/deploy/bundle-invite/:id/zip", handlers.DownloadK8sBundleInviteZip)
+		public.GET("/k8s/deploy/bootstrap.sh", handlers.ServeK8sInstallBootstrap)
 
 		// Client Agent endpoints (authenticated by client_id, not JWT)
 		public.POST("/v1/heartbeats", iotservice.HeartbeatCheck)

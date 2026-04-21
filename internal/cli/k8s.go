@@ -70,6 +70,9 @@ func k8sCmd() *cobra.Command {
 		Short: "Kubernetes 离线包：对接 OpsFleet API 下载、本地安装与卸载清理",
 		Long: fmt.Sprintf(`推荐：在控制台「部署确认」生成一键安装引用后，在控制机执行一行命令即可拉包并安装（无需上传 zip）。
 
+未安装 %s 时可用公开引导脚本（需 python3）：
+  curl -fsSL 'http://<控制台>/ft-api/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.xxxxx…'
+
 示例:
   # 一键安装（installRef 由页面复制，整段单引号包裹）
   sudo %s k8s install 'ofpk8s1.xxxxx…'
@@ -81,7 +84,7 @@ func k8sCmd() *cobra.Command {
 
   sudo %s k8s install --workdir /opt/opsfleet-k8s
 
-  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName),
+  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName, progName),
 	}
 	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sUninstallCmd())
 	return cmd
