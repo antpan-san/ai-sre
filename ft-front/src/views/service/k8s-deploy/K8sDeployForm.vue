@@ -708,6 +708,27 @@
             </template>
           </div>
 
+          <!-- 根据表单自动生成的需求说明（评审 / 工单 / 交接） -->
+          <div class="requirement-doc-panel">
+            <div class="requirement-doc-panel__head">
+              <h4 class="requirement-doc-panel__title">部署需求说明</h4>
+              <el-button type="primary" size="small" @click="copyDeployRequirement">
+                <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
+                复制全文
+              </el-button>
+            </div>
+            <p class="requirement-doc-panel__hint">
+              由当前向导配置自动生成，随表单变化更新；可复制到邮件、工单或文档。<strong>不含</strong>一键命令中的下载密钥。
+            </p>
+            <el-input
+              type="textarea"
+              :rows="16"
+              readonly
+              :model-value="deployRequirementText"
+              class="requirement-textarea"
+            />
+          </div>
+
           <div class="confirm-grid">
             <!-- 集群基础 -->
             <div class="confirm-block">
@@ -934,7 +955,7 @@ const stepsMeta = [
   { title: '高级配置', desc: '可选组件与额外参数', icon: markRaw(Operation) },
   {
     title: '部署确认',
-    desc: '核对摘要；离线可生成命令或 zip',
+    desc: '核对摘要、复制部署需求说明；离线可生成命令或 zip',
     icon: markRaw(CircleCheck)
   }
 ]
@@ -1177,6 +1198,71 @@ const confirmWorkerPreview = computed(() => {
   return fromCfg.length ? fromCfg.join('、') : '无'
 })
 
+/** 部署确认页：可复制的需求说明全文（不含 installRef 密钥） */
+const deployRequirementText = computed(() => {
+  const L: string[] = []
+  const now = new Date().toLocaleString('zh-CN', { hour12: false })
+  const name = deployConfig.clusterBasicInfo.clusterName?.trim() || '（未填写）'
+  const ver = deployConfig.clusterBasicInfo.version || '—'
+  const arch = deployConfig.clusterBasicInfo.cpuArch || 'amd64'
+  const mode = deployConfig.clusterBasicInfo.deployMode === 'cluster' ? '多节点' : '单节点'
+
+  L.push('Kubernetes 集群部署需求说明（OpsFleet 控制台生成）')
+  L.push(`生成时间：${now}`)
+  L.push('')
+  L.push('【1. 目标】')
+  L.push(`部署集群「${name}」，Kubernetes ${ver}，节点 CPU 架构 ${arch}，规划模式 ${mode}。`)
+  L.push('')
+  L.push('【2. 交付方式与前置条件】')
+  if (offlineBundleMode.value) {
+    L.push('- 交付形态：离线（一键安装命令 ai-sre，或 zip + install.sh）。')
+    L.push('- 控制机：建议 Ubuntu 24.04 LTS；一键命令方式须已安装 ai-sre。')
+    L.push('- 连通性：控制机须以 root 免密 SSH 登录所有节点（见步骤 1 折叠说明）。')
+    L.push('- 制品：镜像源为「' + imageSourceText.value + '」；若填写内网制品地址则覆盖 inventory 默认 download_domain。')
+  } else {
+    L.push('- 交付形态：在线（由已注册 Agent 的执行节点执行 Ansible）。')
+    L.push('- 执行机与集群节点须网络互通，SSH 可达。')
+    L.push('- 镜像源：「' + imageSourceText.value + '」。')
+  }
+  L.push('')
+  L.push('【3. 节点清单】')
+  if (offlineBundleMode.value) {
+    const masters = deployConfig.nodeConfig.masterHosts?.length
+      ? deployConfig.nodeConfig.masterHosts
+      : parseHostLines(masterHostsText.value)
+    const workers = deployConfig.nodeConfig.workerHosts?.length
+      ? deployConfig.nodeConfig.workerHosts
+      : parseHostLines(workerHostsText.value)
+    L.push('- 控制平面 IP：' + (masters.length ? masters.join('、') : '（请在「节点配置」填写）'))
+    L.push('- 工作节点 IP：' + (workers.length ? workers.join('、') : '无'))
+  } else {
+    L.push('- 执行节点：' + executorConfirmText.value)
+    L.push(`- 控制平面：已选 ${deployConfig.nodeConfig.masterNodes.length} 台（机器以控制台为准）。`)
+    L.push(`- 工作节点：已选 ${deployConfig.nodeConfig.workerNodes.length} 台。`)
+  }
+  L.push('')
+  L.push('【4. 网络与存储】')
+  L.push(`- 网络插件：${deployConfig.networkConfig.networkPlugin}；Pod CIDR ${deployConfig.networkConfig.podCIDR}；Service CIDR ${deployConfig.networkConfig.serviceCIDR}；DNS ${deployConfig.networkConfig.dnsServiceIP}。`)
+  L.push(
+    `- 存储：供应器 ${deployConfig.storageConfig.storageProvisioner}；默认 StorageClass ${deployConfig.storageConfig.defaultStorageClass ? '开启' : '关闭'}。`
+  )
+  L.push('')
+  L.push('【5. 其他】')
+  L.push(`- kube-proxy：${deployConfig.coreComponentsConfig.kubeProxyMode}；RBAC ${deployConfig.coreComponentsConfig.enableRBAC ? '开启' : '关闭'}。`)
+  L.push(`- 部署前环境清理（Step 0）：${deployConfig.advancedConfig.preDeployCleanup ? '开启' : '关闭'}。`)
+  L.push(`- 可选组件：${enabledComponentsText.value || '无'}。`)
+  if (offlineBundleMode.value && lastInvite.value) {
+    L.push('')
+    L.push('【6. 已登记的离线安装资源（仅元数据）】')
+    L.push(`- 资源 ID：${lastInvite.value.id}`)
+    L.push(`- 有效期至：${formatInviteExpiry(lastInvite.value.expiresAt)}`)
+    L.push('- 完整安装命令请在本页「一键安装命令」区查看；勿将命令粘贴进不受控渠道。')
+  }
+  L.push('')
+  L.push('—— 以上由向导根据当前表单生成，提交部署或下载前请业务方与执行方共同确认。')
+  return L.join('\n')
+})
+
 // ---------- 状态持久化：跳转后返回仍保留已填写的步骤与数据 ----------
 watch(
   () => ({ config: deployConfig, step: activeStep.value }),
@@ -1228,6 +1314,15 @@ function copyInstallCommand() {
   navigator.clipboard.writeText(cmd).then(
     () => ElMessage.success('已复制安装命令'),
     () => ElMessage.error('复制失败，请手动选择文本复制')
+  )
+}
+
+function copyDeployRequirement() {
+  const text = deployRequirementText.value
+  if (!text?.trim()) return
+  navigator.clipboard.writeText(text).then(
+    () => ElMessage.success('已复制部署需求说明'),
+    () => ElMessage.error('复制失败，请手动全选文本复制')
   )
 }
 
@@ -1798,6 +1893,43 @@ const submitDeploy = async () => {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   line-height: 1.5;
+}
+
+.requirement-doc-panel {
+  padding: 18px 20px;
+  border-radius: 12px;
+  border: 1px dashed var(--el-border-color);
+  background: var(--el-fill-color-light);
+}
+
+.requirement-doc-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 8px;
+}
+
+.requirement-doc-panel__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--el-text-color-primary);
+}
+
+.requirement-doc-panel__hint {
+  margin: 0 0 12px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.55;
+}
+
+.requirement-textarea :deep(textarea) {
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  background: var(--el-bg-color);
 }
 
 /* ==================== 步骤卡片（统一风格） ==================== */
