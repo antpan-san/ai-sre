@@ -122,6 +122,8 @@ export function createK8sBundleInvite(
   installCommand: string
   /** 无 ai-sre 时：curl 拉引导脚本 + bash + python3 完成拉包与 install.sh */
   bootstrapCommand: string
+  /** 部署失败或需重置：按页面 inventory 对全部节点执行 pre_cleanup */
+  cleanupCommand: string
 }> {
   const body = {
     ...buildK8sDeployFlatBody(config),

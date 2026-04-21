@@ -84,9 +84,12 @@ func k8sCmd() *cobra.Command {
 
   sudo %s k8s install --workdir /opt/opsfleet-k8s
 
-  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName, progName),
+  # 部署失败或需按页面节点全量清理（与 install 使用同一 ofpk8s1 引用；重新拉包并跑 pre_cleanup）
+  sudo %s k8s cleanup 'ofpk8s1.…'
+
+  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName, progName, progName),
 	}
-	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sUninstallCmd())
+	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sCleanupCmd(), k8sUninstallCmd())
 	return cmd
 }
 
@@ -309,7 +312,7 @@ func runInstallFromInviteRef(ref string) error {
 	if err != nil {
 		return err
 	}
-	return downloadInviteZipAndRunInstall(wire.B, wire.I, wire.T)
+	return downloadInviteZipAndRunInstall(wire.B, wire.I, wire.T, strings.TrimSpace(ref))
 }
 
 func decodeInstallRefV1(ref string) (installRefWire, error) {
@@ -340,10 +343,11 @@ func runInstallFromBareInviteID(idStr string) error {
 	if base == "" || tok == "" {
 		return errors.New("仅传入资源 UUID 时需设置 OPSFLEET_API_URL 与 OPSFLEET_BUNDLE_TOKEN；请优先使用控制台生成的整段 installRef（ofpk8s1.…）")
 	}
-	return downloadInviteZipAndRunInstall(base, strings.TrimSpace(idStr), tok)
+	return downloadInviteZipAndRunInstall(base, strings.TrimSpace(idStr), tok, "")
 }
 
-func downloadInviteZipAndRunInstall(apiBase, inviteID, token string) error {
+// downloadInviteZipFile 将邀请 zip 写入 destPath（完整文件路径）。
+func downloadInviteZipFile(apiBase, inviteID, token, destPath string) error {
 	base := strings.TrimRight(strings.TrimSpace(apiBase), "/")
 	endpoint, err := url.JoinPath(base, "api", "k8s", "deploy", "bundle-invite", inviteID, "zip")
 	if err != nil {
@@ -378,31 +382,198 @@ func downloadInviteZipAndRunInstall(apiBase, inviteID, token string) error {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
 		return fmt.Errorf("服务器返回错误: %s", truncateForErr(b, 2048))
 	}
-	zipFile, err := os.CreateTemp("", "opsfleet-k8s-invite-*.zip")
+	out, err := os.Create(destPath)
 	if err != nil {
 		return err
 	}
-	zipPath := zipFile.Name()
-	defer func() { _ = os.Remove(zipPath) }()
-	if _, err := io.Copy(zipFile, resp.Body); err != nil {
-		zipFile.Close()
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		out.Close()
 		return err
 	}
-	if err := zipFile.Close(); err != nil {
-		return err
+	return out.Close()
+}
+
+// bundleInstallRoot 在解压目录中定位含 install.sh 的包根（兼容 zip 单层子目录）。
+func bundleInstallRoot(extractDir string) (string, error) {
+	installSh := filepath.Join(extractDir, "install.sh")
+	if st, err := os.Stat(installSh); err == nil && !st.IsDir() {
+		return extractDir, nil
 	}
-	dir, err := os.MkdirTemp("", "opsfleet-k8s-install-*")
+	entries, err := os.ReadDir(extractDir)
 	if err != nil {
-		return err
+		return "", err
 	}
-	defer os.RemoveAll(dir)
-	if err := unzipFile(zipPath, dir); err != nil {
-		return err
+	var subdirs []string
+	for _, e := range entries {
+		if e.IsDir() {
+			subdirs = append(subdirs, filepath.Join(extractDir, e.Name()))
+		}
+	}
+	if len(subdirs) == 1 {
+		cand := filepath.Join(subdirs[0], "install.sh")
+		if st, err := os.Stat(cand); err == nil && !st.IsDir() {
+			return subdirs[0], nil
+		}
+	}
+	return "", fmt.Errorf("离线包内未找到 install.sh")
+}
+
+// downloadInviteZipAndExtract 下载邀请 zip 到临时目录并解压，返回包根路径与删除整棵临时树的函数。
+func downloadInviteZipAndExtract(apiBase, inviteID, token string) (bundleRoot string, cleanup func(), err error) {
+	wrapper, err := os.MkdirTemp("", "opsfleet-k8s-invite-*")
+	if err != nil {
+		return "", nil, err
+	}
+	cleanup = func() { _ = os.RemoveAll(wrapper) }
+	fail := func(e error) (string, func(), error) {
+		cleanup()
+		return "", nil, e
+	}
+
+	zipPath := filepath.Join(wrapper, "bundle.zip")
+	if err := downloadInviteZipFile(apiBase, inviteID, token, zipPath); err != nil {
+		return fail(err)
+	}
+	out := filepath.Join(wrapper, "out")
+	if err := os.MkdirAll(out, 0755); err != nil {
+		return fail(err)
+	}
+	if err := unzipFile(zipPath, out); err != nil {
+		return fail(err)
+	}
+	_ = os.Remove(zipPath)
+
+	root, err := bundleInstallRoot(out)
+	if err != nil {
+		return fail(err)
 	}
 	if verbose {
-		fmt.Fprintf(os.Stderr, "[%s] invite bundle extracted to %s\n", progName, dir)
+		fmt.Fprintf(os.Stderr, "[%s] invite bundle root %s\n", progName, root)
 	}
-	return runInstallSh(dir)
+	return root, cleanup, nil
+}
+
+func downloadInviteZipAndRunInstall(apiBase, inviteID, token, refHint string) error {
+	root, cleanup, err := downloadInviteZipAndExtract(apiBase, inviteID, token)
+	if err != nil {
+		return err
+	}
+	defer cleanup()
+
+	err = runInstallSh(root)
+	if err != nil && strings.TrimSpace(refHint) != "" {
+		fmt.Fprintf(os.Stderr, "\n[%s] 安装未成功。请在同一台控制机上（须已对 inventory 中各节点 root 免密）使用页面同一安装引用清理全部 master/worker：\n  sudo %s k8s cleanup '%s'\n", progName, progName, strings.TrimSpace(refHint))
+		fmt.Fprintf(os.Stderr, "  可选：export OPSFLEET_K8S_AUTO_CLEANUP_ON_FAIL=1 后重试安装，失败时将自动对包内节点执行 pre_cleanup。\n")
+	}
+	if err != nil {
+		v := strings.TrimSpace(os.Getenv("OPSFLEET_K8S_AUTO_CLEANUP_ON_FAIL"))
+		if v == "1" || strings.EqualFold(v, "true") {
+			agent := filepath.Join(root, "ansible-agent")
+			inv := filepath.Join(root, "inventory", "hosts.ini")
+			if e2 := runCleanupPlaybook(agent, inv); e2 != nil {
+				fmt.Fprintf(os.Stderr, "[%s] 自动清理失败: %v\n", progName, e2)
+			} else {
+				fmt.Fprintf(os.Stderr, "[%s] 已根据包内 inventory 对各节点执行 pre_cleanup。\n", progName)
+			}
+		}
+	}
+	return err
+}
+
+func runCleanupFromInviteRef(ref string) error {
+	wire, err := decodeInstallRefV1(ref)
+	if err != nil {
+		return err
+	}
+	root, cleanup, err := downloadInviteZipAndExtract(wire.B, wire.I, wire.T)
+	if err != nil {
+		return fmt.Errorf("重新拉取离线包失败（引用可能过期或网络异常）: %w", err)
+	}
+	defer cleanup()
+	return runCleanupPlaybook(filepath.Join(root, "ansible-agent"), filepath.Join(root, "inventory", "hosts.ini"))
+}
+
+func runCleanupPlaybook(agentRoot, inventoryPath string) error {
+	pb := filepath.Join(agentRoot, "playbooks", "pre_cleanup.yml")
+	for _, p := range []string{inventoryPath, agentRoot, pb} {
+		if _, err := os.Stat(p); err != nil {
+			return fmt.Errorf("清理路径无效 %s: %w", p, err)
+		}
+	}
+	run := func(name string, arg ...string) *exec.Cmd {
+		c := exec.Command(name, arg...)
+		c.Stdout = os.Stdout
+		c.Stderr = os.Stderr
+		c.Stdin = os.Stdin
+		return c
+	}
+	if os.Geteuid() == 0 {
+		c := run("ansible-playbook", "-i", inventoryPath, pb)
+		c.Dir = agentRoot
+		c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
+		return c.Run()
+	}
+	c := run("sudo", "-E", "ansible-playbook", "-i", inventoryPath, pb)
+	c.Dir = agentRoot
+	c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
+	return c.Run()
+}
+
+func k8sCleanupCmd() *cobra.Command {
+	var pkgPath, workdir string
+	cmd := &cobra.Command{
+		Use:   "cleanup [install-ref]",
+		Short: "按安装引用或离线包目录，对页面配置的全部节点执行 pre_cleanup",
+		Long: `与 ansible-agent playbooks/pre_cleanup.yml 相同：对 inventory 中 k8s_cluster（全部 master/worker）停止 systemd 单元并删除 /etc/kubernetes、/var/lib/etcd 等。
+
+传入控制台生成的 ofpk8s1… 时，会重新下载与「一键安装」相同的 zip（须在有效期内），无需保留解压目录。
+
+示例:
+  sudo ai-sre k8s cleanup 'ofpk8s1.…'
+  sudo ai-sre k8s cleanup --workdir /path/to/解压目录
+  sudo ai-sre k8s cleanup --package ./bundle.zip`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				if pkgPath != "" || workdir != "" {
+					return errors.New("已传入安装引用时不要同时使用 --package 或 --workdir")
+				}
+				ref := strings.Trim(strings.TrimSpace(args[0]), `"'`)
+				return runCleanupFromInviteRef(ref)
+			}
+			if pkgPath != "" && workdir != "" {
+				return errors.New("--package 与 --workdir 二选一")
+			}
+			if pkgPath == "" && workdir == "" {
+				return errors.New("请传入 ofpk8s1… 安装引用，或使用 --workdir / --package")
+			}
+			var root string
+			if workdir != "" {
+				var err error
+				root, err = filepath.Abs(strings.TrimSpace(workdir))
+				if err != nil {
+					return err
+				}
+			} else {
+				td, err := os.MkdirTemp("", "opsfleet-k8s-cleanup-*")
+				if err != nil {
+					return err
+				}
+				defer os.RemoveAll(td)
+				if err := unzipFile(pkgPath, td); err != nil {
+					return err
+				}
+				root, err = bundleInstallRoot(td)
+				if err != nil {
+					return err
+				}
+			}
+			return runCleanupPlaybook(filepath.Join(root, "ansible-agent"), filepath.Join(root, "inventory", "hosts.ini"))
+		},
+	}
+	cmd.Flags().StringVar(&pkgPath, "package", "", "离线 zip 路径")
+	cmd.Flags().StringVar(&workdir, "workdir", "", "已解压根目录（含 install.sh、ansible-agent）")
+	return cmd
 }
 
 func k8sUninstallCmd() *cobra.Command {
@@ -410,8 +581,8 @@ func k8sUninstallCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "uninstall",
 		Short: "在已解压的离线包目录上执行 Ansible pre_cleanup（清理 K8s/etcd 残留）",
-		Long: `等同离线包内 playbooks/pre_cleanup.yml：停止 systemd 单元并删除 /var/lib/etcd、/etc/kubernetes 等。
-需在解压目录执行；本机已安装 ansible，且对各节点 root 免密（与 install.sh 相同）。`,
+		Long: `等同 k8s cleanup --workdir：停止 systemd 单元并删除 /var/lib/etcd、/etc/kubernetes 等。
+推荐新流程使用 k8s cleanup 'ofpk8s1…'（无需保留解压目录）。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if strings.TrimSpace(workdir) == "" {
 				return errors.New("请指定 --workdir <离线包解压根目录>")
@@ -420,32 +591,7 @@ func k8sUninstallCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			inv := filepath.Join(root, "inventory", "hosts.ini")
-			agent := filepath.Join(root, "ansible-agent")
-			pb := filepath.Join(agent, "playbooks", "pre_cleanup.yml")
-			for _, p := range []string{inv, agent, pb} {
-				if _, err := os.Stat(p); err != nil {
-					return fmt.Errorf("路径无效: %s (%v)", p, err)
-				}
-			}
-			run := func(name string, arg ...string) *exec.Cmd {
-				c := exec.Command(name, arg...)
-				c.Stdout = os.Stdout
-				c.Stderr = os.Stderr
-				c.Stdin = os.Stdin
-				return c
-			}
-			// 与 install.sh 一致：在 ansible-agent 目录下执行 playbook
-			if os.Geteuid() == 0 {
-				c := run("ansible-playbook", "-i", inv, pb)
-				c.Dir = agent
-				c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
-				return c.Run()
-			}
-			c := run("sudo", "-E", "ansible-playbook", "-i", inv, pb)
-			c.Dir = agent
-			c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
-			return c.Run()
+			return runCleanupPlaybook(filepath.Join(root, "ansible-agent"), filepath.Join(root, "inventory", "hosts.ini"))
 		},
 	}
 	cmd.Flags().StringVar(&workdir, "workdir", "", "离线包解压根目录")

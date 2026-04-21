@@ -96,12 +96,14 @@ func CreateK8sBundleInvite(c *gin.Context) {
 	}
 	cmd := fmt.Sprintf(`sudo ai-sre k8s install '%s'`, ref)
 	bootstrap := fmt.Sprintf(`curl -fsSL '%s/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- '%s'`, publicBase, ref)
+	cleanup := fmt.Sprintf(`sudo ai-sre k8s cleanup '%s'`, ref)
 	response.OK(c, gin.H{
 		"id":               inv.ID.String(),
 		"expiresAt":        exp.Format(time.RFC3339),
 		"installRef":       ref,
 		"installCommand":   cmd,
 		"bootstrapCommand": bootstrap,
+		"cleanupCommand":   cleanup,
 	})
 }
 

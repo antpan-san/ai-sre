@@ -102,6 +102,15 @@ def main():
 
         os.chdir(root)
         p = subprocess.run(["bash", "install.sh"], check=False)
+        if p.returncode != 0:
+            print(
+                "\n安装未完成。若需按控制台「节点配置」中的全部 master/worker 清理 K8s/etcd 残留，"
+                "请在同一台控制机上安装 ai-sre 后执行（须已对各节点 root 免密，与 install.sh 相同）：\n"
+                "  sudo ai-sre k8s cleanup %r\n"
+                "（将重新拉取与本次相同的离线包并执行 pre_cleanup；引用须在有效期内。）\n"
+                % (ref,),
+                file=sys.stderr,
+            )
         raise SystemExit(p.returncode)
     finally:
         shutil.rmtree(tdir, ignore_errors=True)

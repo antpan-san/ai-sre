@@ -709,6 +709,22 @@
                     复制
                   </el-button>
                 </el-collapse-item>
+                <el-collapse-item title="全节点清理（部署失败或重置环境）" name="cleanup">
+                  <p class="confirm-cmd-card__hint">
+                    与页面「节点配置」中的 master/worker 一致：重新拉取同一离线包，对 inventory 中全部节点执行
+                    <code>pre_cleanup</code>（停止 kubelet/etcd 等并删除数据目录）。引用需在有效期内；须已对各节点 root 免密。
+                  </p>
+                  <el-input
+                    type="textarea"
+                    :rows="2"
+                    readonly
+                    :model-value="lastInvite.cleanupCommand"
+                    class="install-command-textarea"
+                  />
+                  <el-button type="primary" size="small" link class="confirm-optional-copy" @click.stop="copyCleanupCommand">
+                    复制清理命令
+                  </el-button>
+                </el-collapse-item>
               </el-collapse>
             </template>
           </div>
@@ -972,6 +988,7 @@ const lastInvite = ref<{
   installRef: string
   installCommand: string
   bootstrapCommand: string
+  cleanupCommand: string
 } | null>(null)
 /** true：离线 zip（推荐）；false：经 Agent 在线部署 */
 const offlineBundleMode = ref(true)
@@ -1288,6 +1305,15 @@ function copyInstallCommand() {
   )
 }
 
+function copyCleanupCommand() {
+  const cmd = lastInvite.value?.cleanupCommand
+  if (!cmd) return
+  void copyTextToClipboard(cmd).then(
+    () => ElMessage.success('已复制全节点清理命令'),
+    () => ElMessage.error('复制失败，请手动选择文本复制')
+  )
+}
+
 function copyBootstrapCommand() {
   const cmd = lastInvite.value?.bootstrapCommand
   if (!cmd) return
@@ -1446,7 +1472,8 @@ const handleCreateInstallRef = async () => {
       expiresAt: data.expiresAt,
       installRef: data.installRef,
       installCommand: data.installCommand,
-      bootstrapCommand: data.bootstrapCommand
+      bootstrapCommand: data.bootstrapCommand,
+      cleanupCommand: data.cleanupCommand || `sudo ai-sre k8s cleanup '${data.installRef}'`
     }
     try {
       await navigator.clipboard.writeText(data.bootstrapCommand)
