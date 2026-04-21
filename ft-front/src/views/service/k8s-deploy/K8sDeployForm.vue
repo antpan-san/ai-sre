@@ -669,6 +669,40 @@
             </div>
           </div>
 
+          <!-- 离线：固定展示的安装操作说明（不依赖是否已生成命令） -->
+          <el-card v-if="offlineBundleMode" class="install-howto-card" shadow="never">
+            <template #header>
+              <span class="install-howto-card__title">安装操作说明</span>
+            </template>
+            <ol class="install-howto-ol">
+              <li>
+                在<strong>即将执行安装的 Ubuntu 控制机</strong>上安装 <code>ai-sre</code>，并保证该机能
+                <strong>免密 SSH root</strong> 登录本单填写的所有节点 IP（详见第 1 步折叠说明）。
+              </li>
+              <li>
+                点击页面底部<strong>「生成一键安装命令」</strong>，本页「一键安装命令」区域将出现完整命令；在控制机执行：
+                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code>（整段由控制台生成）。
+              </li>
+              <li>
+                若选用 <strong>zip</strong>：点击「下载离线安装包」，上传至控制机解压后执行
+                <code>sudo bash install.sh</code>。
+              </li>
+              <li>
+                当前控制台 API 基址（一键拉包使用）：
+                <code class="install-howto-api">{{ publicApiBasePreview }}</code>
+              </li>
+            </ol>
+          </el-card>
+
+          <el-card v-else class="install-howto-card install-howto-card--online" shadow="never">
+            <template #header>
+              <span class="install-howto-card__title install-howto-card__title--online">操作说明</span>
+            </template>
+            <p class="install-howto-online-p">
+              核对摘要后点击底部<strong>「开始在线部署」</strong>。任务将由所选执行节点上的 Agent 拉取 Ansible 脚本执行；可在「部署进度」页查看日志。
+            </p>
+          </el-card>
+
           <!-- 离线：安装命令展示区（生成后常驻，可复制） -->
           <div v-if="offlineBundleMode" class="offline-install-panel">
             <div class="offline-install-panel__head">
@@ -720,13 +754,7 @@
             <p class="requirement-doc-panel__hint">
               由当前向导配置自动生成，随表单变化更新；可复制到邮件、工单或文档。<strong>不含</strong>一键命令中的下载密钥。
             </p>
-            <el-input
-              type="textarea"
-              :rows="16"
-              readonly
-              :model-value="deployRequirementText"
-              class="requirement-textarea"
-            />
+            <pre class="requirement-pre" tabindex="0">{{ deployRequirementText }}</pre>
           </div>
 
           <div class="confirm-grid">
@@ -1197,6 +1225,11 @@ const confirmWorkerPreview = computed(() => {
         .filter(Boolean)
   return fromCfg.length ? fromCfg.join('、') : '无'
 })
+
+/** 与生成 bundle-invite 时使用的 publicApiBase 一致，供确认页展示 */
+const publicApiBasePreview = computed(() =>
+  `${window.location.origin}${import.meta.env.VITE_BASE_API || '/ft-api'}`.replace(/\/$/, '')
+)
 
 /** 部署确认页：可复制的需求说明全文（不含 installRef 密钥） */
 const deployRequirementText = computed(() => {
@@ -1763,6 +1796,66 @@ const submitDeploy = async () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  /* 避免底部 sticky 操作栏挡住最后一段说明 */
+  padding-bottom: 96px;
+}
+
+.install-howto-card {
+  border: 1px solid var(--el-color-success-light-5);
+  background: linear-gradient(180deg, var(--el-color-success-light-9) 0%, var(--el-bg-color) 48%);
+}
+
+.install-howto-card :deep(.el-card__header) {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.install-howto-card__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--el-color-success-dark-2);
+}
+
+.install-howto-card--online {
+  border-color: var(--el-color-primary-light-5);
+  background: linear-gradient(180deg, var(--el-color-primary-light-9) 0%, var(--el-bg-color) 48%);
+}
+
+.install-howto-card__title--online {
+  color: var(--el-color-primary-dark-2);
+}
+
+.install-howto-online-p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--el-text-color-primary);
+}
+
+.install-howto-ol {
+  margin: 0;
+  padding-left: 1.25rem;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--el-text-color-primary);
+}
+
+.install-howto-ol li {
+  margin-bottom: 10px;
+}
+
+.install-howto-ol li:last-child {
+  margin-bottom: 0;
+}
+
+.install-howto-api {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+  word-break: break-all;
 }
 
 .confirm-hero {
@@ -1925,11 +2018,20 @@ const submitDeploy = async () => {
   line-height: 1.55;
 }
 
-.requirement-textarea :deep(textarea) {
+.requirement-pre {
+  margin: 0;
+  padding: 14px 16px;
+  max-height: 420px;
+  overflow: auto;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 12px;
-  line-height: 1.5;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--el-text-color-primary);
   background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  border-radius: 8px;
 }
 
 /* ==================== 步骤卡片（统一风格） ==================== */
