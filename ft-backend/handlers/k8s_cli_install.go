@@ -69,9 +69,10 @@ func DownloadAiSreCLI(c *gin.Context) {
 		response.ServerError(c, "配置未初始化")
 		return
 	}
-	path := strings.TrimSpace(cfg.Opsfleet.AiSreBinaryPath)
+	// 环境变量优先：全栈部署脚本每次写入 /etc/opsfleet/backend.env，保证发布即最新 bin/ai-sre
+	path := strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
 	if path == "" {
-		path = strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
+		path = strings.TrimSpace(cfg.Opsfleet.AiSreBinaryPath)
 	}
 	if path == "" {
 		response.BadRequest(c, "未配置 ai-sre 分发：请在 conf/config.yaml 设置 opsfleet.ai_sre_binary_path，或环境变量 OPSFLEET_AISRE_BINARY_PATH（指向 Linux 可执行文件）")

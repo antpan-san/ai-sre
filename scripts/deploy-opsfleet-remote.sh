@@ -113,6 +113,15 @@ ENV
   echo "Created /etc/opsfleet/backend.env (edit OPSFLEET_K8S_MIRROR_* if needed)"
 fi
 
+# 每次全栈部署：指向刚构建的 ai-sre（供 GET /api/k8s/deploy/cli/ai-sre；优先于 config.yaml）
+ENV_FILE=/etc/opsfleet/backend.env
+tmp_be=$(mktemp)
+grep -v '^OPSFLEET_AISRE_BINARY_PATH=' "$ENV_FILE" > "$tmp_be" && cat "$tmp_be" > "$ENV_FILE"
+rm -f "$tmp_be"
+echo "OPSFLEET_AISRE_BINARY_PATH=${R}/bin/ai-sre" >> "$ENV_FILE"
+chmod 600 "$ENV_FILE"
+echo "opsfleet: OPSFLEET_AISRE_BINARY_PATH=${R}/bin/ai-sre"
+
 systemctl daemon-reload
 systemctl enable opsfleet-backend
 systemctl restart opsfleet-backend

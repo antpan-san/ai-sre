@@ -18,6 +18,12 @@ echo "==> go build opsfleet-executor (same skill engine as ai-sre) -> bin/opsfle
   go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-executor" ./cmd/opsfleet-executor
 )
 
+echo "==> go build ai-sre CLI -> bin/ai-sre (K8s 确认页 curl 安装与 deploy-opsfleet 分发)"
+(
+  cd "$ROOT"
+  go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/ai-sre" .
+)
+
 echo "==> npm build ft-front -> dist/web"
 (
   cd ft-front
@@ -32,6 +38,7 @@ echo "==> npm build ft-front -> dist/web"
 echo "==> OK"
 echo "    Backend: $ROOT/bin/opsfleet-backend"
 echo "    Executor: $ROOT/bin/opsfleet-executor  (copy to managed hosts as needed)"
+echo "    ai-sre:   $ROOT/bin/ai-sre  (API 公开下载，见 OPSFLEET_AISRE_BINARY_PATH)"
 echo "    Static:  $ROOT/dist/web/"
 echo "    Run API from directory ft-backend (conf/config.yaml):"
 echo "      cd ft-backend && ../bin/opsfleet-backend"

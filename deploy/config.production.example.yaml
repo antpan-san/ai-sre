@@ -37,6 +37,6 @@ client:
   encrypt_key: change-me-in-production
 log:
   level: info
-# 可选：供「K8s 部署确认」页固定 curl 安装 ai-sre；路径为部署机上 Linux 可执行文件（与目标控制机架构一致）
+# 可选：curl 安装 ai-sre 的备用路径。全栈部署脚本会写入 OPSFLEET_AISRE_BINARY_PATH=<仓库>/bin/ai-sre（优先）
 opsfleet:
   ai_sre_binary_path: ""

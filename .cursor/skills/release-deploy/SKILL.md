@@ -27,7 +27,7 @@ description: >-
 发布部署检查清单
 - [ ] 1. 用 Read 打开 monorepo-release.mdc，确认无用户豁免
 - [ ] 2. 用 Read 打开并完整执行 ai-sre-ship（deploy-remote.sh、远程冒烟、README、push 相关步骤）
-- [ ] 3. 若变更触及 ft-backend/、ft-front/、deploy/、ansible-agent/ 或 OpsFleet 脚本 → 另执行 opsfleetpilot-ship（deploy-opsfleet-remote.sh、verify-opsfleet-deployment.sh）
+- [ ] 3. 若变更触及 ft-backend/、ft-front/、deploy/、ansible-agent/ 或 OpsFleet 脚本 → 另执行 opsfleetpilot-ship（deploy-opsfleet-remote.sh、verify-opsfleet-deployment.sh）。**deploy-opsfleet-remote** 须在远端生成 **`bin/ai-sre`** 并刷新 **`OPSFLEET_AISRE_BINARY_PATH`**（否则控制台「curl 安装 ai-sre」会 404）
 - [ ] 4. 若变更触及 K8s 离线/控制台 K8s/制品镜像相关路径 → 另执行 k8s-offline-deploy-test（见 monorepo-release 第 3 条）
 - [ ] 5. git：确认未提交 bin/、dist/；commit；push origin main
 - [ ] 6. 向用户汇报：部署脚本结果、健康检查、访问 URL（如 http://<host>:9080/）、提交哈希

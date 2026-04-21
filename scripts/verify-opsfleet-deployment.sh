@@ -45,4 +45,17 @@ else
   echo "-- K8s 制品 manifest：未配置 OPSFLEET_K8S_MIRROR_BASE_URL（可选，见 /etc/opsfleet/backend.env）--"
 fi
 
+AISRE="${OPSFLEET_AISRE_BINARY_PATH:-}"
+if [[ -n "$AISRE" && -f "$AISRE" ]]; then
+  echo "-- ai-sre 公开下载（二进制 $AISRE）--"
+  code=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre?arch=amd64" || echo "000")
+  if [[ "$code" == "200" ]]; then
+    echo "GET /ft-api/api/k8s/deploy/cli/ai-sre HTTP 200 OK"
+  else
+    echo "WARN: GET .../cli/ai-sre 返回 HTTP $code（预期 200；检查 opsfleet-backend 与 install-ai-sre 路由）"
+  fi
+else
+  echo "-- ai-sre 分发：未设置 OPSFLEET_AISRE_BINARY_PATH 或文件不存在（请执行 deploy-opsfleet-remote.sh 刷新 build-all + backend.env）--"
+fi
+
 echo "=== 若浏览器仍无法打开，请检查：云安全组/防火墙是否放行 TCP ${UI_PORT}；访问 URL 是否为 http://<服务器IP>:${UI_PORT}/ ==="

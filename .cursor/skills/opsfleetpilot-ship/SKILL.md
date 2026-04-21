@@ -48,7 +48,7 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 1. **更新 README**（见上）并暂存相关文档。  
 2. **本地快速校验**（可选）：`make vet-opsfleet`；`make build-opsfleet` 确认能生成 `bin/` 与 `dist/web/`（勿提交）。  
-3. **远程部署**：`./scripts/deploy-opsfleet-remote.sh`（rsync → 远端 `scripts/build-all.sh` → Nginx + systemd → `curl /health`；**首次**可在远端创建 **`/etc/opsfleet/backend.env`**，含 **`OPSFLEET_K8S_MIRROR_BASE_URL=http://192.168.56.11`**，供控制台「K8s 制品镜像」页使用）。  
+3. **远程部署**：`./scripts/deploy-opsfleet-remote.sh`（rsync → 远端 `scripts/build-all.sh` 产出 **`bin/ai-sre`**、**`bin/opsfleet-backend`** 等 → 每次向 **`/etc/opsfleet/backend.env`** 写入 **`OPSFLEET_AISRE_BINARY_PATH=<REMOTE_DIR>/bin/ai-sre`**，保证控制台 **「curl 安装 ai-sre」** 与 **`/api/k8s/deploy/cli/ai-sre`** 始终为**本次构建的最新 CLI**；另含 **`OPSFLEET_K8S_MIRROR_BASE_URL`** 供制品页）。  
 4. **部署后自检（远端）**：`bash scripts/verify-opsfleet-deployment.sh`（含可选 **manifest** 探测；若未部署 `deploy/k8s-mirror` 会出现 WARN，属预期）。  
 5. **失败处理**：若构建失败，在远端或本地 `make build-opsfleet` 复现；修复后再推送。  
 6. **Git**：`git add -A && git commit && git push`。**确认未误加 `bin/`、`dist/`。**  
@@ -64,6 +64,7 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 | `OPSFLEET_REMOTE_DIR` | `/root/sre` |
 | `OPSFLEET_UI_PORT` | `9080` |
 | `OPSFLEET_BACKEND_PORT` | `8080` |
+| `OPSFLEET_AISRE_BINARY_PATH` | 由 `deploy-opsfleet-remote.sh` 在远端设为 **`$OPSFLEET_REMOTE_DIR/bin/ai-sre`**（勿手改除非自定义路径） |
 
 ## 远程前提
 
