@@ -65,20 +65,33 @@
 
 # --------------------------------
 # Check Health（服务刚起时 10257 可能尚未监听，做轮询避免瞬时失败）
+# K8s 1.30+ --controllers 须用 bootstrap-signer-controller / token-cleaner-controller；旧名会导致进程立即退出、10257 拒绝连接。
 # --------------------------------
 - name: Wait for controller-manager /healthz
-  ansible.builtin.uri:
-    url: https://127.0.0.1:10257/healthz
-    validate_certs: false
-    return_content: true
-    status_code: 200
-  register: cm_health
-  until: cm_health.status == 200 and (cm_health.content | default('') | trim) == 'ok'
-  retries: 40
-  delay: 3
-
-- name: Controller-manager health response
-  ansible.builtin.debug:
-    msg: "{{ cm_health.content | default('') | trim }}"
-  when: cm_health.content is defined
+  block:
+    - name: Poll controller-manager /healthz
+      ansible.builtin.uri:
+        url: https://127.0.0.1:10257/healthz
+        validate_certs: false
+        return_content: true
+        status_code: 200
+      register: cm_health
+      until: cm_health.status == 200 and (cm_health.content | default('') | trim) == 'ok'
+      retries: 40
+      delay: 3
+    - name: Controller-manager health response
+      ansible.builtin.debug:
+        msg: "{{ cm_health.content | default('') | trim }}"
+      when: cm_health.content is defined
+  rescue:
+    - name: Show kube-controller-manager logs after health failure
+      ansible.builtin.command: journalctl -u kube-controller-manager -n 100 --no-pager
+      register: cm_journal
+      changed_when: false
+    - name: Fail with journal excerpt
+      ansible.builtin.fail:
+        msg: |
+          kube-controller-manager 未在 10257 提供 /healthz（Connection refused 多为进程未启动或崩溃）。
+          核对 systemd 与日志：
+          {{ cm_journal.stdout | default('(journalctl 无输出)') }}
 
