@@ -659,7 +659,9 @@
               </h4>
               <p class="confirm-hero-desc">
                 <template v-if="offlineBundleMode">
-                  核对摘要后，可<strong>生成一键安装命令</strong>（推荐）或<strong>下载 zip</strong>。命令在控制机执行，须已安装
+                  核对摘要后，可<strong>生成一键安装命令</strong>（推荐）或<strong>下载 zip</strong>。
+                  <strong>真正的安装动作只发生在您选定的一台「控制机」上</strong>：在该机终端执行<strong>一条</strong>
+                  <code>sudo</code> 命令（或解压后执行 <code>install.sh</code>），即可完成<strong>拉包、解压与 Ansible 全流程</strong>，自动装齐本单所有节点，<strong>无需在每个节点上重复执行</strong>。一键方式须已安装
                   <code>ai-sre</code>。
                 </template>
                 <template v-else>
@@ -669,6 +671,27 @@
             </div>
           </div>
 
+          <el-alert
+            v-if="offlineBundleMode"
+            class="confirm-control-machine-alert"
+            type="success"
+            :closable="false"
+            show-icon
+          >
+            <template #title>在「目标控制机」上执行即可完成全部操作</template>
+            <div class="confirm-control-machine-alert__body">
+              <p>
+                <strong>控制机</strong>：您准备 SSH 登录、并运行安装命令的那<strong>一台</strong> Linux（建议 Ubuntu
+                24.04）。它与「K8s 节点」不同：节点由 Ansible 从控制机远程安装，<strong>不要在每个节点上各跑一遍安装命令</strong>。
+              </p>
+              <p>
+                <strong>两种方式（二选一）</strong>：① 在控制机执行页面生成的
+                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code> 整行；② 将 zip 传到控制机解压后，在解压目录执行
+                <code>sudo bash install.sh</code>。任选其一执行成功后，即完成对本集群的交付编排。
+              </p>
+            </div>
+          </el-alert>
+
           <!-- 离线：固定展示的安装操作说明（不依赖是否已生成命令） -->
           <el-card v-if="offlineBundleMode" class="install-howto-card" shadow="never">
             <template #header>
@@ -676,19 +699,20 @@
             </template>
             <ol class="install-howto-ol">
               <li>
-                在<strong>即将执行安装的 Ubuntu 控制机</strong>上安装 <code>ai-sre</code>，并保证该机能
+                在<strong>即将执行安装的 Ubuntu 控制机</strong>上安装 <code>ai-sre</code>（若走 zip 方式也需 Python/Ansible
+                等环境，由离线包内脚本引导），并保证该机能
                 <strong>免密 SSH root</strong> 登录本单填写的所有节点 IP（详见第 1 步折叠说明）。
               </li>
               <li>
-                点击页面底部<strong>「生成一键安装命令」</strong>，本页「一键安装命令」区域将出现完整命令；在控制机执行：
-                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code>（整段由控制台生成）。
+                点击页面底部<strong>「生成一键安装命令」</strong>，下方「一键安装命令」区将出现完整命令；<strong>仅在控制机</strong>终端粘贴执行：
+                <code>sudo ai-sre k8s install 'ofpk8s1.…'</code>（引号内整段由控制台生成，勿截断）。
               </li>
               <li>
-                若选用 <strong>zip</strong>：点击「下载离线安装包」，上传至控制机解压后执行
-                <code>sudo bash install.sh</code>。
+                若选用 <strong>zip</strong>：点击「下载离线安装包」，将 zip 传到控制机并解压，在<strong>解压后的目录内</strong>执行
+                <code>sudo bash install.sh</code>（同样在控制机执行一次即可）。
               </li>
               <li>
-                当前控制台 API 基址（一键拉包使用）：
+                当前控制台 API 基址（一键拉包时 CLI 会访问）：
                 <code class="install-howto-api">{{ publicApiBasePreview }}</code>
               </li>
             </ol>
@@ -717,6 +741,10 @@
                 复制命令
               </el-button>
             </div>
+            <p class="offline-install-panel__lead">
+              在<strong>控制机</strong>上打开终端，用具备 sudo 的用户执行下方<strong>整行</strong>命令（推荐直接「复制命令」粘贴）。执行后将自动下载离线包、解压并运行
+              <code>install.sh</code>，由 Ansible 连接本单全部节点完成安装；<strong>无需</strong>登录各节点再执行。
+            </p>
             <p v-if="!lastInvite" class="offline-install-panel__placeholder">
               点击下方<strong>「生成一键安装命令」</strong>后，将在此显示完整命令与资源 ID（无需仅依赖弹窗或下载 zip）。
             </p>
@@ -983,7 +1011,7 @@ const stepsMeta = [
   { title: '高级配置', desc: '可选组件与额外参数', icon: markRaw(Operation) },
   {
     title: '部署确认',
-    desc: '核对摘要、复制部署需求说明；离线可生成命令或 zip',
+    desc: '离线：在控制机一条 sudo 命令或 install.sh 完成全集群；可复制需求说明',
     icon: markRaw(CircleCheck)
   }
 ]
@@ -1252,6 +1280,18 @@ const deployRequirementText = computed(() => {
     L.push('- 控制机：建议 Ubuntu 24.04 LTS；一键命令方式须已安装 ai-sre。')
     L.push('- 连通性：控制机须以 root 免密 SSH 登录所有节点（见步骤 1 折叠说明）。')
     L.push('- 制品：镜像源为「' + imageSourceText.value + '」；若填写内网制品地址则覆盖 inventory 默认 download_domain。')
+    L.push('')
+    L.push('【在控制机执行安装（离线必读）】')
+    L.push(
+      '- 「控制机」= 您 SSH 登录并执行命令的那一台 Linux；安装命令只在此机执行一次，不要在每个 K8s 节点各执行一遍。'
+    )
+    L.push(
+      '- 一键（推荐）：sudo ai-sre k8s install \'ofpk8s1.…\'（整段以本页「一键安装命令」为准，含下载令牌，勿泄露）。'
+    )
+    L.push('- Zip：将 zip 传到控制机解压后，在解压目录执行：sudo bash install.sh')
+    L.push(
+      '- 上述任一方式成功后，Ansible 由控制机发起，自动连接本单全部节点完成编排；节点侧无需再手动执行上述命令。'
+    )
   } else {
     L.push('- 交付形态：在线（由已注册 Agent 的执行节点执行 Ansible）。')
     L.push('- 执行机与集群节点须网络互通，SSH 可达。')
@@ -1921,6 +1961,38 @@ const submitDeploy = async () => {
   border: 1px solid var(--el-border-color-lighter);
 }
 
+.confirm-control-machine-alert {
+  margin: 0;
+}
+
+.confirm-control-machine-alert :deep(.el-alert__title) {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.confirm-control-machine-alert__body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--el-text-color-regular);
+}
+
+.confirm-control-machine-alert__body p {
+  margin: 0 0 10px;
+}
+
+.confirm-control-machine-alert__body p:last-child {
+  margin-bottom: 0;
+}
+
+.confirm-control-machine-alert__body code {
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+}
+
 .offline-install-panel {
   padding: 18px 20px;
   border-radius: 12px;
@@ -1943,6 +2015,17 @@ const submitDeploy = async () => {
   font-size: 15px;
   font-weight: 700;
   color: var(--el-text-color-primary);
+}
+
+.offline-install-panel__lead {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--el-text-color-primary);
+}
+
+.offline-install-panel__lead code {
+  font-size: 12px;
 }
 
 .offline-install-panel__placeholder {
