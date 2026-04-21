@@ -57,22 +57,24 @@ func newRoot(programName string) *cobra.Command {
 	if programName == "opsfleet-executor" {
 		short = "OpsFleet 本地执行器 — 与 ai-sre 相同的技能包与执行语义"
 		long = fmt.Sprintf(`在需要部署或运维的受管机器上运行；与 ai-sre 共用同一套技能包（YAML）、Prompt、轻量 RAG 与 LLM 编排（需凭据）。
-子命令与 flag 与 ai-sre 一致：analyze / ask / runbook / skills / doctor / version。
+子命令与 flag 与 ai-sre 一致：analyze / ask / runbook / skills / doctor / version / k8s。
 示例:
   %s analyze kafka --lag 100000
   %s analyze k8s --pod pending
   %s ask "kafka lag 高怎么办"
   %s runbook "pod频繁重启"
-  %s skills list`, programName, programName, programName, programName, programName)
+  %s skills list
+  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName)
 	} else {
 		short = "AI SRE Copilot — 故障诊断、Runbook、知识问答"
-		long = fmt.Sprintf(`CLI 工具：技能包（Skill Pack）+ Prompt + 可选轻量 RAG + DeepSeek LLM。
+		long = fmt.Sprintf(`CLI 工具：技能包（Skill Pack）+ Prompt + 可选轻量 RAG + DeepSeek LLM；并支持通过 OpsFleet API 拉取 K8s 离线包与安装/卸载（见 k8s 子命令）。
 示例:
   %s analyze kafka --lag 100000
   %s analyze k8s --pod pending
   %s ask "kafka lag 高怎么办"
   %s runbook "pod频繁重启"
-  %s skills list`, programName, programName, programName, programName, programName)
+  %s skills list
+  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName)
 	}
 	root := &cobra.Command{
 		Use:          programName,
@@ -91,7 +93,7 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
 
-	root.AddCommand(analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd())
+	root.AddCommand(analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), k8sCmd())
 	return root
 }
 

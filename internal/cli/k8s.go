@@ -1,0 +1,471 @@
+package cli
+
+import (
+	"archive/zip"
+	"bytes"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+)
+
+// k8sDeployAPIBody mirrors ft-backend/handlers.K8sDeployRequest JSON for POST /api/k8s/deploy/bundle.
+type k8sDeployAPIBody struct {
+	ClusterName         string   `json:"clusterName"`
+	Version             string   `json:"version"`
+	DeployMode          string   `json:"deployMode,omitempty"`
+	ImageSource         string   `json:"imageSource,omitempty"`
+	ArchVersion         string   `json:"archVersion,omitempty"`
+	CustomRegistry      string   `json:"customRegistry,omitempty"`
+	RegistryUsername    string   `json:"registryUsername,omitempty"`
+	RegistryPassword    string   `json:"registryPassword,omitempty"`
+	MasterHosts         []string `json:"masterHosts"`
+	WorkerHosts         []string `json:"workerHosts"`
+	KubeProxyMode       string   `json:"kubeProxyMode,omitempty"`
+	EnableRBAC          bool     `json:"enableRBAC"`
+	EnablePodSecurityPolicy bool `json:"enablePodSecurityPolicy"`
+	EnableAudit         bool     `json:"enableAudit"`
+	PauseImage          string   `json:"pauseImage,omitempty"`
+	NetworkPlugin       string   `json:"networkPlugin,omitempty"`
+	PodCIDR             string   `json:"podCidr,omitempty"`
+	ServiceCIDR         string   `json:"serviceCidr,omitempty"`
+	DNSServiceIP        string   `json:"dnsServiceIP,omitempty"`
+	ClusterDomain       string   `json:"clusterDomain,omitempty"`
+	DefaultStorageClass bool     `json:"defaultStorageClass"`
+	StorageProvisioner  string   `json:"storageProvisioner,omitempty"`
+	EnableNodeLocalDNS  bool     `json:"enableNodeLocalDNS"`
+	EnableMetricsServer bool     `json:"enableMetricsServer"`
+	EnableDashboard     bool     `json:"enableDashboard"`
+	EnablePrometheus    bool     `json:"enablePrometheus"`
+	EnableIngressNginx  bool     `json:"enableIngressNginx"`
+	EnableHelm          bool     `json:"enableHelm"`
+	PreDeployCleanup    bool     `json:"preDeployCleanup"`
+	DownloadDomain      string   `json:"downloadDomain,omitempty"`
+	DownloadProtocol    string   `json:"downloadProtocol,omitempty"`
+}
+
+func k8sCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "k8s",
+		Short: "Kubernetes 离线包：对接 OpsFleet API 下载、本地安装与卸载清理",
+		Long: fmt.Sprintf(`与控制台「K8s 部署」表单使用同一套 POST /api/k8s/deploy/bundle 参数（JSON），无需手动上传 zip。
+
+示例:
+  # 登录并下载离线包（API 基址与浏览器一致，含 /ft-api 前缀时一并写上）
+  %s k8s download --api-url http://192.168.56.11:9080/ft-api -u admin -p '***' \\
+    --cluster lab --version v1.35.4 --master 10.10.120.142 --worker 10.10.120.143 \\
+    --arch amd64 --image-source default -O ./bundle.zip
+
+  # 解压并执行安装（需 root 免密到各节点，与 README 一致）
+  sudo %s k8s install --package ./bundle.zip
+
+  # 仅执行已解压目录中的 install.sh
+  sudo %s k8s install --workdir /opt/opsfleet-k8s
+
+  # 卸载/清理集群节点残留（等同包内 playbooks/pre_cleanup.yml）
+  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName),
+	}
+	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sUninstallCmd())
+	return cmd
+}
+
+func k8sDownloadCmd() *cobra.Command {
+	var (
+		apiURL           string
+		username         string
+		password         string
+		token            string
+		outPath          string
+		requestJSON      string
+		cluster          string
+		version          string
+		masterCSV        string
+		workerCSV        string
+		deployMode       string
+		arch             string
+		imageSource      string
+		downloadDomain   string
+		downloadProtocol string
+		preCleanup       bool
+		podCIDR          string
+		serviceCIDR      string
+		dnsServiceIP     string
+		clusterDomain    string
+		networkPlugin    string
+		kubeProxyMode    string
+	)
+	cmd := &cobra.Command{
+		Use:   "download",
+		Short: "登录 OpsFleet 并下载 K8s 离线 zip（与页面「生成离线包」相同接口）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			base := strings.TrimSpace(apiURL)
+			if base == "" {
+				base = strings.TrimSpace(os.Getenv("OPSFLEET_API_URL"))
+			}
+			if base == "" {
+				return errors.New("请设置 --api-url 或环境变量 OPSFLEET_API_URL（例如 http://host:9080/ft-api）")
+			}
+			base = strings.TrimRight(base, "/")
+
+			tok := strings.TrimSpace(token)
+			if tok == "" {
+				tok = strings.TrimSpace(os.Getenv("OPSFLEET_TOKEN"))
+			}
+			if tok == "" {
+				u := strings.TrimSpace(username)
+				if u == "" {
+					u = os.Getenv("OPSFLEET_USERNAME")
+				}
+				p := strings.TrimSpace(password)
+				if p == "" {
+					p = os.Getenv("OPSFLEET_PASSWORD")
+				}
+				if u == "" || p == "" {
+					return errors.New("请提供 --token，或同时提供 --username/--password（或 OPSFLEET_TOKEN / OPSFLEET_USERNAME+OPSFLEET_PASSWORD）")
+				}
+				var err error
+				tok, err = opsfleetLogin(base, u, p)
+				if err != nil {
+					return err
+				}
+			}
+
+			var body []byte
+			var err error
+			if strings.TrimSpace(requestJSON) != "" {
+				body, err = os.ReadFile(requestJSON)
+				if err != nil {
+					return fmt.Errorf("读取 --request-json: %w", err)
+				}
+			} else {
+				if strings.TrimSpace(cluster) == "" || strings.TrimSpace(version) == "" {
+					return errors.New("未使用 --request-json 时，--cluster 与 --version 必填")
+				}
+				masters := splitCSV(masterCSV)
+				if len(masters) == 0 {
+					return errors.New("至少指定一个 --master（control plane IP，逗号分隔）")
+				}
+				req := k8sDeployAPIBody{
+					ClusterName:         cluster,
+					Version:             version,
+					DeployMode:          deployMode,
+					ImageSource:         imageSource,
+					ArchVersion:         arch,
+					MasterHosts:         masters,
+					WorkerHosts:         splitCSV(workerCSV),
+					KubeProxyMode:       kubeProxyMode,
+					EnableRBAC:          true,
+					DefaultStorageClass: true,
+					PreDeployCleanup:    preCleanup,
+					DownloadDomain:      strings.TrimSpace(downloadDomain),
+					DownloadProtocol:    strings.TrimSpace(downloadProtocol),
+					PodCIDR:             podCIDR,
+					ServiceCIDR:         serviceCIDR,
+					DNSServiceIP:        dnsServiceIP,
+					ClusterDomain:       clusterDomain,
+					NetworkPlugin:       networkPlugin,
+				}
+				if req.DeployMode == "" {
+					req.DeployMode = "single"
+				}
+				if req.ImageSource == "" {
+					req.ImageSource = "default"
+				}
+				if req.ArchVersion == "" {
+					req.ArchVersion = "amd64"
+				}
+				body, err = json.Marshal(req)
+				if err != nil {
+					return err
+				}
+			}
+
+			dest := outPath
+			if dest == "" {
+				dest = "opsfleet-k8s-bundle.zip"
+			}
+			if err := downloadK8sBundle(base, tok, body, dest); err != nil {
+				return err
+			}
+			fmt.Fprintf(os.Stdout, "wrote %s\n", dest)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&apiURL, "api-url", "", "OpsFleet API 基址（含路径前缀，如 http://IP:9080/ft-api）")
+	cmd.Flags().StringVarP(&username, "username", "u", "", "登录用户名")
+	cmd.Flags().StringVarP(&password, "password", "p", "", "登录密码")
+	cmd.Flags().StringVar(&token, "token", "", "跳过登录，直接使用 JWT")
+	cmd.Flags().StringVarP(&outPath, "out", "O", "", "保存 zip 的路径（默认 opsfleet-k8s-bundle.zip；勿与全局 -o text|json 混淆）")
+	cmd.Flags().StringVar(&requestJSON, "request-json", "", "从文件读取完整 JSON 请求体（与控制台提交体一致；指定后忽略其它表单类 flag）")
+	cmd.Flags().StringVar(&cluster, "cluster", "", "集群名称 clusterName")
+	cmd.Flags().StringVar(&version, "version", "", "Kubernetes 版本，如 v1.35.4")
+	cmd.Flags().StringVar(&masterCSV, "master", "", "control plane 节点 IP，逗号分隔（masterHosts）")
+	cmd.Flags().StringVar(&workerCSV, "worker", "", "worker 节点 IP，逗号分隔（可选）")
+	cmd.Flags().StringVar(&deployMode, "deploy-mode", "single", "deployMode: single | ha")
+	cmd.Flags().StringVar(&arch, "arch", "amd64", "节点 CPU 架构 archVersion: amd64 | arm64")
+	cmd.Flags().StringVar(&imageSource, "image-source", "default", "镜像源 imageSource: default | aliyun | tencent | custom")
+	cmd.Flags().StringVar(&downloadDomain, "download-domain", "", "覆盖内网制品域名 downloadDomain")
+	cmd.Flags().StringVar(&downloadProtocol, "download-protocol", "", "覆盖下载协议前缀，如 http://")
+	cmd.Flags().BoolVar(&preCleanup, "pre-cleanup", false, "打包 install.sh 默认先执行 pre_cleanup（preDeployCleanup）")
+	cmd.Flags().StringVar(&podCIDR, "pod-cidr", "", "podCidr（默认由服务端写 10.244.0.0/16）")
+	cmd.Flags().StringVar(&serviceCIDR, "service-cidr", "", "serviceCidr")
+	cmd.Flags().StringVar(&dnsServiceIP, "dns-service-ip", "", "dnsServiceIP")
+	cmd.Flags().StringVar(&clusterDomain, "cluster-domain", "", "clusterDomain")
+	cmd.Flags().StringVar(&networkPlugin, "network-plugin", "", "networkPlugin（默认 flannel）")
+	cmd.Flags().StringVar(&kubeProxyMode, "kube-proxy-mode", "", "kubeProxyMode（默认 iptables）")
+	return cmd
+}
+
+func k8sInstallCmd() *cobra.Command {
+	var (
+		pkgPath string
+		workdir string
+	)
+	cmd := &cobra.Command{
+		Use:   "install",
+		Short: "解压离线包并执行 install.sh（需 root/sudo；节点须已配置 root 免密）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if pkgPath == "" && workdir == "" {
+				return errors.New("请指定 --package <zip> 或 --workdir <已解压目录>")
+			}
+			if pkgPath != "" && workdir != "" {
+				return errors.New("--package 与 --workdir 二选一")
+			}
+			dir := workdir
+			if pkgPath != "" {
+				var err error
+				dir, err = os.MkdirTemp("", "opsfleet-k8s-install-*")
+				if err != nil {
+					return err
+				}
+				defer os.RemoveAll(dir)
+				if err := unzipFile(pkgPath, dir); err != nil {
+					return err
+				}
+				if verbose {
+					fmt.Fprintf(os.Stderr, "[%s] extracted to %s\n", progName, dir)
+				}
+			}
+			installSh := filepath.Join(dir, "install.sh")
+			if st, err := os.Stat(installSh); err != nil || st.IsDir() {
+				return fmt.Errorf("在 %s 未找到 install.sh（请确认 --workdir 为离线包解压根目录）", dir)
+			}
+			var c *exec.Cmd
+			if os.Geteuid() == 0 {
+				c = exec.Command("bash", installSh)
+			} else {
+				c = exec.Command("sudo", "bash", installSh)
+			}
+			c.Dir = dir
+			c.Stdout = os.Stdout
+			c.Stderr = os.Stderr
+			c.Stdin = os.Stdin
+			return c.Run()
+		},
+	}
+	cmd.Flags().StringVar(&pkgPath, "package", "", "离线 zip 路径（将解压到临时目录后执行 install.sh）")
+	cmd.Flags().StringVar(&workdir, "workdir", "", "已解压的离线包根目录（含 install.sh、inventory/、ansible-agent/）")
+	return cmd
+}
+
+func k8sUninstallCmd() *cobra.Command {
+	var workdir string
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "在已解压的离线包目录上执行 Ansible pre_cleanup（清理 K8s/etcd 残留）",
+		Long: `等同离线包内 playbooks/pre_cleanup.yml：停止 systemd 单元并删除 /var/lib/etcd、/etc/kubernetes 等。
+需在解压目录执行；本机已安装 ansible，且对各节点 root 免密（与 install.sh 相同）。`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(workdir) == "" {
+				return errors.New("请指定 --workdir <离线包解压根目录>")
+			}
+			root, err := filepath.Abs(workdir)
+			if err != nil {
+				return err
+			}
+			inv := filepath.Join(root, "inventory", "hosts.ini")
+			agent := filepath.Join(root, "ansible-agent")
+			pb := filepath.Join(agent, "playbooks", "pre_cleanup.yml")
+			for _, p := range []string{inv, agent, pb} {
+				if _, err := os.Stat(p); err != nil {
+					return fmt.Errorf("路径无效: %s (%v)", p, err)
+				}
+			}
+			run := func(name string, arg ...string) *exec.Cmd {
+				c := exec.Command(name, arg...)
+				c.Stdout = os.Stdout
+				c.Stderr = os.Stderr
+				c.Stdin = os.Stdin
+				return c
+			}
+			// 与 install.sh 一致：在 ansible-agent 目录下执行 playbook
+			if os.Geteuid() == 0 {
+				c := run("ansible-playbook", "-i", inv, pb)
+				c.Dir = agent
+				c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
+				return c.Run()
+			}
+			c := run("sudo", "-E", "ansible-playbook", "-i", inv, pb)
+			c.Dir = agent
+			c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
+			return c.Run()
+		},
+	}
+	cmd.Flags().StringVar(&workdir, "workdir", "", "离线包解压根目录")
+	return cmd
+}
+
+func splitCSV(s string) []string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return nil
+	}
+	var out []string
+	for _, p := range strings.Split(s, ",") {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
+}
+
+func opsfleetLogin(base, username, password string) (string, error) {
+	payload, _ := json.Marshal(map[string]string{
+		"username": username,
+		"password": password,
+	})
+	req, err := http.NewRequest(http.MethodPost, base+"/api/auth/login", bytes.NewReader(payload))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("login HTTP %d: %s", resp.StatusCode, truncateForErr(body, 512))
+	}
+	var wrap struct {
+		Code int `json:"code"`
+		Data struct {
+			Token string `json:"token"`
+		} `json:"data"`
+		Msg     string `json:"msg"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(body, &wrap); err != nil {
+		return "", fmt.Errorf("login parse: %w", err)
+	}
+	if wrap.Data.Token == "" {
+		return "", fmt.Errorf("login: empty token (%s)", firstNonEmpty(wrap.Msg, wrap.Message, string(body)))
+	}
+	return wrap.Data.Token, nil
+}
+
+func downloadK8sBundle(base, token string, jsonBody []byte, outPath string) error {
+	req, err := http.NewRequest(http.MethodPost, base+"/api/k8s/deploy/bundle", bytes.NewReader(jsonBody))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+token)
+	client := &http.Client{Timeout: 15 * time.Minute}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		return fmt.Errorf("bundle HTTP %d: %s", resp.StatusCode, truncateForErr(b, 2048))
+	}
+	ct := resp.Header.Get("Content-Type")
+	if strings.Contains(ct, "application/json") {
+		b, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		return fmt.Errorf("unexpected JSON (check token/role): %s", truncateForErr(b, 2048))
+	}
+	out, err := os.Create(outPath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	if _, err := io.Copy(out, resp.Body); err != nil {
+		return err
+	}
+	return nil
+}
+
+func unzipFile(src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+	if err := os.MkdirAll(dest, 0755); err != nil {
+		return err
+	}
+	for _, f := range r.File {
+		path := filepath.Join(dest, f.Name)
+		rel, err := filepath.Rel(filepath.Clean(dest), filepath.Clean(path))
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(os.PathSeparator)) {
+			return fmt.Errorf("illegal zip path: %s", f.Name)
+		}
+		if f.FileInfo().IsDir() {
+			if err := os.MkdirAll(path, f.Mode()); err != nil {
+				return err
+			}
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+		out, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+		if err != nil {
+			return err
+		}
+		rc, err := f.Open()
+		if err != nil {
+			out.Close()
+			return err
+		}
+		_, err = io.Copy(out, rc)
+		rc.Close()
+		out.Close()
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func truncateForErr(b []byte, max int) string {
+	s := strings.TrimSpace(string(b))
+	if len(s) <= max {
+		return s
+	}
+	return s[:max] + "…"
+}
+
+func firstNonEmpty(ss ...string) string {
+	for _, s := range ss {
+		if strings.TrimSpace(s) != "" {
+			return s
+		}
+	}
+	return ""
+}
