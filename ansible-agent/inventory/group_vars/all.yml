@@ -88,6 +88,7 @@ controller_manager:
 
 k8s_api_server: "https://{{ master_ip }}:6443"
 
+# kubeconfig 中的 cluster 名须为字符串；控制台若填纯数字，合并后的 YAML 曾把 name 解析成整数导致 controller-manager 启动失败，role 已强制加引号
 cluster_name: kubernetes
 
 service_cluster_ip_range: "10.96.0.0/12"
