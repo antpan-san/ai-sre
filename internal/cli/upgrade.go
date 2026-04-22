@@ -10,40 +10,132 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 
+	"github.com/panshuai/ai-sre/internal/config"
 	"github.com/spf13/cobra"
 )
 
-// quickUpgradeHintPreRun 在其它子命令执行前，可选做一次远端版本检测（需环境变量，默认不联网）。
-func quickUpgradeHintPreRun(cmd *cobra.Command, _ []string) error {
+// resolveOpsfleetAPIBase 优先环境变量，其次 config 中 opsfleet_api_url / 安装脚本写入的 opsfleet_api_url 文件。
+func resolveOpsfleetAPIBase() string {
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_API_URL")); v != "" {
+		return strings.TrimRight(v, "/")
+	}
+	return config.LoadOptionalOpsfleetAPIBase()
+}
+
+func isHelpInvocation() bool {
+	for _, a := range os.Args[1:] {
+		if a == "-h" || a == "--help" {
+			return true
+		}
+	}
+	return false
+}
+
+// shouldSkipPreUpgradeCheck 不拦截 doctor/k8s 等业务命令；自升级/版本/帮助等避免递归与无意义网络请求。
+func shouldSkipPreUpgradeCheck(cmd *cobra.Command) bool {
 	if cmd == nil {
+		return true
+	}
+	for c := cmd; c != nil; c = c.Parent() {
+		switch c.Name() {
+		case "upgrade", "version", "uninstall", "help", "completion":
+			return true
+		}
+	}
+	return false
+}
+
+// opsfleetPersistentPreRun 在每次子命令前：若可解析 OpsFleet 基址，则拉取 /cli/ai-sre/version 比对；有更新则下载覆盖并 re-exec 同一参数（Linux/macOS）；Windows 上升级成功后退出，请重跑。
+// 关闭：OPSFLEET_NO_AUTO_UPGRADE=1。仅提示不升级：在关闭自动升级时设 OPSFLEET_UPGRADE_HINT=1 或 OPSFLEET_UPGRADE_CHECK=1。
+func opsfleetPersistentPreRun(cmd *cobra.Command, _ []string) error {
+	if len(os.Args) <= 1 {
 		return nil
 	}
-	// 避免与 upgrade 自身、纯查询类命令链式噪音
-	switch cmd.Name() {
-	case "upgrade", "version", "doctor", "help", "completion":
+	if isHelpInvocation() {
 		return nil
 	}
-	if os.Getenv("OPSFLEET_UPGRADE_HINT") != "1" && os.Getenv("OPSFLEET_UPGRADE_CHECK") != "1" {
+	if shouldSkipPreUpgradeCheck(cmd) {
 		return nil
 	}
-	base := strings.TrimSpace(os.Getenv("OPSFLEET_API_URL"))
+	base := resolveOpsfleetAPIBase()
 	if base == "" {
 		return nil
 	}
+	if os.Getenv("OPSFLEET_NO_AUTO_UPGRADE") == "1" {
+		if os.Getenv("OPSFLEET_UPGRADE_HINT") == "1" || os.Getenv("OPSFLEET_UPGRADE_CHECK") == "1" {
+			return runUpgradeHintOnly(base)
+		}
+		return nil
+	}
+	if err := tryAutoUpgradeInPlace(base); err != nil && os.Getenv("OPSFLEET_AUTO_UPGRADE_VERBOSE") == "1" {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 自动检查更新: %v\n", progName, err)
+	}
+	return nil
+}
+
+// tryAutoUpgradeInPlace 有更新时覆盖正在运行的可执行文件并（Unix）exec 同 argv，使本次命令在**新版本**中重新执行一次。
+func tryAutoUpgradeInPlace(base string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
+	remote, err := fetchRemoteVersion(ctx, base)
+	cancel()
+	if err != nil {
+		if os.Getenv("OPSFLEET_AUTO_UPGRADE_VERBOSE") == "1" {
+			_, _ = fmt.Fprintf(os.Stderr, "[%s] 无法取得 OpsFleet 版本: %v\n", progName, err)
+		}
+		return err
+	}
+	if remote == "" || remote == "unknown" {
+		return nil
+	}
+	if !versionIsOlder(Version, remote) {
+		return nil
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] OpsFleet 有更新 %s（当前 %s），正在自动升级…\n", progName, remote, Version)
+	ctxDown, cancelDown := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancelDown()
+	arch := goArchToAiSreArch()
+	if err := downloadAndReplaceAIsre(ctxDown, base, arch); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 自动升级失败: %v\n", progName, err)
+		return err
+	}
+	if runtime.GOOS == "windows" {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 已写入新版本。请**再次**运行同一命令以使用新版本（Windows 下无法自动重载进程）。\n", progName)
+		os.Exit(0)
+	}
+	self, err := os.Executable()
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 可执行文件路径: %v\n", progName, err)
+		return err
+	}
+	self, err = filepath.EvalSymlinks(self)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 解析可执行文件: %v\n", progName, err)
+		return err
+	}
+	if err := syscall.Exec(self, os.Args, os.Environ()); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 已升级但无法重新执行: %v；请手动重试同一命令\n", progName, err)
+		return err
+	}
+	return nil
+}
+
+func runUpgradeHintOnly(base string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 900*time.Millisecond)
 	defer cancel()
-	ver, err := fetchRemoteVersion(ctx, strings.TrimRight(base, "/"))
+	ver, err := fetchRemoteVersion(ctx, base)
 	if err != nil || ver == "" || ver == "unknown" {
 		return nil
 	}
 	if !versionIsOlder(Version, ver) {
 		return nil
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "[ai-sre] OpsFleet 提供更新版本 %s（当前 %s），执行 %s upgrade --api-url %q 可覆盖安装\n", ver, Version, progName, base)
+	_, _ = fmt.Fprintf(os.Stderr, "[ai-sre] OpsFleet 提供更新版本 %s（当前 %s），执行 %s upgrade 或设置 OPSFLEET_API_URL 后重试以覆盖安装\n", ver, Version, progName)
 	return nil
 }
 
@@ -62,15 +154,15 @@ func upgradeCmd() *cobra.Command {
 若服务器版本更新，则下载 GET .../api/k8s/deploy/cli/ai-sre?arch=... 并覆盖正在使用的二进制
 （同 curl 安装脚本，通常需 root，目标路径为 which ai-sre，一般为 /usr/local/bin/ai-sre）。
 
-环境变量: OPSFLEET_API_URL（如 http://host:9080/ft-api）。可选: OPSFLEET_UPGRADE_HINT=1
-与其它子命令一起使用时，在「执行前」若设置了 OPSFLEET_API_URL + OPSFLEET_UPGRADE_HINT，会快速提示是否有新版本。`,
+基址与「每次子命令前自动检查升级」相同：环境变量 OPSFLEET_API_URL、或 install-ai-sre 写入的 ~/.config/ai-sre/opsfleet_api_url、或 config.yaml 中 opsfleet_api_url。
+OPSFLEET_NO_AUTO_UPGRADE=1 可关闭自升级，仅当另设 OPSFLEET_UPGRADE_HINT=1 时提示。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			base := strings.TrimSpace(apiURL)
 			if base == "" {
-				base = strings.TrimSpace(os.Getenv("OPSFLEET_API_URL"))
+				base = resolveOpsfleetAPIBase()
 			}
 			if base == "" {
-				return fmt.Errorf("请传 --api-url 或设置环境变量 OPSFLEET_API_URL（例如 %s/ft-api 或 http://IP:9080/ft-api）", "http://host:9080")
+				return fmt.Errorf("请传 --api-url 或设置 OPSFLEET_API_URL、~/.config/ai-sre/opsfleet_api_url 或 config.yaml 中 opsfleet_api_url")
 			}
 			base = strings.TrimRight(base, "/")
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

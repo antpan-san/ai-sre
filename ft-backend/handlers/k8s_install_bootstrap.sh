@@ -101,13 +101,22 @@ def main():
             die("离线包内未找到 install.sh")
 
         os.chdir(root)
+        try:
+            st_path = "/var/lib/opsfleet-k8s/install-ref"
+            os.makedirs(os.path.dirname(st_path), exist_ok=True)
+            with open(st_path, "w", encoding="utf-8") as sf:
+                sf.write(ref.strip() + "\n")
+        except Exception:
+            pass
+
         p = subprocess.run(["bash", "install.sh"], check=False)
         if p.returncode != 0:
             print(
-                "\n安装未完成。若需按控制台「节点配置」中的全部 master/worker 清理 K8s/etcd 残留，"
-                "请在同一台控制机上安装 ai-sre 后执行（须已对各节点 root 免密，与 install.sh 相同）：\n"
-                "  sudo ai-sre k8s cleanup %r\n"
-                "（将重新拉取与本次相同的离线包并执行 pre_cleanup；引用须在有效期内。）\n"
+                "\n安装未完成。若需按控制台「节点配置」中的全部 master/worker 清理 K8s/etcd 残留"
+                "（须已对各节点 root 免密，与 install.sh 相同）：\n"
+                "  sudo ai-sre uninstall k8s\n"
+                "  或: sudo ai-sre k8s cleanup %r\n"
+                "（须已安装 ai-sre；将重新拉包并执行 pre_cleanup；引用须在有效期内。）\n"
                 % (ref,),
                 file=sys.stderr,
             )

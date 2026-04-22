@@ -22,6 +22,8 @@ type FileConfig struct {
 	Model             string `yaml:"model"`
 	Tier              string `yaml:"tier"`                  // free | pro | empty (pro/unlimited)
 	MaxLLMCallsPerDay int    `yaml:"max_llm_calls_per_day"` // 0 = unlimited
+	// OpsfleetAPIBase 可选，与 OPSFLEET_API_URL 同义，如 http://host:9080/ft-api（自升级、默认与 OpsFleet 通信）。
+	OpsfleetAPIBase string `yaml:"opsfleet_api_url"`
 }
 
 // LLM holds resolved settings for the DeepSeek client.
@@ -211,4 +213,34 @@ func expandHome(path string) string {
 		return filepath.Join(h, path[1:])
 	}
 	return path
+}
+
+// LoadOptionalOpsfleetAPIBase 读取 ~/.config/ai-sre/opsfleet_api_url（install-ai-sre 写入）或 config.yaml 中 opsfleet_api_url。
+// 不要求已配置 LLM；用于 ai-sre 自升级与默认指向 OpsFleet API 基址（含 /ft-api）。
+func LoadOptionalOpsfleetAPIBase() string {
+	cfgDir, err := ResolveDir()
+	if err != nil {
+		return ""
+	}
+	one := filepath.Join(cfgDir, "opsfleet_api_url")
+	if b, err := os.ReadFile(one); err == nil {
+		v := strings.TrimSpace(string(b))
+		if v != "" {
+			return strings.TrimRight(v, "/")
+		}
+	}
+	p := filepath.Join(cfgDir, "config.yaml")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	var fc FileConfig
+	if yaml.Unmarshal(b, &fc) != nil {
+		return ""
+	}
+	v := strings.TrimSpace(fc.OpsfleetAPIBase)
+	if v == "" {
+		return ""
+	}
+	return strings.TrimRight(v, "/")
 }

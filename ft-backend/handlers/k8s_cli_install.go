@@ -44,7 +44,7 @@ func publicAPIBaseFromRequest(c *gin.Context) string {
 func ServeAiSreInstallScript(c *gin.Context) {
 	base := publicAPIBaseFromRequest(c)
 	body := fmt.Sprintf(`#!/usr/bin/env bash
-# OpsFleet 固定安装方式：将 ai-sre 安装到 /usr/local/bin（需服务器配置 opsfleet.ai_sre_binary_path）
+# OpsFleet：将 ai-sre 安装/升级到 /usr/local/bin，并保存 API 基址供本机后续每次执行 ai-sre 时联网比对版本并自升级（需服务器配置 opsfleet.ai_sre_binary_path）
 set -euo pipefail
 API_BASE=%s
 ARCH=$(uname -m)
@@ -53,6 +53,11 @@ case "$ARCH" in
   aarch64|arm64) UARCH=arm64 ;;
   *) echo "不支持的架构: $ARCH（需 amd64 或 arm64）" >&2; exit 1 ;;
 esac
+if command -v ai-sre >/dev/null 2>&1; then
+  echo "正在从 OpsFleet 拉取并覆盖升级 ai-sre …" >&2
+else
+  echo "正在从 OpsFleet 拉取并安装最新 ai-sre …" >&2
+fi
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
 if ! curl -fsSL "$API_BASE/api/k8s/deploy/cli/ai-sre?arch=$UARCH" -o "$TMP"; then
@@ -60,8 +65,18 @@ if ! curl -fsSL "$API_BASE/api/k8s/deploy/cli/ai-sre?arch=$UARCH" -o "$TMP"; the
   exit 1
 fi
 install -m 0755 "$TMP" /usr/local/bin/ai-sre
-echo "已安装: $(command -v ai-sre)"
-ai-sre version
+if [ -n "${SUDO_USER:-}" ]; then
+  UHOME=$(eval echo "~$SUDO_USER")
+else
+  UHOME="${HOME:-/root}"
+fi
+mkdir -p "$UHOME/.config/ai-sre"
+printf '%%s\n' "$API_BASE" > "$UHOME/.config/ai-sre/opsfleet_api_url" || true
+echo "已写入: $(command -v ai-sre)；已记录 OpsFleet 基址 $UHOME/.config/ai-sre/opsfleet_api_url（供自升级）"
+# 不依赖 version 的退出码：二进制已落盘；若执行失败多因架构/动态库，提示排查而非让整段管道失败
+if ! ai-sre version; then
+  echo "已写入 /usr/local/bin/ai-sre，但 version 子命令未成功。请检查架构是否与分发的 Linux 二进制一致、或 PATH/依赖。" >&2
+fi
 `, quoteShellSingleLine(base))
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")

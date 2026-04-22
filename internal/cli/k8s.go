@@ -31,37 +31,37 @@ type installRefWire struct {
 
 // k8sDeployAPIBody mirrors ft-backend/handlers.K8sDeployRequest JSON for POST /api/k8s/deploy/bundle.
 type k8sDeployAPIBody struct {
-	ClusterName         string   `json:"clusterName"`
-	Version             string   `json:"version"`
-	DeployMode          string   `json:"deployMode,omitempty"`
-	ImageSource         string   `json:"imageSource,omitempty"`
-	ArchVersion         string   `json:"archVersion,omitempty"`
-	CustomRegistry      string   `json:"customRegistry,omitempty"`
-	RegistryUsername    string   `json:"registryUsername,omitempty"`
-	RegistryPassword    string   `json:"registryPassword,omitempty"`
-	MasterHosts         []string `json:"masterHosts"`
-	WorkerHosts         []string `json:"workerHosts"`
-	KubeProxyMode       string   `json:"kubeProxyMode,omitempty"`
-	EnableRBAC          bool     `json:"enableRBAC"`
-	EnablePodSecurityPolicy bool `json:"enablePodSecurityPolicy"`
-	EnableAudit         bool     `json:"enableAudit"`
-	PauseImage          string   `json:"pauseImage,omitempty"`
-	NetworkPlugin       string   `json:"networkPlugin,omitempty"`
-	PodCIDR             string   `json:"podCidr,omitempty"`
-	ServiceCIDR         string   `json:"serviceCidr,omitempty"`
-	DNSServiceIP        string   `json:"dnsServiceIP,omitempty"`
-	ClusterDomain       string   `json:"clusterDomain,omitempty"`
-	DefaultStorageClass bool     `json:"defaultStorageClass"`
-	StorageProvisioner  string   `json:"storageProvisioner,omitempty"`
-	EnableNodeLocalDNS  bool     `json:"enableNodeLocalDNS"`
-	EnableMetricsServer bool     `json:"enableMetricsServer"`
-	EnableDashboard     bool     `json:"enableDashboard"`
-	EnablePrometheus    bool     `json:"enablePrometheus"`
-	EnableIngressNginx  bool     `json:"enableIngressNginx"`
-	EnableHelm          bool     `json:"enableHelm"`
-	PreDeployCleanup    bool     `json:"preDeployCleanup"`
-	DownloadDomain      string   `json:"downloadDomain,omitempty"`
-	DownloadProtocol    string   `json:"downloadProtocol,omitempty"`
+	ClusterName             string   `json:"clusterName"`
+	Version                 string   `json:"version"`
+	DeployMode              string   `json:"deployMode,omitempty"`
+	ImageSource             string   `json:"imageSource,omitempty"`
+	ArchVersion             string   `json:"archVersion,omitempty"`
+	CustomRegistry          string   `json:"customRegistry,omitempty"`
+	RegistryUsername        string   `json:"registryUsername,omitempty"`
+	RegistryPassword        string   `json:"registryPassword,omitempty"`
+	MasterHosts             []string `json:"masterHosts"`
+	WorkerHosts             []string `json:"workerHosts"`
+	KubeProxyMode           string   `json:"kubeProxyMode,omitempty"`
+	EnableRBAC              bool     `json:"enableRBAC"`
+	EnablePodSecurityPolicy bool     `json:"enablePodSecurityPolicy"`
+	EnableAudit             bool     `json:"enableAudit"`
+	PauseImage              string   `json:"pauseImage,omitempty"`
+	NetworkPlugin           string   `json:"networkPlugin,omitempty"`
+	PodCIDR                 string   `json:"podCidr,omitempty"`
+	ServiceCIDR             string   `json:"serviceCidr,omitempty"`
+	DNSServiceIP            string   `json:"dnsServiceIP,omitempty"`
+	ClusterDomain           string   `json:"clusterDomain,omitempty"`
+	DefaultStorageClass     bool     `json:"defaultStorageClass"`
+	StorageProvisioner      string   `json:"storageProvisioner,omitempty"`
+	EnableNodeLocalDNS      bool     `json:"enableNodeLocalDNS"`
+	EnableMetricsServer     bool     `json:"enableMetricsServer"`
+	EnableDashboard         bool     `json:"enableDashboard"`
+	EnablePrometheus        bool     `json:"enablePrometheus"`
+	EnableIngressNginx      bool     `json:"enableIngressNginx"`
+	EnableHelm              bool     `json:"enableHelm"`
+	PreDeployCleanup        bool     `json:"preDeployCleanup"`
+	DownloadDomain          string   `json:"downloadDomain,omitempty"`
+	DownloadProtocol        string   `json:"downloadProtocol,omitempty"`
 }
 
 func k8sCmd() *cobra.Command {
@@ -87,7 +87,10 @@ func k8sCmd() *cobra.Command {
   # 部署失败或需按页面节点全量清理（与 install 使用同一 ofpk8s1 引用；重新拉包并跑 pre_cleanup）
   sudo %s k8s cleanup 'ofpk8s1.…'
 
-  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName, progName, progName),
+  # 自适配备份：本机已记录安装引用时，一步卸载（同 cleanup）
+  sudo %s uninstall k8s
+
+  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName, progName, progName, progName),
 	}
 	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sCleanupCmd(), k8sUninstallCmd())
 	return cmd
@@ -454,6 +457,9 @@ func downloadInviteZipAndExtract(apiBase, inviteID, token string) (bundleRoot st
 }
 
 func downloadInviteZipAndRunInstall(apiBase, inviteID, token, refHint string) error {
+	if strings.TrimSpace(refHint) != "" {
+		saveK8sInstallRef(refHint)
+	}
 	root, cleanup, err := downloadInviteZipAndExtract(apiBase, inviteID, token)
 	if err != nil {
 		return err
@@ -462,7 +468,7 @@ func downloadInviteZipAndRunInstall(apiBase, inviteID, token, refHint string) er
 
 	err = runInstallSh(root)
 	if err != nil && strings.TrimSpace(refHint) != "" {
-		fmt.Fprintf(os.Stderr, "\n[%s] 安装未成功。请在同一台控制机上（须已对 inventory 中各节点 root 免密）使用页面同一安装引用清理全部 master/worker：\n  sudo %s k8s cleanup '%s'\n", progName, progName, strings.TrimSpace(refHint))
+		fmt.Fprintf(os.Stderr, "\n[%s] 安装未成功。可在同一台控制机上（须已对 inventory 中各节点 root 免密）任选其一清理：\n  sudo %s uninstall k8s\n  sudo %s k8s cleanup '%s'\n", progName, progName, progName, strings.TrimSpace(refHint))
 		fmt.Fprintf(os.Stderr, "  可选：export OPSFLEET_K8S_AUTO_CLEANUP_ON_FAIL=1 后重试安装，失败时将自动对包内节点执行 pre_cleanup。\n")
 	}
 	if err != nil {
