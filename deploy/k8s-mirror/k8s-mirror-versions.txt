@@ -1,0 +1,7 @@
+# 与 ft-backend database initK8sVersions 种子一致（部署页可选版本）；改种子时请同步本文件
+v1.35.4
+v1.32.11
+v1.34.3
+v1.32.6
+v1.28.15
+v1.30.0

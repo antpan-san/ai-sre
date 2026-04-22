@@ -171,6 +171,7 @@ func initK8sVersions() {
 	if count == 0 {
 		logger.Info("Seeding default K8s versions")
 
+		// 与 deploy/k8s-mirror/k8s-mirror-versions.txt 保持一致（内网制品同步脚本按该列表拉 kubernetes-server）
 		defaultVersions := []string{
 			"v1.35.4", "v1.32.11", "v1.34.3",
 			"v1.32.6", "v1.28.15", "v1.30.0",

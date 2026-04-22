@@ -12,18 +12,38 @@
 
 Nginx `root` 应指向同一目录，使 `http://<download_domain>/kubernetes/...` 可访问。
 
+## 从本机仓库一键同步到 192.168.56.11
+
+在**开发机**上（已配置 `ssh root@192.168.56.11`）执行：
+
+```bash
+cd /path/to/ai-sre
+./scripts/k8s-mirror-sync-remote-11.sh
+```
+
+会 rsync 本目录脚本、`/etc/opsfleet/k8s-mirror.env`、版本列表，并在远端拉取**全部**部署页 K8s 版本所需 tar/tgz 与 **etcd / CNI**，最后生成 `manifest.json`。
+
+## 与部署页 K8s 版本对齐
+
+- 可选版本列表在 **数据库种子** `ft-backend/database.initK8sVersions` 与仓库 **`deploy/k8s-mirror/k8s-mirror-versions.txt`** 中一一对应；增删版本时请三处同步（或只改 `k8s-mirror-versions.txt` 与 DB 种子，保持字符串集合一致）。
+- `k8s-mirror-sync.sh` 会拉取 `KUBERNETES_VERSIONS`（或版本文件/单版本）中 **每个** `kubernetes-server-linux-{amd64,arm64}.tar.gz` 到 `MIRROR_ROOT/kubernetes/<ver>/<arch>/`，并各拉一套 **etcd**、**CNI**（与 `group_vars` 中 `etcd_version` / `cni_plugins_version` 对齐）。
+
 ## 快速安装（Ubuntu）
 
 ```bash
 sudo mkdir -p /var/lib/opsfleet-k8s-mirror
 sudo cp deploy/k8s-mirror/mirror.env.example /etc/opsfleet/k8s-mirror.env
-# 按需编辑版本与架构
+# 多版本 K8s 已在 example 的 KUBERNETES_VERSIONS 中；也可复制版本列表供脚本读取:
+sudo cp deploy/k8s-mirror/k8s-mirror-versions.txt /etc/opsfleet/k8s-mirror-versions.txt
+# 若只用文件列表，在 k8s-mirror.env 中增加: export KUBERNETES_VERSIONS_FILE=/etc/opsfleet/k8s-mirror-versions.txt
+
 sudo cp deploy/k8s-mirror/k8s-mirror-sync.sh /usr/local/bin/k8s-mirror-sync.sh
 sudo chmod +x /usr/local/bin/k8s-mirror-sync.sh
 sudo cp deploy/k8s-mirror/k8s-mirror-generate-manifest.sh /usr/local/bin/k8s-mirror-generate-manifest.sh
 sudo chmod +x /usr/local/bin/k8s-mirror-generate-manifest.sh
 
-# 首次同步 + 生成 manifest.json（供 OpsFleet 页面展示 SHA）
+# 从仓库根执行时可直接用未安装的脚本同目录的 k8s-mirror-versions.txt
+# 首次同步（会下载多个版本 × 双架构，体积大、耗时长）+ 生成 manifest.json
 sudo -E bash /usr/local/bin/k8s-mirror-sync.sh
 sudo -E bash /usr/local/bin/k8s-mirror-generate-manifest.sh
 ```
