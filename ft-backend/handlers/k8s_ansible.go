@@ -185,10 +185,10 @@ func generateAnsibleGroupVars(req K8sDeployRequest, masterIP string) string {
 	if clusterDomain == "" {
 		clusterDomain = "cluster.local"
 	}
-	networkPlugin := req.NetworkPlugin
+	networkPlugin := strings.TrimSpace(req.NetworkPlugin)
 	if networkPlugin == "" {
-		// Ansible 流水线当前内置 Flannel + CoreDNS；Calico 等需后续接入。
-		networkPlugin = "flannel"
+		// 与前端 K8sDeployForm 默认 networkPlugin: 'calico' 一致；gen-k8s-bundle 须传 -networkPlugin 或依赖此默认
+		networkPlugin = "calico"
 	}
 	kubeProxyMode := req.KubeProxyMode
 	if kubeProxyMode == "" {
@@ -324,6 +324,43 @@ cni_plugins_download_url: "https://github.com/containernetworking/plugins/releas
 `
 	}
 
+	// Flannel 后端、Calico VXLAN/MTU、Pause 镜像（与前端 networkConfig / coreComponentsConfig 对齐）
+	flannelBackend := "vxlan"
+	if len(req.FlannelConfig) > 0 {
+		var fc struct {
+			Backend string `json:"backend"`
+		}
+		if json.Unmarshal(req.FlannelConfig, &fc) == nil {
+			if s := strings.TrimSpace(fc.Backend); s != "" {
+				flannelBackend = s
+			}
+		}
+	}
+	vars += fmt.Sprintf("flannel_backend: %q\n", flannelBackend)
+	if p := strings.TrimSpace(req.PauseImage); p != "" {
+		vars += fmt.Sprintf("pause_image: %q\n", p)
+	}
+	calicoVXLAN := true
+	calicoMTU := 0
+	if len(req.CalicoConfig) > 0 {
+		var cc struct {
+			VXLANMode *bool `json:"vxlanMode"`
+			MTU       *int  `json:"mtu"`
+		}
+		if json.Unmarshal(req.CalicoConfig, &cc) == nil {
+			if cc.VXLANMode != nil {
+				calicoVXLAN = *cc.VXLANMode
+			}
+			if cc.MTU != nil && *cc.MTU > 0 {
+				calicoMTU = *cc.MTU
+			}
+		}
+	}
+	vars += fmt.Sprintf("calico_vxlan_mode: %s\n", boolStr(calicoVXLAN))
+	if calicoMTU > 0 {
+		vars += fmt.Sprintf("calico_veth_mtu: %d\n", calicoMTU)
+	}
+
 	if req.PreDeployCleanup {
 		vars += "\npre_deploy_cleanup: true\n"
 	} else {
@@ -414,7 +451,7 @@ echo "=== Step 10/11: Install kube-proxy ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_proxy.yml || { echo "FAILED: kube-proxy"; exit 1; }
 echo "kube_proxy" >> "$STATE_FILE"
 
-echo "=== Step 11/11: Apply addons (Flannel + CoreDNS) ==="
+echo "=== Step 11/11: Apply addons (CNI + CoreDNS) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/k8s_addons.yml || { echo "FAILED: k8s_addons"; exit 1; }
 echo "k8s_addons" >> "$STATE_FILE"
 

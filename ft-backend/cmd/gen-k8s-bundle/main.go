@@ -31,6 +31,8 @@ func main() {
 	preCleanup := flag.Bool("preCleanup", false, "embed install.sh default: run Step 0 pre_cleanup playbook (non-interactive)")
 	downloadDomain := flag.String("downloadDomain", "", "override inventory download_domain (empty = use ansible-agent/inventory/group_vars/all.yml default)")
 	downloadProtocol := flag.String("downloadProtocol", "", "override download_protocol, e.g. http:// or https://")
+	networkPlugin := flag.String("networkPlugin", "calico", "CNI: calico|flannel (与控制台默认一致，勿留空否则合并包曾回退为 flannel)")
+	pauseImage := flag.String("pauseImage", "", "optional kubelet pause image, e.g. registry.k8s.io/pause:3.10")
 	flag.Parse()
 
 	masters := splitCSV(*master)
@@ -46,6 +48,8 @@ func main() {
 		PreDeployCleanup:    *preCleanup,
 		DownloadDomain:      *downloadDomain,
 		DownloadProtocol:    *downloadProtocol,
+		NetworkPlugin:       *networkPlugin,
+		PauseImage:          *pauseImage,
 	}
 	data, err := handlers.BuildK8sOfflineZip(req)
 	if err != nil {

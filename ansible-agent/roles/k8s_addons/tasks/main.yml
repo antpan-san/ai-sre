@@ -1,4 +1,9 @@
 ---
+- name: Fail when network plugin is not implemented in Ansible
+  ansible.builtin.fail:
+    msg: "network_plugin={{ network_plugin | default('flannel') }} 尚未在此流水线实现；请选择 flannel 或 calico，或提交需求扩展 CNI。"
+  when: network_plugin | default('flannel') not in ['flannel', 'calico']
+
 - name: Wait for kube-apiserver on this control plane node
   ansible.builtin.wait_for:
     host: 127.0.0.1
@@ -6,6 +11,7 @@
     timeout: 180
   run_once: true
 
+# ---- Flannel ----
 - name: Render Flannel manifest
   ansible.builtin.template:
     src: kube-flannel.yml.j2
@@ -22,6 +28,62 @@
   changed_when: true
   when: network_plugin | default('flannel') == 'flannel'
 
+# ---- Calico（官方 manifest 下载 + 本地补丁）----
+- name: Download Calico upstream manifest
+  ansible.builtin.get_url:
+    url: "{{ calico_manifest_url }}"
+    dest: "{{ calico_manifest_cache }}"
+    mode: "0644"
+    force: false
+    timeout: 300
+  run_once: true
+  when: network_plugin | default('flannel') == 'calico'
+
+- name: Copy Calico patch helper to node
+  ansible.builtin.copy:
+    src: patch_calico_manifest.py
+    dest: /tmp/patch_calico_manifest.py
+    mode: "0755"
+  run_once: true
+  when: network_plugin | default('flannel') == 'calico'
+
+- name: Patch Calico manifest (CIDR, VXLAN, MTU)
+  ansible.builtin.command:
+    argv:
+      - python3
+      - /tmp/patch_calico_manifest.py
+      - "{{ calico_manifest_cache }}"
+      - "{{ calico_manifest_patched }}"
+      - "{{ pod_cluster_cidr }}"
+      - "{{ 'true' if calico_vxlan_mode | default(true) else 'false' }}"
+      - "{{ calico_veth_mtu | default(0) | int | string }}"
+  run_once: true
+  when: network_plugin | default('flannel') == 'calico'
+  changed_when: true
+
+- name: Apply Calico
+  ansible.builtin.command: kubectl apply -f {{ calico_manifest_patched }}
+  environment:
+    KUBECONFIG: "{{ k8s_base_dir }}/admin.conf"
+  run_once: true
+  changed_when: true
+  when: network_plugin | default('flannel') == 'calico'
+
+- name: Wait for Calico node pods
+  ansible.builtin.command: >-
+    kubectl wait --for=condition=ready pod
+    -l k8s-app=calico-node
+    -n kube-system
+    --timeout=300s
+  environment:
+    KUBECONFIG: "{{ k8s_base_dir }}/admin.conf"
+  run_once: true
+  when: network_plugin | default('flannel') == 'calico'
+  register: _calico_wait
+  failed_when: false
+  changed_when: false
+
+# ---- CoreDNS（CNI 就绪后再装，避免长 Pending）----
 - name: Render CoreDNS manifest
   ansible.builtin.template:
     src: coredns.yaml.j2

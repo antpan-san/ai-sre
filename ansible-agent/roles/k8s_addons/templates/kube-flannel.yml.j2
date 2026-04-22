@@ -93,7 +93,7 @@ data:
       "Network": "{{ pod_cluster_cidr }}",
       "EnableNFTables": false,
       "Backend": {
-        "Type": "vxlan"
+        "Type": "{{ flannel_backend | default('vxlan') }}"
       }
     }
 ---
@@ -133,7 +133,7 @@ spec:
       serviceAccountName: flannel
       initContainers:
       - name: install-cni-plugin
-        image: docker.io/flannel/flannel-cni-plugin:v1.4.1-flannel1
+        image: {{ flannel_cni_image | default('docker.io/flannel/flannel-cni-plugin:v1.4.1-flannel1') }}
         command:
         - cp
         args:
@@ -144,7 +144,7 @@ spec:
         - name: cni-plugin
           mountPath: /opt/cni/bin
       - name: install-cni
-        image: docker.io/flannel/flannel:v0.25.2
+        image: {{ flannel_image | default('docker.io/flannel/flannel:v0.25.2') }}
         command:
         - cp
         args:
@@ -158,7 +158,7 @@ spec:
           mountPath: /etc/kube-flannel/
       containers:
       - name: kube-flannel
-        image: docker.io/flannel/flannel:v0.25.2
+        image: {{ flannel_image | default('docker.io/flannel/flannel:v0.25.2') }}
         command:
         - /opt/bin/flanneld
         args:

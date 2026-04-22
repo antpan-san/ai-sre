@@ -438,7 +438,7 @@ run "Step 7/11: kubectl" "playbooks/kubectl.yml"
 run "Step 8/11: containerd" "playbooks/containerd.yml"
 run "Step 9/11: kubelet" "playbooks/kubelet.yml"
 run "Step 10/11: kube-proxy" "playbooks/kube_proxy.yml"
-run "Step 11/11: addons (Flannel + CoreDNS)" "playbooks/k8s_addons.yml"
+run "Step 11/11: addons (CNI + CoreDNS)" "playbooks/k8s_addons.yml"
 
 echo "=== 完成 ==="
 kubectl get nodes 2>/dev/null || echo "kubectl 检查失败：请确认 admin.conf 与 API Server 正常"

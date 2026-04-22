@@ -85,6 +85,21 @@ export function buildK8sDeployFlatBody(config: DeployConfig): SubmitDeployConfig
   }
 }
 
+/** 默认 CNI / CoreDNS / pause 等镜像与版本（与 inventory / Ansible 对齐，内网可据此预拉） */
+export const getK8sComponentCatalog = (): Promise<{
+  images: { component: string; versionKey: string; version: string; image: string; notes: string }[]
+  docs: { key: string; value: string; description: string }[]
+  networkPluginsSupported: string[]
+  notImplemented: string[]
+}> => {
+  return request.get('/api/k8s/deploy/component-catalog') as Promise<{
+    images: { component: string; versionKey: string; version: string; image: string; notes: string }[]
+    docs: { key: string; value: string; description: string }[]
+    networkPluginsSupported: string[]
+    notImplemented: string[]
+  }>
+}
+
 /** 获取支持的 K8s 版本列表 */
 export const getK8sVersions = (params?: GetK8sVersionsParams): Promise<GetK8sVersionsResponse> => {
   return request.get('/api/k8s/deploy/versions', { params })

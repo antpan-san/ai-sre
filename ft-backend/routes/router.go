@@ -113,6 +113,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// ---- K8s Deployment ----
 		protected.GET("/k8s/deploy/versions", handlers.GetK8sVersions)
+		protected.GET("/k8s/deploy/component-catalog", handlers.GetK8sComponentCatalog)
 		protected.GET("/k8s/deploy/machines", handlers.GetK8sDeployMachines)
 		protected.GET("/k8s/deploy/check-name", handlers.CheckClusterName)
 		protected.POST("/k8s/deploy/submit", handlers.SubmitK8sDeployWithAnsible) // Ansible-integrated

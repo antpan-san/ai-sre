@@ -426,8 +426,8 @@
                   >
                     <el-option label="Calico" value="calico" />
                     <el-option label="Flannel" value="flannel" />
-                    <el-option label="Cilium" value="cilium" />
-                    <el-option label="Weave" value="weave" />
+                    <el-option label="Cilium（未接入）" value="cilium" disabled />
+                    <el-option label="Weave（未接入）" value="weave" disabled />
                   </el-select>
                 </el-form-item>
               </el-col>
@@ -507,6 +507,31 @@
                 </el-col>
               </el-row>
             </template>
+
+            <el-divider content-position="left">默认容器镜像与版本</el-divider>
+            <p class="component-catalog-hint">
+              与后端 inventory / 离线包合并逻辑一致。内网无法直连公网时，请预拉下表「镜像」列；全量
+              <code>calico.yaml</code> 见下表「说明」或 API 中 docs。
+            </p>
+            <el-table
+              v-loading="k8sComponentCatalogLoading"
+              :data="k8sComponentCatalogImages"
+              border
+              size="small"
+              max-height="360"
+              class="k8s-component-catalog-table"
+            >
+              <el-table-column prop="component" label="组件" min-width="120" show-overflow-tooltip />
+              <el-table-column prop="version" label="版本" width="100" />
+              <el-table-column prop="image" label="镜像（预拉/对照）" min-width="200" show-overflow-tooltip />
+              <el-table-column prop="notes" label="说明" min-width="160" show-overflow-tooltip />
+            </el-table>
+            <p v-if="k8sComponentCatalogDocs.length" class="component-catalog-hint">
+              附加：<span v-for="(d, i) in k8sComponentCatalogDocs" :key="d.key"
+                >{{ d.description }} — <code>{{ d.value }}</code
+                >{{ i < k8sComponentCatalogDocs.length - 1 ? '；' : '' }}</span
+              >
+            </p>
           </el-form>
         </div>
 
@@ -892,6 +917,7 @@ import TaintGroup from '@/components/k8s/TaintGroup.vue'
 import KeyValueGroup from '@/components/k8s/KeyValueGroup.vue'
 import {
   getK8sVersions,
+  getK8sComponentCatalog,
   checkClusterName,
   submitDeployConfig,
   downloadOfflineBundle,
@@ -975,6 +1001,11 @@ const validating = ref(false)
 const submitting = ref(false)
 const downloadingBundle = ref(false)
 const creatingInvite = ref(false)
+const k8sComponentCatalogLoading = ref(false)
+const k8sComponentCatalogImages = ref<
+  { component: string; versionKey: string; version: string; image: string; notes: string }[]
+>([])
+const k8sComponentCatalogDocs = ref<{ key: string; value: string; description: string }[]>([])
 /** 步骤 1：折叠区默认收起，减少首屏噪音 */
 const stepAuxOpen = ref<string[]>([])
 /** 部署确认：需求说明折叠，默认收起 */
@@ -1351,6 +1382,7 @@ onMounted(() => {
     workerHostsText.value = deployConfig.nodeConfig.workerHosts.join('\n')
   }
   loadK8sVersions()
+  loadK8sComponentCatalog()
   loadMachines()
   k8sDeployStore.fetchDeployRecords()
 })
@@ -1363,6 +1395,21 @@ watch(activeStep, (step) => {
 watch(offlineBundleMode, () => {
   lastInvite.value = null
 })
+
+const loadK8sComponentCatalog = async () => {
+  k8sComponentCatalogLoading.value = true
+  try {
+    const data = await getK8sComponentCatalog()
+    k8sComponentCatalogImages.value = data.images || []
+    k8sComponentCatalogDocs.value = data.docs || []
+  } catch (e: any) {
+    k8sComponentCatalogImages.value = []
+    k8sComponentCatalogDocs.value = []
+    ElMessage.error('获取组件版本清单失败: ' + (e?.message || e))
+  } finally {
+    k8sComponentCatalogLoading.value = false
+  }
+}
 
 const loadK8sVersions = async () => {
   try {
@@ -2081,5 +2128,15 @@ const submitDeploy = async () => {
   .label-taint-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.component-catalog-hint {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+.k8s-component-catalog-table {
+  margin-bottom: 12px;
 }
 </style>

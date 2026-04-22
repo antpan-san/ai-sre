@@ -98,7 +98,7 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 | 8/11 | containerd | `playbooks/containerd.yml` |
 | 9/11 | kubelet | `playbooks/kubelet.yml` |
 | 10/11 | kube-proxy | `playbooks/kube_proxy.yml` |
-| 11/11 | addons（Flannel + CoreDNS，受 `network_plugin` 等约束） | `playbooks/k8s_addons.yml` |
+| 11/11 | addons（CNI：Flannel 或 Calico + CoreDNS，受 `network_plugin` 等约束） | `playbooks/k8s_addons.yml` |
 
 **在线部署**（Agent 执行机上的脚本）应与上表 **同序、同 playbook**；若发现漂移，按 **需改代码** 处理。
 
@@ -123,7 +123,9 @@ OPSFLEET_ANSIBLE_DIR=/path/to/repo/ansible-agent \
   -imageSource <aliyun|default|...> -arch <amd64|arm64>
 ```
 
-`gen-k8s-bundle` 与 HTTP 接口共用 **`BuildK8sOfflineZip`**；**同一组参数** 打出的包应与 UI **一致**（若不一致则属产品 Bug，应记「需改代码」）。
+`gen-k8s-bundle` 与 HTTP 接口共用 **`BuildK8sOfflineZip`**；**同一组参数** 打出的包应与 UI **一致**（若不一致则属产品 Bug，应记「需改代码」）。CLI 须传 **`-networkPlugin`**（默认 **calico**，与控制台一致）；勿用未带该字段的旧命令行，否则合并前会落回 inventory 中的 `flannel`。
+
+**默认镜像/版本（内网预拉）**：`GET /ft-api/api/k8s/deploy/component-catalog` 与部署页「网络配置」表格同源，见 `ft-backend/handlers/k8s_component_catalog.go`。
 
 ### 入口 C：实验室双节点（本仓库 `scripts/k8s-lab-full-install.sh`）
 
@@ -264,7 +266,7 @@ kubectl -n kube-system get svc kube-dns
 | controller-manager `10257/healthz` | 已加重试 | 仍失败查 `journalctl` |
 | containerd / kubelet 启动失败 | 需查 journal | cgroup、CRI socket、`/opt/cni/bin` |
 | Flannel / CoreDNS 镜像拉取失败 | 多为 **非代码** | 内网需镜像仓库或预拉取 |
-| `network_plugin: calico` 但仅实现 Flannel | **待确认/需代码** | 见 `group_vars` 与 `k8s_addons` 行为 |
+| 选用 Calico 仍装 Flannel | **流程/CLI** | 合并包须含 `network_plugin: calico`；`gen-k8s-bundle` 默认已为 **calico** 且支持 `-networkPlugin` |
 
 ---
 

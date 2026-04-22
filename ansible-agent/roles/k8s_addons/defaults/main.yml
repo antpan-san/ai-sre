@@ -1,0 +1,12 @@
+---
+# Calico：与 inventory calico_version 一致；内网可设 calico_manifest_url 指向制品站上的 manifest
+calico_manifest_url: "https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/calico.yaml"
+calico_manifest_cache: "{{ local_cache_dir }}/calico-upstream-{{ calico_version }}.yaml"
+calico_manifest_patched: /tmp/opsfleet-calico-patched.yaml
+# 与页面 Calico 配置（generateAnsibleGroupVars 会覆盖 calico_vxlan_mode / calico_veth_mtu）
+calico_vxlan_mode: true
+calico_veth_mtu: 0
+# Flannel 镜像（可由内联合并或页面后续扩展覆盖）
+flannel_cni_image: docker.io/flannel/flannel-cni-plugin:v1.4.1-flannel1
+flannel_image: docker.io/flannel/flannel:v0.25.2
+flannel_backend: vxlan

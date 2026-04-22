@@ -93,7 +93,7 @@ cluster_name: kubernetes
 
 service_cluster_ip_range: "10.96.0.0/12"
 pod_cluster_cidr: "10.244.0.0/16"
-# 当前 playbooks/k8s_addons.yml 仅自动下发 Flannel（与 pod_cluster_cidr 对齐）；Calico 等需后续接入。
+# 与 playbooks/k8s_addons.yml：flannel 或 calico；OpsFleet 合并块会覆盖。未合并包时仅读此默认值。
 network_plugin: "flannel"
 # 集群 DNS（kubelet / CoreDNS Service）
 dns_service_ip: "10.96.0.10"
