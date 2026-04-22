@@ -4,6 +4,10 @@ kind: KubeSchedulerConfiguration
 clientConnection:
   kubeconfig: {{ k8s_base_dir }}/kube-scheduler.kubeconfig
 
+# 与 playbook 中 curl 127.0.0.1:10259/healthz 一致；未显式时部分环境启动较慢或绑定不一致会导致 Connection refused
+healthzBindAddress: 127.0.0.1:10259
+metricsBindAddress: 127.0.0.1:10251
+
 leaderElection:
   leaderElect: true
 

@@ -72,15 +72,41 @@
     state: started
 
 # --------------------------------
-# Check Health
+# Check Health（与 kube-controller-manager 相同：起服后 10259 可能晚几秒才监听，必须轮询）
 # --------------------------------
-- name: Check kube-scheduler health
-  command: >
-    curl -k https://127.0.0.1:10259/healthz
-    --cert "{{ k8s_cert_dir }}/kube_scheduler.crt"
-    --key "{{ k8s_cert_dir }}/kube_scheduler.key"
-  register: sc_health
-  changed_when: false
-
-- debug:
-    var: sc_health.stdout
+- name: Wait for kube-scheduler /healthz
+  block:
+    - name: Poll kube-scheduler /healthz (mTLS 与 curl 等效；until 避免刚起服时 10259 未监听)
+      ansible.builtin.uri:
+        url: https://127.0.0.1:10259/healthz
+        validate_certs: false
+        client_cert: "{{ k8s_cert_dir }}/kube_scheduler.crt"
+        client_key: "{{ k8s_cert_dir }}/kube_scheduler.key"
+        return_content: true
+        status_code: 200
+        timeout: 5
+      register: sc_health
+      until: sc_health.status == 200 and (sc_health.content | default('') | trim) == 'ok'
+      retries: 40
+      delay: 3
+    - name: Kube-scheduler health response
+      ansible.builtin.debug:
+        msg: "{{ sc_health.content | default('') | trim }}"
+      when: sc_health.content is defined
+  rescue:
+    - name: Grep errors from kube-scheduler journal
+      ansible.builtin.shell: journalctl -u kube-scheduler -n 800 --no-pager | grep -E "err=| E[0-9]{4} |Error:|FATAL|failed|unable to|Unable" | tail -40 || true
+      register: sched_err
+      failed_when: false
+      changed_when: false
+    - name: Last 80 lines of kube-scheduler journal
+      ansible.builtin.command: journalctl -u kube-scheduler -n 80 --no-pager
+      register: sched_tail
+      changed_when: false
+    - name: Fail with scheduler diagnostics
+      ansible.builtin.fail:
+        msg: |
+          kube-scheduler 未在 10259 提供 /healthz（多为刚启动未监听、或进程崩溃/配置错误）。
+          1) systemctl status kube-scheduler; 核对 /etc/kubernetes/kube-scheduler.kubeconfig 中 cluster name 为字符串
+          2) 错误行: {{ sched_err.stdout | default('(无)') }}
+          3) 末 80 行: {{ sched_tail.stdout | default('(无)') }}
