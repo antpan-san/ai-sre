@@ -84,14 +84,23 @@
         msg: "{{ cm_health.content | default('') | trim }}"
       when: cm_health.content is defined
   rescue:
-    - name: Show kube-controller-manager logs after health failure
-      ansible.builtin.command: journalctl -u kube-controller-manager -n 100 --no-pager
-      register: cm_journal
+    - name: Extract likely error lines from controller-manager journal
+      ansible.builtin.shell: journalctl -u kube-controller-manager -n 800 --no-pager | grep -E "err=| E[0-9]{4} |Error:|FATAL|failed|unable to|Unable" | tail -40 || true
+      register: cm_err_grep
+      failed_when: false
+      changed_when: false
+    - name: Last 80 lines of controller-manager journal (for failures after long flag dump)
+      ansible.builtin.command: journalctl -u kube-controller-manager -n 80 --no-pager
+      register: cm_journal_tail
       changed_when: false
     - name: Fail with journal excerpt
       ansible.builtin.fail:
         msg: |
           kube-controller-manager 未在 10257 提供 /healthz（Connection refused 多为进程未启动或崩溃）。
-          核对 systemd 与日志：
-          {{ cm_journal.stdout | default('(journalctl 无输出)') }}
+          1) 核对: systemctl status kube-controller-manager; /etc/kubernetes/controller-manager.kubeconfig 中 clusters[].name / context.cluster 须为**带引号的字符串**且一致（全数字名未加引号会导致进程解析 kubeconfig 失败并退出）。
+          2) 请使用**已包含当前 ansible-agent** 的离线包，或在节点上重跑会重写 kubeconfig 的 play；勿仅用旧 zip 内嵌的旧 role。
+          3) 过滤出的错误行（若有）:
+          {{ cm_err_grep.stdout | default('(无匹配行; 请看第 4 节)') }}
+          4) journal 末 80 行:
+          {{ cm_journal_tail.stdout | default('(无)') }}
 
