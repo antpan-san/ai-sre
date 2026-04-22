@@ -1,4 +1,5 @@
-{% for host in groups['etcd'] %}
+{# 集群内各 inventory 主机名需可解析。API Server 代理 kubectl logs 时会连 kubelet(10250)；
+   仅写 etcd 组会导致 worker 无条目，在 master 上出现 lookup k8s-worker-1: server misbehaving #}
+{% for host in groups['k8s_cluster'] | sort %}
 {{ hostvars[host].ansible_host }} {{ host }}
 {% endfor %}
-
