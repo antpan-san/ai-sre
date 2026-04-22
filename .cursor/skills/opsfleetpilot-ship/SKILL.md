@@ -1,8 +1,7 @@
 ---
 name: opsfleetpilot-ship
 description: >-
-  When OpsFleet paths change in ai-sre monorepo (ft-backend, ft-front, deploy, ansible-agent, opsfleet scripts):
-  update README/docs, run deploy-opsfleet-remote.sh, nginx+systemd, health, push. Invoked from release-deploy / monorepo-release.mdc.
+  When OpsFleet paths change in ai-sre monorepo: update README, deploy-opsfleet-remote.sh, verify-opsfleet-deployment, deploy-remote.sh, remote-e2e; only after all remote tests pass, git commit + push. Invoked from release-deploy / monorepo-release.mdc.
 ---
 
 # OpsFleetPilot 发布与全栈部署（强制工作流）
@@ -50,18 +49,20 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 与 **`.cursor/skills/release-deploy/SKILL.md`** 中「OpsFleet 上线顺序」表一致；代理须**实际执行**下列命令（除非用户豁免 SSH），不得只写说明。
 
+**顺序硬约束**：**`git commit` / `git push`（下述步骤 8）必须位于全栈部署、自检、CLI 同步与远程冒烟（步骤 3～6）全部成功之后**；在远程测试与 verify 未通过前**不得** push。若任一步失败，按步骤 7 处理并重试，**直至 3～6 通过**后再执行步骤 8。
+
 1. **更新 README**（见上）并暂存相关文档（若本次影响用户可见部署方式）。  
 2. **本地快速校验**（可选）：`make vet-opsfleet` 或 `cd ft-backend && go build -o /dev/null .`；`make build-opsfleet` 仅用于本地复现（**勿提交** `bin/`、`dist/`）。  
 3. **全栈远程部署**（仓库根）：`./scripts/deploy-opsfleet-remote.sh`  
    - rsync 源码 → 远端 **`scripts/build-all.sh`** → **`bin/opsfleet-backend`**、**`bin/ai-sre`**、**`dist/web/`** → 同步 **`/var/www/opsfleetpilot/`** → 渲染 Nginx → **`systemctl restart opsfleet-backend`**  
    - 每次向 **`/etc/opsfleet/backend.env`** 追加/刷新 **`OPSFLEET_AISRE_BINARY_PATH=<REMOTE_DIR>/bin/ai-sre`**（控制台 **curl 安装 ai-sre**、**GET /ft-api/api/k8s/deploy/cli/ai-sre** 依赖此项）  
-4. **部署后自检**（SSH 到部署机，在 **`$OPSFLEET_REMOTE_DIR`** 下）：`bash scripts/verify-opsfleet-deployment.sh`  
+4. **部署后远程自检（测试）**（SSH 到部署机，在 **`$OPSFLEET_REMOTE_DIR`** 下）：`bash scripts/verify-opsfleet-deployment.sh`  
    - 必看：**systemd active**、**/health**、**静态 index.html**、**GET /ft-api/api/k8s/deploy/cli/ai-sre?arch=amd64 → 200**、**GET /ft-api/api/k8s/deploy/install-ai-sre.sh** 返回以 **`#!`** 开头的 shell（动态脚本；若 404/HTML 检查 Nginx **`location /ft-api/`** 与后端 **`StripOptionalFtAPIPrefix`**）  
    - **manifest.json**：未部署 `deploy/k8s-mirror` 时 WARN 可接受  
 5. **CLI 同步**（同主机常规仍执行）：仓库根 **`./scripts/deploy-remote.sh`**（仅 **ai-sre** 二进制构建，与全栈共用目录时不冲突）。  
-6. **冒烟**：仓库根 **`SHORT=1 bash scripts/remote-e2e.sh`**（见 **ai-sre-ship**）。  
-7. **失败处理**：构建或 health 失败 → **`journalctl -u opsfleet-backend -n 120`**、**`nginx -t`**、远端 **`go build`** 复现；修复后从步骤 3 重跑。  
-8. **Git**：**确认未误加 `bin/`、`dist/`** → `git add` → `commit` → **`git push origin main`**。  
+6. **远程冒烟/功能测试**：仓库根 **`SHORT=1 bash scripts/remote-e2e.sh`**（见 **ai-sre-ship**；全量联调为可选，规则同 ai-sre-ship）。  
+7. **失败处理**（不单独产生 push）：构建或 health 或冒烟失败 → **`journalctl -u opsfleet-backend -n 120`**、**`nginx -t`**、远端 **`go build`** 复现；**修复后从步骤 3 重跑**；**在步骤 3～6 全部通过前不执行步骤 8**。  
+8. **GitHub（向 Git 同步的最后一步）**：**确认未误加 `bin/`、`dist/`** → `git add` → `commit` → **`git push origin main`**（**仅**在步骤 3～6 成功完成后执行）。  
 9. **汇报**：`http://<host>:9080/`、verify 摘要、**install-ai-sre.sh** 是否 OK、提交哈希。
 
 **与 K8s 离线 Skill**：若变更命中 `ansible-agent`、`k8s_bundle`、`deploy/k8s-mirror` 等，在 **`git push` 前**还须满足 **`.cursor/skills/k8s-offline-deploy-test/SKILL.md`** 最低限度（`go build`、`gen-k8s-bundle`；能 SSH **192.168.56.11** 时建议验证 manifest）。

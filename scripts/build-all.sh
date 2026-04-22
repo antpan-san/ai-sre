@@ -12,6 +12,12 @@ echo "==> go build ft-backend -> bin/opsfleet-backend"
   go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-backend" .
 )
 
+echo "==> go build opsfleet-k8s-mirror-serve (K8s 制品站 miss 时拉公网并落盘，见 deploy/k8s-mirror/)"
+(
+  cd ft-backend
+  go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-k8s-mirror-serve" ./cmd/opsfleet-k8s-mirror-serve
+)
+
 echo "==> go build opsfleet-executor (same skill engine as ai-sre) -> bin/opsfleet-executor"
 (
   cd "$ROOT"
@@ -37,6 +43,7 @@ echo "==> npm build ft-front -> dist/web"
 
 echo "==> OK"
 echo "    Backend: $ROOT/bin/opsfleet-backend"
+echo "    K8s mirror-serve: $ROOT/bin/opsfleet-k8s-mirror-serve  (optional; 制品机 install + systemd)"
 echo "    Executor: $ROOT/bin/opsfleet-executor  (copy to managed hosts as needed)"
 echo "    ai-sre:   $ROOT/bin/ai-sre  (API 公开下载，见 OPSFLEET_AISRE_BINARY_PATH)"
 echo "    Static:  $ROOT/dist/web/"

@@ -52,9 +52,33 @@ sudo -E bash /usr/local/bin/k8s-mirror-sync.sh
 sudo -E bash /usr/local/bin/k8s-mirror-generate-manifest.sh
 ```
 
+## 按需拉取（边下边存，推荐与全量预同步二选一或并存）
+
+当部署页/Inventory 引用了**尚未**由 `k8s-mirror-sync.sh` 预置的路径（或临时新增版本/架构）时，控制机 `get_url` 会请求 `http://<download_domain>/kubernetes/...` 等。若磁盘上**不存在**该文件，可依赖 **`opsfleet-k8s-mirror-serve`**：
+
+- 监听 **`127.0.0.1:8090`**（`LISTEN` 可改，勿对公网裸曝）。
+- 与 **`k8s-mirror-sync.sh` 相同**的上游 URL（`K8S_UPSTREAM`=`https://dl.k8s.io` 等，见 `mirror.env.example`），将 tarball **写入同一 `MIRROR_ROOT`** 目录布局，**持久保存**；下次请求直接由 Nginx `try_files` 读盘，不再访问公网。
+- **K8s** 制品在下载后会尝试拉取对应 **`.sha512` 并强校验**（与全量预拉一致口径）；**etcd / CNI** 仅做 HTTP 200 与落盘。
+
+**制品机需能访问公网**（至少 `dl.k8s.io`、`github.com` release），或自行把上游改为可达的国内镜像，并在 `k8s-mirror.env` 中设置 `K8S_UPSTREAM` / `ETCD_UPSTREAM` / `CNI_UPSTREAM`。
+
+安装（在仓库经 `build-all.sh` 或仅编译该二进制后）：
+
+```bash
+sudo cp /path/to/ai-sre/bin/opsfleet-k8s-mirror-serve /usr/local/bin/
+sudo cp deploy/k8s-mirror/opsfleet-k8s-mirror-serve.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now opsfleet-k8s-mirror-serve
+curl -sS 127.0.0.1:8090/health
+```
+
+Nginx 使用本目录 **`nginx-opsfleet-mirror.conf`**：先 `try_files` 读 `$MIRROR_ROOT`，未命中再 **`proxy_pass` 到 `127.0.0.1:8090`** 触发上述落盘。更新配置后 `sudo nginx -t && sudo systemctl reload nginx`。
+
+新增文件落盘后，**控制台 manifest** 与部署页若需展示新条目，可再执行 `k8s-mirror-generate-manifest.sh` 或等定时任务，使 `manifest.json` 与磁盘一致。
+
 ## Nginx 静态站点示例
 
-`deploy/k8s-mirror/nginx-opsfleet-mirror.conf`：将 `root` 设为 `$MIRROR_ROOT`，并暴露根路径下 `manifest.json`。
+`deploy/k8s-mirror/nginx-opsfleet-mirror.conf`：将 `root` 设为 `$MIRROR_ROOT`；`/` 在「未命中磁盘」时反代到 **opsfleet-k8s-mirror-serve**；根路径下 `manifest.json` 仍由全量/定时脚本预生成时直出，未生成时返回 404（不属于按需逻辑）。
 
 ## systemd 定时同步
 

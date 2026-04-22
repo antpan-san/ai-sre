@@ -1,9 +1,8 @@
 ---
 name: ai-sre-ship
 description: >-
-  Mandatory after ANY change under /Users/panshuai/Documents/work/code/ai-sre (entire monorepo):
-  README check, deploy-remote.sh to root@192.168.56.11:/root/sre, remote smoke, README re-check, push.
-  Entry point: .cursor/skills/release-deploy/SKILL.md. Also see monorepo-release.mdc and opsfleetpilot-ship when touching ft-*/deploy/ansible.
+  Mandatory after ANY change: README, deploy-remote.sh, remote smoke (remote-e2e), README re-check, then
+  **git push last** (only after tests pass). Entry: release-deploy. See opsfleetpilot-ship for full-stack.
 ---
 
 # ai-sre 发布与同步（强制工作流）
@@ -96,7 +95,9 @@ description: >-
 
 按上文 **每次发布后** 小节核对并必要时修订 `README.md`。
 
-### 5. 推送到 GitHub
+### 5. 推送到 GitHub（**顺序上在步骤 3 远程测试与步骤 4 README 复核全部完成之后**）
+
+**`git push` 是发布流程中向 Git 写入的默认最后一步**；在步骤 3 冒烟/远程测试未通过时**不得**执行本步（用户本回合明确豁免 push 除外）。
 
 在**本地**项目根：
 

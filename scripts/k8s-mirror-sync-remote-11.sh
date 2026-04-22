@@ -11,6 +11,19 @@ ssh -o BatchMode=yes -o ConnectTimeout=20 "$REMOTE" "mkdir -p /root/sre/deploy"
 rsync -avz \
   "$MIRROR_DIR/" "$REMOTE:/root/sre/deploy/k8s-mirror/"
 
+echo "==> build + install opsfleet-k8s-mirror-serve (按需从公网落盘，见 deploy/k8s-mirror README)"
+if ssh -o BatchMode=yes -o ConnectTimeout=20 "$REMOTE" "test -d /root/sre/ft-backend"; then
+  ssh -o BatchMode=yes -o ConnectTimeout=20 "$REMOTE" \
+    "set -euo pipefail; cd /root/sre/ft-backend && go build -trimpath -ldflags='-s -w' -o /usr/local/bin/opsfleet-k8s-mirror-serve ./cmd/opsfleet-k8s-mirror-serve"
+  scp -o BatchMode=yes -o ConnectTimeout=20 \
+    "$MIRROR_DIR/opsfleet-k8s-mirror-serve.service" \
+    "$REMOTE:/etc/systemd/system/opsfleet-k8s-mirror-serve.service"
+  ssh -o BatchMode=yes -o ConnectTimeout=20 "$REMOTE" \
+    "systemctl daemon-reload && systemctl enable --now opsfleet-k8s-mirror-serve && curl -sfS 127.0.0.1:8090/health >/dev/null && echo 'mirror-serve OK'"
+else
+  echo "    跳过: 远端无 /root/sre/ft-backend（全栈 deploy 后重跑本脚本，或本机 go build 后手拷 /usr/local/bin/）"
+fi
+
 echo "==> install /etc/opsfleet/k8s-mirror.env + k8s-mirror-versions.txt"
 scp -o BatchMode=yes -o ConnectTimeout=20 \
   "$MIRROR_DIR/mirror.env.example" \

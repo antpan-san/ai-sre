@@ -510,7 +510,7 @@ func localK8sBundleDirCandidates() []string {
 	var out []string
 	add := func(p string) {
 		p = filepath.Clean(strings.TrimSpace(p))
-		if p == "" {
+		if p == "" || p == "." {
 			return
 		}
 		if _, ok := seen[p]; ok {
@@ -526,11 +526,15 @@ func localK8sBundleDirCandidates() []string {
 }
 
 func isLocalK8sBundleRoot(dir string) bool {
-	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
 		return false
 	}
-	pb := filepath.Join(dir, "ansible-agent", "playbooks", "pre_cleanup.yml")
-	inv := filepath.Join(dir, "inventory", "hosts.ini")
+	if st, err := os.Stat(abs); err != nil || !st.IsDir() {
+		return false
+	}
+	pb := filepath.Join(abs, "ansible-agent", "playbooks", "pre_cleanup.yml")
+	inv := filepath.Join(abs, "inventory", "hosts.ini")
 	_, e1 := os.Stat(pb)
 	_, e2 := os.Stat(inv)
 	return e1 == nil && e2 == nil
@@ -539,14 +543,18 @@ func isLocalK8sBundleRoot(dir string) bool {
 // tryRunCleanupFromLocalBundleDirs 在候选目录中查找已解压的离线包并执行 pre_cleanup。
 func tryRunCleanupFromLocalBundleDirs(userHint string) error {
 	for _, d := range localK8sBundleDirCandidates() {
-		if !isLocalK8sBundleRoot(d) {
+		abs, err := filepath.Abs(d)
+		if err != nil {
+			continue
+		}
+		if !isLocalK8sBundleRoot(abs) {
 			continue
 		}
 		if strings.TrimSpace(userHint) != "" {
 			fmt.Fprintln(os.Stderr, userHint)
 		}
-		fmt.Fprintf(os.Stderr, "[%s] 使用本机离线包目录: %s\n", progName, d)
-		return runCleanupPlaybook(filepath.Join(d, "ansible-agent"), filepath.Join(d, "inventory", "hosts.ini"))
+		fmt.Fprintf(os.Stderr, "[%s] 使用本机离线包目录: %s\n", progName, abs)
+		return runCleanupPlaybook(filepath.Join(abs, "ansible-agent"), filepath.Join(abs, "inventory", "hosts.ini"))
 	}
 	return errNoLocalK8sBundle
 }
@@ -603,8 +611,16 @@ func runUninstallK8s(refOverride, workdir string, forceLocal bool) error {
 }
 
 func runCleanupPlaybook(agentRoot, inventoryPath string) error {
-	pb := filepath.Join(agentRoot, "playbooks", "pre_cleanup.yml")
-	for _, p := range []string{inventoryPath, agentRoot, pb} {
+	absAgent, err := filepath.Abs(agentRoot)
+	if err != nil {
+		return err
+	}
+	absInv, err := filepath.Abs(inventoryPath)
+	if err != nil {
+		return err
+	}
+	pb := filepath.Join(absAgent, "playbooks", "pre_cleanup.yml")
+	for _, p := range []string{absInv, absAgent, pb} {
 		if _, err := os.Stat(p); err != nil {
 			return fmt.Errorf("清理路径无效 %s: %w", p, err)
 		}
@@ -617,13 +633,13 @@ func runCleanupPlaybook(agentRoot, inventoryPath string) error {
 		return c
 	}
 	if os.Geteuid() == 0 {
-		c := run("ansible-playbook", "-i", inventoryPath, pb)
-		c.Dir = agentRoot
+		c := run("ansible-playbook", "-i", absInv, pb)
+		c.Dir = absAgent
 		c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
 		return c.Run()
 	}
-	c := run("sudo", "-E", "ansible-playbook", "-i", inventoryPath, pb)
-	c.Dir = agentRoot
+	c := run("sudo", "-E", "ansible-playbook", "-i", absInv, pb)
+	c.Dir = absAgent
 	c.Env = append(os.Environ(), "ANSIBLE_HOST_KEY_CHECKING=False")
 	return c.Run()
 }

@@ -189,7 +189,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | `docs/` | 归档说明、客户端相关 PRD 等（如 `docs/opsfleet-README.md`、`docs/ft-client-prd-machines.txt`） |
 | `scripts/deploy-remote.sh` | 同步本仓并编译 **ai-sre CLI**（默认远端 `/root/sre`） |
 | `scripts/deploy-opsfleet-remote.sh` | 同步本仓并构建 **OpsFleet**（Nginx + systemd，`build-all.sh`；可创建 `/etc/opsfleet/backend.env`） |
-| `deploy/k8s-mirror/` | K8s 内网制品同步脚本、manifest、Nginx 示例（部署在制品机，常与 192.168.56.11 同机） |
+| `deploy/k8s-mirror/` | K8s 内网制品同步脚本、manifest、Nginx 示例、**opsfleet-k8s-mirror-serve**（未命中缓存时从公网拉取并落盘，见 `deploy/k8s-mirror/README.md`；部署在制品机，常与 192.168.56.11 同机） |
 | `scripts/build-all.sh` | 仅构建 OpsFleet 后端 + 前端静态资源 |
 | `scripts/remote-e2e.sh` | CLI 端到端冒烟 |
 
