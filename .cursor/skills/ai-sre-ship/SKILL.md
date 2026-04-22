@@ -10,6 +10,8 @@ description: >-
 
 **总入口**：优先从 **`.cursor/skills/release-deploy/SKILL.md`** 进入，再执行本文件中的步骤。
 
+**与 192.168.56.11**：本流程中的 **`deploy-remote.sh`**、**`remote-e2e.sh`** 均由代理在**本机**执行，经 SSH 更新 **`root@192.168.56.11:/root/sre`**；**用户无需**登录该主机。若需更新 **`install-ai-sre` 可下载的 ai-sre**，**必须**另按 **opsfleetpilot-ship** 执行 **`deploy-opsfleet-remote.sh`**（见 **release-deploy** 与 **monorepo-release**）。
+
 ## 触发条件（必须）
 
 在 **`/Users/panshuai/Documents/work/code/ai-sre` 仓库内对任意路径、任意类型文件的修改**（代码、配置、脚本、文档、`.cursor` 规则与 skill 等）完成后，代理**必须**按本文件执行发布流程，**不要**等待用户再说「发布」。若用户**明确**声明豁免（例如仅本地试验、禁止 SSH），则按其声明缩小步骤，但仍须完成可执行的 README 与自检。
@@ -80,6 +82,8 @@ description: >-
 若脚本不存在，则等价手动执行（见下文「手动等价命令」）。
 
 **不要使用 `--delete` rsync**（除非用户明确要求），以免误删服务器上额外文件。
+
+**与 OpsFort 分发的关系（必读）**：`deploy-remote.sh` 在远端生成的是 **`$REMOTE_DIR/ai-sre`**（仓库根 `go build`）。**控制台** `GET /ft-api/api/k8s/deploy/cli/ai-sre` 通常读取的是 **`$REMOTE_DIR/bin/ai-sre`**（由 **`build-all.sh`** / **`deploy-opsfleet-remote.sh`** 生成并写入 **`OPSFLEET_AISRE_BINARY_PATH`**）。因此**只跑本步骤**不能让「目标机 install-ai-sre 脚本」拿到新包；若本次要升级**对外可下载的** ai-sre，**必须**按 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`** 跑 **`deploy-opsfleet-remote.sh`** 并做 **版本三门一致** 核对。
 
 ### 3. 远程功能测试（必须通过）
 

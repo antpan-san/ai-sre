@@ -100,6 +100,23 @@ def main():
         if not os.path.isfile(install_sh):
             die("离线包内未找到 install.sh")
 
+        last_snap = "/var/lib/opsfleet-k8s/last-bundle"
+        try:
+            os.makedirs("/var/lib/opsfleet-k8s", exist_ok=True)
+            try:
+                os.chmod("/var/lib/opsfleet-k8s", 0o700)
+            except Exception:
+                pass
+            if os.path.isdir(last_snap):
+                shutil.rmtree(last_snap)
+            shutil.copytree(root, last_snap, symlinks=True)
+            print(
+                "=== 已同步离线包至 %s（日后清理: sudo ai-sre uninstall k8s，无需控制台 id）==="
+                % last_snap
+            )
+        except Exception as e:
+            print("WARN: 无法写入 %s: %s" % (last_snap, e), file=sys.stderr)
+
         os.chdir(root)
         try:
             st_path = "/var/lib/opsfleet-k8s/install-ref"

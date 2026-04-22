@@ -16,17 +16,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/panshuai/ai-sre/internal/config"
 	"github.com/spf13/cobra"
 )
-
-// resolveOpsfleetAPIBase 优先环境变量，其次 config 中 opsfleet_api_url / 安装脚本写入的 opsfleet_api_url 文件。
-func resolveOpsfleetAPIBase() string {
-	if v := strings.TrimSpace(os.Getenv("OPSFLEET_API_URL")); v != "" {
-		return strings.TrimRight(v, "/")
-	}
-	return config.LoadOptionalOpsfleetAPIBase()
-}
 
 func isHelpInvocation() bool {
 	for _, a := range os.Args[1:] {
@@ -44,7 +35,8 @@ func shouldSkipPreUpgradeCheck(cmd *cobra.Command) bool {
 	}
 	for c := cmd; c != nil; c = c.Parent() {
 		switch c.Name() {
-		case "upgrade", "version", "uninstall", "help", "completion":
+		// 注意: uninstall 不在此列，执行 uninstall k8s 前会与别的子命令一样尝试拉 OpsFleet 上较新的 ai-sre 并 re-exec
+		case "upgrade", "version", "help", "completion":
 			return true
 		}
 	}
@@ -64,9 +56,6 @@ func opsfleetPersistentPreRun(cmd *cobra.Command, _ []string) error {
 		return nil
 	}
 	base := resolveOpsfleetAPIBase()
-	if base == "" {
-		return nil
-	}
 	if os.Getenv("OPSFLEET_NO_AUTO_UPGRADE") == "1" {
 		if os.Getenv("OPSFLEET_UPGRADE_HINT") == "1" || os.Getenv("OPSFLEET_UPGRADE_CHECK") == "1" {
 			return runUpgradeHintOnly(base)
@@ -135,7 +124,7 @@ func runUpgradeHintOnly(base string) error {
 	if !versionIsOlder(Version, ver) {
 		return nil
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "[ai-sre] OpsFleet 提供更新版本 %s（当前 %s），执行 %s upgrade 或设置 OPSFLEET_API_URL 后重试以覆盖安装\n", ver, Version, progName)
+	_, _ = fmt.Fprintf(os.Stderr, "[ai-sre] OpsFleet 提供更新版本 %s（当前 %s），执行 %s upgrade 后重试以覆盖安装\n", ver, Version, progName)
 	return nil
 }
 
@@ -150,19 +139,15 @@ func upgradeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "upgrade",
 		Short: "连接 OpsFleet 检测 ai-sre 版本并在需要时覆盖本机二进制",
-		Long: `向 GET .../api/k8s/deploy/cli/ai-sre/version 拉取元数据，与当前可执行文件比对；
-若服务器版本更新，则下载 GET .../api/k8s/deploy/cli/ai-sre?arch=... 并覆盖正在使用的二进制
-（同 curl 安装脚本，通常需 root，目标路径为 which ai-sre，一般为 /usr/local/bin/ai-sre）。
-
-基址与「每次子命令前自动检查升级」相同：环境变量 OPSFLEET_API_URL、或 install-ai-sre 写入的 ~/.config/ai-sre/opsfleet_api_url、或 config.yaml 中 opsfleet_api_url。
-OPSFLEET_NO_AUTO_UPGRADE=1 可关闭自升级，仅当另设 OPSFLEET_UPGRADE_HINT=1 时提示。`,
+		Long: "向 GET .../api/k8s/deploy/cli/ai-sre/version 拉取元数据，与当前可执行文件比对；\n" +
+			"若服务器版本更新，则下载 GET .../api/k8s/deploy/cli/ai-sre?arch=... 并覆盖正在使用的二进制\n" +
+			"（同 curl 安装脚本，通常需 root，目标路径为 which ai-sre，一般为 /usr/local/bin/ai-sre）。\n\n" +
+			"默认基址为内建 " + EmbeddedOpsfleetAPIBase + "；仅当需联调其它控制台时设置 OPSFLEET_API_URL。\n" +
+			"OPSFLEET_NO_AUTO_UPGRADE=1 可关闭自升级，仅当另设 OPSFLEET_UPGRADE_HINT=1 时提示。",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			base := strings.TrimSpace(apiURL)
 			if base == "" {
 				base = resolveOpsfleetAPIBase()
-			}
-			if base == "" {
-				return fmt.Errorf("请传 --api-url 或设置 OPSFLEET_API_URL、~/.config/ai-sre/opsfleet_api_url 或 config.yaml 中 opsfleet_api_url")
 			}
 			base = strings.TrimRight(base, "/")
 			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
@@ -218,7 +203,7 @@ OPSFLEET_NO_AUTO_UPGRADE=1 可关闭自升级，仅当另设 OPSFLEET_UPGRADE_HI
 			return nil
 		},
 	}
-	cmd.Flags().StringVar(&apiURL, "api-url", "", "OpsFleet API 基址（同 k8s download；也可 OPSFLEET_API_URL）")
+	cmd.Flags().StringVar(&apiURL, "api-url", "", "覆盖内建 OpsFort 基址（默认 "+EmbeddedOpsfleetAPIBase+"）")
 	cmd.Flags().BoolVarP(&yes, "yes", "y", false, "不询问，直接覆盖（非 TTY 时必填）")
 	cmd.Flags().BoolVar(&check, "check", false, "仅检查：有更新时退出 1，已最新退出 0，错误退出 2")
 	cmd.Flags().StringVar(&arch, "arch", "", "目标 arch：amd64|arm64（默认本机 uname 推断，Linux 常用）")

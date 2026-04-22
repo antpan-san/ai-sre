@@ -9,6 +9,8 @@ description: >-
 
 **总入口**：**`.cursor/skills/release-deploy/SKILL.md`**。本文件在触及 OpsFleet 路径时**叠加**在 `ai-sre-ship` 之上执行。
 
+**用户不操作远端**：**`deploy-opsfleet-remote.sh`**、**`verify-opsfleet-deployment.sh`** 均由代理在**本机仓库根**执行（脚本内 **SSH** 到 **`root@192.168.56.11`**）；**不要求用户**自行登录实验室机维护 **`bin/ai-sre`** 或服务。
+
 ## 触发条件（在 ai-sre-ship 之上叠加）
 
 在已满足 **`.cursor/rules/monorepo-release.mdc`** 与 **`.cursor/skills/ai-sre-ship/SKILL.md`** 的前提下，若本次变更触及 **OpsFleet** 相关路径或脚本，**另须**完整执行本文件：`ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`，或 `scripts/deploy-opsfleet-remote.sh`、`scripts/build-all.sh`、`scripts/verify-opsfleet-deployment.sh`、`PRODUCT_DOC.md` 中与控制台部署强相关的内容。
@@ -84,6 +86,25 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 - 本机到远程 **SSH 免密**。  
 - 防火墙放行 **9080**（或自定义 UI 端口）。
 
+## ai-sre 分发与版本（强制核对，避免「控制台仍发旧包」）
+
+**根因**：目标机执行 `curl .../install-ai-sre.sh | bash` 或 `ai-sre upgrade` 时，下载的是 **OpsFort 本机磁盘上** `opsfleet.ai_sre_binary_path`（环境变量 **`OPSFLEET_AISRE_BINARY_PATH`**）指向的文件；**不是** Git 改完就自动生效。若发布未换该文件，客户端会**一直**拿到旧 `ai-sre version`（例如始终 0.4.1）。
+
+**两条构建路径（勿混淆）**：
+
+| 脚本 | 远端典型产物 | 是否被 `GET /ft-api/.../cli/ai-sre` 分发 |
+|------|----------------|----------------------------------------|
+| **`scripts/deploy-opsfleet-remote.sh`** | **`build-all.sh`** → **`$REMOTE_DIR/bin/ai-sre`**，并写入 **`/etc/opsfleet/backend.env`** 的 **`OPSFLEET_AISRE_BINARY_PATH`** | **是** |
+| **`scripts/deploy-remote.sh`** | 仓库根 **`go build -o ai-sre`** → **`$REMOTE_DIR/ai-sre`**（与 **`bin/ai-sre` 不是同一路径**） | **否**，除非再手动拷到 `bin/ai-sre` 并重启后端 |
+
+**每次全栈发布门禁**：
+
+1. SSH：`"$REMOTE_DIR/bin/ai-sre" version`（以 `/etc/opsfleet/backend.env` 中路径为准）与 **`internal/cli` Version** 一致。  
+2. HTTP：`curl -sS "http://127.0.0.1:${UI_PORT:-9080}/ft-api/api/k8s/deploy/cli/ai-sre/version"` 的 JSON **`version`** 与上项一致。  
+3. 若仍为旧版：重跑 **`./scripts/deploy-opsfleet-remote.sh`**，或手动覆盖 **`bin/ai-sre`** 后 **`systemctl restart opsfleet-backend`**，直至 1、2 与仓库一致。
+
+**说明**：仅设置 **`OPSFLEET_AISRE_VERSION`** 而不更新磁盘二进制会导致元数据与文件不一致；以实际 **`ai-sre version`** 为准（见 `ft-backend/handlers/k8s_cli_install.go`）。
+
 ## 与 ai-sre CLI
 
-同仓根目录另有 **ai-sre** 子模块（`main.go`、`internal/`）；其远程同步脚本为 **`scripts/deploy-remote.sh`**（只构建 CLI，不跑 OpsFleet 全栈）。变更 OpsFleet 时使用 **`deploy-opsfleet-remote.sh`**。
+同仓根目录另有 **ai-sre** 子模块（`main.go`、`internal/`）；其远程同步脚本为 **`scripts/deploy-remote.sh`**（只构建仓库根 **`ai-sre`**，**不**等于更新 **`bin/ai-sre`** 分发）。变更 OpsFort 或**要更新控制台可下载的 ai-sre** 时，**必须**跑 **`deploy-opsfleet-remote.sh`**（或按上表手动同步到 **`bin/ai-sre`**）。

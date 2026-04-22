@@ -406,6 +406,18 @@ preflight_ssh_roots() {
 
 preflight_ssh_roots
 
+# 同步完整离线包到本机固定路径，与 OpsFleet 控制台版本、ofpk8s1 是否过期无关；
+# 供日后「sudo ai-sre uninstall k8s」按上次节点清单执行 pre_cleanup，无需再找资源 id。
+LAST_SNAP="/var/lib/opsfleet-k8s/last-bundle"
+mkdir -p /var/lib/opsfleet-k8s
+chmod 700 /var/lib/opsfleet-k8s 2>/dev/null || true
+if command -v rsync >/dev/null 2>&1; then
+  rsync -a --delete "${ROOT}/" "${LAST_SNAP}/"
+  echo "=== 已同步离线包至 ${LAST_SNAP}（日后清理: sudo ai-sre uninstall k8s，无需控制台 id）==="
+else
+  echo "WARN: 未找到 rsync，跳过写入 ${LAST_SNAP}"
+fi
+
 # 与 inventory/group_vars 中 local_cache_dir 一致，跨多次测试复用已下载 tarball。
 mkdir -p /var/cache/opsfleet-k8s
 chmod 0755 /var/cache/opsfleet-k8s

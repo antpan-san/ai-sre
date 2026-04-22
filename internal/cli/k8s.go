@@ -87,7 +87,7 @@ func k8sCmd() *cobra.Command {
   # 部署失败或需按页面节点全量清理（与 install 使用同一 ofpk8s1 引用；重新拉包并跑 pre_cleanup）
   sudo %s k8s cleanup 'ofpk8s1.…'
 
-  # 自适配备份：本机已记录安装引用时，一步卸载（同 cleanup）
+  # 一步卸载（优先本机 /var/lib/opsfleet-k8s/last-bundle，无需控制台 id）
   sudo %s uninstall k8s
 
   sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName, progName, progName, progName),
@@ -130,7 +130,7 @@ func k8sDownloadCmd() *cobra.Command {
 				base = strings.TrimSpace(os.Getenv("OPSFLEET_API_URL"))
 			}
 			if base == "" {
-				return errors.New("请设置 --api-url 或环境变量 OPSFLEET_API_URL（例如 http://host:9080/ft-api）")
+				base = resolveOpsfleetAPIBase()
 			}
 			base = strings.TrimRight(base, "/")
 
@@ -342,9 +342,12 @@ func runInstallFromBareInviteID(idStr string) error {
 		return fmt.Errorf("无效的安装引用或资源 ID: %w", err)
 	}
 	base := strings.TrimRight(strings.TrimSpace(os.Getenv("OPSFLEET_API_URL")), "/")
+	if base == "" {
+		base = resolveOpsfleetAPIBase()
+	}
 	tok := strings.TrimSpace(os.Getenv("OPSFLEET_BUNDLE_TOKEN"))
-	if base == "" || tok == "" {
-		return errors.New("仅传入资源 UUID 时需设置 OPSFLEET_API_URL 与 OPSFLEET_BUNDLE_TOKEN；请优先使用控制台生成的整段 installRef（ofpk8s1.…）")
+	if tok == "" {
+		return errors.New("仅传入资源 UUID 时需设置 OPSFLEET_BUNDLE_TOKEN；请优先使用控制台生成的整段 installRef（ofpk8s1.…）")
 	}
 	return downloadInviteZipAndRunInstall(base, strings.TrimSpace(idStr), tok, "")
 }
@@ -497,6 +500,106 @@ func runCleanupFromInviteRef(ref string) error {
 	}
 	defer cleanup()
 	return runCleanupPlaybook(filepath.Join(root, "ansible-agent"), filepath.Join(root, "inventory", "hosts.ini"))
+}
+
+var errNoLocalK8sBundle = errors.New("本机未找到含 ansible-agent 与 inventory/hosts.ini 的离线包根目录")
+
+// localK8sBundleDirCandidates 尝试的目录顺序：上次 install 写入的快照、环境变量、常见解压路径。
+func localK8sBundleDirCandidates() []string {
+	seen := map[string]struct{}{}
+	var out []string
+	add := func(p string) {
+		p = filepath.Clean(strings.TrimSpace(p))
+		if p == "" {
+			return
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		out = append(out, p)
+	}
+	add(K8sLastBundlePath)
+	add(os.Getenv("OPSFLEET_K8S_WORKDIR"))
+	add(K8sDefaultUninstallWorkdir)
+	return out
+}
+
+func isLocalK8sBundleRoot(dir string) bool {
+	if st, err := os.Stat(dir); err != nil || !st.IsDir() {
+		return false
+	}
+	pb := filepath.Join(dir, "ansible-agent", "playbooks", "pre_cleanup.yml")
+	inv := filepath.Join(dir, "inventory", "hosts.ini")
+	_, e1 := os.Stat(pb)
+	_, e2 := os.Stat(inv)
+	return e1 == nil && e2 == nil
+}
+
+// tryRunCleanupFromLocalBundleDirs 在候选目录中查找已解压的离线包并执行 pre_cleanup。
+func tryRunCleanupFromLocalBundleDirs(userHint string) error {
+	for _, d := range localK8sBundleDirCandidates() {
+		if !isLocalK8sBundleRoot(d) {
+			continue
+		}
+		if strings.TrimSpace(userHint) != "" {
+			fmt.Fprintln(os.Stderr, userHint)
+		}
+		fmt.Fprintf(os.Stderr, "[%s] 使用本机离线包目录: %s\n", progName, d)
+		return runCleanupPlaybook(filepath.Join(d, "ansible-agent"), filepath.Join(d, "inventory", "hosts.ini"))
+	}
+	return errNoLocalK8sBundle
+}
+
+// runUninstallK8s 实现 `ai-sre uninstall k8s`：
+// 1) 优先本机 last-bundle/常见路径（不依赖平台 id、不联网）；
+// 2) 若无副本且未 --force，再尝试 ofpk8s1 拉 zip（旧版兼容）；
+// 3) --force 仅本机，失败则报错。
+func runUninstallK8s(refOverride, workdir string, forceLocal bool) error {
+	workdir = strings.TrimSpace(workdir)
+	if workdir != "" {
+		root, err := filepath.Abs(workdir)
+		if err != nil {
+			return err
+		}
+		if !isLocalK8sBundleRoot(root) {
+			return fmt.Errorf("路径不是有效离线包根目录（需含 ansible-agent/playbooks/pre_cleanup.yml 与 inventory/hosts.ini）: %s", root)
+		}
+		fmt.Fprintf(os.Stderr, "[%s] 使用 --workdir: %s\n", progName, root)
+		return runCleanupPlaybook(filepath.Join(root, "ansible-agent"), filepath.Join(root, "inventory", "hosts.ini"))
+	}
+	ref := strings.TrimSpace(refOverride)
+	if ref == "" {
+		ref = loadK8sInstallRef()
+	}
+
+	// 默认：先用语义 install.sh 同步的快照，无需控制台、无需联网
+	if err := tryRunCleanupFromLocalBundleDirs(""); err == nil {
+		return nil
+	}
+	if forceLocal {
+		return fmt.Errorf(
+			"未找到本机离线包副本。请使用带「同步至 %s」的新版 install.sh 执行过一次安装，或: sudo %s uninstall k8s --workdir <解压根>\n%w",
+			K8sLastBundlePath, progName, errNoLocalK8sBundle,
+		)
+	}
+	if ref != "" {
+		if !strings.HasPrefix(ref, installRefPrefixV1) {
+			return fmt.Errorf("安装引用须以 %s 开头，或改用 --workdir / --force", installRefPrefixV1)
+		}
+		if err := runCleanupFromInviteRef(ref); err != nil {
+			return fmt.Errorf(
+				"拉取邀请包失败且本机无 %s 等有效副本: %w\n请用新版离线包执行 install.sh 生成快照，或: sudo %s uninstall k8s --workdir <解压根目录>",
+				K8sLastBundlePath, err, progName,
+			)
+		}
+		return nil
+	}
+	return fmt.Errorf(
+		"本机无可用离线包（已查 %s、$OPSFLEET_K8S_WORKDIR、%s），且无 ofpk8s1 可拉取。\n"+
+			"请用当前平台生成的离线包执行 install.sh（会写入 %s），或: sudo %s uninstall k8s --workdir <根>  或: sudo %s uninstall k8s --ref 'ofpk8s1…'",
+		K8sLastBundlePath, K8sDefaultUninstallWorkdir, K8sLastBundlePath, progName, progName,
+	)
 }
 
 func runCleanupPlaybook(agentRoot, inventoryPath string) error {

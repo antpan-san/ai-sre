@@ -8,7 +8,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 另：**技能注册** — `skills list`（发现已加载技能包）。
 
-**当前版本**：以运行环境为准，执行 `./ai-sre version`（与源码中 `internal/cli/version.go` 的 `Version` 变量对齐）。**自升级**：若存在 **`OPSFLEET_API_URL`**、或 `curl` 安装脚本写入的 **`~/.config/ai-sre/opsfleet_api_url`**、或 **`config.yaml` 的 `opsfleet_api_url` 字段**（如 `http://<host>:9080/ft-api`），**每次**执行子命令前都会拉取 `GET .../api/k8s/deploy/cli/ai-sre/version` 比对，较新则自动下载并覆盖后 **重新执行同一命令**（非 Windows）。关闭：`OPSFLEET_NO_AUTO_UPGRADE=1`；关自动后仅提示：`OPSFLEET_UPGRADE_HINT=1`。**显式一次升级**：`sudo ai-sre upgrade -y`（同上基址来源）。
+**当前版本**：以运行环境为准，执行 `./ai-sre version`（与源码中 `internal/cli/version.go` 的 `Version` 变量对齐）。**自升级默认基址**：内建 `http://192.168.56.11:9080/ft-api`（代码常量 `internal/cli/EmbeddedOpsfleetAPIBase`）；若设置 **`OPSFLEET_API_URL`** 则优先生效。未关闭时，**每次**执行子命令前（含 `uninstall k8s` 前）会拉 `GET .../api/k8s/deploy/cli/ai-sre/version` 比对，较新则覆盖本机 `ai-sre` 后 **re-exec** 同一命令（非 Windows）。`curl` 安装脚本写入的 **`~/.config/ai-sre/opsfleet_api_url`** 或 **`config.yaml` 的 `opsfleet_api_url`** 亦可作为覆盖来源。关闭：`OPSFLEET_NO_AUTO_UPGRADE=1`；关自动后仅提示：`OPSFLEET_UPGRADE_HINT=1`。**显式一次升级**：`sudo ai-sre upgrade -y`。
 
 本仓库为 **单一 Git 仓库**：根目录 **CLI（ai-sre）**、**OpsFleet 本地执行器（`opsfleet-executor`）** 与 **OpsFleetPilot（Web + API）** 并排共存。**OpsFleetPilot** 包含 `ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`；**`opsfleet-executor`** 与 `ai-sre` **共用同一套技能包与执行语义**（`analyze` / `ask` / `runbook` 等），用于部署在**受管机**上本地执行。产品总览见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)，历史说明见 [`docs/opsfleet-README.md`](docs/opsfleet-README.md)。控制台构建：`make build-opsfleet`（产物 `bin/opsfleet-backend`、`dist/web/`）。
 
@@ -27,7 +27,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre help` | 帮助 |
 | `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` 等（见 `ai-sre k8s --help`） |
 | `ai-sre upgrade` | 与 OpsFleet 对比版本后覆盖本机 `ai-sre` 二进制（需能访问上表基址） |
-| `ai-sre uninstall k8s` | 在控制机 `root` 下按已记录的安装引用全量清理（与 `k8s cleanup` 同路径，无需再填 workdir） |
+| `ai-sre uninstall k8s` | 在控制机 `root` 下用 Ansible `pre_cleanup` 全量清集群；**优先**本机 `/var/lib/opsfleet-k8s/last-bundle`（`install.sh` 预检后同步），无则再试拉 `ofpk8s1` 或 `--workdir` / `--force`（见 `ai-sre uninstall k8s --help`） |
 
 别名：`ops-ai`（与 `ai-sre` 等价）。
 

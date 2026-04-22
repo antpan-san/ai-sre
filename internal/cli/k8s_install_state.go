@@ -6,11 +6,18 @@ import (
 	"strings"
 )
 
-// 控制机记录 ofpk8s1 安装引用，供「ai-sre uninstall k8s」无参自适配备份。
-// 与 k8s cleanup 使用同一套清理逻辑；引用须在有效期内（与 OpsFleet bundle-invite 一致）。
+// 控制机可记录 ofpk8s1 安装引用；卸载优先使用本机 last-bundle 副本，无需邀请仍有效。
 
 const k8sStateDir = "/var/lib/opsfleet-k8s"
 const k8sInstallRefFile = "install-ref"
+
+// K8sDefaultUninstallWorkdir 为文档/常见安装方式使用的离线条解压根路径；
+// 未使用 last-bundle 时 uninstall 会尝试该目录与 OPSFLEET_K8S_WORKDIR。
+const K8sDefaultUninstallWorkdir = "/opt/opsfleet-k8s"
+
+// K8sLastBundlePath 为 install.sh / 引导脚本在预检后同步的完整离线条根路径，
+// 与平台版本、ofpk8s1 邀请是否过期无关，供 ai-sre uninstall k8s 无 id 清理。
+const K8sLastBundlePath = k8sStateDir + "/last-bundle"
 
 func k8sInstallRefSystemPath() string {
 	return filepath.Join(k8sStateDir, k8sInstallRefFile)
