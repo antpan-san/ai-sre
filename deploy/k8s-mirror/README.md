@@ -4,6 +4,10 @@
 
 **实验室环境**：默认制品机 IP **`192.168.56.11`** 与 **ai-sre** / **OpsFleet** 远程部署脚本使用**同一台本地虚拟机**（`root` 免密）时，在该机部署本目录即可同时满足 Ansible 拉取与 OpsFleet 控制台展示。**发布与自检**见仓库 **`.cursor/rules/monorepo-release.mdc`**、**`.cursor/skills/k8s-offline-deploy-test/SKILL.md`**、**`.cursor/skills/opsfleetpilot-ship/SKILL.md`**。
 
+## 磁盘空间
+
+多版本 × 双架构 **kubernetes-server**  tarball 体积大（单套约数百 MB～1GB+），与 **etcd / CNI** 合计常需 **约 5～8GB** 以上空闲；与 PostgreSQL、容器、日志同盘时请先预留空间，避免根分区写满导致数据库与 OpsFleet 异常。
+
 ## 持久目录（默认）
 
 | 变量 | 默认 |
