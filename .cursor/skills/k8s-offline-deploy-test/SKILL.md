@@ -125,6 +125,29 @@ OPSFLEET_ANSIBLE_DIR=/path/to/repo/ansible-agent \
 
 `gen-k8s-bundle` 与 HTTP 接口共用 **`BuildK8sOfflineZip`**；**同一组参数** 打出的包应与 UI **一致**（若不一致则属产品 Bug，应记「需改代码」）。
 
+### 入口 C：实验室双节点（本仓库 `scripts/k8s-lab-full-install.sh`）
+
+在**本机有 Go、能 `ssh` 到控制机**的前提下，**一键**完成：**打 zip → scp 到控制机 → 空目录解压 → `install.sh`（可配置失败重试）**，与入口 A/B **同一套 zip 内容**。
+
+- **默认约定（可按环境变量改）**  
+  - 集群名 **`111111`**，master **`192.168.56.101`**，worker **`192.168.56.102`**。  
+  - 控制机（跑 `install.sh` 的机器、须对 inventory 内各节点 `root` 免密）**默认** `K8S_LAB_SSH=root@192.168.56.101`（与 master 同机是常见跑法；若你的控制机是 `192.168.56.11` 等，请设 `K8S_LAB_SSH`）。  
+  - 架构 **默认 `amd64`**（与 `gen-k8s-bundle` 默认的 `arm64` 不同——实验室 x86 虚拟机务必将 **`K8S_LAB_ARCH`** 与节点 `uname -m` 对齐）。  
+  - 版本默认 **`v1.28.15`**，与 CLI `gen-k8s-bundle` 一致。
+
+- **执行**
+
+```bash
+cd /path/to/ai-sre
+./scripts/k8s-lab-full-install.sh
+# 或（示例：控制机为 11，多 worker 逗号分隔）
+# K8S_LAB_SSH=root@192.168.56.11 K8S_LAB_MASTERS=192.168.56.101 K8S_LAB_WORKERS=192.168.56.102,192.168.56.103 ./scripts/k8s-lab-full-install.sh
+```
+
+- **与「不要一步一坎」的对应**  
+  - 仍须满足 **网络 + 免密 + 架构** 等 Preconditions；脚本负责 **固定参数、固定 OPSFLEET_ANSIBLE_DIR、可重复解压目录、可重试 install、统一日志**（控制机上 `~/opsfleet-k8s-lab-install.log`）。  
+  - 装通后验证见下文 **装通后验证**；未改 skill 的禁止项：禁止仅在目标机**裸跑 ansible-agent 仓库**替代 zip。
+
 ---
 
 ## 强制检查点（解压后、执行 install.sh 之前，人手也会做／Agent 必须做）
