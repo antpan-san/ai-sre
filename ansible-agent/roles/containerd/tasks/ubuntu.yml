@@ -7,6 +7,13 @@
     state: present
     update_cache: true
 
+# apt 包有时不会预先创建 /etc/containerd，重定向写 config.toml 会报 Directory nonexistent
+- name: Ensure /etc/containerd directory exists
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    mode: "0755"
+
 - name: Ensure containerd config exists
   ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
   args:
