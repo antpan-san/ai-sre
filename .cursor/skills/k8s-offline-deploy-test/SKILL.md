@@ -132,7 +132,7 @@ OPSFLEET_ANSIBLE_DIR=/path/to/repo/ansible-agent \
 - **默认约定（可按环境变量改）**  
   - 集群名 **`111111`**，master **`192.168.56.101`**，worker **`192.168.56.102`**。  
   - 控制机（跑 `install.sh` 的机器、须对 inventory 内各节点 `root` 免密）**默认** `K8S_LAB_SSH=root@192.168.56.101`（与 master 同机是常见跑法；若你的控制机是 `192.168.56.11` 等，请设 `K8S_LAB_SSH`）。  
-  - 架构 **默认 `amd64`**（与 `gen-k8s-bundle` 默认的 `arm64` 不同——实验室 x86 虚拟机务必将 **`K8S_LAB_ARCH`** 与节点 `uname -m` 对齐）。  
+  - 架构 **默认 `arm64`**（与 `gen-k8s-bundle` 一致；x86 实验室请设 **`K8S_LAB_ARCH=amd64`**，与节点 `uname -m` 一致）。  
   - 版本默认 **`v1.28.15`**，与 CLI `gen-k8s-bundle` 一致。
 
 - **执行**

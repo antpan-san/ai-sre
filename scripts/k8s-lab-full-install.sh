@@ -8,7 +8,7 @@
 #   K8S_LAB_WORKERS    逗号分隔 worker IP（默认 192.168.56.102）
 #   K8S_LAB_CLUSTER    集群名（默认 111111）
 #   K8S_LAB_VERSION    如 v1.28.15
-#   K8S_LAB_ARCH       amd64|arm64，须与各节点 uname -m 一致（实验室 x86 默认 amd64）
+#   K8S_LAB_ARCH       amd64|arm64，须与各节点 uname -m 一致（默认 arm64，与 gen-k8s-bundle 一致；x86 用 amd64）
 #   K8S_LAB_IMAGESRC   镜像源：aliyun|default|tencent|custom
 #   K8S_LAB_OUT        本地 zip 输出路径
 #   K8S_LAB_RETRIES    install 失败时最多尝试次数（默认 5）
@@ -24,7 +24,8 @@ export OPSFLEET_ANSIBLE_DIR="${OPSFLEET_ANSIBLE_DIR:-$REPO_ROOT/ansible-agent}"
 : "${K8S_LAB_WORKERS:=192.168.56.102}"
 : "${K8S_LAB_CLUSTER:=111111}"
 : "${K8S_LAB_VERSION:=v1.28.15}"
-: "${K8S_LAB_ARCH:=amd64}"
+# 与 gen-k8s-bundle 默认一致；x86 实验室可 export K8S_LAB_ARCH=amd64
+: "${K8S_LAB_ARCH:=arm64}"
 : "${K8S_LAB_IMAGESRC:=aliyun}"
 : "${K8S_LAB_OUT:=/tmp/opsfleet-k8s-lab.zip}"
 : "${K8S_LAB_RETRIES:=5}"
