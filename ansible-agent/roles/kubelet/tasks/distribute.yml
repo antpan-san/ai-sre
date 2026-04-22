@@ -29,6 +29,7 @@
   loop:
     - { ext: crt, mode: "0644" }
     - { ext: key, mode: "0600" }
+  notify: Restart kubelet
 
 - name: Copy kubelet server certificate material to node
   ansible.builtin.copy:
@@ -40,6 +41,7 @@
   loop:
     - { ext: crt, mode: "0644" }
     - { ext: key, mode: "0600" }
+  notify: Restart kubelet
 
 - name: Install kubelet binary
   ansible.builtin.copy:
