@@ -42,6 +42,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/k8s/deploy/bundle-invite/:id/zip", handlers.DownloadK8sBundleInviteZip)
 		public.GET("/k8s/deploy/bootstrap.sh", handlers.ServeK8sInstallBootstrap)
 		public.GET("/k8s/deploy/install-ai-sre.sh", handlers.ServeAiSreInstallScript)
+		public.GET("/k8s/deploy/cli/ai-sre/version", handlers.GetAiSreCLIVersion)
 		public.GET("/k8s/deploy/cli/ai-sre", handlers.DownloadAiSreCLI)
 
 		// Client Agent endpoints (authenticated by client_id, not JWT)
@@ -114,7 +115,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/k8s/deploy/versions", handlers.GetK8sVersions)
 		protected.GET("/k8s/deploy/machines", handlers.GetK8sDeployMachines)
 		protected.GET("/k8s/deploy/check-name", handlers.CheckClusterName)
-		protected.POST("/k8s/deploy/submit", handlers.SubmitK8sDeployWithAnsible)   // Ansible-integrated
+		protected.POST("/k8s/deploy/submit", handlers.SubmitK8sDeployWithAnsible) // Ansible-integrated
 		protected.POST("/k8s/deploy/terminate", handlers.TerminateK8sDeploy)      // 终止部署并下发清理任务
 		protected.GET("/k8s/deploy/progress", handlers.GetK8sDeployProgress)
 		protected.GET("/k8s/deploy/logs", handlers.GetK8sDeployLogs)

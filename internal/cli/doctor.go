@@ -18,7 +18,7 @@ func doctorCmd() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			fmt.Printf("== %s doctor ==\n", progName)
 			fmt.Printf("go_runtime: %s\n", runtime.Version())
-			fmt.Printf("cli_version: %s\n", cliVersion)
+			fmt.Printf("cli_version: %s\n", Version)
 
 			cfgDir, err := config.ResolveDir()
 			if err != nil {

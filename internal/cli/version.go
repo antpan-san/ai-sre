@@ -1,4 +1,6 @@
 package cli
 
-// cliVersion is shown by version and doctor commands (keep in sync with versionCmd output).
-const cliVersion = "0.4.1"
+// Version is the release version, shown by version/doctor/upgrade. Override at build time, e.g.:
+//
+//	-ldflags "-X github.com/panshuai/ai-sre/internal/cli.Version=0.4.2"
+var Version = "0.4.1"

@@ -1,12 +1,15 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"ft-backend/common/config"
 	"ft-backend/common/response"
@@ -70,6 +73,76 @@ func quoteShellSingleLine(s string) string {
 	return `'` + strings.ReplaceAll(s, `'`, `'"'"'`) + `'`
 }
 
+// resolveAiSreBinaryPath 与 DownloadAiSreCLI 使用相同路径解析；未配置或文件无效时 path 为空。
+func resolveAiSreBinaryPath(cfg *config.Config) (path string) {
+	if cfg != nil {
+		path = strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
+		if path == "" {
+			path = strings.TrimSpace(cfg.Opsfleet.AiSreBinaryPath)
+		}
+	} else {
+		path = strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
+	}
+	if path == "" {
+		return ""
+	}
+	path = filepath.Clean(path)
+	st, err := os.Stat(path)
+	if err != nil || st.IsDir() {
+		return ""
+	}
+	return path
+}
+
+// probeAiSreVersion 优先环境变量，其次执行二进制 `version` 子命令解析第二列。
+func probeAiSreVersion(bin string) string {
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_VERSION")); v != "" {
+		return v
+	}
+	if bin == "" {
+		return ""
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, bin, "version").Output()
+	if err != nil {
+		return ""
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) >= 2 {
+		return fields[1]
+	}
+	return ""
+}
+
+// GetAiSreCLIVersion 公开：返回当前分发的 ai-sre 版本号（供客户端升级前比对），轻量无大响应体。
+func GetAiSreCLIVersion(c *gin.Context) {
+	cfg, ok := c.MustGet("config").(*config.Config)
+	if !ok || cfg == nil {
+		response.ServerError(c, "配置未初始化")
+		return
+	}
+	p := resolveAiSreBinaryPath(cfg)
+	ver := probeAiSreVersion(p)
+	if ver == "" {
+		ver = "unknown"
+	}
+	if p == "" {
+		c.JSON(http.StatusOK, gin.H{
+			"name":    "ai-sre",
+			"version": ver,
+			"ok":      false,
+			"message": "未配置 ai-sre 分发路径，无法执行版本探测；请在 conf 或环境变量中设置 opsfleet.ai_sre_binary_path / OPSFLEET_AISRE_BINARY_PATH，可选 OPSFLEET_AISRE_VERSION。",
+		})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"name":    "ai-sre",
+		"version": ver,
+		"ok":      true,
+	})
+}
+
 // DownloadAiSreCLI 公开：下载已配置的 ai-sre Linux 二进制（与架构参数校验可选）。
 func DownloadAiSreCLI(c *gin.Context) {
 	cfg, ok := c.MustGet("config").(*config.Config)
@@ -77,16 +150,11 @@ func DownloadAiSreCLI(c *gin.Context) {
 		response.ServerError(c, "配置未初始化")
 		return
 	}
-	// 环境变量优先：全栈部署脚本每次写入 /etc/opsfleet/backend.env，保证发布即最新 bin/ai-sre
-	path := strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
-	if path == "" {
-		path = strings.TrimSpace(cfg.Opsfleet.AiSreBinaryPath)
-	}
+	path := resolveAiSreBinaryPath(cfg)
 	if path == "" {
 		response.BadRequest(c, "未配置 ai-sre 分发：请在 conf/config.yaml 设置 opsfleet.ai_sre_binary_path，或环境变量 OPSFLEET_AISRE_BINARY_PATH（指向 Linux 可执行文件）")
 		return
 	}
-	path = filepath.Clean(path)
 	st, err := os.Stat(path)
 	if err != nil || st.IsDir() {
 		response.NotFound(c, "ai_sre_binary_path 无效或不是文件: "+path)

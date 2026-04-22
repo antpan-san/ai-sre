@@ -93,7 +93,10 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
 
-	root.AddCommand(analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), k8sCmd())
+	root.AddCommand(analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd())
+	if programName == "ai-sre" {
+		root.PersistentPreRunE = quickUpgradeHintPreRun
+	}
 	return root
 }
 
@@ -197,7 +200,7 @@ func versionCmd() *cobra.Command {
 		Use:   "version",
 		Short: "print version",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Println(progName, cliVersion)
+			fmt.Println(progName, Version)
 		},
 	}
 }

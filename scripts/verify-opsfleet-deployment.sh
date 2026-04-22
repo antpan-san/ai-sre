@@ -54,6 +54,12 @@ if [[ -n "$AISRE" && -f "$AISRE" ]]; then
   else
     echo "WARN: GET .../cli/ai-sre 返回 HTTP $code（预期 200；检查 opsfleet-backend 与 install-ai-sre 路由）"
   fi
+  vcode=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre/version" 2>/dev/null || echo "000")
+  if [[ "$vcode" == "200" ]]; then
+    echo "GET /ft-api/api/k8s/deploy/cli/ai-sre/version HTTP 200 OK ($(curl -sS "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre/version" 2>/dev/null | head -c 200))"
+  else
+    echo "WARN: GET .../cli/ai-sre/version 返回 HTTP $vcode（ai-sre 自升级检测依赖此接口）"
+  fi
   echo "-- 安装脚本（动态生成，须 HTTP 200 且为 bash shebang）--"
   sh_head=$(curl -sfS --connect-timeout 8 "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/install-ai-sre.sh" | head -c 32 || true)
   if [[ "$sh_head" == '#!'* ]]; then
