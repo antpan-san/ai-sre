@@ -25,7 +25,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre doctor` | 自检（凭据、tier、配额计数、技能/知识加载；**不调用 LLM**） |
 | `ai-sre version` | 打印版本号 |
 | `ai-sre help` | 帮助 |
-| `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` 等（见 `ai-sre k8s --help`） |
+| `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` / `diagnose` 等（见 `ai-sre k8s --help`） |
+| `ai-sre k8s diagnose` | 本机自检 K8s 常见抖动根因：**时钟跳变 / etcd 慢盘 / kubelet SandboxChanged / 预检缺项（swap/br_netfilter/sysctl）**；`--preflight` 只跑部署前预检，`--json` 输出可直接喂给 `ai-sre analyze k8s --issue instability` |
 | `ai-sre upgrade` | 与 OpsFleet 对比版本后覆盖本机 `ai-sre` 二进制（需能访问上表基址） |
 | `ai-sre uninstall k8s` | 在控制机 `root` 下用 Ansible `pre_cleanup` 全量清集群；**优先**本机 `/var/lib/opsfleet-k8s/last-bundle`（`install.sh` 预检后同步），无则再试拉 `ofpk8s1` 或 `--workdir` / `--force`（见 `ai-sre uninstall k8s --help`） |
 

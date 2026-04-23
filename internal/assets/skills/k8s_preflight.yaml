@@ -1,0 +1,40 @@
+name: k8s_preflight
+display_name: Kubernetes 离线部署前 — 节点环境预检
+topics:
+  - k8s
+  - preflight
+match_keywords:
+  - "preflight"
+  - "预检"
+  - "部署前"
+  - "swap"
+  - "br_netfilter"
+  - "bridge-nf-call-iptables"
+  - "ip_forward"
+  - "chrony"
+  - "ntp"
+  - "timedatectl"
+  - "cgroup"
+  - "selinux"
+  - "hostname"
+input:
+  - node
+analysis_steps:
+  - "时钟：timedatectl show -p NTPSynchronized --value == yes；journalctl --list-boots | head -5 内当前 boot 不应有小时级回拨"
+  - "swap：swapon --show 应为空；/etc/fstab 内 swap 行需注释或 systemd.mount=off"
+  - "内核模块：modprobe br_netfilter overlay；并写入 /etc/modules-load.d/k8s.conf"
+  - "sysctl：net.ipv4.ip_forward=1；net.bridge.bridge-nf-call-iptables=1；net.bridge.bridge-nf-call-ip6tables=1"
+  - "资源：每个节点 ≥ 2 vCPU / 4GiB 可用内存；master 推荐 ≥ 8GiB（虚拟机建议至少 8GiB 以避免 etcd 慢盘抖动）"
+  - "磁盘：etcd 目录所在盘 fsync p99 < 20ms（嵌套 VM 尤其要留意；不达标需增大 etcd heartbeat/election）"
+  - "架构：uname -m 必须与离线包 archVersion 一致（amd64 / arm64）"
+  - "主机名：每节点 hostname 唯一；/etc/hosts 已去除 127.0.1.1 的自引用"
+  - "免密 SSH：控制机 ssh -o BatchMode=yes root@<node> true 立即返回 0"
+  - "端口：6443/10250/10257/10259/2379/2380/179（如 BGP）/4789 VXLAN 在安全组内放通"
+  - "DNS：/etc/resolv.conf 或 systemd-resolved 可解析常用域；kubelet 使用 /run/systemd/resolve/resolv.conf 避免 CoreDNS loop"
+output_format:
+  - checks
+  - fixes
+  - verification_commands
+extra_guidance: |
+  本技能包用于「部署前」一次性排查环境；问题出现在安装后请使用 k8s_cluster_instability。
+  本仓库提供 `sudo ai-sre k8s diagnose --preflight` 以一键运行上述所有检查。

@@ -1,0 +1,51 @@
+name: k8s_cluster_instability
+display_name: Kubernetes 集群抖动 / Pod 反复 SandboxChanged 或被 Killing
+topics:
+  - k8s
+match_keywords:
+  - "sandboxchanged"
+  - "pod sandbox"
+  - "killing container"
+  - "calico-node"
+  - "calico-kube-controllers"
+  - "coredns"
+  - "apply request took too long"
+  - "etcd 超时"
+  - "tls: private key does not match"
+  - "context deadline exceeded"
+  - "pleg"
+  - "clock skew"
+  - "time jumped"
+  - "timesync"
+  - "时钟漂移"
+  - "虚拟机"
+  - "反复重启"
+  - "felix is not ready"
+  - "bird is not ready"
+input:
+  - node
+  - pod
+  - namespace
+analysis_steps:
+  - "首先确认时钟：timedatectl show -p NTPSynchronized --value 必为 yes；journalctl --list-boots | head 检查当前 boot 内是否有小时级回拨（VirtualBox/ARM 嵌套机常见，是本项目最常见的 calico-node / coredns 60s 级 Killing 根因）"
+  - "检查 kubelet/containerd 是否在 chrony 同步完成后启动：systemctl list-dependencies chrony.service 与 journalctl -u kubelet --no-pager | grep -i 'SandboxChanged|PLEG'"
+  - "检查 etcd 健康：journalctl -u etcd --no-pager | grep -iE 'apply request took too long|timed out|took.*expected' —— 有慢盘迹象时需要增大 heartbeat-interval/election-timeout 或开启 auto-compaction；本仓库已在 ansible-agent/roles/etcd_install/templates/etcd.service.j2 内置这些参数"
+  - "检查 calico-node 探针：kubectl -n kube-system describe pod -l k8s-app=calico-node | grep -iE 'Liveness|Readiness|Last State' —— 低配 ARM 机 felix-live/felix-ready 需要放宽到 periodSeconds=30 timeoutSeconds=15 failureThreshold=10 initialDelaySeconds=60（见 patch_calico_manifest.py）"
+  - "检查证书：journalctl -u kubelet | grep -i 'tls: private key does not match' —— 若出现说明 /etc/kubernetes/pki 证书与 key 不匹配，通常是重装未清 /var/lib/kubelet、/etc/kubernetes 导致，应执行 pre_cleanup 后再装"
+  - "检查 CoreDNS loop：kubectl -n kube-system logs -l k8s-app=kube-dns | grep -i 'plugin/loop' —— 出现说明 kubelet resolv.conf 指向 stub(127.0.0.53)，需将 --resolv-conf 指到 /run/systemd/resolve/resolv.conf"
+  - "检查资源：free -g；dmesg -T | grep -iE 'oom|killed process'；若 master 内存 < 4GiB 强烈建议升到 8GiB"
+  - "若上述均正常但仍抖动，用 kubectl get events -A --sort-by=.lastTimestamp | tail -50 看近期事件，再用 crictl ps -a | head 看沙箱 age 是否总是 < 2min"
+output_format:
+  - root_cause
+  - solution
+  - verification_commands
+extra_guidance: |
+  本技能包对应的现场根因优先级：
+    1. 时钟跳变 / 未与 chrony 同步（虚拟机最常见）
+    2. etcd 慢盘（apply request took too long）
+    3. 探针阈值过严（低配 ARM 的 felix 冷启动 > 10s）
+    4. 证书残留（旧 /etc/kubernetes 未清）
+    5. CoreDNS 的 resolv.conf 指向 systemd stub
+    6. 内存不足 / OOM
+  针对 1、2、3，本仓库已在 ansible-agent 内把参数下调到稳态；现场仍抖动时基本可以归为 1 或 6。
+  建议用户直接执行 `sudo ai-sre k8s diagnose` 让 CLI 自动完成上述采集与判断。

@@ -90,9 +90,14 @@ func k8sCmd() *cobra.Command {
   # 一步卸载（优先本机 /var/lib/opsfleet-k8s/last-bundle，无需控制台 id）
   sudo %s uninstall k8s
 
-  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s`, progName, progName, progName, progName, progName, progName, progName, progName),
+  sudo %s k8s uninstall --workdir /opt/opsfleet-k8s
+
+  # 集群抖动自检（时钟跳变 / etcd 慢盘 / SandboxChanged / calico-node 反复重启等）
+  sudo %s k8s diagnose
+  sudo %s k8s diagnose --preflight            # 只做部署前预检
+  sudo %s k8s diagnose --json | tee diag.json # JSON 便于喂给 LLM`, progName, progName, progName, progName, progName, progName, progName, progName, progName, progName, progName),
 	}
-	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sCleanupCmd(), k8sUninstallCmd())
+	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sCleanupCmd(), k8sUninstallCmd(), k8sDiagnoseCmd())
 	return cmd
 }
 

@@ -55,6 +55,29 @@
               </div>
             </el-collapse-item>
             <el-collapse-item
+              name="env"
+              title="环境预检（务必在点击「开始部署」前完成，否则 etcd / calico-node / coredns 可能反复重启）"
+            >
+              <div class="k8s-prereq-body">
+                <p class="k8s-prereq-lead">
+                  这些预检项来自真实现场踩坑（尤其在 VirtualBox / 嵌套虚拟化 / ARM64 实验机上）。安装完成后若发现 <code>calico-node</code>、<code>coredns</code> 反复 <code>SandboxChanged</code> 或被 <code>Killing</code>，几乎都是以下某一项未满足。若无法自行判断，安装后可在任一 master 上运行 <code>sudo ai-sre k8s diagnose</code> 自动识别。
+                </p>
+                <el-table :data="preflightRows" size="small" class="k8s-preflight-table" border>
+                  <el-table-column prop="item" label="检查项" min-width="170" />
+                  <el-table-column prop="why" label="不满足时的症状" min-width="240" />
+                  <el-table-column label="在每个节点上执行" min-width="300">
+                    <template #default="{ row }">
+                      <code class="k8s-prereq-cmd">{{ row.cmd }}</code>
+                    </template>
+                  </el-table-column>
+                  <el-table-column prop="expected" label="期望值" min-width="170" />
+                </el-table>
+                <p class="k8s-prereq-muted">
+                  补充：节点间时钟偏差须 &lt; 1s；若为虚拟机，建议先让 <code>chrony</code>/<code>systemd-timesyncd</code> 同步完成再启动 <code>containerd</code>/<code>kubelet</code>（本仓库 <code>install.sh</code> 会在安装前等待一次时钟稳定）。
+                </p>
+              </div>
+            </el-collapse-item>
+            <el-collapse-item
               :title="`部署记录（${k8sDeployStore.deployRecords.length} 条）`"
               name="records"
             >
@@ -1008,6 +1031,76 @@ const k8sComponentCatalogImages = ref<
 const k8sComponentCatalogDocs = ref<{ key: string; value: string; description: string }[]>([])
 /** 步骤 1：折叠区默认收起，减少首屏噪音 */
 const stepAuxOpen = ref<string[]>([])
+/**
+ * 部署 K8s 前的环境预检清单。来自本仓库踩坑：
+ *   1) 虚拟机 RTC 漂移 → systemd-timesyncd/chrony 跳变 → kubelet 误判 sandbox 过期 → calico-node / coredns 60s 左右被 Killing；
+ *   2) 低内存 + etcd 慢盘（嵌套虚拟化 / 机械盘）→ apply request took too long → pod lifecycle 抖动；
+ *   3) swap 未关 / br_netfilter 未加载 / ip_forward=0 → kubelet 拒绝启动或 pod 跨节点不通；
+ *   4) hostname 冲突或 cgroup v1（systemd driver 不一致）→ kubelet+containerd 频繁崩溃。
+ * 前端只做静态展示（真正校验在 CLI `ai-sre k8s diagnose` 中）。
+ */
+const preflightRows = [
+  {
+    item: '时钟同步 (chrony/NTP)',
+    why: 'RTC 漂移会让 kubelet 误判 sandbox 过期，calico-node/coredns 会每 60-70s 被 Killing',
+    cmd: 'timedatectl show -p NTPSynchronized --value',
+    expected: 'yes',
+  },
+  {
+    item: '历史启动的时钟跳变',
+    why: '同一 boot 中时钟后退几小时是本仓库最常见的 calico 循环重启根因',
+    cmd: 'journalctl --list-boots | head -5',
+    expected: '最近一次开机后无 hours 级回拨',
+  },
+  {
+    item: '关闭 swap',
+    why: 'swap 打开时 kubelet 默认拒启动；或 eviction 异常',
+    cmd: 'swapon --show',
+    expected: '空输出',
+  },
+  {
+    item: '内核模块 br_netfilter / overlay',
+    why: '缺失则 iptables 规则对桥接流量不生效，Service 不通',
+    cmd: 'lsmod | grep -E "^(br_netfilter|overlay) "',
+    expected: '两行都存在',
+  },
+  {
+    item: 'sysctl 网络参数',
+    why: 'ip_forward=0 或 bridge-nf-call-iptables=0 → 跨节点 Pod 流量被丢弃',
+    cmd: 'sysctl net.ipv4.ip_forward net.bridge.bridge-nf-call-iptables',
+    expected: '都等于 1',
+  },
+  {
+    item: '可用内存 ≥ 4GiB (master 推荐 ≥ 8GiB)',
+    why: '内存不足会导致 etcd fsync 抖动、kubelet OOM、sandbox 反复重建',
+    cmd: 'free -g | awk "/Mem:/ {print $2\\\" GiB total, \\\"$7\\\" GiB available\\\"}"',
+    expected: '充足',
+  },
+  {
+    item: '磁盘 IO（etcd 目录所在盘）',
+    why: '慢盘 → etcd apply request took too long → apiserver 超时 → 级联重启',
+    cmd: 'fio --name=fsync --rw=write --ioengine=sync --fsync=1 --size=64M --filename=/var/lib/etcd/.iotest --loops=1 2>/dev/null || echo "fio 未安装可跳过"',
+    expected: 'fsync p99 < 20ms',
+  },
+  {
+    item: '架构与离线包一致 (amd64 / arm64)',
+    why: '架构不匹配会在 pause/etcd 镜像加载时直接报 exec format error',
+    cmd: 'uname -m',
+    expected: '与 archVersion 一致',
+  },
+  {
+    item: '节点间主机名唯一',
+    why: '同 hostname 时 kubelet 会互相抢同一个 Node 对象',
+    cmd: 'hostname',
+    expected: '每节点不同',
+  },
+  {
+    item: '控制机 → 各节点 root 免密 SSH',
+    why: 'Ansible 以 ansible_user=root 连接；未免密 install.sh 将 Permission denied',
+    cmd: 'ssh -o BatchMode=yes root@<节点IP> true',
+    expected: '无提示直接返回',
+  },
+]
 /** 部署确认：需求说明折叠，默认收起 */
 const confirmAuxOpen = ref<string[]>([])
 /** 已生成邀请时，「可选 ai-sre」命令折叠 */
@@ -1650,6 +1743,23 @@ const submitDeploy = async () => {
   margin-bottom: 0 !important;
   font-size: 12px;
   color: #6b7280;
+}
+
+.k8s-preflight-table {
+  margin-top: 4px;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+
+.k8s-prereq-cmd {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  color: #1f2937;
+  white-space: pre-wrap;
+  word-break: break-all;
 }
 
 .k8s-deploy-form {

@@ -125,6 +125,18 @@ func (r *Registry) MatchAnalyze(topic string, ctx map[string]string) *Pack {
 				return p
 			}
 		}
+		if issue == "preflight" || strings.Contains(issue, "预检") || issue == "pre-deploy" {
+			if p := r.ByName("k8s_preflight"); p != nil {
+				return p
+			}
+		}
+		if issue == "instability" || issue == "sandbox" || issue == "clock" || issue == "clockskew" ||
+			strings.Contains(issue, "抖动") || strings.Contains(issue, "反复重启") ||
+			strings.Contains(pod, "calico-node") || strings.Contains(pod, "coredns") {
+			if p := r.ByName("k8s_cluster_instability"); p != nil {
+				return p
+			}
+		}
 	}
 	return r.MatchTopic(topic)
 }
