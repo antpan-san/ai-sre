@@ -59,6 +59,16 @@
     owner: root
     group: root
 
+# systemd-resolved (Ubuntu 24.04+/25.10 默认) 下，/etc/resolv.conf 指向 127.0.0.53；
+# 若不覆盖 resolvConf，kubelet 会把该文件注入业务 Pod，CoreDNS 的 forward . /etc/resolv.conf
+# 将转发到 127.0.0.53，而容器内 127.0.0.53 就是 CoreDNS 自己，从而触发
+# "[FATAL] plugin/loop: Loop (127.0.0.1:xxxx -> :53)" 并 CrashLoopBackOff。
+# 检测节点上是否存在真实上游 resolv.conf，有则指向它。
+- name: Detect systemd-resolved upstream resolv.conf on node
+  ansible.builtin.stat:
+    path: /run/systemd/resolve/resolv.conf
+  register: systemd_resolved_resolv
+
 - name: Render kubelet configuration
   ansible.builtin.template:
     src: kubelet-config.yaml.j2
@@ -66,4 +76,6 @@
     mode: "0644"
     owner: root
     group: root
+  vars:
+    kubelet_resolv_conf: "{{ '/run/systemd/resolve/resolv.conf' if systemd_resolved_resolv.stat.exists else '/etc/resolv.conf' }}"
   notify: Restart kubelet

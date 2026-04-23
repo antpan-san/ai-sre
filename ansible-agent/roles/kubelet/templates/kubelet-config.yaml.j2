@@ -14,6 +14,9 @@ cgroupDriver: systemd
 clusterDNS:
   - {{ dns_service_ip }}
 clusterDomain: {{ cluster_domain }}
+# 避免 Ubuntu systemd-resolved 下 CoreDNS "plugin/loop" 崩溃：
+# 把业务 Pod 的默认 resolv.conf 指向真实上游，而非 127.0.0.53。
+resolvConf: {{ kubelet_resolv_conf | default('/etc/resolv.conf') }}
 containerRuntimeEndpoint: unix:///run/containerd/containerd.sock
 imageServiceEndpoint: unix:///run/containerd/containerd.sock
 cniBinDir: /opt/cni/bin
