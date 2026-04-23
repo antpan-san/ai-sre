@@ -12,6 +12,9 @@ readiness probes. With BIRD disabled those probes fail forever and
 - When VXLAN is requested: set ``CALICO_IPV4POOL_IPIP=Never``,
   ``CALICO_IPV4POOL_VXLAN=Always``, ``CLUSTER_TYPE=k8s,vxlan``, and drop
   ``-bird-live``/``-bird-ready`` from the calico-node probes
+- Loosen calico-node felix liveness/readiness probe thresholds so
+  resource-constrained lab VMs (ARM64 / nested) don't crashloop during
+  felix cold-start
 - Optional ConfigMap ``veth_mtu`` override
 
 Idempotent: re-running against already-patched output is a no-op.
@@ -68,6 +71,83 @@ def main() -> None:
         )
         text = re.sub(r"^\s*-\s*-bird-live\n", "", text, flags=re.MULTILINE)
         text = re.sub(r"^\s*-\s*-bird-ready\n", "", text, flags=re.MULTILINE)
+
+    # 放宽 calico-node 探针阈值：
+    # 资源紧张（嵌套/ARM64 小内存）的实验环境里，felix 冷启动可能超过上游默认 ~60s
+    # 存活阈值，kubelet 会把 calico-node 容器周期性杀掉重建 sandbox，继而把
+    # coredns / kube-controllers 一起拖进 CrashLoopBackOff。只放宽 -felix-live/
+    # -felix-ready 探针（通过命令名定位），不影响 calico-kube-controllers 探针。
+    def _loosen_felix_probe(text_in: str, marker: str) -> str:
+        lines = text_in.splitlines(keepends=True)
+        out: list[str] = []
+        i = 0
+        bumped = False
+        while i < len(lines):
+            ln = lines[i]
+            out.append(ln)
+            if not bumped and re.match(rf"^(\s+)-\s*{re.escape(marker)}\s*$", ln):
+                m = re.match(r"^(\s+)-\s", ln)
+                assert m is not None
+                arg_indent = len(m.group(1))
+                j = i + 1
+                field_indent = None
+                seen = {"period": False, "timeout": False, "failure": False, "initial": False}
+                block_end = j
+                while j < len(lines):
+                    nxt = lines[j]
+                    lstrip_len = len(nxt) - len(nxt.lstrip(" "))
+                    if nxt.strip() == "":
+                        block_end = j + 1
+                        j += 1
+                        continue
+                    if lstrip_len >= arg_indent:
+                        block_end = j + 1
+                        j += 1
+                        continue
+                    key = re.match(r"^(\s+)(periodSeconds|timeoutSeconds|failureThreshold|initialDelaySeconds|successThreshold):", nxt)
+                    if key:
+                        if field_indent is None:
+                            field_indent = key.group(1)
+                        block_end = j + 1
+                        j += 1
+                        continue
+                    break
+                if field_indent is None:
+                    field_indent = " " * (arg_indent - 4)
+                new_block: list[str] = []
+                for k in range(i + 1, block_end):
+                    cur = lines[k]
+                    if re.match(r"^\s+periodSeconds:", cur):
+                        new_block.append(f"{field_indent}periodSeconds: 30\n")
+                        seen["period"] = True
+                    elif re.match(r"^\s+timeoutSeconds:", cur):
+                        new_block.append(f"{field_indent}timeoutSeconds: 15\n")
+                        seen["timeout"] = True
+                    elif re.match(r"^\s+failureThreshold:", cur):
+                        new_block.append(f"{field_indent}failureThreshold: 10\n")
+                        seen["failure"] = True
+                    elif re.match(r"^\s+initialDelaySeconds:", cur):
+                        new_block.append(f"{field_indent}initialDelaySeconds: 60\n")
+                        seen["initial"] = True
+                    else:
+                        new_block.append(cur)
+                if not seen["period"]:
+                    new_block.append(f"{field_indent}periodSeconds: 30\n")
+                if not seen["timeout"]:
+                    new_block.append(f"{field_indent}timeoutSeconds: 15\n")
+                if not seen["failure"]:
+                    new_block.append(f"{field_indent}failureThreshold: 10\n")
+                if not seen["initial"]:
+                    new_block.append(f"{field_indent}initialDelaySeconds: 60\n")
+                out.extend(new_block)
+                i = block_end
+                bumped = True
+                continue
+            i += 1
+        return "".join(out)
+
+    text = _loosen_felix_probe(text, "-felix-live")
+    text = _loosen_felix_probe(text, "-felix-ready")
 
     if mt > 0:
         text, n2 = _sub_once(

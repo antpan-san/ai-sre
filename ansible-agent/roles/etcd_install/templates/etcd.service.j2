@@ -26,7 +26,16 @@ ExecStart=/usr/local/bin/etcd \
   --peer-cert-file={{ etcd_peer_cert }} \
   --peer-key-file={{ etcd_peer_key }} \
   --peer-trusted-ca-file={{ etcd_ca_cert }} \
-  --peer-client-cert-auth=true
+  --peer-client-cert-auth=true \
+  --heartbeat-interval={{ etcd_heartbeat_interval_ms | default(500) }} \
+  --election-timeout={{ etcd_election_timeout_ms | default(5000) }} \
+  --snapshot-count={{ etcd_snapshot_count | default(10000) }} \
+  --quota-backend-bytes={{ etcd_quota_backend_bytes | default(8589934592) }} \
+{% if etcd_unsafe_no_fsync | default(false) %}
+  --unsafe-no-fsync=true \
+{% endif %}
+  --auto-compaction-mode=periodic \
+  --auto-compaction-retention=1h
 
 [Install]
 WantedBy=multi-user.target

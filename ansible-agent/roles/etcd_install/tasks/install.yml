@@ -13,6 +13,7 @@
     owner: root
     group: root
     mode: '0644'
+  notify: Restart etcd
 
       #- name: Reload systemd immediately if unit changed
       #  ansible.builtin.command: systemdctl daemon-reload
