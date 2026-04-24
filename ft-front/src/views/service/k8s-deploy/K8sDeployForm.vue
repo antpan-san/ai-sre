@@ -312,7 +312,7 @@
                 v-model="workerHostsText"
                 type="textarea"
                 :rows="4"
-                placeholder="每行一个 Worker IP"
+                placeholder="每行一个 Worker IP（勿重复填写控制平面 IP；每台机器在 inventory 中只能出现一次）"
               />
             </el-form-item>
           </template>
@@ -1557,6 +1557,11 @@ const nextStep = async () => {
           ElMessage.warning('请至少填写一行控制平面节点 IP')
           return
         }
+        const dupMsg = validateOfflineMastersWorkersDistinct(masters, workers)
+        if (dupMsg) {
+          ElMessage.error(dupMsg)
+          return
+        }
       } else {
         if (!deployConfig.nodeConfig.executorNode) {
           ElMessage.warning('请选择执行节点（Agent 所在机器）')
@@ -1584,6 +1589,28 @@ function parseHostLines(s: string): string[] {
   return s.split(/\r?\n/).map(x => x.trim()).filter(Boolean)
 }
 
+/** 离线 inventory：控制平面与工作节点 IP 不可重复，否则 Ansible 会对同一台机跑两套 kubelet 并互相覆盖。 */
+function validateOfflineMastersWorkersDistinct(masters: string[], workers: string[]): string | null {
+  const seen = new Map<string, string>()
+  for (let i = 0; i < masters.length; i++) {
+    const ip = masters[i]
+    if (!ip) continue
+    if (seen.has(ip)) {
+      return `IP ${ip} 重复（${seen.get(ip)} 与 master[${i}]）；每台机器只能出现一次`
+    }
+    seen.set(ip, `master[${i}]`)
+  }
+  for (let i = 0; i < workers.length; i++) {
+    const ip = workers[i]
+    if (!ip) continue
+    if (seen.has(ip)) {
+      return `IP ${ip} 已被 ${seen.get(ip)} 使用，不能作为 worker[${i}]；不要把控制平面 IP 填在工作节点里`
+    }
+    seen.set(ip, `worker[${i}]`)
+  }
+  return null
+}
+
 // ---------- 下载离线包 ----------
 const handleCreateInstallRef = async () => {
   if (!deployConfig.clusterBasicInfo.clusterName?.trim()) {
@@ -1598,6 +1625,14 @@ const handleCreateInstallRef = async () => {
   deployConfig.nodeConfig.workerHosts = parseHostLines(workerHostsText.value)
   if (deployConfig.nodeConfig.masterHosts.length === 0) {
     ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
+    return
+  }
+  const dupInvite = validateOfflineMastersWorkersDistinct(
+    deployConfig.nodeConfig.masterHosts,
+    deployConfig.nodeConfig.workerHosts
+  )
+  if (dupInvite) {
+    ElMessage.error(dupInvite)
     return
   }
   creatingInvite.value = true
@@ -1641,6 +1676,14 @@ const handleDownloadBundle = async () => {
   deployConfig.nodeConfig.workerHosts = parseHostLines(workerHostsText.value)
   if (deployConfig.nodeConfig.masterHosts.length === 0) {
     ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
+    return
+  }
+  const dupZip = validateOfflineMastersWorkersDistinct(
+    deployConfig.nodeConfig.masterHosts,
+    deployConfig.nodeConfig.workerHosts
+  )
+  if (dupZip) {
+    ElMessage.error(dupZip)
     return
   }
   downloadingBundle.value = true

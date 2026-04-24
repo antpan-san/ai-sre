@@ -24,12 +24,45 @@ var ErrK8sBundleMissingMasters = errors.New("k8s offline bundle: no master hosts
 // ErrK8sBundleAnsibleDir 表示未找到 ansible-agent 目录。
 var ErrK8sBundleAnsibleDir = errors.New("k8s offline bundle: ansible-agent directory not found")
 
+// k8sDupIPErr 表示离线 inventory 中同一 IP 被配置了多次（例如把控制平面 IP 误填进工作节点）。
+type k8sDupIPErr struct{ msg string }
+
+func (e *k8sDupIPErr) Error() string { return e.msg }
+
+// validateDistinctK8sNodeIPs 要求 inventory 中每台物理机只出现一次。
+// 若同一 IP 同时出现在 master 与 worker，Ansible 会对同一 SSH 目标跑两套 kubelet（--hostname-override 不同），后写覆盖前写，集群节点数与证书状态会异常。
+func validateDistinctK8sNodeIPs(masters, workers []string) error {
+	seen := make(map[string]string, len(masters)+len(workers))
+	for i, ip := range masters {
+		if ip == "" {
+			continue
+		}
+		if prev, ok := seen[ip]; ok {
+			return &k8sDupIPErr{msg: fmt.Sprintf("IP %q 重复（%s 与 master[%d]）；每台机器在 inventory 中只能出现一次", ip, prev, i)}
+		}
+		seen[ip] = fmt.Sprintf("master[%d]", i)
+	}
+	for i, ip := range workers {
+		if ip == "" {
+			continue
+		}
+		if prev, ok := seen[ip]; ok {
+			return &k8sDupIPErr{msg: fmt.Sprintf("IP %q 已被 %s 使用，不能作为 worker[%d]；控制平面 IP 不要填在工作节点列表（控制平面已运行 kubelet）", ip, prev, i)}
+		}
+		seen[ip] = fmt.Sprintf("worker[%d]", i)
+	}
+	return nil
+}
+
 // BuildK8sOfflineZip 生成与 HTTP 接口相同的 zip 字节流（供 CLI/CI/脚本调用）。
 func BuildK8sOfflineZip(req K8sDeployRequest) ([]byte, error) {
 	masters := normalizeHostList(req.MasterHosts)
 	workers := normalizeHostList(req.WorkerHosts)
 	if len(masters) == 0 {
 		return nil, ErrK8sBundleMissingMasters
+	}
+	if err := validateDistinctK8sNodeIPs(masters, workers); err != nil {
+		return nil, err
 	}
 	ansibleDir := resolveAnsibleAgentDir()
 	if ansibleDir == "" {
@@ -59,9 +92,13 @@ func GenerateK8sOfflineBundle(c *gin.Context) {
 	}
 	data, err := BuildK8sOfflineZip(req)
 	if err != nil {
+		var dup *k8sDupIPErr
 		switch {
 		case errors.Is(err, ErrK8sBundleMissingMasters):
 			response.BadRequest(c, "请至少填写一个 control plane 节点 IP（masterHosts）")
+			return
+		case errors.As(err, &dup):
+			response.BadRequest(c, dup.Error())
 			return
 		case errors.Is(err, ErrK8sBundleAnsibleDir):
 			logger.Error("ansible-agent directory not found (set OPSFLEET_ANSIBLE_DIR or run from repo with ../ansible-agent)")

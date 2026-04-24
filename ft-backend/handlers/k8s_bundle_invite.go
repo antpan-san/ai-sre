@@ -56,8 +56,13 @@ func CreateK8sBundleInvite(c *gin.Context) {
 	req.PublicAPIBase = ""
 
 	masters := normalizeHostList(req.MasterHosts)
+	workers := normalizeHostList(req.WorkerHosts)
 	if len(masters) == 0 {
 		response.BadRequest(c, "请至少填写一个 control plane 节点 IP（masterHosts）")
+		return
+	}
+	if err := validateDistinctK8sNodeIPs(masters, workers); err != nil {
+		response.BadRequest(c, err.Error())
 		return
 	}
 	if publicBase == "" {
@@ -154,9 +159,13 @@ func DownloadK8sBundleInviteZip(c *gin.Context) {
 
 	data, err := BuildK8sOfflineZip(req)
 	if err != nil {
+		var dup *k8sDupIPErr
 		switch {
 		case errors.Is(err, ErrK8sBundleMissingMasters):
 			response.BadRequest(c, "配置缺少 masterHosts")
+			return
+		case errors.As(err, &dup):
+			response.BadRequest(c, dup.Error())
 			return
 		case errors.Is(err, ErrK8sBundleAnsibleDir):
 			logger.Error("ansible-agent directory not found for bundle invite")
