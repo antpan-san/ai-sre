@@ -61,7 +61,11 @@ func CreateK8sBundleInvite(c *gin.Context) {
 		response.BadRequest(c, "请至少填写一个 control plane 节点 IP（masterHosts）")
 		return
 	}
-	if err := validateDistinctK8sNodeIPs(masters, workers); err != nil {
+	if err := validateNoDuplicateWithinRole("master", masters); err != nil {
+		response.BadRequest(c, err.Error())
+		return
+	}
+	if err := validateNoDuplicateWithinRole("worker", workers); err != nil {
 		response.BadRequest(c, err.Error())
 		return
 	}
