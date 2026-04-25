@@ -89,17 +89,10 @@
           <el-menu-item index="/advanced/backup-restore">备份与恢复</el-menu-item>
           <el-menu-item index="/advanced/performance-analysis">性能分析</el-menu-item>
         </el-sub-menu>
-        <el-sub-menu index="/init-tools">
-          <template #title>
-            <el-icon><Tools /></el-icon>
-            <span>初始化工具</span>
-          </template>
-          <el-menu-item index="/init-tools">工具总览</el-menu-item>
-          <el-menu-item index="/init-tools/system-param">系统参数优化</el-menu-item>
-          <el-menu-item index="/init-tools/time-sync">时间同步</el-menu-item>
-          <el-menu-item index="/init-tools/security-hardening">系统安全加固</el-menu-item>
-          <el-menu-item index="/init-tools/disk-partition">磁盘分区优化</el-menu-item>
-        </el-sub-menu>
+        <el-menu-item index="/init-tools">
+          <el-icon><Tools /></el-icon>
+          <template #title>初始化工具</template>
+        </el-menu-item>
       </el-menu>
     </aside>
 
@@ -205,11 +198,7 @@ const routeIconMap: Record<string, any> = {
   '/job': Management,
   '/security-audit': Lock,
   '/advanced': DocumentCopy,
-  '/init-tools': Tools,
-  '/init-tools/system-param': Tools,
-  '/init-tools/time-sync': Tools,
-  '/init-tools/security-hardening': Tools,
-  '/init-tools/disk-partition': Tools
+  '/init-tools': Tools
 }
 
 const route = useRoute()
@@ -226,7 +215,6 @@ const menuDefaultOpeneds = computed(() => {
   if (p.startsWith('/monitoring')) open.push('/monitoring')
   if (p.startsWith('/security-audit')) open.push('/security-audit')
   if (p.startsWith('/advanced')) open.push('/advanced')
-  if (p.startsWith('/init-tools')) open.push('/init-tools')
   return open
 })
 

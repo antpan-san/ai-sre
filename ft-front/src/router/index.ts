@@ -167,33 +167,14 @@ const routes: Array<RouteRecordRaw> = [
         path: '',
         name: 'InitToolsHome',
         component: () => import('../views/init-tools/InitToolsHome.vue'),
-        meta: { title: '初始化工具总览', requireAuth: true, roles: ['admin'] }
-      },
-      {
-        path: 'system-param',
-        name: 'SystemParamOptimize',
-        component: () => import('../views/init-tools/SystemParamOptimize.vue'),
-        meta: { title: '系统参数优化', requireAuth: true, roles: ['admin'] }
-      },
-      {
-        path: 'time-sync',
-        name: 'TimeSync',
-        component: () => import('../views/init-tools/TimeSync.vue'),
-        meta: { title: '时间同步', requireAuth: true, roles: ['admin'] }
-      },
-      {
-        path: 'security-hardening',
-        name: 'SecurityHardening',
-        component: () => import('../views/init-tools/SecurityHardening.vue'),
-        meta: { title: '系统安全加固', requireAuth: true, roles: ['admin'] }
-      },
-      {
-        path: 'disk-partition',
-        name: 'DiskPartitionOptimize',
-        component: () => import('../views/init-tools/DiskPartitionOptimize.vue'),
-        meta: { title: '磁盘分区优化', requireAuth: true, roles: ['admin'] }
+        meta: { title: '初始化工具', requireAuth: true, roles: ['admin'] }
       }
     ]
+  },
+  // 兼容旧地址：访问任意已废弃的初始化工具子页一律重定向到聚合页
+  {
+    path: '/init-tools/:legacy(system-param|time-sync|security-hardening|disk-partition)',
+    redirect: '/init-tools'
   },
   // 安全与审计模块
   {
