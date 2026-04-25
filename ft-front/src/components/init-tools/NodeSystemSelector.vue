@@ -59,7 +59,7 @@
           :model-value="modelValue.osType"
           :disabled="disabled"
           placeholder="请选择目标节点的发行版"
-          style="width: 240px"
+          style="width: 100%"
           @update:model-value="onOsChange"
         >
           <el-option-group
@@ -189,8 +189,9 @@ onMounted(async () => {
 .node-system-selector {
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  padding: 14px 16px;
+  gap: 8px;
+  min-width: 0;
+  padding: 10px 12px;
   background: #f8fafc;
   border: 1px dashed #d6dee9;
   border-radius: 8px;
@@ -198,26 +199,36 @@ onMounted(async () => {
 
 .nss-row {
   display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .nss-label {
-  flex: 0 0 96px;
+  flex: 0 0 70px;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
   color: #1f2937;
   font-weight: 500;
-  font-size: 13px;
-  padding-top: 6px;
+  font-size: 12.5px;
 }
 
 .nss-control {
   flex: 1;
+  min-width: 0;
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.nss-control :deep(.el-select) {
+  min-width: 0;
+}
+
+.nss-control :deep(.el-select__wrapper) {
+  min-width: 0;
 }
 
 .nss-tip {
@@ -231,14 +242,23 @@ onMounted(async () => {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
+  min-width: 0;
 }
 
 .nss-option-meta {
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
   color: #6b7280;
   font-size: 12px;
+}
+
+.nss-option-name,
+.nss-option-ip {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .nss-option-os {
@@ -249,6 +269,7 @@ onMounted(async () => {
 }
 
 .nss-help {
+  flex: 0 0 auto;
   color: #94a3b8;
   cursor: help;
 }

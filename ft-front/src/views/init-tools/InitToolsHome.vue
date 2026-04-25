@@ -60,38 +60,40 @@
         <div class="tool-card-body">
           <NodeSystemSelector v-model="timeSync.target" />
 
-          <el-form :model="timeSync.opts" label-width="84px" size="small" class="tool-form">
-            <el-form-item label="NTP 工具">
-              <el-radio-group v-model="timeSync.opts.preferredTool">
-                <el-radio-button value="chrony">chrony</el-radio-button>
-                <el-radio-button value="timesyncd">timesyncd</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-            <el-form-item label="主源">
-              <el-input v-model="timeSync.opts.ntpServer" placeholder="ntp.aliyun.com / 192.168.56.10" clearable />
-            </el-form-item>
-            <el-form-item label="备用源">
-              <el-input v-model="timeSync.opts.fallbackNtpServer" placeholder="可留空" clearable />
-            </el-form-item>
-            <el-form-item label="时区">
-              <el-select v-model="timeSync.opts.timezone" style="width: 100%;">
-                <el-option label="Asia/Shanghai (CST)" value="Asia/Shanghai" />
-                <el-option label="UTC" value="UTC" />
-                <el-option label="Europe/London" value="Europe/London" />
-                <el-option label="America/New_York" value="America/New_York" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="同步间隔">
-              <el-input-number v-model="timeSync.opts.syncIntervalMin" :min="1" :max="60" :step="1" :precision="0" controls-position="right" style="width: 110px;" />
-              <span class="form-unit">分钟</span>
-            </el-form-item>
-            <el-form-item label="已存在时">
-              <el-radio-group v-model="timeSync.opts.onConflict" size="small">
-                <el-radio-button value="skip">跳过（推荐）</el-radio-button>
-                <el-radio-button value="force">强制覆盖</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-          </el-form>
+          <div class="tool-card-scroll">
+            <el-form :model="timeSync.opts" label-width="72px" size="small" class="tool-form">
+              <el-form-item label="NTP 工具">
+                <el-radio-group v-model="timeSync.opts.preferredTool" class="compact-radio">
+                  <el-radio-button value="chrony">chrony</el-radio-button>
+                  <el-radio-button value="timesyncd">timesyncd</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+              <el-form-item label="主源">
+                <el-input v-model="timeSync.opts.ntpServer" placeholder="ntp.aliyun.com / 192.168.56.10" clearable />
+              </el-form-item>
+              <el-form-item label="备用源">
+                <el-input v-model="timeSync.opts.fallbackNtpServer" placeholder="可留空" clearable />
+              </el-form-item>
+              <el-form-item label="时区">
+                <el-select v-model="timeSync.opts.timezone" style="width: 100%;">
+                  <el-option label="Asia/Shanghai (CST)" value="Asia/Shanghai" />
+                  <el-option label="UTC" value="UTC" />
+                  <el-option label="Europe/London" value="Europe/London" />
+                  <el-option label="America/New_York" value="America/New_York" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="同步间隔">
+                <el-input-number v-model="timeSync.opts.syncIntervalMin" :min="1" :max="60" :step="1" :precision="0" controls-position="right" style="width: 104px;" />
+                <span class="form-unit">分钟</span>
+              </el-form-item>
+              <el-form-item label="已存在时">
+                <el-radio-group v-model="timeSync.opts.onConflict" size="small" class="compact-radio">
+                  <el-radio-button value="skip">跳过</el-radio-button>
+                  <el-radio-button value="force">覆盖</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-form>
+          </div>
 
           <div class="tool-card-actions">
             <el-button :disabled="!isReady(timeSync.target)" @click="resetTimeSync">
@@ -125,40 +127,38 @@
         <div class="tool-card-body">
           <NodeSystemSelector v-model="sysParam.target" />
 
-          <el-collapse v-model="sysParam.collapse" class="tool-card-collapse">
-            <el-collapse-item title="sysctl 参数表（可编辑）" name="cfg">
-              <el-table :data="sysParam.rows" size="small" class="tool-table" border>
-                <el-table-column prop="key" label="参数" min-width="180">
-                  <template #default="scope">
-                    <code class="param-code">{{ scope.row.key }}</code>
-                    <el-tag v-if="scope.row.required" type="danger" size="small" style="margin-left: 4px;">K8s 必填</el-tag>
-                  </template>
-                </el-table-column>
-                <el-table-column prop="value" label="值" width="120">
-                  <template #default="scope">
-                    <el-input v-model="scope.row.value" size="small" />
-                  </template>
-                </el-table-column>
-              </el-table>
-            </el-collapse-item>
-          </el-collapse>
+          <div class="tool-card-scroll">
+            <el-collapse v-model="sysParam.collapse" class="tool-card-collapse">
+              <el-collapse-item title="sysctl 参数（可编辑）" name="cfg">
+                <div class="param-list">
+                  <div v-for="row in sysParam.rows" :key="row.key" class="param-row">
+                    <div class="param-key">
+                      <code class="param-code">{{ row.key }}</code>
+                      <el-tag v-if="row.required" type="danger" size="small">K8s</el-tag>
+                    </div>
+                    <el-input v-model="row.value" size="small" class="param-value" />
+                  </div>
+                </div>
+              </el-collapse-item>
+            </el-collapse>
 
-          <el-form :model="sysParam.opts" label-width="84px" size="small" class="tool-form">
-            <el-form-item label="关闭 swap">
-              <el-switch v-model="sysParam.opts.disableSwap" />
-              <span class="form-hint">K8s 节点必关</span>
-            </el-form-item>
-            <el-form-item label="提升 ulimit">
-              <el-switch v-model="sysParam.opts.raiseUlimit" />
-              <span class="form-hint">nofile/nproc → 655350</span>
-            </el-form-item>
-            <el-form-item label="已存在时">
-              <el-radio-group v-model="sysParam.opts.onConflict" size="small">
-                <el-radio-button value="skip">跳过</el-radio-button>
-                <el-radio-button value="force">强制覆盖</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-          </el-form>
+            <el-form :model="sysParam.opts" label-width="72px" size="small" class="tool-form">
+              <el-form-item label="关 swap">
+                <el-switch v-model="sysParam.opts.disableSwap" />
+                <span class="form-hint">K8s 必关</span>
+              </el-form-item>
+              <el-form-item label="ulimit">
+                <el-switch v-model="sysParam.opts.raiseUlimit" />
+                <span class="form-hint">655350</span>
+              </el-form-item>
+              <el-form-item label="已存在时">
+                <el-radio-group v-model="sysParam.opts.onConflict" size="small" class="compact-radio">
+                  <el-radio-button value="skip">跳过</el-radio-button>
+                  <el-radio-button value="force">覆盖</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-form>
+          </div>
 
           <div class="tool-card-actions">
             <el-button :disabled="!isReady(sysParam.target)" @click="resetSysParam">
@@ -189,39 +189,41 @@
         <div class="tool-card-body">
           <NodeSystemSelector v-model="security.target" />
 
-          <el-form :model="security.opts" label-width="100px" size="small" class="tool-form">
-            <el-form-item label="禁用 root SSH">
-              <el-switch v-model="security.opts.disableSshRoot" />
-            </el-form-item>
-            <el-form-item label="改 SSH 端口">
-              <el-switch v-model="security.opts.changeSshPort" />
-              <el-input-number
-                v-if="security.opts.changeSshPort"
-                v-model="security.opts.sshPort"
-                :min="1024" :max="65535" :step="1" :precision="0"
-                controls-position="right"
-                style="width: 110px; margin-left: 8px;"
-              />
-            </el-form-item>
-            <el-form-item label="启用防火墙">
-              <el-switch v-model="security.opts.enableFirewall" />
-            </el-form-item>
-            <el-form-item label="禁无用服务">
-              <el-switch v-model="security.opts.disableUnneeded" />
-            </el-form-item>
-            <el-form-item label="自动安全更新">
-              <el-switch v-model="security.opts.enableAutoUpdate" />
-            </el-form-item>
-            <el-form-item label="安装 Fail2ban">
-              <el-switch v-model="security.opts.installFail2ban" />
-            </el-form-item>
-            <el-form-item label="已存在时">
-              <el-radio-group v-model="security.opts.onConflict" size="small">
-                <el-radio-button value="skip">跳过</el-radio-button>
-                <el-radio-button value="force">强制覆盖</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-          </el-form>
+          <div class="tool-card-scroll">
+            <el-form :model="security.opts" label-width="82px" size="small" class="tool-form">
+              <el-form-item label="禁 root">
+                <el-switch v-model="security.opts.disableSshRoot" />
+              </el-form-item>
+              <el-form-item label="SSH 端口">
+                <el-switch v-model="security.opts.changeSshPort" />
+                <el-input-number
+                  v-if="security.opts.changeSshPort"
+                  v-model="security.opts.sshPort"
+                  :min="1024" :max="65535" :step="1" :precision="0"
+                  controls-position="right"
+                  style="width: 104px; margin-left: 8px;"
+                />
+              </el-form-item>
+              <el-form-item label="防火墙">
+                <el-switch v-model="security.opts.enableFirewall" />
+              </el-form-item>
+              <el-form-item label="禁服务">
+                <el-switch v-model="security.opts.disableUnneeded" />
+              </el-form-item>
+              <el-form-item label="自动更新">
+                <el-switch v-model="security.opts.enableAutoUpdate" />
+              </el-form-item>
+              <el-form-item label="Fail2ban">
+                <el-switch v-model="security.opts.installFail2ban" />
+              </el-form-item>
+              <el-form-item label="已存在时">
+                <el-radio-group v-model="security.opts.onConflict" size="small" class="compact-radio">
+                  <el-radio-button value="skip">跳过</el-radio-button>
+                  <el-radio-button value="force">覆盖</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-form>
+          </div>
 
           <div class="tool-card-actions">
             <el-button :disabled="!isReady(security.target)" @click="resetSecurity">
@@ -257,38 +259,40 @@
         <div class="tool-card-body">
           <NodeSystemSelector v-model="disk.target" />
 
-          <el-form :model="disk.opts" label-width="84px" size="small" class="tool-form">
-            <el-form-item label="SSD TRIM">
-              <el-switch v-model="disk.opts.enableSsdTrim" />
-              <span class="form-hint">fstrim.timer</span>
-            </el-form-item>
-            <el-form-item label="文件系统">
-              <el-switch v-model="disk.opts.tuneFilesystem" />
-              <span class="form-hint">noatime</span>
-            </el-form-item>
-            <el-form-item label="Swap">
-              <el-switch v-model="disk.opts.setupSwap" />
-              <el-select
-                v-if="disk.opts.setupSwap"
-                v-model="disk.opts.swapSize"
-                size="small"
-                style="width: 130px; margin-left: 8px;"
-              >
-                <el-option label="auto (内存×2)" value="auto" />
-                <el-option label="1 GB" value="1G" />
-                <el-option label="2 GB" value="2G" />
-                <el-option label="4 GB" value="4G" />
-                <el-option label="8 GB" value="8G" />
-                <el-option label="16 GB" value="16G" />
-              </el-select>
-            </el-form-item>
-            <el-form-item label="已存在时">
-              <el-radio-group v-model="disk.opts.onConflict" size="small">
-                <el-radio-button value="skip">跳过</el-radio-button>
-                <el-radio-button value="force">强制覆盖</el-radio-button>
-              </el-radio-group>
-            </el-form-item>
-          </el-form>
+          <div class="tool-card-scroll">
+            <el-form :model="disk.opts" label-width="72px" size="small" class="tool-form">
+              <el-form-item label="SSD TRIM">
+                <el-switch v-model="disk.opts.enableSsdTrim" />
+                <span class="form-hint">fstrim</span>
+              </el-form-item>
+              <el-form-item label="文件系统">
+                <el-switch v-model="disk.opts.tuneFilesystem" />
+                <span class="form-hint">noatime</span>
+              </el-form-item>
+              <el-form-item label="Swap">
+                <el-switch v-model="disk.opts.setupSwap" />
+                <el-select
+                  v-if="disk.opts.setupSwap"
+                  v-model="disk.opts.swapSize"
+                  size="small"
+                  style="width: 118px; margin-left: 8px;"
+                >
+                  <el-option label="auto" value="auto" />
+                  <el-option label="1 GB" value="1G" />
+                  <el-option label="2 GB" value="2G" />
+                  <el-option label="4 GB" value="4G" />
+                  <el-option label="8 GB" value="8G" />
+                  <el-option label="16 GB" value="16G" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="已存在时">
+                <el-radio-group v-model="disk.opts.onConflict" size="small" class="compact-radio">
+                  <el-radio-button value="skip">跳过</el-radio-button>
+                  <el-radio-button value="force">覆盖</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-form>
+          </div>
 
           <div class="tool-card-actions">
             <el-button :disabled="!isReady(disk.target)" @click="resetDisk">
@@ -505,7 +509,11 @@ onMounted(() => {
 
 <style scoped>
 .init-tools-home {
+  max-width: none;
+  width: 100%;
   min-height: 100%;
+  padding: 12px 8px 24px;
+  overflow-x: hidden;
 }
 
 .page-header {
@@ -550,17 +558,23 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-/* 3 列网格：默认每张卡片最小 320px，宽屏 4 卡时刚好排成两行 / 单行 */
+/* 尽量占满内容区：宽屏固定 3 列，窄屏自动退化，卡片内部处理滚动。 */
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
   margin-bottom: 16px;
+  width: 100%;
+  min-width: 0;
+  align-items: start;
 }
 
 .tool-card {
+  height: 520px;
+  min-width: 0;
   border-radius: 10px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+  overflow: hidden;
 }
 
 .tool-card:hover {
@@ -576,7 +590,9 @@ onMounted(() => {
 }
 
 .tool-card :deep(.el-card__body) {
+  height: calc(100% - 58px);
   padding: 12px 14px;
+  overflow: hidden;
 }
 
 .tool-card-header {
@@ -609,6 +625,7 @@ onMounted(() => {
   margin: 0 0 2px;
   font-size: 14.5px;
   color: #0f172a;
+  min-width: 0;
 }
 
 .tool-card-desc {
@@ -616,16 +633,48 @@ onMounted(() => {
   font-size: 12px;
   color: #64748b;
   line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tool-card-body {
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: hidden;
+}
+
+.tool-card-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+}
+
+.tool-card-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.tool-card-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
 }
 
 .tool-form :deep(.el-form-item) {
   margin-bottom: 8px;
+  min-width: 0;
+}
+
+.tool-form :deep(.el-form-item__content) {
+  min-width: 0;
+  flex-wrap: wrap;
+  row-gap: 6px;
 }
 
 .tool-form :deep(.el-form-item__label) {
@@ -641,10 +690,12 @@ onMounted(() => {
 }
 
 .tool-card-collapse {
+  min-width: 0;
   border: 1px solid #e2e8f0;
   border-radius: 6px;
   background: #ffffff;
   padding: 0 10px;
+  margin-bottom: 8px;
 }
 
 .tool-card-collapse :deep(.el-collapse-item__header) {
@@ -662,18 +713,76 @@ onMounted(() => {
   padding-bottom: 10px;
 }
 
-.tool-table .param-code {
+.param-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.param-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 88px;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.param-key {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.param-code {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12px;
   color: #0f172a;
 }
 
+.param-value {
+  width: 88px;
+  min-width: 0;
+}
+
 .tool-card-actions {
+  flex: 0 0 auto;
   display: flex;
   gap: 8px;
   justify-content: flex-end;
   border-top: 1px dashed #e2e8f0;
   padding-top: 10px;
   margin-top: 4px;
+}
+
+.compact-radio {
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.compact-radio :deep(.el-radio-button__inner) {
+  padding: 7px 9px;
+}
+
+.tool-card :deep(.node-system-selector) {
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+@media (max-width: 1360px) {
+  .tool-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 980px) {
+  .tool-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
