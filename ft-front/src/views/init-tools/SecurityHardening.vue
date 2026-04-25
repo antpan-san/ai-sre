@@ -1,8 +1,11 @@
 <template>
   <div class="security-hardening">
     <div class="page-header">
+      <div class="page-header-bar">
+        <el-button link type="primary" :icon="ArrowLeft" @click="backToHome">返回工具总览</el-button>
+      </div>
       <h2>系统安全加固</h2>
-      <p>配置系统安全策略，提升服务器安全性</p>
+      <p>配置系统安全策略，提升服务器安全性。请先选择目标节点与系统类型，再勾选要应用的策略。</p>
     </div>
 
     <div class="content-container">
@@ -12,6 +15,8 @@
             <h3>安全加固配置</h3>
           </div>
         </template>
+
+        <NodeSystemSelector v-model="target" class="target-block" />
 
         <div class="security-container">
           <el-checkbox-group v-model="securityOptions">
@@ -68,11 +73,11 @@
           <el-button
             type="success"
             @click="applySecuritySettings"
-            :disabled="securityOptions.length === 0"
+            :disabled="securityOptions.length === 0 || !targetReady"
             :loading="applyingSecurity"
           >
             <el-icon><CircleCheck /></el-icon>
-            应用安全设置
+            应用到所选节点
           </el-button>
         </div>
       </el-card>
@@ -81,28 +86,54 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { CircleCheck, QuestionFilled } from '@element-plus/icons-vue'
+import { CircleCheck, QuestionFilled, ArrowLeft } from '@element-plus/icons-vue'
+import NodeSystemSelector, { type NodeSystemValue } from '../../components/init-tools/NodeSystemSelector.vue'
+
+const route = useRoute()
+const router = useRouter()
 
 // 系统安全加固
 const securityOptions = ref<string[]>([])
 const applyingSecurity = ref(false)
 const sshPort = ref(2222)
 
+const target = ref<NodeSystemValue>({ nodes: [], osType: '' })
+const targetReady = computed(() => target.value.nodes.length > 0 && !!target.value.osType)
+
+onMounted(() => {
+  const nodesQ = (route.query.nodes as string) || ''
+  const osQ = (route.query.osType as string) || ''
+  if (nodesQ) target.value.nodes = nodesQ.split(',').filter(Boolean)
+  if (osQ) target.value.osType = osQ as NodeSystemValue['osType']
+})
+
+const backToHome = () => {
+  const q = { ...route.query }
+  delete q.nodes
+  delete q.osType
+  router.push({ path: '/init-tools', query: q })
+}
+
 // 应用安全设置
 const applySecuritySettings = () => {
+  if (!targetReady.value) {
+    ElMessage.warning('请先选择目标节点与系统类型')
+    return
+  }
   ElMessageBox.confirm(
-    '应用安全设置可能会影响系统功能，是否继续？',
+    `将向 ${target.value.nodes.length} 个节点（${target.value.osType}）应用安全策略，可能影响系统功能，是否继续？`,
     '警告',
     { type: 'warning' }
   ).then(() => {
     applyingSecurity.value = true
-    // 模拟API请求
+    // 后端 API 待补齐，此处先做交互反馈
     setTimeout(() => {
-      ElMessage.success('系统安全加固已完成')
+      ElMessage.success('系统安全加固任务已下发')
       applyingSecurity.value = false
-    }, 2000)
+    }, 1500)
   }).catch(() => {
     // 取消操作
   })
@@ -116,13 +147,20 @@ const applySecuritySettings = () => {
 }
 
 .page-header {
-  text-align: center;
   margin-bottom: 30px;
+}
+
+.page-header-bar {
+  margin-bottom: 6px;
 }
 
 .page-header h2 {
   color: #1890ff;
   margin-bottom: 10px;
+}
+
+.target-block {
+  margin-bottom: 16px;
 }
 
 .content-container {

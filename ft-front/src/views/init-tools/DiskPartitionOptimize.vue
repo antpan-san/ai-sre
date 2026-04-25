@@ -1,8 +1,11 @@
 <template>
   <div class="disk-partition-optimize">
     <div class="page-header">
+      <div class="page-header-bar">
+        <el-button link type="primary" :icon="ArrowLeft" @click="backToHome">返回工具总览</el-button>
+      </div>
       <h2>磁盘分区优化</h2>
-      <p>优化磁盘分区配置，提升存储性能</p>
+      <p>优化磁盘分区配置、文件系统挂载选项与 swap，缓解 etcd fsync 抖动。请先选择目标节点与系统类型。</p>
     </div>
 
     <div class="content-container">
@@ -12,6 +15,8 @@
             <h3>磁盘分区优化配置</h3>
           </div>
         </template>
+
+        <NodeSystemSelector v-model="target" class="target-block" />
 
         <div class="disk-optimize-container">
           <div class="disk-info">
@@ -87,7 +92,7 @@
           <el-button
             type="success"
             @click="optimizeDisks"
-            :disabled="selectedDisks.length === 0 || diskOptions.length === 0"
+            :disabled="selectedDisks.length === 0 || diskOptions.length === 0 || !targetReady"
             :loading="optimizingDisks"
           >
             <el-icon><Calendar /></el-icon>
@@ -100,15 +105,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Calendar, QuestionFilled } from '@element-plus/icons-vue'
+import { Calendar, QuestionFilled, ArrowLeft } from '@element-plus/icons-vue'
+import NodeSystemSelector, { type NodeSystemValue } from '../../components/init-tools/NodeSystemSelector.vue'
+
+const route = useRoute()
+const router = useRouter()
 
 // 磁盘分区优化
 const diskOptions = ref<string[]>([])
 const selectedDisks = ref<string[]>([])
 const optimizingDisks = ref(false)
 const swapSize = ref('auto')
+
+const target = ref<NodeSystemValue>({ nodes: [], osType: '' })
+const targetReady = computed(() => target.value.nodes.length > 0 && !!target.value.osType)
+
+onMounted(() => {
+  const nodesQ = (route.query.nodes as string) || ''
+  const osQ = (route.query.osType as string) || ''
+  if (nodesQ) target.value.nodes = nodesQ.split(',').filter(Boolean)
+  if (osQ) target.value.osType = osQ as NodeSystemValue['osType']
+})
+
+const backToHome = () => {
+  const q = { ...route.query }
+  delete q.nodes
+  delete q.osType
+  router.push({ path: '/init-tools', query: q })
+}
 
 const availableDisks = ref([
   { name: '/dev/sda', size: 100, fs: 'ext4' },
@@ -118,17 +145,21 @@ const availableDisks = ref([
 
 // 优化磁盘
 const optimizeDisks = () => {
+  if (!targetReady.value) {
+    ElMessage.warning('请先选择目标节点与系统类型')
+    return
+  }
   ElMessageBox.confirm(
-    '磁盘优化可能导致数据丢失，请确保已备份重要数据，是否继续？',
+    `将向 ${target.value.nodes.length} 个节点（${target.value.osType}）执行磁盘优化，可能导致数据丢失，请确保已备份重要数据，是否继续？`,
     '危险操作',
     { type: 'error', confirmButtonText: '确认优化', cancelButtonText: '取消' }
   ).then(() => {
     optimizingDisks.value = true
-    // 模拟API请求
+    // 后端 API 待补齐，此处先做交互反馈
     setTimeout(() => {
-      ElMessage.success('磁盘优化已完成')
+      ElMessage.success('磁盘优化任务已下发')
       optimizingDisks.value = false
-    }, 3000)
+    }, 1500)
   }).catch(() => {
     // 取消操作
   })
@@ -142,13 +173,20 @@ const optimizeDisks = () => {
 }
 
 .page-header {
-  text-align: center;
   margin-bottom: 30px;
+}
+
+.page-header-bar {
+  margin-bottom: 6px;
 }
 
 .page-header h2 {
   color: #1890ff;
   margin-bottom: 10px;
+}
+
+.target-block {
+  margin-bottom: 16px;
 }
 
 .content-container {

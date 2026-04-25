@@ -1,7 +1,13 @@
 <template>
   <div class="system-param-optimize">
     <div class="page-header">
+      <div class="page-header-bar">
+        <el-button link type="primary" :icon="ArrowLeft" @click="backToHome">返回工具总览</el-button>
+      </div>
       <h2>系统参数优化</h2>
+      <p class="page-desc">
+        调优 sysctl / ulimit / swap 等内核参数，提升 K8s 节点稳定性与性能。请先选择目标节点与系统类型，再勾选并应用。
+      </p>
     </div>
 
     <div class="content-container">
@@ -20,6 +26,8 @@
             </el-button>
           </div>
         </template>
+
+        <NodeSystemSelector v-model="target" class="target-block" />
 
         <div class="system-params-container">
           <el-table
@@ -75,9 +83,10 @@
             type="success"
             @click="applySystemParams"
             :loading="applyingSystemParams"
+            :disabled="!targetReady"
           >
             <el-icon><Check /></el-icon>
-            确认需求
+            应用到所选节点
           </el-button>
         </div>
       </el-card>
@@ -86,13 +95,36 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { RefreshRight, Check } from '@element-plus/icons-vue'
+import { RefreshRight, Check, ArrowLeft } from '@element-plus/icons-vue'
+import NodeSystemSelector, { type NodeSystemValue } from '../../components/init-tools/NodeSystemSelector.vue'
+
+const route = useRoute()
+const router = useRouter()
 
 // 系统参数优化
 const loadingSystemParams = ref(false)
 const applyingSystemParams = ref(false)
+
+const target = ref<NodeSystemValue>({ nodes: [], osType: '' })
+const targetReady = computed(() => target.value.nodes.length > 0 && !!target.value.osType)
+
+onMounted(() => {
+  // 兼容从总览页跳转过来时透传的 nodes / osType
+  const nodesQ = (route.query.nodes as string) || ''
+  const osQ = (route.query.osType as string) || ''
+  if (nodesQ) target.value.nodes = nodesQ.split(',').filter(Boolean)
+  if (osQ) target.value.osType = osQ as NodeSystemValue['osType']
+})
+
+const backToHome = () => {
+  const q = { ...route.query }
+  delete q.nodes
+  delete q.osType
+  router.push({ path: '/init-tools', query: q })
+}
 
 interface SystemParam {
   key: string
@@ -124,6 +156,10 @@ const refreshSystemParams = () => {
 
 // 应用系统参数
 const applySystemParams = () => {
+  if (!targetReady.value) {
+    ElMessage.warning('请先选择目标节点与系统类型')
+    return
+  }
   applyingSystemParams.value = true
   // 检查必填参数
   const missingParams = systemParams.value.filter(p => p.required && !p.value.trim())
@@ -133,11 +169,13 @@ const applySystemParams = () => {
     return
   }
 
-  // 模拟API请求
+  // 后端 API 待补齐，此处先做交互反馈；调用时会带上 target.nodes / target.osType
   setTimeout(() => {
-    ElMessage.success('系统参数优化已完成')
+    ElMessage.success(
+      `系统参数已下发到 ${target.value.nodes.length} 个节点（${target.value.osType}），可在作业中心查看进度`
+    )
     applyingSystemParams.value = false
-  }, 2000)
+  }, 1200)
 }
 </script>
 
@@ -153,11 +191,25 @@ const applySystemParams = () => {
   border-bottom: 1px solid #e5e7eb;
 }
 
+.page-header-bar {
+  margin-bottom: 6px;
+}
+
 .page-header h2 {
   color: #1890ff;
   margin: 0;
   font-size: 20px;
   font-weight: 600;
+}
+
+.page-desc {
+  margin: 6px 0 0;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.target-block {
+  margin-bottom: 16px;
 }
 
 .content-container {

@@ -1,8 +1,13 @@
 <template>
   <div class="time-sync">
     <div class="page-header">
+      <div class="page-header-bar">
+        <el-button link type="primary" :icon="ArrowLeft" @click="backToHome">返回工具总览</el-button>
+      </div>
       <h2>时间同步</h2>
-      <p>配置服务器时间同步，确保系统时间准确性</p>
+      <p>
+        在目标节点上启用 chrony / systemd-timesyncd，确保节点间时差 &lt; 1s。请先选择目标节点与系统类型，再配置 NTP 主从。
+      </p>
     </div>
 
     <div class="content-container">
@@ -21,6 +26,8 @@
             </el-button>
           </div>
         </template>
+
+        <NodeSystemSelector v-model="target" class="target-block" />
 
         <div class="time-sync-container">
           <!-- 主服务器选择 -->
@@ -111,7 +118,7 @@
           <el-button
             type="success"
             @click="syncTime"
-            :disabled="!canSyncTime"
+            :disabled="!canSyncTime || !targetReady"
             :loading="syncingTime"
           >
             <el-icon><Timer /></el-icon>
@@ -128,11 +135,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { RefreshRight, Timer } from '@element-plus/icons-vue'
+import { RefreshRight, Timer, ArrowLeft } from '@element-plus/icons-vue'
 import { getMachineList } from '../../api/index'
 import type { Machine } from '../../types'
+import NodeSystemSelector, { type NodeSystemValue } from '../../components/init-tools/NodeSystemSelector.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+const target = ref<NodeSystemValue>({ nodes: [], osType: '' })
+const targetReady = computed(() => target.value.nodes.length > 0 && !!target.value.osType)
+
+onMounted(() => {
+  const nodesQ = (route.query.nodes as string) || ''
+  const osQ = (route.query.osType as string) || ''
+  if (nodesQ) target.value.nodes = nodesQ.split(',').filter(Boolean)
+  if (osQ) target.value.osType = osQ as NodeSystemValue['osType']
+})
+
+const backToHome = () => {
+  const q = { ...route.query }
+  delete q.nodes
+  delete q.osType
+  router.push({ path: '/init-tools', query: q })
+}
 
 // 时间同步
 const loadingMachineList = ref(false)
@@ -180,12 +209,18 @@ const refreshMachineList = () => {
 
 // 同步时间
 const syncTime = () => {
+  if (!targetReady.value) {
+    ElMessage.warning('请先选择目标节点与系统类型')
+    return
+  }
   syncingTime.value = true
-  // 模拟API请求
+  // 后端 API 待补齐，此处先做交互反馈；调用时会带上 target.nodes / target.osType
   setTimeout(() => {
-    ElMessage.success('时间同步已完成')
+    ElMessage.success(
+      `时间同步任务已下发到 ${target.value.nodes.length} 个节点（${target.value.osType}）`
+    )
     syncingTime.value = false
-  }, 2000)
+  }, 1500)
 }
 
 // 重置时间同步配置
@@ -211,13 +246,20 @@ loadMachineList()
 }
 
 .page-header {
-  text-align: center;
   margin-bottom: 30px;
+}
+
+.page-header-bar {
+  margin-bottom: 6px;
 }
 
 .page-header h2 {
   color: #1890ff;
   margin-bottom: 10px;
+}
+
+.target-block {
+  margin-bottom: 16px;
 }
 
 .content-container {

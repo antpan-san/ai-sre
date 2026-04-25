@@ -918,9 +918,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, markRaw } from 'vue'
+import { ref, reactive, computed, watch, onMounted, markRaw, h } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import {
   Monitor,
@@ -1531,6 +1531,101 @@ const loadMachines = async () => {
 // ---------- 步骤切换 ----------
 const prevStep = () => { activeStep.value-- }
 
+/**
+ * 节点配置完成后，提示用户是否先去优化节点环境（时钟/内核参数/安全/磁盘）。
+ * - 返回 true 表示应继续 nextStep 流程；false 表示停留当前步骤（用户取消或已跳转到优化页）
+ * - 用户勾选「不再提示」会持久化到 localStorage，下次直接放行
+ */
+const PREREQ_SKIP_KEY = 'k8s-deploy.skip-prereq-optimize-prompt'
+const dontAskOptimizeAgain = ref(false)
+
+const maybePromptOptimize = async (): Promise<boolean> => {
+  try {
+    if (localStorage.getItem(PREREQ_SKIP_KEY) === '1') {
+      return true
+    }
+  } catch {
+    // localStorage 不可用时按提示流程走
+  }
+  // 先把当前选择重置为默认
+  dontAskOptimizeAgain.value = false
+  try {
+    await ElMessageBox({
+      title: '部署前依赖提示',
+      // 自定义消息：包含说明 + 「不再提示」复选框
+      message: () =>
+        h('div', { class: 'k8s-prereq-prompt' }, [
+          h(
+            'p',
+            { style: 'margin: 0 0 8px; line-height: 1.7; color: #1f2937;' },
+            '检测到尚未确认是否完成节点初始化优化。强烈建议在 K8s 部署前完成以下项目，否则 etcd / calico-node / coredns 可能在安装后反复重启：'
+          ),
+          h('ul', { style: 'margin: 0 0 12px 18px; padding: 0; color: #334155; font-size: 13px;' }, [
+            h('li', '时间同步（chrony / systemd-timesyncd，节点间时差 < 1s）'),
+            h('li', '系统参数（br_netfilter / overlay 模块，ip_forward、bridge-nf-call-iptables = 1）'),
+            h('li', '关闭 swap、提升 fs.file-max / somaxconn'),
+            h('li', '磁盘（etcd 所在盘 fsync p99 < 20ms）'),
+          ]),
+          h(
+            'label',
+            {
+              style:
+                'display: flex; align-items: center; gap: 6px; font-size: 13px; color: #475569; user-select: none;',
+            },
+            [
+              h('input', {
+                type: 'checkbox',
+                style: 'margin: 0;',
+                onChange: (e: Event) => {
+                  dontAskOptimizeAgain.value = (e.target as HTMLInputElement).checked
+                },
+              }),
+              '以后不再提示（记住此选择，仅限本机浏览器）',
+            ]
+          ),
+        ]),
+      showCancelButton: true,
+      confirmButtonText: '先去优化',
+      cancelButtonText: '跳过继续',
+      distinguishCancelAndClose: true,
+      closeOnClickModal: false,
+      type: 'warning',
+      customClass: 'k8s-prereq-msgbox',
+    })
+    // confirm = 先去优化：跳到初始化工具总览，并把当前集群名传过去
+    if (dontAskOptimizeAgain.value) {
+      try {
+        localStorage.setItem(PREREQ_SKIP_KEY, '1')
+      } catch {
+        // 忽略 localStorage 写入失败
+      }
+    }
+    router.push({
+      path: '/init-tools',
+      query: {
+        from: 'k8s-deploy',
+        cluster: deployConfig.clusterBasicInfo.clusterName || '',
+      },
+    })
+    // 不前进步骤；store 内已有 watch 自动保存当前进度，回来后可继续
+    return false
+  } catch (action) {
+    // cancel = 跳过继续；close (X) = 取消整个动作
+    if (action === 'cancel') {
+      if (dontAskOptimizeAgain.value) {
+        try {
+          localStorage.setItem(PREREQ_SKIP_KEY, '1')
+        } catch {
+          // 忽略 localStorage 写入失败
+        }
+      }
+      return true
+    }
+    // 关闭按钮：保持当前步骤
+    return false
+  }
+}
+
 const nextStep = async () => {
   validating.value = true
   try {
@@ -1566,6 +1661,11 @@ const nextStep = async () => {
           ElMessage.warning('请至少选择一个 K8s 控制平面节点')
           return
         }
+      }
+      // 节点配置完成后，提示是否先去优化节点环境
+      const shouldContinue = await maybePromptOptimize()
+      if (!shouldContinue) {
+        return
       }
     }
     // 步骤 4 校验

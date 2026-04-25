@@ -165,7 +165,9 @@ const routes: Array<RouteRecordRaw> = [
     children: [
       {
         path: '',
-        redirect: '/init-tools/system-param'
+        name: 'InitToolsHome',
+        component: () => import('../views/init-tools/InitToolsHome.vue'),
+        meta: { title: '初始化工具总览', requireAuth: true, roles: ['admin'] }
       },
       {
         path: 'system-param',

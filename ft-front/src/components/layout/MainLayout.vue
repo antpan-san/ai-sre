@@ -94,6 +94,7 @@
             <el-icon><Tools /></el-icon>
             <span>初始化工具</span>
           </template>
+          <el-menu-item index="/init-tools">工具总览</el-menu-item>
           <el-menu-item index="/init-tools/system-param">系统参数优化</el-menu-item>
           <el-menu-item index="/init-tools/time-sync">时间同步</el-menu-item>
           <el-menu-item index="/init-tools/security-hardening">系统安全加固</el-menu-item>
