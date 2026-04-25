@@ -213,7 +213,21 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 **Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP。离线控制机：**安装或升级 ai-sre**（已安装则覆盖）：`curl -fsSL '<publicApiBase>/api/k8s/deploy/install-ai-sre.sh' | sudo bash`（会写入 `~/.config/ai-sre/opsfleet_api_url` 供后续**自动比对升级**）。全栈机执行 **`./scripts/deploy-opsfleet-remote.sh`** 时，远端 **`build-all.sh` 会生成 `bin/ai-sre`**，并在 **`/etc/opsfleet/backend.env`** 写入 **`OPSFLEET_AISRE_BINARY_PATH=<仓库>/bin/ai-sre`**（**systemd 优先于 config.yaml**），故每次发布控制台分发的 CLI 与源码一致；仅当**未用该脚本部署**时，才需在 `conf/config.yaml` 配置 **`opsfleet.ai_sre_binary_path`**。集群安装：**①** `sudo ai-sre k8s install 'ofpk8s1.…'`；**②** `curl -fsSL '<publicApiBase>/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'`（需 `python3`）；**③** zip 解压后 **`sudo bash install.sh`**。**控制机须能免密 SSH 各节点 `root`**。离线配置里若 worker 填了与 master 相同 IP，后端会在生成 inventory 时自动去重（master 本身已安装 kubelet 并注册为 Node，无需重复声明）。同一角色列表内（master 或 worker 自身）仍不允许重复 IP。**卸载**（在曾安装过并记录了引用的控制机上）：`sudo ai-sre uninstall k8s` 或 `sudo ai-sre k8s cleanup 'ofpk8s1.…'`。
 
-**部署前的节点初始化（可选但推荐）**：在 **节点配置 → 下一步** 时控制台会提示是否先去优化节点环境（避免 etcd / calico-node / coredns 在 NTP 漂移、br_netfilter 缺失、慢盘等情况下反复 Killing）。点击「先去优化」会跳转到 **初始化工具**（`/init-tools`，**单页、无子菜单**），所有优化项以卡片形式集中在同一页面：**时间同步 / 系统参数优化 / 系统安全加固 / 磁盘分区优化**。每张卡片自包含**目标节点（多选）**、**系统类型**（Ubuntu/Debian/CentOS/Rocky/RHEL/openEuler/Kylin/其它 Linux）与折叠的详细配置（NTP 主源 / sysctl 参数表 / 安全策略 / 磁盘选项），可在卡片内一键应用，完成后点顶部「返回 K8s 部署」继续向导。对话框支持「以后不再提示」（写入 localStorage）。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
+**部署前的节点初始化（可选但推荐）**：在 **节点配置 → 下一步** 时控制台会提示是否先去优化节点环境（避免 etcd / calico-node / coredns 在 NTP 漂移、br_netfilter 缺失、慢盘等情况下反复 Killing）。点击「先去优化」会跳转到 **初始化工具**（`/init-tools`，**单页、无子菜单、3 列网格**），所有优化项以紧凑卡片形式集中：**时间同步 / 系统参数优化 / 系统安全加固 / 磁盘分区优化**。每张卡片自包含 **目标节点（多选）**、**系统类型**（Ubuntu/Debian/CentOS/Rocky/RHEL/openEuler/Kylin/其它 Linux）与对应工具的关键参数：
+
+- **时间同步**：NTP 工具（chrony / timesyncd）、主源、备用源、时区、同步间隔、`ON_CONFLICT` 策略
+- **系统参数**：sysctl 参数表（K8s 必填项默认勾选）、关 swap、提升 ulimit、`ON_CONFLICT`
+- **安全加固**：禁 root SSH、改 SSH 端口、防火墙、Fail2ban、自动更新、`ON_CONFLICT`
+- **磁盘**：SSD TRIM、文件系统挂载优化（noatime）、Swap 大小（auto / 1G–16G）、`ON_CONFLICT`
+
+点击「**查看安装脚本**」会弹出脚本预览对话框（`Bash 脚本 / ai-sre CLI / 多节点批量` 三个 Tab）：
+
+- **Bash 脚本**：完整可执行 bash，含 `set -euo pipefail`、自动备份至 `/var/backups/ai-sre/<ts>/`、写入幂等的 drop-in 配置文件（如 `/etc/sysctl.d/99-ai-sre.conf`、`/etc/ssh/sshd_config.d/99-ai-sre.conf`），并在末尾打印验证状态与回滚命令；支持「复制」与「下载 .sh」
+- **存在检测**：脚本默认 `ON_CONFLICT=skip`，检测到节点已运行其他时间同步服务（chrony/ntpd/systemd-timesyncd 等）或已存在 ai-sre drop-in 时直接退出并打印当前状态，**不进行任何写入或重启**；需要覆盖请改用 `ON_CONFLICT=force`
+- **ai-sre CLI**：未来 `ai-sre node tune <subcmd>` 子命令的等价调用占位（roadmap），参数与脚本一一对应
+- **多节点批量**：`for ip in <ips>; do ssh root@$ip "bash -s" < script.sh; done` 与 curl 一键模式（curl 模式需后端 `/ft-api/api/init-tools/scripts/<name>.sh` 配合，列在 roadmap）
+
+完成所需项后点顶部「返回 K8s 部署」继续向导。提示对话框支持「以后不再提示」（写入 localStorage）。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
 
 **机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 与作业中心仍用于在线机器列表与任务目标（见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)）。
 
