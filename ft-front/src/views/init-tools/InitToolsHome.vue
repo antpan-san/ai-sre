@@ -1,18 +1,17 @@
 <template>
   <!--
-    初始化工具（单页 / 3 列网格）
-    - 每张卡片自包含：目标节点 + 系统类型 + 关键参数 + 「查看安装脚本」
-    - 脚本由 scripts.ts 生成；包含 ON_CONFLICT=skip 的存在检测，避免覆盖已有配置
-    - 通过弹窗展示 Bash / ai-sre CLI / 多节点批量 三种执行方式
+    初始化工具（Ansible 模式）
+    - 每张卡片：填写目标节点 IP（可选）+ 配置参数 → 生成 Ansible 执行脚本
+    - 脚本在控制机上执行，Ansible 负责多节点并行操作
+    - 时间同步：支持公用 NTP 服务器 或 自建主节点两种模式
   -->
-  <div class="init-tools-home page-shell page-shell--wizard">
+  <div class="init-tools-home page-shell">
     <header class="page-header">
       <div class="page-header-inner">
         <span class="page-kicker">Initialization</span>
         <h2 class="page-title">节点初始化与优化工具</h2>
         <p class="page-desc">
-          一站式生成节点初始化脚本：选择目标节点 → 设定参数 → 查看脚本（Bash / ai-sre CLI / 多节点批量）→ 在节点上执行。
-          脚本默认幂等，已存在同类配置时跳过。
+          填写目标节点 IP 与配置参数 → 生成 Ansible 执行脚本 → 在控制机上运行脚本，Ansible 自动对所有节点执行。
         </p>
       </div>
     </header>
@@ -40,7 +39,8 @@
     </el-alert>
 
     <div class="tool-grid">
-      <!-- 1. 时间同步 -->
+
+      <!-- ════════ 1. 时间同步 ════════ -->
       <el-card class="tool-card tool-card--recommended" shadow="hover">
         <template #header>
           <div class="tool-card-header">
@@ -52,39 +52,66 @@
                 时间同步
                 <el-tag type="warning" size="small" effect="dark">推荐</el-tag>
               </h3>
-              <p class="tool-card-desc">NTP 校时 / 时区设置 / 节点间时差 &lt; 1s</p>
+              <p class="tool-card-desc">NTP 校时 / 时区 / 节点间时差 &lt; 1s</p>
             </div>
           </div>
         </template>
 
         <div class="tool-card-body">
-          <NodeSystemSelector v-model="timeSync.target" />
-
           <div class="tool-card-scroll">
-            <el-form :model="timeSync.opts" label-width="72px" size="small" class="tool-form">
+            <el-form :model="timeSync.opts" label-width="80px" size="small" class="tool-form">
+
+              <!-- NTP 模式 -->
+              <el-form-item label="NTP 模式">
+                <el-radio-group v-model="timeSync.opts.ntpMode" class="compact-radio">
+                  <el-radio-button value="public">公用 NTP</el-radio-button>
+                  <el-radio-button value="self-hosted">自建主节点</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+
+              <!-- 自建主节点 IP -->
+              <el-form-item v-if="timeSync.opts.ntpMode === 'self-hosted'" label="主节点 IP">
+                <el-input
+                  v-model="timeSync.opts.masterNodeIp"
+                  placeholder="192.168.x.x（将安装 NTP 服务端）"
+                  clearable
+                />
+              </el-form-item>
+
+              <!-- 公用 NTP 服务器 -->
+              <template v-if="timeSync.opts.ntpMode === 'public'">
+                <el-form-item label="主源">
+                  <el-input v-model="timeSync.opts.ntpServer" placeholder="ntp.aliyun.com" clearable />
+                </el-form-item>
+                <el-form-item label="备用源">
+                  <el-input v-model="timeSync.opts.fallbackNtpServer" placeholder="ntp1.aliyun.com（可留空）" clearable />
+                </el-form-item>
+              </template>
+
+              <!-- 客户端节点 -->
+              <el-form-item label="客户端节点">
+                <el-input
+                  v-model="timeSync.opts.clientNodeIps"
+                  type="textarea"
+                  :rows="3"
+                  placeholder="每行一个 IP（留空则仅在本机执行）&#10;192.168.1.10&#10;192.168.1.11"
+                />
+              </el-form-item>
+
+              <!-- 工具 / 时区 / 间隔 / 冲突策略 -->
               <el-form-item label="NTP 工具">
                 <el-radio-group v-model="timeSync.opts.preferredTool" class="compact-radio">
                   <el-radio-button value="chrony">chrony</el-radio-button>
                   <el-radio-button value="timesyncd">timesyncd</el-radio-button>
                 </el-radio-group>
               </el-form-item>
-              <el-form-item label="主源">
-                <el-input v-model="timeSync.opts.ntpServer" placeholder="ntp.aliyun.com / 192.168.56.10" clearable />
-              </el-form-item>
-              <el-form-item label="备用源">
-                <el-input v-model="timeSync.opts.fallbackNtpServer" placeholder="可留空" clearable />
-              </el-form-item>
               <el-form-item label="时区">
-                <el-select v-model="timeSync.opts.timezone" style="width: 100%;">
+                <el-select v-model="timeSync.opts.timezone" style="width: 100%">
                   <el-option label="Asia/Shanghai (CST)" value="Asia/Shanghai" />
                   <el-option label="UTC" value="UTC" />
                   <el-option label="Europe/London" value="Europe/London" />
                   <el-option label="America/New_York" value="America/New_York" />
                 </el-select>
-              </el-form-item>
-              <el-form-item label="同步间隔">
-                <el-input-number v-model="timeSync.opts.syncIntervalMin" :min="1" :max="60" :step="1" :precision="0" controls-position="right" style="width: 104px;" />
-                <span class="form-unit">分钟</span>
               </el-form-item>
               <el-form-item label="已存在时">
                 <el-radio-group v-model="timeSync.opts.onConflict" size="small" class="compact-radio">
@@ -96,18 +123,13 @@
           </div>
 
           <div class="tool-card-actions">
-            <el-button :disabled="!isReady(timeSync.target)" @click="resetTimeSync">
-              <el-icon><RefreshRight /></el-icon>
-              重置
-            </el-button>
-            <el-button type="primary" :icon="View" :disabled="!isReady(timeSync.target)" @click="openTimeSync">
-              查看安装脚本
-            </el-button>
+            <el-button @click="resetTimeSync"><el-icon><RefreshRight /></el-icon> 重置</el-button>
+            <el-button type="primary" :icon="View" @click="openTimeSync">生成执行脚本</el-button>
           </div>
         </div>
       </el-card>
 
-      <!-- 2. 系统参数优化 -->
+      <!-- ════════ 2. 系统参数优化 ════════ -->
       <el-card class="tool-card tool-card--recommended" shadow="hover">
         <template #header>
           <div class="tool-card-header">
@@ -125,24 +147,33 @@
         </template>
 
         <div class="tool-card-body">
-          <NodeSystemSelector v-model="sysParam.target" />
-
           <div class="tool-card-scroll">
-            <el-collapse v-model="sysParam.collapse" class="tool-card-collapse">
-              <el-collapse-item title="sysctl 参数（可编辑）" name="cfg">
-                <div class="param-list">
-                  <div v-for="row in sysParam.rows" :key="row.key" class="param-row">
-                    <div class="param-key">
-                      <code class="param-code">{{ row.key }}</code>
-                      <el-tag v-if="row.required" type="danger" size="small">K8s</el-tag>
-                    </div>
-                    <el-input v-model="row.value" size="small" class="param-value" />
-                  </div>
-                </div>
-              </el-collapse-item>
-            </el-collapse>
+            <el-form :model="sysParam.opts" label-width="80px" size="small" class="tool-form">
+              <!-- 目标节点 -->
+              <el-form-item label="目标节点">
+                <el-input
+                  v-model="sysParam.opts.nodeIps"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="每行一个 IP（留空则仅在本机执行）"
+                />
+              </el-form-item>
 
-            <el-form :model="sysParam.opts" label-width="72px" size="small" class="tool-form">
+              <!-- sysctl 参数 -->
+              <el-collapse v-model="sysParam.collapse" class="tool-card-collapse">
+                <el-collapse-item title="sysctl 参数（可编辑）" name="cfg">
+                  <div class="param-list">
+                    <div v-for="row in sysParam.rows" :key="row.key" class="param-row">
+                      <div class="param-key">
+                        <code class="param-code">{{ row.key }}</code>
+                        <el-tag v-if="row.required" type="danger" size="small">K8s</el-tag>
+                      </div>
+                      <el-input v-model="row.value" size="small" class="param-value" />
+                    </div>
+                  </div>
+                </el-collapse-item>
+              </el-collapse>
+
               <el-form-item label="关 swap">
                 <el-switch v-model="sysParam.opts.disableSwap" />
                 <span class="form-hint">K8s 必关</span>
@@ -161,18 +192,13 @@
           </div>
 
           <div class="tool-card-actions">
-            <el-button :disabled="!isReady(sysParam.target)" @click="resetSysParam">
-              <el-icon><RefreshRight /></el-icon>
-              重置
-            </el-button>
-            <el-button type="primary" :icon="View" :disabled="!isReady(sysParam.target)" @click="openSysParam">
-              查看安装脚本
-            </el-button>
+            <el-button @click="resetSysParam"><el-icon><RefreshRight /></el-icon> 重置</el-button>
+            <el-button type="primary" :icon="View" @click="openSysParam">生成执行脚本</el-button>
           </div>
         </div>
       </el-card>
 
-      <!-- 3. 系统安全加固 -->
+      <!-- ════════ 3. 系统安全加固 ════════ -->
       <el-card class="tool-card" shadow="hover">
         <template #header>
           <div class="tool-card-header">
@@ -187,11 +213,17 @@
         </template>
 
         <div class="tool-card-body">
-          <NodeSystemSelector v-model="security.target" />
-
           <div class="tool-card-scroll">
-            <el-form :model="security.opts" label-width="82px" size="small" class="tool-form">
-              <el-form-item label="禁 root">
+            <el-form :model="security.opts" label-width="80px" size="small" class="tool-form">
+              <el-form-item label="目标节点">
+                <el-input
+                  v-model="security.opts.nodeIps"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="每行一个 IP（留空则仅在本机执行）"
+                />
+              </el-form-item>
+              <el-form-item label="禁 root SSH">
                 <el-switch v-model="security.opts.disableSshRoot" />
               </el-form-item>
               <el-form-item label="SSH 端口">
@@ -226,23 +258,20 @@
           </div>
 
           <div class="tool-card-actions">
-            <el-button :disabled="!isReady(security.target)" @click="resetSecurity">
-              <el-icon><RefreshRight /></el-icon>
-              重置
-            </el-button>
+            <el-button @click="resetSecurity"><el-icon><RefreshRight /></el-icon> 重置</el-button>
             <el-button
               type="primary"
               :icon="View"
-              :disabled="!isReady(security.target) || !anySecurityOption"
+              :disabled="!anySecurityOption"
               @click="openSecurity"
             >
-              查看安装脚本
+              生成执行脚本
             </el-button>
           </div>
         </div>
       </el-card>
 
-      <!-- 4. 磁盘分区优化 -->
+      <!-- ════════ 4. 磁盘分区优化 ════════ -->
       <el-card class="tool-card" shadow="hover">
         <template #header>
           <div class="tool-card-header">
@@ -257,10 +286,16 @@
         </template>
 
         <div class="tool-card-body">
-          <NodeSystemSelector v-model="disk.target" />
-
           <div class="tool-card-scroll">
-            <el-form :model="disk.opts" label-width="72px" size="small" class="tool-form">
+            <el-form :model="disk.opts" label-width="80px" size="small" class="tool-form">
+              <el-form-item label="目标节点">
+                <el-input
+                  v-model="disk.opts.nodeIps"
+                  type="textarea"
+                  :rows="2"
+                  placeholder="每行一个 IP（留空则仅在本机执行）"
+                />
+              </el-form-item>
               <el-form-item label="SSD TRIM">
                 <el-switch v-model="disk.opts.enableSsdTrim" />
                 <span class="form-hint">fstrim</span>
@@ -275,7 +310,7 @@
                   v-if="disk.opts.setupSwap"
                   v-model="disk.opts.swapSize"
                   size="small"
-                  style="width: 118px; margin-left: 8px;"
+                  style="width: 110px; margin-left: 8px;"
                 >
                   <el-option label="auto" value="auto" />
                   <el-option label="1 GB" value="1G" />
@@ -295,21 +330,19 @@
           </div>
 
           <div class="tool-card-actions">
-            <el-button :disabled="!isReady(disk.target)" @click="resetDisk">
-              <el-icon><RefreshRight /></el-icon>
-              重置
-            </el-button>
+            <el-button @click="resetDisk"><el-icon><RefreshRight /></el-icon> 重置</el-button>
             <el-button
               type="primary"
               :icon="View"
-              :disabled="!isReady(disk.target) || !anyDiskOption"
+              :disabled="!anyDiskOption"
               @click="openDisk"
             >
-              查看安装脚本
+              生成执行脚本
             </el-button>
           </div>
         </div>
       </el-card>
+
     </div>
 
     <ScriptPreviewDialog
@@ -326,17 +359,8 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
-  Cpu,
-  Timer,
-  Lock,
-  Coin,
-  ArrowRight,
-  RefreshRight,
-  View,
+  Cpu, Timer, Lock, Coin, ArrowRight, RefreshRight, View,
 } from '@element-plus/icons-vue'
-import NodeSystemSelector, {
-  type NodeSystemValue,
-} from '../../components/init-tools/NodeSystemSelector.vue'
 import ScriptPreviewDialog from '../../components/init-tools/ScriptPreviewDialog.vue'
 import {
   genTimeSyncScript,
@@ -353,9 +377,7 @@ const route = useRoute()
 const fromK8sDeploy = computed(() => route.query.from === 'k8s-deploy')
 const k8sCluster = computed(() => (route.query.cluster as string) || '')
 
-const isReady = (t: NodeSystemValue): boolean => t.nodes.length > 0 && !!t.osType
-
-// ============== 弹窗 ==============
+// ──── 弹窗 ────────────────────────────────────────────────────────────────────
 const dialogVisible = ref(false)
 const dialogTitle = ref('')
 const dialogBundle = ref<ScriptBundle | null>(null)
@@ -368,10 +390,12 @@ const showDialog = (title: string, bundle: ScriptBundle, filename: string) => {
   dialogVisible.value = true
 }
 
-// ============== 1. 时间同步 ==============
+// ──── 1. 时间同步 ──────────────────────────────────────────────────────────────
 const timeSyncDefaults = () => ({
-  target: { nodes: [] as string[], osType: '' as NodeSystemValue['osType'] } as NodeSystemValue,
   opts: {
+    ntpMode: 'public' as 'public' | 'self-hosted',
+    masterNodeIp: '',
+    clientNodeIps: '',
     ntpServer: 'ntp.aliyun.com',
     fallbackNtpServer: 'ntp1.aliyun.com',
     timezone: 'Asia/Shanghai',
@@ -383,15 +407,14 @@ const timeSyncDefaults = () => ({
 const timeSync = reactive(timeSyncDefaults())
 
 const openTimeSync = () => {
-  showDialog('时间同步 — 安装脚本预览', genTimeSyncScript(timeSync.target, timeSync.opts), 'time-sync.sh')
+  showDialog('时间同步 — Ansible 执行脚本', genTimeSyncScript(timeSync.opts), 'time-sync.sh')
 }
-
 const resetTimeSync = () => {
   Object.assign(timeSync.opts, timeSyncDefaults().opts)
   ElMessage.info('时间同步配置已重置')
 }
 
-// ============== 2. 系统参数优化 ==============
+// ──── 2. 系统参数优化 ──────────────────────────────────────────────────────────
 const defaultSysParamRows = (): SysParamRow[] => [
   { key: 'net.ipv4.ip_forward', value: '1', description: '开启 IP 转发；K8s 必置 1', required: true },
   { key: 'net.bridge.bridge-nf-call-iptables', value: '1', description: 'iptables 处理桥接流量', required: true },
@@ -403,10 +426,10 @@ const defaultSysParamRows = (): SysParamRow[] => [
 ]
 
 const sysParamDefaults = () => ({
-  target: { nodes: [] as string[], osType: '' as NodeSystemValue['osType'] } as NodeSystemValue,
   rows: defaultSysParamRows(),
   collapse: ['cfg'] as string[],
   opts: {
+    nodeIps: '',
     onConflict: 'skip' as 'skip' | 'force',
     disableSwap: true,
     raiseUlimit: true,
@@ -420,28 +443,24 @@ const openSysParam = () => {
     ElMessage.error(`缺少必填参数: ${missing.map(r => r.key).join(', ')}`)
     return
   }
-  showDialog(
-    '系统参数优化 — 安装脚本预览',
-    genSysParamScript(sysParam.target, {
-      rows: sysParam.rows,
-      onConflict: sysParam.opts.onConflict,
-      disableSwap: sysParam.opts.disableSwap,
-      raiseUlimit: sysParam.opts.raiseUlimit,
-    }),
-    'sys-param.sh',
-  )
+  showDialog('系统参数优化 — Ansible 执行脚本', genSysParamScript({
+    nodeIps: sysParam.opts.nodeIps,
+    rows: sysParam.rows,
+    onConflict: sysParam.opts.onConflict,
+    disableSwap: sysParam.opts.disableSwap,
+    raiseUlimit: sysParam.opts.raiseUlimit,
+  }), 'sys-param.sh')
 }
-
 const resetSysParam = () => {
   sysParam.rows = defaultSysParamRows()
   Object.assign(sysParam.opts, sysParamDefaults().opts)
   ElMessage.info('系统参数已重置')
 }
 
-// ============== 3. 系统安全加固 ==============
+// ──── 3. 安全加固 ──────────────────────────────────────────────────────────────
 const securityDefaults = () => ({
-  target: { nodes: [] as string[], osType: '' as NodeSystemValue['osType'] } as NodeSystemValue,
   opts: {
+    nodeIps: '',
     disableSshRoot: true,
     changeSshPort: false,
     sshPort: 2222,
@@ -460,18 +479,17 @@ const anySecurityOption = computed(() => {
 })
 
 const openSecurity = () => {
-  showDialog('系统安全加固 — 安装脚本预览', genSecurityScript(security.target, security.opts), 'security.sh')
+  showDialog('系统安全加固 — Ansible 执行脚本', genSecurityScript(security.opts), 'security.sh')
 }
-
 const resetSecurity = () => {
   Object.assign(security.opts, securityDefaults().opts)
   ElMessage.info('安全加固配置已重置')
 }
 
-// ============== 4. 磁盘分区优化 ==============
+// ──── 4. 磁盘优化 ──────────────────────────────────────────────────────────────
 const diskDefaults = () => ({
-  target: { nodes: [] as string[], osType: '' as NodeSystemValue['osType'] } as NodeSystemValue,
   opts: {
+    nodeIps: '',
     enableSsdTrim: true,
     tuneFilesystem: true,
     setupSwap: false,
@@ -487,22 +505,20 @@ const anyDiskOption = computed(() => {
 })
 
 const openDisk = () => {
-  showDialog('磁盘分区优化 — 安装脚本预览', genDiskScript(disk.target, disk.opts), 'disk.sh')
+  showDialog('磁盘分区优化 — Ansible 执行脚本', genDiskScript(disk.opts), 'disk.sh')
 }
-
 const resetDisk = () => {
   Object.assign(disk.opts, diskDefaults().opts)
   ElMessage.info('磁盘优化配置已重置')
 }
 
-// ============== 公共：返回 K8s 部署 ==============
 const backToK8sDeploy = () => {
   router.push({ path: '/service/k8s-deploy' })
 }
 
 onMounted(() => {
   if (fromK8sDeploy.value) {
-    ElMessage.info('已为你按推荐顺序排列优化项：建议先「时间同步」→ 再「系统参数优化」')
+    ElMessage.info('建议顺序：先「时间同步」→ 再「系统参数优化」')
   }
 })
 </script>
@@ -558,19 +574,15 @@ onMounted(() => {
   flex-wrap: wrap;
 }
 
-/* 尽量占满内容区：宽屏固定 3 列，窄屏自动退化，卡片内部处理滚动。 */
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px;
-  margin-bottom: 16px;
   width: 100%;
-  min-width: 0;
   align-items: start;
 }
 
 .tool-card {
-  height: 520px;
   min-width: 0;
   border-radius: 10px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
@@ -590,9 +602,7 @@ onMounted(() => {
 }
 
 .tool-card :deep(.el-card__body) {
-  height: calc(100% - 58px);
   padding: 12px 14px;
-  overflow: hidden;
 }
 
 .tool-card-header {
@@ -639,31 +649,15 @@ onMounted(() => {
 }
 
 .tool-card-body {
-  height: 100%;
-  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
-  overflow: hidden;
 }
 
 .tool-card-scroll {
-  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding-right: 4px;
-}
-
-.tool-card-scroll::-webkit-scrollbar {
-  width: 6px;
-}
-
-.tool-card-scroll::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
 }
 
 .tool-form :deep(.el-form-item) {
@@ -682,7 +676,12 @@ onMounted(() => {
   color: #475569;
 }
 
-.tool-form .form-unit,
+.tool-form :deep(.el-textarea__inner) {
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+}
+
 .tool-form .form-hint {
   margin-left: 6px;
   color: #94a3b8;
@@ -769,18 +768,13 @@ onMounted(() => {
   padding: 7px 9px;
 }
 
-.tool-card :deep(.node-system-selector) {
-  flex: 0 0 auto;
-  min-width: 0;
-}
-
-@media (max-width: 1360px) {
+@media (max-width: 1600px) {
   .tool-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
-@media (max-width: 980px) {
+@media (max-width: 900px) {
   .tool-grid {
     grid-template-columns: 1fr;
   }

@@ -1,15 +1,14 @@
 <template>
   <!--
-    安装脚本预览弹窗
-    - 三个 Tab：Bash 脚本 / ai-sre CLI / 多节点批量
-    - 每个 Tab 都有「复制」按钮
-    - 顶部展示目标节点 / 系统 / 操作摘要 (subtitle)
-    - 强调脚本本身已含「已存在则跳过」的探测逻辑（ON_CONFLICT）
+    Ansible 执行脚本预览弹窗
+    - Tab 1: Ansible 脚本（主 tab）— 下载 / 复制 / 在控制机上 bash 执行
+    - Tab 2: curl 一键 — 未来通过 ai-sre 控制台接口获取
+    - Tab 3: ai-sre CLI — 未来 CLI 等价命令（roadmap）
   -->
   <el-dialog
     :model-value="modelValue"
     :title="title"
-    width="780px"
+    width="820px"
     :close-on-click-modal="false"
     @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
@@ -23,24 +22,22 @@
         class="dialog-subtitle"
       />
 
-      <el-alert
-        type="info"
-        :closable="false"
-        class="dialog-hint"
-      >
+      <el-alert type="info" :closable="false" class="dialog-hint">
         <template #title>
           <span>
-            脚本已内置探测逻辑：检测到节点上已存在同类配置（如 chrony / sshd_config.d / sysctl.d/99-ai-sre.conf 等）时
-            <el-tag size="small" type="warning" effect="plain">默认 ON_CONFLICT=skip</el-tag>
-            直接退出并打印当前状态，不会覆盖。需要强制覆盖请设置 <code>ON_CONFLICT=force</code>。
+            脚本将在<strong>控制机</strong>上运行，Ansible 会自动连接所有目标节点执行操作。
+            未填写节点 IP 时，Ansible 仅对<code>localhost</code>执行（即控制机本身）。
+            脚本已内置 Ansible 自动安装，目标节点须允许控制机 <strong>root 免密 SSH</strong>。
           </span>
         </template>
       </el-alert>
 
       <el-tabs v-model="activeTab" class="dialog-tabs">
-        <el-tab-pane label="Bash 脚本" name="bash">
+
+        <!-- ── Tab 1: Ansible 执行脚本 ── -->
+        <el-tab-pane label="Ansible 执行脚本" name="ansible">
           <div class="tab-actions">
-            <el-tag size="small" type="info">直接 SSH 到目标节点 bash -s 执行</el-tag>
+            <el-tag size="small" type="success">在控制机上执行：bash {{ defaultFilename }}</el-tag>
             <el-button size="small" :icon="DocumentCopy" @click="copy(bundle.fullScript)">
               复制脚本
             </el-button>
@@ -51,13 +48,32 @@
           <pre class="code-block">{{ bundle.fullScript }}</pre>
         </el-tab-pane>
 
+        <!-- ── Tab 2: curl 一键 ── -->
+        <el-tab-pane label="curl 一键" name="curl">
+          <el-alert
+            type="warning"
+            :closable="false"
+            show-icon
+            title="需后端 /ft-api/api/init-tools/scripts/<name>.sh 接口（roadmap）"
+            description="下面展示了通过 ai-sre 控制台直接 curl 执行的方式，无需手动下载脚本。当前请使用「Ansible 执行脚本」Tab。"
+            class="curl-roadmap"
+          />
+          <div class="tab-actions">
+            <el-button size="small" :icon="DocumentCopy" @click="copy(bundle.curlOneLiner)">
+              复制命令
+            </el-button>
+          </div>
+          <pre class="code-block">{{ bundle.curlOneLiner }}</pre>
+        </el-tab-pane>
+
+        <!-- ── Tab 3: ai-sre CLI ── -->
         <el-tab-pane label="ai-sre CLI" name="cli">
           <el-alert
             type="warning"
             :closable="false"
             show-icon
             title="ai-sre node tune 子命令规划中（roadmap）"
-            description="下面命令展示了未来 ai-sre 客户端工具的等价调用方式，参数与脚本一致。当前可使用 Bash 脚本 / 多节点批量来落地。"
+            description="下面命令展示了未来 ai-sre CLI 的等价调用方式，参数与脚本一致。"
             class="cli-roadmap"
           />
           <div class="tab-actions">
@@ -67,32 +83,16 @@
           </div>
           <pre class="code-block">{{ bundle.aiSreCommand }}</pre>
         </el-tab-pane>
-
-        <el-tab-pane label="多节点批量" name="batch">
-          <div class="tab-actions">
-            <el-tag size="small" type="info">前置：先把上方 Bash 脚本保存为 .sh，再运行此循环</el-tag>
-            <el-button size="small" :icon="DocumentCopy" @click="copy(bundle.batchOneLiner)">
-              复制循环命令
-            </el-button>
-          </div>
-          <pre class="code-block">{{ bundle.batchOneLiner }}</pre>
-
-          <el-divider content-position="left">curl 一键执行（roadmap）</el-divider>
-          <div class="tab-actions">
-            <el-tag size="small" type="warning">需后端 /ft-api/api/init-tools/scripts/&lt;name&gt;.sh 接口配合</el-tag>
-            <el-button size="small" :icon="DocumentCopy" @click="copy(bundle.curlOneLiner)">
-              复制 curl 命令
-            </el-button>
-          </div>
-          <pre class="code-block">{{ bundle.curlOneLiner }}</pre>
-        </el-tab-pane>
       </el-tabs>
     </div>
 
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">关闭</el-button>
+      <el-button v-if="bundle" type="primary" :icon="Download" @click="download(bundle.fullScript, defaultFilename)">
+        下载脚本
+      </el-button>
       <el-button v-if="bundle" type="primary" :icon="DocumentCopy" @click="copy(bundle.fullScript)">
-        复制 Bash 脚本
+        复制脚本
       </el-button>
     </template>
   </el-dialog>
@@ -115,15 +115,13 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
 }>()
 
-const activeTab = ref<'bash' | 'cli' | 'batch'>('bash')
+const activeTab = ref<'ansible' | 'curl' | 'cli'>('ansible')
 const subtitle = computed(() => props.bundle?.subtitle || '')
 const defaultFilename = computed(() => props.defaultFilename || 'init.sh')
 
 watch(
   () => props.modelValue,
-  (v) => {
-    if (v) activeTab.value = 'bash'
-  },
+  (v) => { if (v) activeTab.value = 'ansible' },
 )
 
 const copy = async (text: string) => {
@@ -131,7 +129,6 @@ const copy = async (text: string) => {
     await navigator.clipboard.writeText(text)
     ElMessage.success('已复制到剪贴板')
   } catch {
-    // 兼容不支持 clipboard 的环境（http、firefox 旧版等）
     const ta = document.createElement('textarea')
     ta.value = text
     ta.style.position = 'fixed'
@@ -184,6 +181,10 @@ const download = (text: string, filename: string) => {
   font-size: 12px;
 }
 
+.dialog-hint strong {
+  color: #1e40af;
+}
+
 .dialog-tabs {
   margin-top: 4px;
 }
@@ -205,11 +206,12 @@ const download = (text: string, filename: string) => {
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
   font-size: 12.5px;
   line-height: 1.55;
-  max-height: 460px;
+  max-height: 480px;
   overflow: auto;
   white-space: pre;
 }
 
+.curl-roadmap,
 .cli-roadmap {
   margin-bottom: 8px;
 }
