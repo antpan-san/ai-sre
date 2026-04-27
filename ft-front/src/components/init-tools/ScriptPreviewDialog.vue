@@ -1,9 +1,10 @@
 <template>
   <!--
-    Ansible 执行脚本预览弹窗
-    - Tab 1: Ansible 脚本（主 tab）— 下载 / 复制 / 在控制机上 bash 执行
-    - Tab 2: curl 一键 — 未来通过 ai-sre 控制台接口获取
-    - Tab 3: ai-sre CLI — 未来 CLI 等价命令（roadmap）
+    初始化工具脚本预览弹窗
+    - Tab 1: Ansible 脚本（**当前唯一可直接执行**）— 下载 / 复制 / 在控制机上 bash 执行
+    - Tab 2: curl 一键 — roadmap，需后端 /ft-api/api/init-tools/scripts/<name>.sh 接口
+    - Tab 3: ai-sre CLI — roadmap，ai-sre node tune 子命令尚未实现
+    底部「复制 / 下载」按钮跟随当前 Tab；roadmap Tab 上禁用「下载」、并标注复制内容暂不可执行。
   -->
   <el-dialog
     :model-value="modelValue"
@@ -28,6 +29,7 @@
             脚本将在<strong>控制机</strong>上运行，Ansible 会自动连接所有目标节点执行操作。
             未填写节点 IP 时，Ansible 仅对<code>localhost</code>执行（即控制机本身）。
             脚本已内置 Ansible 自动安装，目标节点须允许控制机 <strong>root 免密 SSH</strong>。
+            目前仅 <strong>「Ansible 执行脚本」</strong> 可直接运行；其它两个 Tab 为 roadmap 预览。
           </span>
         </template>
       </el-alert>
@@ -49,36 +51,38 @@
         </el-tab-pane>
 
         <!-- ── Tab 2: curl 一键 ── -->
-        <el-tab-pane label="curl 一键" name="curl">
+        <el-tab-pane label="curl 一键（roadmap）" name="curl">
           <el-alert
             type="warning"
             :closable="false"
             show-icon
-            title="需后端 /ft-api/api/init-tools/scripts/<name>.sh 接口（roadmap）"
-            description="下面展示了通过 ai-sre 控制台直接 curl 执行的方式，无需手动下载脚本。当前请使用「Ansible 执行脚本」Tab。"
+            title="尚未实现：需后端 /ft-api/api/init-tools/scripts/<name>.sh 接口（roadmap）"
+            description="下面只是未来通过 ai-sre 控制台直接 curl 执行的示意；当前请使用「Ansible 执行脚本」Tab。"
             class="curl-roadmap"
           />
           <div class="tab-actions">
+            <el-tag size="small" type="warning">尚未可执行 · 仅作预览</el-tag>
             <el-button size="small" :icon="DocumentCopy" @click="copy(bundle.curlOneLiner)">
-              复制命令
+              复制（roadmap）
             </el-button>
           </div>
           <pre class="code-block">{{ bundle.curlOneLiner }}</pre>
         </el-tab-pane>
 
         <!-- ── Tab 3: ai-sre CLI ── -->
-        <el-tab-pane label="ai-sre CLI" name="cli">
+        <el-tab-pane label="ai-sre CLI（roadmap）" name="cli">
           <el-alert
             type="warning"
             :closable="false"
             show-icon
-            title="ai-sre node tune 子命令规划中（roadmap）"
-            description="下面命令展示了未来 ai-sre CLI 的等价调用方式，参数与脚本一致。"
+            title="尚未实现：ai-sre 0.4.x 暂无 node tune 子命令（roadmap）"
+            :description="cliRoadmapHint"
             class="cli-roadmap"
           />
           <div class="tab-actions">
+            <el-tag size="small" type="warning">尚未可执行 · 仅作预览</el-tag>
             <el-button size="small" :icon="DocumentCopy" @click="copy(bundle.aiSreCommand)">
-              复制命令
+              复制（roadmap）
             </el-button>
           </div>
           <pre class="code-block">{{ bundle.aiSreCommand }}</pre>
@@ -88,11 +92,22 @@
 
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">关闭</el-button>
-      <el-button v-if="bundle" type="primary" :icon="Download" @click="download(bundle.fullScript, defaultFilename)">
-        下载脚本
+      <el-button
+        v-if="bundle"
+        type="primary"
+        :icon="Download"
+        :disabled="!activePayload.executable"
+        @click="download(activePayload.text, activePayload.filename)"
+      >
+        {{ activePayload.executable ? '下载脚本' : '下载（仅 Ansible Tab 可用）' }}
       </el-button>
-      <el-button v-if="bundle" type="primary" :icon="DocumentCopy" @click="copy(bundle.fullScript)">
-        复制脚本
+      <el-button
+        v-if="bundle"
+        type="primary"
+        :icon="DocumentCopy"
+        @click="copy(activePayload.text)"
+      >
+        {{ activePayload.executable ? '复制脚本' : '复制（roadmap）' }}
       </el-button>
     </template>
   </el-dialog>
@@ -115,9 +130,45 @@ const emit = defineEmits<{
   (e: 'update:modelValue', v: boolean): void
 }>()
 
-const activeTab = ref<'ansible' | 'curl' | 'cli'>('ansible')
+type TabKey = 'ansible' | 'curl' | 'cli'
+const activeTab = ref<TabKey>('ansible')
 const subtitle = computed(() => props.bundle?.subtitle || '')
 const defaultFilename = computed(() => props.defaultFilename || 'init.sh')
+const cliRoadmapHint =
+  '复制下面命令直接在节点运行会得到 unknown command "node" for "ai-sre" 错误。' +
+  '当前请使用「Ansible 执行脚本」Tab；ai-sre 自动升级（OPSFLEET_NO_AUTO_UPGRADE 未设置时）会拉取最新版本，但 node tune 在新版本实现前都不可用。'
+
+interface ActivePayload {
+  text: string
+  filename: string
+  executable: boolean
+}
+
+const activePayload = computed<ActivePayload>(() => {
+  const b = props.bundle
+  if (!b) return { text: '', filename: defaultFilename.value, executable: false }
+  switch (activeTab.value) {
+    case 'curl':
+      return {
+        text: b.curlOneLiner,
+        filename: defaultFilename.value.replace(/\.sh$/, '') + '-curl.txt',
+        executable: false,
+      }
+    case 'cli':
+      return {
+        text: b.aiSreCommand,
+        filename: defaultFilename.value.replace(/\.sh$/, '') + '-ai-sre.txt',
+        executable: false,
+      }
+    case 'ansible':
+    default:
+      return {
+        text: b.fullScript,
+        filename: defaultFilename.value,
+        executable: true,
+      }
+  }
+})
 
 watch(
   () => props.modelValue,

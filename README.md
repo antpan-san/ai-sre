@@ -220,11 +220,11 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 - **安全加固**：禁 root SSH、改 SSH 端口、防火墙、Fail2ban、自动更新、`ON_CONFLICT`
 - **磁盘**：SSD TRIM、文件系统挂载优化（noatime）、Swap 大小（auto / 1G–16G）、`ON_CONFLICT`
 
-点击「**查看安装脚本**」会弹出脚本预览对话框（`Bash 脚本 / ai-sre CLI / 多节点批量` 三个 Tab）：
+点击「**生成执行脚本**」会弹出脚本预览对话框，含三个 Tab：**Ansible 执行脚本**（当前唯一可直接运行）、**curl 一键（roadmap）**、**ai-sre CLI（roadmap）**。底部「复制 / 下载」按钮跟随当前选中 Tab：选中 Ansible Tab 时复制/下载 Ansible 脚本；选中 roadmap Tab 时按钮会改为「复制（roadmap）」，并禁用下载——这两个 Tab 的命令尚未实现（`ai-sre 0.4.x` 没有 `node tune` 子命令；后端也没有 `/ft-api/api/init-tools/scripts/<name>.sh` 接口），直接复制运行会得到 `unknown command` 或 404，请勿误用：
 
 - **Bash 脚本**：完整可执行 bash，含 `set -euo pipefail`、自动备份至 `/var/backups/ai-sre/<ts>/`、写入幂等的 drop-in 配置文件（如 `/etc/sysctl.d/99-ai-sre.conf`、`/etc/ssh/sshd_config.d/99-ai-sre.conf`），并在末尾打印验证状态与回滚命令；支持「复制」与「下载 .sh」
 - **存在检测**：脚本默认 `ON_CONFLICT=skip`，检测到节点已运行其他时间同步服务（chrony/ntpd/systemd-timesyncd 等）或已存在 ai-sre drop-in 时直接退出并打印当前状态，**不进行任何写入或重启**；需要覆盖请改用 `ON_CONFLICT=force`
-- **ai-sre CLI**：未来 `ai-sre node tune <subcmd>` 子命令的等价调用占位（roadmap），参数与脚本一一对应
+- **ai-sre CLI**：未来 `ai-sre node tune <subcmd>` 子命令的等价调用占位（**roadmap，当前 ai-sre 二进制没有该子命令**），参数与脚本一一对应；目前在节点上跑会报 `unknown command "node" for "ai-sre"`，等命令落地后 ai-sre 自动升级（`internal/cli/upgrade.go`）会随版本带过去
 - **多节点批量**：`for ip in <ips>; do ssh root@$ip "bash -s" < script.sh; done` 与 curl 一键模式（curl 模式需后端 `/ft-api/api/init-tools/scripts/<name>.sh` 配合，列在 roadmap）
 
 完成所需项后点顶部「返回 K8s 部署」回到折叠配置页。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
