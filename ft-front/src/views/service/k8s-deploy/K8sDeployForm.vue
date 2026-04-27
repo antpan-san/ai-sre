@@ -196,8 +196,8 @@
 
             <template v-if="deployConfig.clusterBasicInfo.imageSource === 'custom'">
               <el-divider content-position="left">自定义镜像仓库</el-divider>
-              <el-row :gutter="20">
-                <el-col :span="12">
+              <el-row :gutter="16">
+                <el-col :span="24">
                   <el-form-item label="仓库地址" prop="customRegistry">
                     <el-input
                       v-model="deployConfig.clusterBasicInfo.customRegistry"
@@ -205,7 +205,7 @@
                     />
                   </el-form-item>
                 </el-col>
-                <el-col :span="6">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="用户名">
                     <el-input
                       v-model="deployConfig.clusterBasicInfo.registryUsername"
@@ -213,7 +213,7 @@
                     />
                   </el-form-item>
                 </el-col>
-                <el-col :span="6">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="密码">
                     <el-input
                       v-model="deployConfig.clusterBasicInfo.registryPassword"
@@ -500,8 +500,8 @@
             <!-- Flannel 特有配置 -->
             <template v-if="deployConfig.networkConfig.networkPlugin === 'flannel'">
               <el-divider content-position="left">Flannel 参数</el-divider>
-              <el-row :gutter="20">
-                <el-col :span="24">
+              <el-row :gutter="16">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="后端类型">
                     <el-select v-model="flannelConfigModel.backend" style="width: 100%">
                       <el-option label="VXLAN" value="vxlan" />
@@ -580,8 +580,8 @@
             <!-- local-path -->
             <template v-if="deployConfig.storageConfig.storageProvisioner === 'local-path'">
               <el-divider content-position="left">本地路径配置</el-divider>
-              <el-row :gutter="20">
-                <el-col :span="24">
+              <el-row :gutter="16">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="路径">
                     <el-input
                       v-model="localPathConfigModel.path"
@@ -595,13 +595,13 @@
             <!-- NFS -->
             <template v-if="deployConfig.storageConfig.storageProvisioner === 'nfs-client'">
               <el-divider content-position="left">NFS 配置</el-divider>
-              <el-row :gutter="20">
-                <el-col :span="12">
+              <el-row :gutter="16">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="NFS 服务器 IP">
                     <el-input v-model="nfsConfigModel.server" placeholder="NFS 服务器 IP" />
                   </el-form-item>
                 </el-col>
-                <el-col :span="12">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="NFS 共享路径">
                     <el-input v-model="nfsConfigModel.path" placeholder="/data/nfs" />
                   </el-form-item>
@@ -612,8 +612,8 @@
             <!-- CSI -->
             <template v-if="deployConfig.storageConfig.storageProvisioner === 'csi'">
               <el-divider content-position="left">CSI 配置</el-divider>
-              <el-row :gutter="20">
-                <el-col :span="12">
+              <el-row :gutter="16">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="CSI 驱动名称">
                     <el-input v-model="csiConfigModel.driver" placeholder="csi.aliyun.com" />
                   </el-form-item>
@@ -2285,6 +2285,27 @@ const submitDeploy = async () => {
 /* ==================== 步骤内容区域（fadeIn 动画） ==================== */
 .step-section {
   animation: fadeIn 0.25s ease-out;
+}
+
+.step-section :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.step-section :deep(.el-form-item__content) {
+  display: flex;
+  align-items: center;
+}
+
+/* 紧凑输入宽度：统一收窄输入框，保留表单整体栅格节奏 */
+.step-section :deep(.el-form-item__content > .el-input),
+.step-section :deep(.el-form-item__content > .el-select),
+.step-section :deep(.el-form-item__content > .el-input-number) {
+  width: min(100%, 360px);
+}
+
+/* 长文本类输入保留更宽可读区域 */
+.step-section :deep(.el-form-item__content > .el-textarea) {
+  width: min(100%, 620px);
 }
 
 .step-section--basic :deep(.el-row) {
