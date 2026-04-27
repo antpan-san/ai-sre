@@ -104,23 +104,16 @@
             :rules="step1Rules"
             label-position="top"
           >
-            <el-row :gutter="16">
-              <el-col :xs="24" :sm="12" :md="12" :lg="8">
-                <el-form-item label="集群名称" prop="clusterName" class="field-medium">
-                  <el-input
-                    v-model="deployConfig.clusterBasicInfo.clusterName"
-                    placeholder="请输入集群名称"
-                    clearable
-                  />
+            <!-- 行 1：集群名称 · K8s 版本 · 部署模式 -->
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="12" :lg="8">
+                <el-form-item label="集群名称" prop="clusterName">
+                  <el-input v-model="deployConfig.clusterBasicInfo.clusterName" placeholder="请输入集群名称" clearable />
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="8" :lg="4">
-                <el-form-item label="K8s 版本" prop="version" class="field-compact">
-                  <el-select
-                    v-model="deployConfig.clusterBasicInfo.version"
-                    placeholder="请选择 K8s 版本"
-                    clearable
-                  >
+              <el-col :xs="24" :sm="12" :lg="6">
+                <el-form-item label="K8s 版本" prop="version">
+                  <el-select v-model="deployConfig.clusterBasicInfo.version" placeholder="请选择版本" clearable>
                     <el-option
                       v-for="ver in k8sVersions"
                       :key="ver.version"
@@ -130,8 +123,8 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="12" :lg="8">
-                <el-form-item label="部署模式" prop="deployMode" class="field-short">
+              <el-col :xs="24" :sm="12" :lg="6">
+                <el-form-item label="部署模式" prop="deployMode">
                   <el-radio-group v-model="deployConfig.clusterBasicInfo.deployMode">
                     <el-radio value="single">单节点</el-radio>
                     <el-radio value="cluster">多节点</el-radio>
@@ -140,24 +133,19 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="16">
-              <el-col :xs="24" :sm="12" :md="8" :lg="4">
-                <el-form-item label="运行环境 CPU 架构" prop="cpuArch" class="field-compact">
-                  <el-select
-                    v-model="deployConfig.clusterBasicInfo.cpuArch"
-                    placeholder="与 install.sh 所在机及节点一致"
-                  >
+            <!-- 行 2：CPU 架构 · 镜像源 · 下载协议 · 内网制品地址 -->
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="12" :lg="5">
+                <el-form-item label="CPU 架构" prop="cpuArch">
+                  <el-select v-model="deployConfig.clusterBasicInfo.cpuArch" placeholder="amd64 / arm64">
                     <el-option label="amd64 (x86_64)" value="amd64" />
-                    <el-option label="arm64 (AArch64 / Apple Silicon 虚拟机)" value="arm64" />
+                    <el-option label="arm64 (AArch64)" value="arm64" />
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                <el-form-item label="镜像源" prop="imageSource" class="field-compact">
-                  <el-select
-                    v-model="deployConfig.clusterBasicInfo.imageSource"
-                    placeholder="请选择镜像源"
-                  >
+              <el-col :xs="24" :sm="12" :lg="4">
+                <el-form-item label="镜像源" prop="imageSource">
+                  <el-select v-model="deployConfig.clusterBasicInfo.imageSource" placeholder="请选择">
                     <el-option label="默认" value="default" />
                     <el-option label="阿里云" value="aliyun" />
                     <el-option label="腾讯云" value="tencent" />
@@ -165,25 +153,14 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-            </el-row>
-
-            <el-row :gutter="16">
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                <el-form-item label="下载协议" prop="downloadProtocol" class="field-short">
-                  <el-input
-                    v-model="deployConfig.clusterBasicInfo.downloadProtocol"
-                    placeholder="默认 http://"
-                    clearable
-                  />
+              <el-col :xs="24" :sm="12" :lg="4">
+                <el-form-item label="下载协议" prop="downloadProtocol">
+                  <el-input v-model="deployConfig.clusterBasicInfo.downloadProtocol" placeholder="http://" clearable />
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="24" :md="16" :lg="12">
-                <el-form-item label="内网制品地址" prop="downloadDomain" class="field-medium">
-                  <el-input
-                    v-model="deployConfig.clusterBasicInfo.downloadDomain"
-                    placeholder="留空则用 inventory 默认 download_domain"
-                    clearable
-                  />
+              <el-col :xs="24" :sm="24" :lg="9">
+                <el-form-item label="内网制品地址" prop="downloadDomain">
+                  <el-input v-model="deployConfig.clusterBasicInfo.downloadDomain" placeholder="留空则用 inventory 默认 download_domain" clearable />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -193,31 +170,20 @@
 
             <template v-if="deployConfig.clusterBasicInfo.imageSource === 'custom'">
               <el-divider content-position="left">自定义镜像仓库</el-divider>
-              <el-row :gutter="16">
-                <el-col :span="24">
-                  <el-form-item label="仓库地址" prop="customRegistry" class="field-medium">
-                    <el-input
-                      v-model="deployConfig.clusterBasicInfo.customRegistry"
-                      placeholder="例如: registry.example.com"
-                    />
+              <el-row :gutter="12">
+                <el-col :xs="24" :sm="24" :lg="12">
+                  <el-form-item label="仓库地址" prop="customRegistry">
+                    <el-input v-model="deployConfig.clusterBasicInfo.customRegistry" placeholder="例如: registry.example.com" />
                   </el-form-item>
                 </el-col>
-                <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                  <el-form-item label="用户名" class="field-short">
-                    <el-input
-                      v-model="deployConfig.clusterBasicInfo.registryUsername"
-                      placeholder="可选"
-                    />
+                <el-col :xs="24" :sm="12" :lg="5">
+                  <el-form-item label="用户名">
+                    <el-input v-model="deployConfig.clusterBasicInfo.registryUsername" placeholder="可选" />
                   </el-form-item>
                 </el-col>
-                <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                  <el-form-item label="密码" class="field-short">
-                    <el-input
-                      v-model="deployConfig.clusterBasicInfo.registryPassword"
-                      placeholder="可选"
-                      type="password"
-                      show-password
-                    />
+                <el-col :xs="24" :sm="12" :lg="5">
+                  <el-form-item label="密码">
+                    <el-input v-model="deployConfig.clusterBasicInfo.registryPassword" placeholder="可选" type="password" show-password />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -280,11 +246,12 @@
           </template>
 
           <template v-else>
-            <el-form-item label="执行节点（Agent 所在机器）" required class="executor-select-item field-medium">
+            <el-form-item label="执行节点（Agent 所在机器）" required class="executor-select-item">
               <el-select
                 v-model="deployConfig.nodeConfig.executorNode"
                 placeholder="选择执行部署任务的机器（需在线且已安装 Agent）"
                 clearable
+                style="width: min(100%, 420px)"
               >
                 <el-option
                   v-for="m in selectableExecutors"
@@ -350,34 +317,21 @@
             </div>
           </template>
           <div class="step-section">
-          <el-form
-            :model="deployConfig.coreComponentsConfig"
-            label-position="top"
-          >
-            <el-row :gutter="20">
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                <el-form-item label="kube-proxy 模式" class="field-short">
-                  <el-select
-                    v-model="deployConfig.coreComponentsConfig.kubeProxyMode"
-                    style="width: 100%"
-                  >
+          <el-form :model="deployConfig.coreComponentsConfig" label-position="top">
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="8" :lg="5">
+                <el-form-item label="kube-proxy 模式">
+                  <el-select v-model="deployConfig.coreComponentsConfig.kubeProxyMode">
                     <el-option label="iptables" value="iptables" />
                     <el-option label="ipvs" value="ipvs" />
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="12" :lg="10">
-                <el-form-item label="Pause 镜像" class="field-medium">
-                  <el-input
-                    v-model="deployConfig.coreComponentsConfig.pauseImage"
-                    placeholder="自定义 pause 镜像（可选）"
-                    clearable
-                  />
+              <el-col :xs="24" :sm="16" :lg="10">
+                <el-form-item label="Pause 镜像">
+                  <el-input v-model="deployConfig.coreComponentsConfig.pauseImage" placeholder="自定义 pause 镜像（可选）" clearable />
                 </el-form-item>
               </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
               <el-col :span="24">
                 <el-form-item label="功能开关">
                   <el-checkbox-group v-model="coreFeatures">
@@ -391,14 +345,13 @@
 
             <template v-if="coreFeatures.includes('enableAudit')">
               <el-divider content-position="left">审计策略</el-divider>
-              <el-form-item label="审计策略文件">
-                <el-input
-                  v-model="deployConfig.coreComponentsConfig.auditPolicy"
-                  type="textarea"
-                  :rows="5"
-                  placeholder="输入审计策略 YAML 配置"
-                />
-              </el-form-item>
+              <el-row :gutter="12">
+                <el-col :xs="24" :lg="16">
+                  <el-form-item label="审计策略文件">
+                    <el-input v-model="deployConfig.coreComponentsConfig.auditPolicy" type="textarea" :rows="5" placeholder="输入审计策略 YAML 配置" />
+                  </el-form-item>
+                </el-col>
+              </el-row>
             </template>
           </el-form>
           </div>
@@ -416,19 +369,12 @@
             </div>
           </template>
           <div class="step-section">
-          <el-form
-            ref="step4FormRef"
-            :model="deployConfig.networkConfig"
-            :rules="step4Rules"
-            label-position="top"
-          >
-            <el-row :gutter="20">
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                <el-form-item label="网络插件" prop="networkPlugin" class="field-short">
-                  <el-select
-                    v-model="deployConfig.networkConfig.networkPlugin"
-                    style="width: 100%"
-                  >
+          <el-form ref="step4FormRef" :model="deployConfig.networkConfig" :rules="step4Rules" label-position="top">
+            <!-- 行 1：插件 · 代理模式 · 集群域名 -->
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="8" :lg="7">
+                <el-form-item label="网络插件" prop="networkPlugin">
+                  <el-select v-model="deployConfig.networkConfig.networkPlugin">
                     <el-option label="Calico" value="calico" />
                     <el-option label="Flannel" value="flannel" />
                     <el-option label="Cilium（未接入）" value="cilium" disabled />
@@ -436,41 +382,36 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                <el-form-item label="代理模式" prop="proxyMode" class="field-short">
-                  <el-select
-                    v-model="deployConfig.networkConfig.proxyMode"
-                    style="width: 100%"
-                  >
+              <el-col :xs="24" :sm="8" :lg="5">
+                <el-form-item label="代理模式" prop="proxyMode">
+                  <el-select v-model="deployConfig.networkConfig.proxyMode">
                     <el-option label="iptables" value="iptables" />
                     <el-option label="ipvs" value="ipvs" />
                   </el-select>
                 </el-form-item>
               </el-col>
+              <el-col :xs="24" :sm="8" :lg="5">
+                <el-form-item label="集群域名" prop="clusterDomain">
+                  <el-input v-model="deployConfig.networkConfig.clusterDomain" placeholder="cluster.local" />
+                </el-form-item>
+              </el-col>
             </el-row>
 
-            <el-row :gutter="20">
-              <el-col :xs="24" :sm="12" :md="8">
-                <el-form-item label="Pod CIDR" prop="podCIDR" class="field-medium">
+            <!-- 行 2：CIDR 三件套 -->
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="8" :lg="7">
+                <el-form-item label="Pod CIDR" prop="podCIDR">
                   <el-input v-model="deployConfig.networkConfig.podCIDR" placeholder="10.244.0.0/16" />
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="8">
-                <el-form-item label="Service CIDR" prop="serviceCIDR" class="field-medium">
+              <el-col :xs="24" :sm="8" :lg="7">
+                <el-form-item label="Service CIDR" prop="serviceCIDR">
                   <el-input v-model="deployConfig.networkConfig.serviceCIDR" placeholder="10.96.0.0/12" />
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="8">
-                <el-form-item label="DNS Service IP" prop="dnsServiceIP" class="field-short">
+              <el-col :xs="24" :sm="8" :lg="6">
+                <el-form-item label="DNS Service IP" prop="dnsServiceIP">
                   <el-input v-model="deployConfig.networkConfig.dnsServiceIP" placeholder="10.96.0.10" />
-                </el-form-item>
-              </el-col>
-            </el-row>
-
-            <el-row :gutter="20">
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                <el-form-item label="集群域名" prop="clusterDomain" class="field-short">
-                  <el-input v-model="deployConfig.networkConfig.clusterDomain" placeholder="cluster.local" />
                 </el-form-item>
               </el-col>
             </el-row>
@@ -478,20 +419,15 @@
             <!-- Calico 特有配置 -->
             <template v-if="deployConfig.networkConfig.networkPlugin === 'calico'">
               <el-divider content-position="left">Calico 参数</el-divider>
-              <el-row :gutter="20">
-                <el-col :xs="24" :sm="12">
+              <el-row :gutter="12">
+                <el-col :xs="24" :sm="8" :lg="4">
                   <el-form-item label="VXLAN 模式">
                     <el-switch v-model="calicoConfigModel.vxlanMode" />
                   </el-form-item>
                 </el-col>
-                <el-col :xs="24" :sm="12">
-                  <el-form-item label="MTU 值" class="field-short">
-                    <el-input-number
-                      v-model="calicoConfigModel.mtu"
-                      :min="1200"
-                      :max="9000"
-                      :step="100"
-                    />
+                <el-col :xs="24" :sm="8" :lg="5">
+                  <el-form-item label="MTU 值">
+                    <el-input-number v-model="calicoConfigModel.mtu" :min="1200" :max="9000" :step="100" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -500,10 +436,10 @@
             <!-- Flannel 特有配置 -->
             <template v-if="deployConfig.networkConfig.networkPlugin === 'flannel'">
               <el-divider content-position="left">Flannel 参数</el-divider>
-              <el-row :gutter="16">
-                <el-col :xs="24" :sm="12">
-                  <el-form-item label="后端类型" class="field-short">
-                    <el-select v-model="flannelConfigModel.backend" style="width: 100%">
+              <el-row :gutter="12">
+                <el-col :xs="24" :sm="8" :lg="5">
+                  <el-form-item label="后端类型">
+                    <el-select v-model="flannelConfigModel.backend">
                       <el-option label="VXLAN" value="vxlan" />
                       <el-option label="Host-GW" value="host-gw" />
                       <el-option label="UDP" value="udp" />
@@ -553,22 +489,16 @@
             </div>
           </template>
           <div class="step-section">
-          <el-form
-            :model="deployConfig.storageConfig"
-            label-position="top"
-          >
-            <el-row :gutter="20">
-              <el-col :xs="24" :sm="12">
+          <el-form :model="deployConfig.storageConfig" label-position="top">
+            <el-row :gutter="12">
+              <el-col :xs="24" :sm="6" :lg="4">
                 <el-form-item label="默认存储类">
                   <el-switch v-model="deployConfig.storageConfig.defaultStorageClass" />
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                <el-form-item label="存储供应器" class="field-short">
-                  <el-select
-                    v-model="deployConfig.storageConfig.storageProvisioner"
-                    style="width: 100%"
-                  >
+              <el-col :xs="24" :sm="8" :lg="5">
+                <el-form-item label="存储供应器">
+                  <el-select v-model="deployConfig.storageConfig.storageProvisioner">
                     <el-option label="本地路径" value="local-path" />
                     <el-option label="NFS 客户端" value="nfs-client" />
                     <el-option label="CSI" value="csi" />
@@ -577,54 +507,44 @@
               </el-col>
             </el-row>
 
-            <!-- local-path -->
             <template v-if="deployConfig.storageConfig.storageProvisioner === 'local-path'">
               <el-divider content-position="left">本地路径配置</el-divider>
-              <el-row :gutter="16">
-                <el-col :xs="24" :sm="12" :md="12" :lg="8">
-                  <el-form-item label="路径" class="field-medium">
-                    <el-input
-                      v-model="localPathConfigModel.path"
-                      placeholder="/var/lib/local-path-provisioner"
-                    />
+              <el-row :gutter="12">
+                <el-col :xs="24" :sm="16" :lg="9">
+                  <el-form-item label="路径">
+                    <el-input v-model="localPathConfigModel.path" placeholder="/var/lib/local-path-provisioner" />
                   </el-form-item>
                 </el-col>
               </el-row>
             </template>
 
-            <!-- NFS -->
             <template v-if="deployConfig.storageConfig.storageProvisioner === 'nfs-client'">
               <el-divider content-position="left">NFS 配置</el-divider>
-              <el-row :gutter="16">
-                <el-col :xs="24" :sm="12" :md="12" :lg="8">
-                  <el-form-item label="NFS 服务器 IP" class="field-medium">
-                    <el-input v-model="nfsConfigModel.server" placeholder="NFS 服务器 IP" />
+              <el-row :gutter="12">
+                <el-col :xs="24" :sm="12" :lg="7">
+                  <el-form-item label="NFS 服务器 IP">
+                    <el-input v-model="nfsConfigModel.server" placeholder="192.168.x.x" />
                   </el-form-item>
                 </el-col>
-                <el-col :xs="24" :sm="12" :md="12" :lg="8">
-                  <el-form-item label="NFS 共享路径" class="field-medium">
+                <el-col :xs="24" :sm="12" :lg="7">
+                  <el-form-item label="NFS 共享路径">
                     <el-input v-model="nfsConfigModel.path" placeholder="/data/nfs" />
                   </el-form-item>
                 </el-col>
               </el-row>
             </template>
 
-            <!-- CSI -->
             <template v-if="deployConfig.storageConfig.storageProvisioner === 'csi'">
               <el-divider content-position="left">CSI 配置</el-divider>
-              <el-row :gutter="16">
-                <el-col :xs="24" :sm="12" :md="12" :lg="8">
-                  <el-form-item label="CSI 驱动名称" class="field-medium">
+              <el-row :gutter="12">
+                <el-col :xs="24" :sm="14" :lg="9">
+                  <el-form-item label="CSI 驱动名称">
                     <el-input v-model="csiConfigModel.driver" placeholder="csi.aliyun.com" />
                   </el-form-item>
                 </el-col>
-                <el-col :xs="24" :sm="12" :md="8" :lg="6">
-                  <el-form-item label="控制器数量" class="field-short">
-                    <el-input-number
-                      v-model="csiConfigModel.controllerCount"
-                      :min="1"
-                      :max="5"
-                    />
+                <el-col :xs="24" :sm="8" :lg="5">
+                  <el-form-item label="控制器数量">
+                    <el-input-number v-model="csiConfigModel.controllerCount" :min="1" :max="5" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -2296,42 +2216,12 @@ const submitDeploy = async () => {
   align-items: center;
 }
 
-.k8s-deploy-form {
-  --field-width-base: 320px;
-  --field-width-medium: 280px;
-  --field-width-short: 220px;
-  --field-width-compact: 180px;
-  --field-width-textarea: 560px;
-}
-
-/* 紧凑输入宽度：统一收窄输入框，保留表单整体栅格节奏 */
+/* 所有表单控件填满所在列宽，通过 el-col span 控制视觉宽度 */
 .step-section :deep(.el-form-item__content > .el-input),
 .step-section :deep(.el-form-item__content > .el-select),
-.step-section :deep(.el-form-item__content > .el-input-number) {
-  width: min(100%, var(--field-width-base));
-}
-
-.step-section :deep(.field-short .el-form-item__content > .el-input),
-.step-section :deep(.field-short .el-form-item__content > .el-select),
-.step-section :deep(.field-short .el-form-item__content > .el-input-number) {
-  width: min(100%, var(--field-width-short));
-}
-
-.step-section :deep(.field-compact .el-form-item__content > .el-input),
-.step-section :deep(.field-compact .el-form-item__content > .el-select),
-.step-section :deep(.field-compact .el-form-item__content > .el-input-number) {
-  width: min(100%, var(--field-width-compact));
-}
-
-.step-section :deep(.field-medium .el-form-item__content > .el-input),
-.step-section :deep(.field-medium .el-form-item__content > .el-select),
-.step-section :deep(.field-medium .el-form-item__content > .el-input-number) {
-  width: min(100%, var(--field-width-medium));
-}
-
-/* 长文本类输入保留更宽可读区域 */
+.step-section :deep(.el-form-item__content > .el-input-number),
 .step-section :deep(.el-form-item__content > .el-textarea) {
-  width: min(100%, var(--field-width-textarea));
+  width: 100%;
 }
 
 /* 单选/多选/开关类控件不强制收窄，否则会影响可读性 */
@@ -2406,11 +2296,11 @@ const submitDeploy = async () => {
   margin-bottom: 14px;
 }
 
-/* ==================== 标签/污点 网格 ==================== */
+/* ==================== 标签/污点 网格（4 列横排） ==================== */
 .label-taint-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
 }
 
 /* ==================== 额外参数网格 ==================== */
@@ -2499,26 +2389,12 @@ const submitDeploy = async () => {
 }
 
 @media (max-width: 1200px) {
-  .k8s-deploy-form {
-    --field-width-base: 340px;
-    --field-width-medium: 300px;
-    --field-width-short: 240px;
-    --field-width-compact: 200px;
-    --field-width-textarea: 520px;
-  }
-
   .extra-args-grid {
     grid-template-columns: 1fr;
   }
-}
 
-@media (min-width: 1720px) {
-  .k8s-deploy-form {
-    --field-width-base: 360px;
-    --field-width-medium: 320px;
-    --field-width-short: 240px;
-    --field-width-compact: 200px;
-    --field-width-textarea: 620px;
+  .label-taint-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
