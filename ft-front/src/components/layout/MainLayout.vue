@@ -93,6 +93,10 @@
           <el-icon><Tools /></el-icon>
           <template #title>初始化工具</template>
         </el-menu-item>
+        <el-menu-item index="/execution-records">
+          <el-icon><DocumentCopy /></el-icon>
+          <template #title>执行记录</template>
+        </el-menu-item>
       </el-menu>
     </aside>
 
@@ -216,7 +220,8 @@ const routeIconMap: Record<string, Component> = {
   '/job': Management,
   '/security-audit': Lock,
   '/advanced': DocumentCopy,
-  '/init-tools': Tools
+  '/init-tools': Tools,
+  '/execution-records': DocumentCopy
 }
 
 const sectionDefaultPath: Record<string, string> = {
@@ -227,7 +232,8 @@ const sectionDefaultPath: Record<string, string> = {
   '/security-audit': '/security-audit/operation-logs',
   '/advanced': '/advanced/backup-restore',
   '/user': '/user/list',
-  '/init-tools': '/init-tools'
+  '/init-tools': '/init-tools',
+  '/execution-records': '/execution-records'
 }
 
 const route = useRoute()

@@ -31,11 +31,29 @@ import sys
 import tempfile
 import urllib.error
 import urllib.request
+import uuid
 
 
 def die(msg):
     print(msg, file=sys.stderr)
     sys.exit(1)
+
+
+def report(api_base, invite_id, token, path, payload):
+    try:
+        payload = dict(payload)
+        payload["invite_id"] = invite_id
+        payload["token"] = token
+        body = json.dumps(payload).encode("utf-8")
+        req = urllib.request.Request(
+            "%s/api/execution-records/report/%s" % (api_base, path),
+            data=body,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urllib.request.urlopen(req, timeout=2).read()
+    except Exception:
+        pass
 
 
 def main():
@@ -60,6 +78,24 @@ def main():
     token = str(data.get("t") or "").strip()
     if not api_base or not invite_id or not token:
         die("安装引用内容不完整（缺少 API 基址、资源 ID 或 token）")
+    correlation_id = str(uuid.uuid4())
+    report(api_base, invite_id, token, "start", {
+        "correlation_id": correlation_id,
+        "source": "script",
+        "category": "k8s_bootstrap",
+        "name": "K8s bootstrap install",
+        "command": "curl bootstrap.sh | sudo bash -s -- ofpk8s1.<redacted>",
+        "target_host": os.uname().nodename,
+        "resource_type": "k8s_bundle_invite",
+        "resource_id": invite_id,
+        "rollback_capability": "auto",
+        "rollback_plan": {
+            "mode": "manual_command",
+            "command": "sudo ai-sre uninstall k8s",
+            "manual_command": "sudo ai-sre k8s cleanup '<same ofpk8s1 ref>'",
+        },
+        "rollback_advice": "可执行 sudo ai-sre uninstall k8s；如仍持有同一安装引用，也可执行 sudo ai-sre k8s cleanup '<ref>'。",
+    })
 
     zip_url = "%s/api/k8s/deploy/bundle-invite/%s/zip" % (api_base, invite_id)
     req = urllib.request.Request(zip_url)
@@ -127,6 +163,21 @@ def main():
             pass
 
         p = subprocess.run(["bash", "install.sh"], check=False)
+        try:
+            state_path = os.path.join(root, ".opsfleet-k8s-state")
+            state = ""
+            if os.path.isfile(state_path):
+                with open(state_path, "r", encoding="utf-8", errors="replace") as sf:
+                    state = sf.read()[-4000:]
+            report(api_base, invite_id, token, "finish", {
+                "correlation_id": correlation_id,
+                "status": "success" if p.returncode == 0 else "failed",
+                "exit_code": p.returncode,
+                "stdout_summary": state,
+                "effects": {"state_tail": state, "last_bundle": last_snap},
+            })
+        except Exception:
+            pass
         if p.returncode != 0:
             print(
                 "\n安装未完成。若需按控制台「节点配置」中的全部 master/worker 清理 K8s/etcd 残留"

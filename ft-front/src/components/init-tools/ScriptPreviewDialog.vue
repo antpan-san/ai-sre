@@ -134,6 +134,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Download } from '@element-plus/icons-vue'
 import type { ScriptBundle } from '../../views/init-tools/scripts'
+import { prepareExecutionRecord } from '../../api/execution-records'
 
 const props = defineProps<{
   modelValue: boolean
@@ -198,7 +199,8 @@ watch(
 
 const copy = async (text: string) => {
   try {
-    await navigator.clipboard.writeText(text)
+    const payload = await buildTrackedPayload(text, activePayload.value.filename, activePayload.value.executable)
+    await navigator.clipboard.writeText(payload)
     ElMessage.success('已复制到剪贴板')
   } catch {
     const ta = document.createElement('textarea')
@@ -218,8 +220,9 @@ const copy = async (text: string) => {
   }
 }
 
-const download = (text: string, filename: string) => {
-  const blob = new Blob([text], { type: 'text/x-shellscript;charset=utf-8' })
+const download = async (text: string, filename: string) => {
+  const payload = await buildTrackedPayload(text, filename, activePayload.value.executable)
+  const blob = new Blob([payload], { type: 'text/x-shellscript;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
@@ -229,6 +232,84 @@ const download = (text: string, filename: string) => {
   document.body.removeChild(a)
   URL.revokeObjectURL(url)
   ElMessage.success(`已下载: ${filename}`)
+}
+
+const buildTrackedPayload = async (text: string, filename: string, executable: boolean) => {
+  if (!executable || !text.trim()) return text
+  try {
+    const prepared = await prepareExecutionRecord({
+      source: 'init-tools',
+      category: filename.replace(/\.sh$/, ''),
+      name: props.title || filename,
+      command: text.slice(0, 4000),
+      rollback_capability: 'manual',
+      rollback_plan: {
+        mode: 'manual',
+        advice: '初始化脚本可能修改系统配置，请结合执行输出、备份文件和目标节点状态人工恢复。',
+      },
+      rollback_advice: '初始化脚本当前提供人工回滚建议；如脚本输出包含备份路径，请优先使用对应备份恢复。',
+      metadata: {
+        filename,
+        tab: activeTab.value,
+      },
+    })
+    return wrapShellScriptWithReporting(text, prepared, filename)
+  } catch {
+    ElMessage.warning('执行记录初始化失败，已保留原脚本内容')
+    return text
+  }
+}
+
+const shellSingleQuote = (value: string) => `'${value.replace(/'/g, `'\\''`)}'`
+
+const getApiBase = () => {
+  const raw = import.meta.env.VITE_BASE_API || '/ft-api'
+  return new URL(raw, window.location.origin).toString().replace(/\/$/, '')
+}
+
+const wrapShellScriptWithReporting = (
+  original: string,
+  prepared: { id: string; correlationId: string; reportToken: string },
+  filename: string,
+) => {
+  const apiBase = getApiBase()
+  const safeName = (props.title || filename).replace(/"/g, '\\"')
+  return `#!/usr/bin/env bash
+# OpsFleet execution-record wrapper. Reporting is best-effort and never changes the script result.
+set +e
+OPSFLEET_REPORT_API=${shellSingleQuote(apiBase)}
+OPSFLEET_EXECUTION_ID=${shellSingleQuote(prepared.id)}
+OPSFLEET_EXECUTION_CORRELATION_ID=${shellSingleQuote(prepared.correlationId)}
+OPSFLEET_EXECUTION_TOKEN=${shellSingleQuote(prepared.reportToken)}
+
+opsfleet_report_start() {
+  curl -fsS -m 2 -X POST "$OPSFLEET_REPORT_API/api/execution-records/report/start" \\
+    -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 <<JSON || true
+{"correlation_id":"$OPSFLEET_EXECUTION_CORRELATION_ID","token":"$OPSFLEET_EXECUTION_TOKEN","source":"init-tools","category":"${filename.replace(/"/g, '\\"')}","name":"${safeName}","status":"running","rollback_capability":"manual","rollback_advice":"初始化脚本当前提供人工回滚建议；请结合输出和备份文件恢复。"}
+JSON
+}
+
+opsfleet_report_finish() {
+  local code="$1"
+  local status="success"
+  if [[ "$code" != "0" ]]; then status="failed"; fi
+  curl -fsS -m 2 -X POST "$OPSFLEET_REPORT_API/api/execution-records/report/finish" \\
+    -H 'Content-Type: application/json' --data-binary @- >/dev/null 2>&1 <<JSON || true
+{"record_id":"$OPSFLEET_EXECUTION_ID","correlation_id":"$OPSFLEET_EXECUTION_CORRELATION_ID","token":"$OPSFLEET_EXECUTION_TOKEN","status":"$status","exit_code":$code}
+JSON
+}
+
+opsfleet_report_start
+tmp_script="$(mktemp /tmp/opsfleet-init-XXXXXX.sh)"
+cat > "$tmp_script" <<'OPSFLEET_ORIGINAL_SCRIPT'
+${original}
+OPSFLEET_ORIGINAL_SCRIPT
+bash "$tmp_script"
+exit_code="$?"
+rm -f "$tmp_script"
+opsfleet_report_finish "$exit_code"
+exit "$exit_code"
+`
 }
 </script>
 

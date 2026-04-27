@@ -188,6 +188,20 @@ const routes: Array<RouteRecordRaw> = [
       }
     ]
   },
+  {
+    path: '/execution-records',
+    name: 'ExecutionRecords',
+    component: () => import('../components/layout/MainLayout.vue'),
+    meta: { title: '执行记录', requireAuth: true, roles: ['admin'] },
+    children: [
+      {
+        path: '',
+        name: 'ExecutionRecordsIndex',
+        component: () => import('../views/execution-records/ExecutionRecords.vue'),
+        meta: { title: '执行记录', requireAuth: true, roles: ['admin'] }
+      }
+    ]
+  },
   // 兼容旧地址：访问任意已废弃的初始化工具子页一律重定向到聚合页
   {
     path: '/init-tools/:legacy(system-param|time-sync|security-hardening|disk-partition)',

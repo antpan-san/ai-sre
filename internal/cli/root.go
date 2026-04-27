@@ -54,10 +54,14 @@ func ExecuteAs(programName string) {
 	if programName == "ai-sre" {
 		preflightAutoUpgradeIfUnknown(root)
 	}
+	reporter := newExecutionReporter(programName, os.Args[1:])
+	reporter.start()
 	if err := root.Execute(); err != nil {
+		reporter.finish(err)
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	reporter.finish(nil)
 }
 
 func preflightAutoUpgradeIfUnknown(root *cobra.Command) {

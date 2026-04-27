@@ -330,6 +330,7 @@ func ReportTaskResult(c *gin.Context) {
 
 	// Update parent task counters
 	updateParentTaskStatus(tx, taskID)
+	syncTaskExecutionRecord(tx, taskID)
 
 	if err := tx.Commit().Error; err != nil {
 		logger.Error("提交事务失败: %v", err)

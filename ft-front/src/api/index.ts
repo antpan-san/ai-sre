@@ -119,6 +119,15 @@ export {
   getExecutionResult,
 } from './job'
 
+// 执行记录相关
+export {
+  getExecutionRecords,
+  getExecutionRecordDetail,
+  prepareExecutionRecord,
+  previewExecutionRollback,
+  rollbackExecutionRecord,
+} from './execution-records'
+
 // 初始化工具相关
 export {
   getSystemParams,

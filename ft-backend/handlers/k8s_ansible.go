@@ -19,10 +19,10 @@ import (
 // K8sDeployRequest matches the frontend K8s deploy form (Ansible 流水线多步).
 type K8sDeployRequest struct {
 	// Step 1 — Basic
-	ClusterName      string `json:"clusterName" binding:"required"`
-	Version          string `json:"version"     binding:"required"`
-	DeployMode       string `json:"deployMode"`    // single | ha
-	ImageSource      string `json:"imageSource"`   // default | aliyun | tencent | custom
+	ClusterName string `json:"clusterName" binding:"required"`
+	Version     string `json:"version"     binding:"required"`
+	DeployMode  string `json:"deployMode"`  // single | ha
+	ImageSource string `json:"imageSource"` // default | aliyun | tencent | custom
 	// ArchVersion 节点 CPU 架构（linux：amd64 | arm64），与 kubernetes/etcd 二进制一致；空则默认 amd64。
 	ArchVersion      string `json:"archVersion"`
 	CustomRegistry   string `json:"customRegistry"`
@@ -30,14 +30,14 @@ type K8sDeployRequest struct {
 	RegistryPassword string `json:"registryPassword"`
 
 	// Step 2 — Nodes（UUID，来自机器管理 + Agent）
-	ExecutorNode string                 `json:"executorNode"` // 执行部署的 Agent 节点（可选，不填则回退到首个 Master）
-	MasterNodes  []string               `json:"masterNodes"`
-	WorkerNodes  []string               `json:"workerNodes"`
+	ExecutorNode string   `json:"executorNode"` // 执行部署的 Agent 节点（可选，不填则回退到首个 Master）
+	MasterNodes  []string `json:"masterNodes"`
+	WorkerNodes  []string `json:"workerNodes"`
 	// 离线安装包：直接填节点 IP/主机名，无需 Agent（与 MasterNodes 二选一）
-	MasterHosts []string `json:"masterHosts"`
-	WorkerHosts []string `json:"workerHosts"`
-	MasterLabels map[string]string      `json:"masterLabels"`
-	WorkerLabels map[string]string      `json:"workerLabels"`
+	MasterHosts  []string          `json:"masterHosts"`
+	WorkerHosts  []string          `json:"workerHosts"`
+	MasterLabels map[string]string `json:"masterLabels"`
+	WorkerLabels map[string]string `json:"workerLabels"`
 
 	// Step 3 — Core components
 	KubeProxyMode           string `json:"kubeProxyMode"` // iptables | ipvs
@@ -62,15 +62,15 @@ type K8sDeployRequest struct {
 	StorageConfig       json.RawMessage `json:"storageConfig"`
 
 	// Step 6 — Advanced
-	EnableNodeLocalDNS  bool             `json:"enableNodeLocalDNS"`
-	EnableMetricsServer bool             `json:"enableMetricsServer"`
-	EnableDashboard     bool             `json:"enableDashboard"`
-	EnablePrometheus    bool             `json:"enablePrometheus"`
-	EnableIngressNginx  bool             `json:"enableIngressNginx"`
-	EnableHelm          bool             `json:"enableHelm"`
-	ExtraKubeletArgs    []kvPair         `json:"extraKubeletArgs"`
-	ExtraKubeProxyArgs  []kvPair         `json:"extraKubeProxyArgs"`
-	ExtraAPIServerArgs  []kvPair         `json:"extraAPIServerArgs"`
+	EnableNodeLocalDNS  bool     `json:"enableNodeLocalDNS"`
+	EnableMetricsServer bool     `json:"enableMetricsServer"`
+	EnableDashboard     bool     `json:"enableDashboard"`
+	EnablePrometheus    bool     `json:"enablePrometheus"`
+	EnableIngressNginx  bool     `json:"enableIngressNginx"`
+	EnableHelm          bool     `json:"enableHelm"`
+	ExtraKubeletArgs    []kvPair `json:"extraKubeletArgs"`
+	ExtraKubeProxyArgs  []kvPair `json:"extraKubeProxyArgs"`
+	ExtraAPIServerArgs  []kvPair `json:"extraAPIServerArgs"`
 
 	// Legacy catch-all (kept for backward compat)
 	Config json.RawMessage `json:"config"`
@@ -593,21 +593,21 @@ func SubmitK8sDeployWithAnsible(c *gin.Context) {
 	// Create K8s cluster record — store the full request config for auditability.
 	workerNodesJSON, _ := json.Marshal(req.WorkerNodes)
 	configJSON, _ := json.Marshal(map[string]interface{}{
-		"deploy_mode":          req.DeployMode,
-		"network_plugin":       req.NetworkPlugin,
-		"pod_cidr":             req.PodCIDR,
-		"service_cidr":         req.ServiceCIDR,
-		"dns_service_ip":       req.DNSServiceIP,
-		"cluster_domain":       req.ClusterDomain,
-		"image_source":         req.ImageSource,
-		"kube_proxy_mode":      req.KubeProxyMode,
-		"enable_rbac":          req.EnableRBAC,
-		"storage_provisioner":  req.StorageProvisioner,
+		"deploy_mode":           req.DeployMode,
+		"network_plugin":        req.NetworkPlugin,
+		"pod_cidr":              req.PodCIDR,
+		"service_cidr":          req.ServiceCIDR,
+		"dns_service_ip":        req.DNSServiceIP,
+		"cluster_domain":        req.ClusterDomain,
+		"image_source":          req.ImageSource,
+		"kube_proxy_mode":       req.KubeProxyMode,
+		"enable_rbac":           req.EnableRBAC,
+		"storage_provisioner":   req.StorageProvisioner,
 		"enable_metrics_server": req.EnableMetricsServer,
-		"enable_dashboard":     req.EnableDashboard,
-		"enable_prometheus":    req.EnablePrometheus,
-		"enable_ingress_nginx": req.EnableIngressNginx,
-		"enable_helm":          req.EnableHelm,
+		"enable_dashboard":      req.EnableDashboard,
+		"enable_prometheus":     req.EnablePrometheus,
+		"enable_ingress_nginx":  req.EnableIngressNginx,
+		"enable_helm":           req.EnableHelm,
 	})
 
 	cluster := models.K8sCluster{
@@ -675,6 +675,12 @@ func SubmitK8sDeployWithAnsible(c *gin.Context) {
 		TaskID:  task.ID,
 		Level:   "info",
 		Message: fmt.Sprintf("K8s集群 %s 部署任务已创建 (Ansible集成)", req.ClusterName),
+	})
+	createTaskExecutionRecord(tx, task, "k8s", "k8s_deploy", deployScript, executorMachine.IP, map[string]interface{}{
+		"mode":           "manual_command",
+		"command":        fmt.Sprintf("sudo ai-sre k8s cleanup '<install-ref-for-%s>'", req.ClusterName),
+		"manual_command": "也可以在控制台终止部署，或在控制机执行 sudo ai-sre uninstall k8s",
+		"resource":       req.ClusterName,
 	})
 
 	if err := tx.Commit().Error; err != nil {

@@ -126,6 +126,10 @@ func ExecuteJob(c *gin.Context) {
 			return
 		}
 	}
+	createTaskExecutionRecord(tx, task, "job", "shell", req.Command, "", map[string]interface{}{
+		"capability": "manual",
+		"advice":     "Shell 作业无法可靠推导自动回滚，请根据输出和业务变更执行人工恢复。",
+	})
 
 	if err := tx.Commit().Error; err != nil {
 		logger.Error("提交事务失败: %v", err)

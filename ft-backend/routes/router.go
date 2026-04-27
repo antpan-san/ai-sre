@@ -44,6 +44,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/k8s/deploy/install-ai-sre.sh", handlers.ServeAiSreInstallScript)
 		public.GET("/k8s/deploy/cli/ai-sre/version", handlers.GetAiSreCLIVersion)
 		public.GET("/k8s/deploy/cli/ai-sre", handlers.DownloadAiSreCLI)
+		public.POST("/execution-records/report/start", handlers.StartExecutionRecord)
+		public.POST("/execution-records/report/event", handlers.PostExecutionEvent)
+		public.POST("/execution-records/report/finish", handlers.FinishExecutionRecord)
 
 		// Client Agent endpoints (authenticated by client_id, not JWT)
 		public.POST("/v1/heartbeats", iotservice.HeartbeatCheck)
@@ -98,6 +101,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/job/machines", handlers.GetJobMachines)
 		protected.POST("/job/execute", handlers.ExecuteJob)
 		protected.GET("/job/result/:jobId", handlers.GetJobResult)
+
+		// ---- Execution Records ----
+		protected.GET("/execution-records", handlers.GetExecutionRecords)
+		protected.POST("/execution-records/prepare", handlers.PrepareExecutionRecord)
+		protected.GET("/execution-records/:id", handlers.GetExecutionRecordDetail)
+		protected.GET("/execution-records/:id/events", handlers.GetExecutionRecordEvents)
+		protected.GET("/execution-records/:id/dependencies", handlers.GetExecutionRecordDependencies)
+		protected.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
+		protected.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
 
 		// ---- Service Management ----
 		protected.POST("/service/deploy", handlers.DeployService)
