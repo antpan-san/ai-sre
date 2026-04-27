@@ -2293,34 +2293,42 @@ const submitDeploy = async () => {
   align-items: center;
 }
 
+.k8s-deploy-form {
+  --field-width-base: 320px;
+  --field-width-medium: 280px;
+  --field-width-short: 220px;
+  --field-width-compact: 180px;
+  --field-width-textarea: 560px;
+}
+
 /* 紧凑输入宽度：统一收窄输入框，保留表单整体栅格节奏 */
 .step-section :deep(.el-form-item__content > .el-input),
 .step-section :deep(.el-form-item__content > .el-select),
 .step-section :deep(.el-form-item__content > .el-input-number) {
-  width: min(100%, 320px);
+  width: min(100%, var(--field-width-base));
 }
 
 .step-section :deep(.field-short .el-form-item__content > .el-input),
 .step-section :deep(.field-short .el-form-item__content > .el-select),
 .step-section :deep(.field-short .el-form-item__content > .el-input-number) {
-  width: min(100%, 220px);
+  width: min(100%, var(--field-width-short));
 }
 
 .step-section :deep(.field-compact .el-form-item__content > .el-input),
 .step-section :deep(.field-compact .el-form-item__content > .el-select),
 .step-section :deep(.field-compact .el-form-item__content > .el-input-number) {
-  width: min(100%, 180px);
+  width: min(100%, var(--field-width-compact));
 }
 
 .step-section :deep(.field-medium .el-form-item__content > .el-input),
 .step-section :deep(.field-medium .el-form-item__content > .el-select),
 .step-section :deep(.field-medium .el-form-item__content > .el-input-number) {
-  width: min(100%, 280px);
+  width: min(100%, var(--field-width-medium));
 }
 
 /* 长文本类输入保留更宽可读区域 */
 .step-section :deep(.el-form-item__content > .el-textarea) {
-  width: min(100%, 560px);
+  width: min(100%, var(--field-width-textarea));
 }
 
 /* 单选/多选/开关类控件不强制收窄，否则会影响可读性 */
@@ -2448,26 +2456,26 @@ const submitDeploy = async () => {
 }
 
 @media (max-width: 1200px) {
+  .k8s-deploy-form {
+    --field-width-base: 340px;
+    --field-width-medium: 300px;
+    --field-width-short: 240px;
+    --field-width-compact: 200px;
+    --field-width-textarea: 520px;
+  }
+
   .extra-args-grid {
     grid-template-columns: 1fr;
   }
+}
 
-  .step-section :deep(.el-form-item__content > .el-input),
-  .step-section :deep(.el-form-item__content > .el-select),
-  .step-section :deep(.el-form-item__content > .el-input-number) {
-    width: min(100%, 340px);
-  }
-
-  .step-section :deep(.field-short .el-form-item__content > .el-input),
-  .step-section :deep(.field-short .el-form-item__content > .el-select),
-  .step-section :deep(.field-short .el-form-item__content > .el-input-number) {
-    width: min(100%, 240px);
-  }
-
-  .step-section :deep(.field-compact .el-form-item__content > .el-input),
-  .step-section :deep(.field-compact .el-form-item__content > .el-select),
-  .step-section :deep(.field-compact .el-form-item__content > .el-input-number) {
-    width: min(100%, 200px);
+@media (min-width: 1720px) {
+  .k8s-deploy-form {
+    --field-width-base: 360px;
+    --field-width-medium: 320px;
+    --field-width-short: 240px;
+    --field-width-compact: 200px;
+    --field-width-textarea: 620px;
   }
 }
 
