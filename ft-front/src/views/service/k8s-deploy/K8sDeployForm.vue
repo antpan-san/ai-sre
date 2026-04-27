@@ -179,106 +179,116 @@
             </div>
           </template>
           <div class="step-section step-section--nodes">
-          <el-form-item label="部署方式" class="node-mode-form-item">
-            <div class="node-mode-row">
-              <el-switch
-                v-model="offlineBundleMode"
-                inline-prompt
-                active-text="离线"
-                inactive-text="在线 Agent"
-              />
-              <span class="mode-hint-inline">
-                {{
-                  offlineBundleMode
-                    ? '离线：填写节点 IP，最后一步生成命令或 zip（需 root 免密 SSH）'
-                    : '在线：选择执行机和节点，要求网络互通且 Agent 在线'
-                }}
-              </span>
-            </div>
-          </el-form-item>
+          <el-form label-position="top">
 
-          <template v-if="offlineBundleMode">
-            <div class="node-hosts-grid">
-            <el-form-item label="控制平面 IP（必填，每行一个）" required class="node-hosts-item">
-              <el-input
-                v-model="masterHostsText"
-                type="textarea"
-                :rows="5"
-                placeholder="例如：&#10;192.168.1.10&#10;192.168.1.11"
-                class="node-hosts-input"
-              />
-            </el-form-item>
-            <el-form-item label="工作节点 IP（可选）" class="node-hosts-item">
-              <el-input
-                v-model="workerHostsText"
-                type="textarea"
-                :rows="4"
-                placeholder="每行一个 Worker IP（可包含控制平面 IP；生成 inventory 时会自动去重）"
-                class="node-hosts-input"
-              />
-            </el-form-item>
-            </div>
-          </template>
-
-          <template v-else>
+            <!-- ① 部署模式 -->
             <div class="form-grid">
-              <el-form-item label="执行节点（Agent 所在机器）" required class="grid-span-2 executor-select-item">
-                <el-select
-                  v-model="deployConfig.nodeConfig.executorNode"
-                  placeholder="选择执行部署任务的机器（需在线且已安装 Agent）"
-                  clearable
-                >
-                  <el-option
-                    v-for="m in selectableExecutors"
-                    :key="m.id"
-                    :label="`${m.name || '未命名'} (${m.ip})`"
-                    :value="m.id"
-                  >
-                    <span>{{ m.name || '未命名' }}</span>
-                    <span style="color: var(--el-text-color-secondary); margin-left: 8px">{{ m.ip }}</span>
-                  </el-option>
-                </el-select>
+              <el-form-item label="部署模式" class="grid-span-2 node-mode-form-item">
+                <div class="node-mode-content">
+                  <el-switch
+                    v-model="offlineBundleMode"
+                    inline-prompt
+                    active-text="离线"
+                    inactive-text="在线 Agent"
+                  />
+                  <p class="node-mode-desc">
+                    {{
+                      offlineBundleMode
+                        ? '离线模式：填写节点 IP，最后一步生成一键命令或 zip（需控制机对各节点 root 免密 SSH）'
+                        : '在线模式：选择执行节点与部署节点，要求网络互通且 Agent 已在线'
+                    }}
+                  </p>
+                </div>
               </el-form-item>
             </div>
 
-            <div class="nodes-section-label">选择部署节点</div>
-            <NodeSelect
-              :machines="machines"
-              :modelValue="{ masterNodes: deployConfig.nodeConfig.masterNodes, workerNodes: deployConfig.nodeConfig.workerNodes }"
-              @update:modelValue="(v) => { deployConfig.nodeConfig.masterNodes = v.masterNodes; deployConfig.nodeConfig.workerNodes = v.workerNodes }"
-              masterTitle="控制平面节点"
-              workerTitle="工作节点（数据平面）"
-            />
-          </template>
+            <!-- ② 离线：节点 IP -->
+            <template v-if="offlineBundleMode">
+              <div class="nodes-section-label">节点 IP 配置</div>
+              <div class="node-hosts-grid">
+                <el-form-item label="控制平面 IP（必填，每行一个）" required class="node-hosts-item">
+                  <el-input
+                    v-model="masterHostsText"
+                    type="textarea"
+                    :rows="5"
+                    placeholder="例如：&#10;192.168.1.10&#10;192.168.1.11"
+                    class="node-hosts-input"
+                  />
+                </el-form-item>
+                <el-form-item label="工作节点 IP（可选）" class="node-hosts-item">
+                  <el-input
+                    v-model="workerHostsText"
+                    type="textarea"
+                    :rows="5"
+                    placeholder="每行一个 Worker IP（可包含控制平面 IP；生成 inventory 时会自动去重）"
+                    class="node-hosts-input"
+                  />
+                </el-form-item>
+              </div>
+            </template>
 
-          <el-divider content-position="left">标签与污点</el-divider>
+            <!-- ③ 在线：执行节点 + 部署节点 -->
+            <template v-else>
+              <div class="nodes-section-label">执行节点</div>
+              <div class="form-grid">
+                <el-form-item label="执行节点（Agent 所在机器）" required class="grid-span-2 executor-select-item">
+                  <el-select
+                    v-model="deployConfig.nodeConfig.executorNode"
+                    placeholder="选择执行部署任务的机器（需在线且已安装 Agent）"
+                    clearable
+                  >
+                    <el-option
+                      v-for="m in selectableExecutors"
+                      :key="m.id"
+                      :label="`${m.name || '未命名'} (${m.ip})`"
+                      :value="m.id"
+                    >
+                      <span>{{ m.name || '未命名' }}</span>
+                      <span style="color: var(--el-text-color-secondary); margin-left: 8px">{{ m.ip }}</span>
+                    </el-option>
+                  </el-select>
+                </el-form-item>
+              </div>
+              <div class="nodes-section-label">部署节点</div>
+              <NodeSelect
+                :machines="machines"
+                :modelValue="{ masterNodes: deployConfig.nodeConfig.masterNodes, workerNodes: deployConfig.nodeConfig.workerNodes }"
+                @update:modelValue="(v) => { deployConfig.nodeConfig.masterNodes = v.masterNodes; deployConfig.nodeConfig.workerNodes = v.workerNodes }"
+                masterTitle="控制平面节点"
+                workerTitle="工作节点（数据平面）"
+              />
+            </template>
 
-          <div class="label-taint-grid">
-            <el-card class="sub-card sub-card--compact" shadow="hover">
-              <template #header>
-                <div class="sub-card-header"><span>主节点标签</span></div>
-              </template>
-            <LabelGroup v-model="masterLabelsModel" />
-            </el-card>
-            <el-card class="sub-card sub-card--compact" shadow="hover">
-              <template #header>
-                <div class="sub-card-header"><span>主节点污点</span></div>
-              </template>
-            <TaintGroup v-model="masterTaintsModel" />
-            </el-card>
-            <el-card class="sub-card sub-card--compact" shadow="hover">
-              <template #header>
-                <div class="sub-card-header"><span>工作节点标签</span></div>
-              </template>
-            <LabelGroup v-model="workerLabelsModel" />
-            </el-card>
-            <el-card class="sub-card sub-card--compact" shadow="hover">
-              <template #header>
-                <div class="sub-card-header"><span>工作节点污点</span></div>
-              </template>
-            <TaintGroup v-model="workerTaintsModel" />
-            </el-card>
-          </div>
+            <!-- ④ 标签与污点 -->
+            <el-divider content-position="left">标签与污点</el-divider>
+            <div class="label-taint-grid">
+              <el-card class="sub-card sub-card--compact" shadow="hover">
+                <template #header>
+                  <div class="sub-card-header"><span>主节点标签</span></div>
+                </template>
+                <LabelGroup v-model="masterLabelsModel" />
+              </el-card>
+              <el-card class="sub-card sub-card--compact" shadow="hover">
+                <template #header>
+                  <div class="sub-card-header"><span>主节点污点</span></div>
+                </template>
+                <TaintGroup v-model="masterTaintsModel" />
+              </el-card>
+              <el-card class="sub-card sub-card--compact" shadow="hover">
+                <template #header>
+                  <div class="sub-card-header"><span>工作节点标签</span></div>
+                </template>
+                <LabelGroup v-model="workerLabelsModel" />
+              </el-card>
+              <el-card class="sub-card sub-card--compact" shadow="hover">
+                <template #header>
+                  <div class="sub-card-header"><span>工作节点污点</span></div>
+                </template>
+                <TaintGroup v-model="workerTaintsModel" />
+              </el-card>
+            </div>
+
+          </el-form>
           </div>
         </el-collapse-item>
 
@@ -1877,36 +1887,6 @@ const submitDeploy = async () => {
   white-space: nowrap;
 }
 
-.node-mode-form-item {
-  margin-bottom: 16px;
-}
-
-.node-mode-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 12px;
-}
-
-.mode-hint-inline {
-  color: var(--el-text-color-secondary);
-  font-size: 13px;
-  line-height: 1.5;
-  max-width: min(560px, 100%);
-}
-
-.mode-hint {
-  margin-left: 12px;
-  color: #6b7280;
-  font-size: 13px;
-}
-.mode-hint code {
-  font-size: 12px;
-  padding: 2px 6px;
-  background: #f3f4f6;
-  border-radius: 4px;
-}
-
 .btn-icon-left {
   margin-right: 4px;
   vertical-align: -0.12em;
@@ -2224,14 +2204,23 @@ const submitDeploy = async () => {
 }
 
 .step-section--nodes .node-mode-form-item {
-  margin-bottom: 10px;
+  margin-bottom: 0;
 }
 
-.node-mode-row {
+/* 部署模式：switch 在上，说明文字紧跟 switch 下方 */
+.node-mode-content {
+  width: 100%;
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.node-mode-desc {
+  margin: 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.55;
 }
 
 /* 节点配置区块分隔 */
@@ -2252,12 +2241,6 @@ const submitDeploy = async () => {
   flex: 1;
   height: 1px;
   background: var(--el-border-color-lighter);
-}
-
-.mode-hint-inline {
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.5;
 }
 
 .node-hosts-grid {
