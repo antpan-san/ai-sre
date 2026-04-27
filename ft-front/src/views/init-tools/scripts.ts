@@ -16,8 +16,15 @@ export interface ScriptBundle {
   subtitle: string
   /** 完整可执行 Shell 脚本（内嵌 Ansible Playbook） */
   fullScript: string
-  /** ai-sre CLI 等价命令（roadmap 占位） */
+  /** ai-sre CLI 等价命令（部分卡片仍是 roadmap 占位） */
   aiSreCommand: string
+  /**
+   * ai-sre CLI 命令是否真正在 ai-sre 中实现并可直接执行：
+   *   - true: 复制后 sudo bash 即可工作（如 time-sync / sys-param）；
+   *   - false 或省略: roadmap 预览，命令本身在当前 ai-sre 版本中未实现。
+   * 该值由前端 ScriptPreviewDialog 决定 CLI Tab 的执行/复制提示。
+   */
+  aiSreCommandExecutable?: boolean
   /** curl 一键执行示例 */
   curlOneLiner: string
 }
@@ -260,6 +267,7 @@ ${isSelfHosted ? `  --master-node ${shellQuote(masterIp)} \\\n` : ''}  --clients
     subtitle: `配置时间同步（${modeDesc}）→ ${nodeDesc}`,
     fullScript,
     aiSreCommand,
+    aiSreCommandExecutable: true,
     curlOneLiner: `# 将脚本下载到控制机后执行：\nbash time-sync.sh\n\n# 或未来通过 ai-sre 控制台 curl 一键执行（需后端接口）:\n# bash -c "$(curl -fsSL http://<控制台IP>:9080/ft-api/api/init-tools/scripts/time-sync.sh)"`,
   }
 }
@@ -365,6 +373,9 @@ PLAYBOOK
 ${runPlaybook()}
 `
 
+  const sysctlFlags = opts.rows
+    .map(r => `  --sysctl ${shellQuote(`${r.key}=${r.value}`)} \\`)
+    .join('\n')
   return {
     subtitle: `写入 ${opts.rows.length} 项 sysctl + 内核模块${opts.disableSwap ? ' + 关 swap' : ''}${opts.raiseUlimit ? ' + ulimit' : ''} → ${nodeDesc}`,
     fullScript,
@@ -372,7 +383,10 @@ ${runPlaybook()}
   --nodes ${shellQuote(nodeIps.join(',') || 'localhost')} \\
   --on-conflict ${opts.onConflict} \\
   --disable-swap=${opts.disableSwap} \\
-  --raise-ulimit=${opts.raiseUlimit}`,
+  --raise-ulimit=${opts.raiseUlimit} \\
+  --extra-only \\
+${sysctlFlags.replace(/ \\$/, '')}`,
+    aiSreCommandExecutable: true,
     curlOneLiner: `bash sys-param.sh\n\n# 或未来 curl 一键:\n# bash -c "$(curl -fsSL http://<控制台IP>:9080/ft-api/api/init-tools/scripts/sys-param.sh)"`,
   }
 }

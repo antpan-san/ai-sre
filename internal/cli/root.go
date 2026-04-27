@@ -45,10 +45,48 @@ func Execute() {
 
 // ExecuteAs runs the same CLI tree under a different program name (e.g. opsfleet-executor on managed hosts).
 func ExecuteAs(programName string) {
-	if err := newRoot(programName).Execute(); err != nil {
+	root := newRoot(programName)
+	// 当用户调用一个本版本不认识的顶层子命令（例如旧版 ai-sre 0.4.4
+	// 收到「ai-sre node tune time-sync」），cobra 会在 PersistentPreRunE 之前
+	// 直接报 unknown command。我们在这里做一次 pre-flight：若 OpsFleet
+	// 有更新版本则覆盖本机二进制并 re-exec 同一参数，使自升级链路真正能
+	// "带新命令过来"。失败或已是最新则按 cobra 原有行为继续报错。
+	if programName == "ai-sre" {
+		preflightAutoUpgradeIfUnknown(root)
+	}
+	if err := root.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+}
+
+func preflightAutoUpgradeIfUnknown(root *cobra.Command) {
+	if os.Getenv("OPSFLEET_NO_AUTO_UPGRADE") == "1" {
+		return
+	}
+	args := os.Args[1:]
+	if len(args) == 0 || isHelpInvocation() {
+		return
+	}
+	var first string
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			first = a
+			break
+		}
+	}
+	if first == "" {
+		return
+	}
+	switch first {
+	case "upgrade", "version", "help", "completion", "doctor":
+		return
+	}
+	if _, _, err := root.Find(args); err == nil {
+		return
+	}
+	base := resolveOpsfleetAPIBase()
+	_ = tryAutoUpgradeInPlace(base)
 }
 
 func newRoot(programName string) *cobra.Command {
@@ -93,7 +131,7 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
 
-	cmds := []*cobra.Command{analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd()}
+	cmds := []*cobra.Command{analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), nodeCmd()}
 	if programName == "ai-sre" {
 		cmds = append(cmds, uninstallCmd())
 	}

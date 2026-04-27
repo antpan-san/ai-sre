@@ -26,6 +26,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre version` | 打印版本号 |
 | `ai-sre help` | 帮助 |
 | `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` / `diagnose` 等（见 `ai-sre k8s --help`） |
+| `ai-sre node tune time-sync …` | 与控制台「初始化工具 → 时间同步」等价的 CLI；本机构建 inventory + chrony / timesyncd playbook 并调用 `ansible-playbook`；缺失 ansible 时按 apt/dnf/yum 自动安装；未填 `--clients` 仅对 localhost 执行 |
+| `ai-sre node tune sys-param …` | 与「系统参数优化」等价：sysctl + br_netfilter/overlay 内核模块 + ulimit + 关闭 swap；可用 `--sysctl key=value`（多次）扩展或 `--extra-only` 只用显式提供的项 |
 | `ai-sre k8s diagnose` | 本机自检 K8s 常见抖动根因：**时钟跳变 / etcd 慢盘 / kubelet SandboxChanged / 预检缺项（swap/br_netfilter/sysctl）**；`--preflight` 只跑部署前预检，`--json` 输出可直接喂给 `ai-sre analyze k8s --issue instability` |
 | `ai-sre upgrade` | 与 OpsFleet 对比版本后覆盖本机 `ai-sre` 二进制（需能访问上表基址） |
 | `ai-sre uninstall k8s` | 在控制机 `root` 下用 Ansible `pre_cleanup` 全量清集群；**优先**本机 `/var/lib/opsfleet-k8s/last-bundle`（`install.sh` 预检后同步），无则再试拉 `ofpk8s1` 或 `--workdir` / `--force`（见 `ai-sre uninstall k8s --help`） |
@@ -220,11 +222,11 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 - **安全加固**：禁 root SSH、改 SSH 端口、防火墙、Fail2ban、自动更新、`ON_CONFLICT`
 - **磁盘**：SSD TRIM、文件系统挂载优化（noatime）、Swap 大小（auto / 1G–16G）、`ON_CONFLICT`
 
-点击「**生成执行脚本**」会弹出脚本预览对话框，含三个 Tab：**Ansible 执行脚本**（当前唯一可直接运行）、**curl 一键（roadmap）**、**ai-sre CLI（roadmap）**。底部「复制 / 下载」按钮跟随当前选中 Tab：选中 Ansible Tab 时复制/下载 Ansible 脚本；选中 roadmap Tab 时按钮会改为「复制（roadmap）」，并禁用下载——这两个 Tab 的命令尚未实现（`ai-sre 0.4.x` 没有 `node tune` 子命令；后端也没有 `/ft-api/api/init-tools/scripts/<name>.sh` 接口），直接复制运行会得到 `unknown command` 或 404，请勿误用：
+点击「**生成执行脚本**」会弹出脚本预览对话框，含三个 Tab：**Ansible 执行脚本**（始终可直接运行）、**curl 一键（roadmap）**、**ai-sre CLI**（在 ai-sre 中已实现的卡片显示为可执行，否则仍标 `roadmap`）。底部「复制 / 下载」按钮跟随当前选中 Tab：可执行 Tab 显示「复制脚本 / 下载脚本」，roadmap Tab 显示「复制（roadmap）」并禁用下载。`ai-sre 0.4.5` 起 **时间同步** 与 **系统参数优化** 两张卡片对应的 `ai-sre node tune time-sync` / `ai-sre node tune sys-param` 子命令已落地（见 `internal/cli/node.go`），低版本节点首次执行命令会触发自动升级（`internal/cli/upgrade.go`）。系统安全加固 / 磁盘分区优化两张卡片仍是 roadmap 占位，复制运行仍会得到 `unknown command`：
 
 - **Bash 脚本**：完整可执行 bash，含 `set -euo pipefail`、自动备份至 `/var/backups/ai-sre/<ts>/`、写入幂等的 drop-in 配置文件（如 `/etc/sysctl.d/99-ai-sre.conf`、`/etc/ssh/sshd_config.d/99-ai-sre.conf`），并在末尾打印验证状态与回滚命令；支持「复制」与「下载 .sh」
 - **存在检测**：脚本默认 `ON_CONFLICT=skip`，检测到节点已运行其他时间同步服务（chrony/ntpd/systemd-timesyncd 等）或已存在 ai-sre drop-in 时直接退出并打印当前状态，**不进行任何写入或重启**；需要覆盖请改用 `ON_CONFLICT=force`
-- **ai-sre CLI**：未来 `ai-sre node tune <subcmd>` 子命令的等价调用占位（**roadmap，当前 ai-sre 二进制没有该子命令**），参数与脚本一一对应；目前在节点上跑会报 `unknown command "node" for "ai-sre"`，等命令落地后 ai-sre 自动升级（`internal/cli/upgrade.go`）会随版本带过去
+- **ai-sre CLI**：`ai-sre node tune <subcmd>` 子命令在控制机或目标节点上 `sudo` 执行；当前已实现 **time-sync** 与 **sys-param**（>= 0.4.5），命令在 Go 内构建与 Ansible Tab 等价的 inventory + playbook 并调用 `ansible-playbook`（缺失则按 apt/dnf/yum 自动安装；可用 `--auto-install-ansible=false` 关闭、`--dry-run` 仅打印）。**security** 与 **disk** 仍是 roadmap，等子命令落地后 ai-sre 自动升级会随版本带过去
 - **多节点批量**：`for ip in <ips>; do ssh root@$ip "bash -s" < script.sh; done` 与 curl 一键模式（curl 模式需后端 `/ft-api/api/init-tools/scripts/<name>.sh` 配合，列在 roadmap）
 
 完成所需项后点顶部「返回 K8s 部署」回到折叠配置页。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
