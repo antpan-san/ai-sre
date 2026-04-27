@@ -105,7 +105,7 @@
             label-position="top"
           >
             <el-row :gutter="16">
-              <el-col :xs="24" :sm="12">
+              <el-col :xs="24" :sm="12" :md="12" :lg="8">
                 <el-form-item label="集群名称" prop="clusterName">
                   <el-input
                     v-model="deployConfig.clusterBasicInfo.clusterName"
@@ -114,7 +114,7 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12">
+              <el-col :xs="24" :sm="12" :md="12" :lg="8">
                 <el-form-item label="K8s 版本" prop="version">
                   <el-select
                     v-model="deployConfig.clusterBasicInfo.version"
@@ -131,7 +131,7 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12">
+              <el-col :xs="24" :sm="12" :md="12" :lg="8">
                 <el-form-item label="部署模式" prop="deployMode">
                   <el-radio-group v-model="deployConfig.clusterBasicInfo.deployMode">
                     <el-radio value="single">单节点</el-radio>
@@ -355,7 +355,7 @@
             label-position="top"
           >
             <el-row :gutter="20">
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="kube-proxy 模式">
                   <el-select
                     v-model="deployConfig.coreComponentsConfig.kubeProxyMode"
@@ -366,7 +366,7 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="Pause 镜像">
                   <el-input
                     v-model="deployConfig.coreComponentsConfig.pauseImage"
@@ -423,7 +423,7 @@
             label-position="top"
           >
             <el-row :gutter="20">
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="网络插件" prop="networkPlugin">
                   <el-select
                     v-model="deployConfig.networkConfig.networkPlugin"
@@ -436,7 +436,7 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="代理模式" prop="proxyMode">
                   <el-select
                     v-model="deployConfig.networkConfig.proxyMode"
@@ -450,17 +450,17 @@
             </el-row>
 
             <el-row :gutter="20">
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12" :md="8">
                 <el-form-item label="Pod CIDR" prop="podCIDR">
                   <el-input v-model="deployConfig.networkConfig.podCIDR" placeholder="10.244.0.0/16" />
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12" :md="8">
                 <el-form-item label="Service CIDR" prop="serviceCIDR">
                   <el-input v-model="deployConfig.networkConfig.serviceCIDR" placeholder="10.96.0.0/12" />
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12" :md="8">
                 <el-form-item label="DNS Service IP" prop="dnsServiceIP">
                   <el-input v-model="deployConfig.networkConfig.dnsServiceIP" placeholder="10.96.0.10" />
                 </el-form-item>
@@ -468,7 +468,7 @@
             </el-row>
 
             <el-row :gutter="20">
-              <el-col :span="8">
+              <el-col :span="24">
                 <el-form-item label="集群域名" prop="clusterDomain">
                   <el-input v-model="deployConfig.networkConfig.clusterDomain" placeholder="cluster.local" />
                 </el-form-item>
@@ -479,12 +479,12 @@
             <template v-if="deployConfig.networkConfig.networkPlugin === 'calico'">
               <el-divider content-position="left">Calico 参数</el-divider>
               <el-row :gutter="20">
-                <el-col :span="8">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="VXLAN 模式">
                     <el-switch v-model="calicoConfigModel.vxlanMode" />
                   </el-form-item>
                 </el-col>
-                <el-col :span="8">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="MTU 值">
                     <el-input-number
                       v-model="calicoConfigModel.mtu"
@@ -501,7 +501,7 @@
             <template v-if="deployConfig.networkConfig.networkPlugin === 'flannel'">
               <el-divider content-position="left">Flannel 参数</el-divider>
               <el-row :gutter="20">
-                <el-col :span="8">
+                <el-col :span="24">
                   <el-form-item label="后端类型">
                     <el-select v-model="flannelConfigModel.backend" style="width: 100%">
                       <el-option label="VXLAN" value="vxlan" />
@@ -558,12 +558,12 @@
             label-position="top"
           >
             <el-row :gutter="20">
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="默认存储类">
                   <el-switch v-model="deployConfig.storageConfig.defaultStorageClass" />
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="存储供应器">
                   <el-select
                     v-model="deployConfig.storageConfig.storageProvisioner"
@@ -581,7 +581,7 @@
             <template v-if="deployConfig.storageConfig.storageProvisioner === 'local-path'">
               <el-divider content-position="left">本地路径配置</el-divider>
               <el-row :gutter="20">
-                <el-col :span="12">
+                <el-col :span="24">
                   <el-form-item label="路径">
                     <el-input
                       v-model="localPathConfigModel.path"
@@ -618,7 +618,7 @@
                     <el-input v-model="csiConfigModel.driver" placeholder="csi.aliyun.com" />
                   </el-form-item>
                 </el-col>
-                <el-col :span="8">
+                <el-col :xs="24" :sm="12">
                   <el-form-item label="控制器数量">
                     <el-input-number
                       v-model="csiConfigModel.controllerCount"
@@ -2287,22 +2287,12 @@ const submitDeploy = async () => {
   animation: fadeIn 0.25s ease-out;
 }
 
-.step-section--basic {
-  max-width: 980px;
-}
-
 .step-section--basic :deep(.el-row) {
   row-gap: 2px;
 }
 
 .step-section--basic :deep(.el-form-item) {
   margin-bottom: 14px;
-}
-
-.step-section--basic :deep(.el-input),
-.step-section--basic :deep(.el-select),
-.step-section--basic :deep(.el-input-number) {
-  max-width: 460px;
 }
 
 @keyframes fadeIn {
