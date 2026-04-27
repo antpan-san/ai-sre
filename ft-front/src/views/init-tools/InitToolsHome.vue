@@ -588,7 +588,7 @@ onMounted(() => {
   gap: 12px;
   width: 100%;
   align-items: stretch;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .tool-card {
