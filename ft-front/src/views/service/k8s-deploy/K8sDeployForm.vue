@@ -114,7 +114,7 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
+              <el-col :xs="24" :sm="12" :md="8" :lg="4">
                 <el-form-item label="K8s 版本" prop="version" class="field-compact">
                   <el-select
                     v-model="deployConfig.clusterBasicInfo.version"
@@ -141,7 +141,7 @@
             </el-row>
 
             <el-row :gutter="16">
-              <el-col :xs="24" :sm="12" :md="8" :lg="6">
+              <el-col :xs="24" :sm="12" :md="8" :lg="4">
                 <el-form-item label="运行环境 CPU 架构" prop="cpuArch" class="field-compact">
                   <el-select
                     v-model="deployConfig.clusterBasicInfo.cpuArch"
@@ -168,20 +168,20 @@
             </el-row>
 
             <el-row :gutter="16">
-              <el-col :xs="24" :sm="12" :md="12" :lg="10">
-                <el-form-item label="内网制品地址" prop="downloadDomain" class="field-medium">
-                  <el-input
-                    v-model="deployConfig.clusterBasicInfo.downloadDomain"
-                    placeholder="留空则用 inventory 默认 download_domain"
-                    clearable
-                  />
-                </el-form-item>
-              </el-col>
               <el-col :xs="24" :sm="12" :md="8" :lg="6">
                 <el-form-item label="下载协议" prop="downloadProtocol" class="field-short">
                   <el-input
                     v-model="deployConfig.clusterBasicInfo.downloadProtocol"
                     placeholder="默认 http://"
+                    clearable
+                  />
+                </el-form-item>
+              </el-col>
+              <el-col :xs="24" :sm="24" :md="16" :lg="12">
+                <el-form-item label="内网制品地址" prop="downloadDomain" class="field-medium">
+                  <el-input
+                    v-model="deployConfig.clusterBasicInfo.downloadDomain"
+                    placeholder="留空则用 inventory 默认 download_domain"
                     clearable
                   />
                 </el-form-item>
@@ -237,7 +237,7 @@
               </span>
             </div>
           </template>
-          <div class="step-section">
+          <div class="step-section step-section--nodes">
           <el-form-item label="部署方式" class="node-mode-form-item">
             <div class="node-mode-row">
               <el-switch
@@ -249,30 +249,34 @@
               <span class="mode-hint-inline">
                 {{
                   offlineBundleMode
-                    ? '填写 IP；最后一步可生成一键命令或 zip（须满足步骤 1 中 SSH 免密说明）'
-                    : '选择执行机与各节点；须网络互通并已装 Agent'
+                    ? '离线：填写节点 IP，最后一步生成命令或 zip（需 root 免密 SSH）'
+                    : '在线：选择执行机和节点，要求网络互通且 Agent 在线'
                 }}
               </span>
             </div>
           </el-form-item>
 
           <template v-if="offlineBundleMode">
-            <el-form-item label="控制平面 IP（必填，每行一个）" required>
+            <div class="node-hosts-grid">
+            <el-form-item label="控制平面 IP（必填，每行一个）" required class="node-hosts-item">
               <el-input
                 v-model="masterHostsText"
                 type="textarea"
                 :rows="5"
                 placeholder="例如：&#10;192.168.1.10&#10;192.168.1.11"
+                class="node-hosts-input"
               />
             </el-form-item>
-            <el-form-item label="工作节点 IP（可选）">
+            <el-form-item label="工作节点 IP（可选）" class="node-hosts-item">
               <el-input
                 v-model="workerHostsText"
                 type="textarea"
                 :rows="4"
                 placeholder="每行一个 Worker IP（可包含控制平面 IP；生成 inventory 时会自动去重）"
+                class="node-hosts-input"
               />
             </el-form-item>
+            </div>
           </template>
 
           <template v-else>
@@ -281,7 +285,6 @@
                 v-model="deployConfig.nodeConfig.executorNode"
                 placeholder="选择执行部署任务的机器（需在线且已安装 Agent）"
                 clearable
-                style="width: 100%"
               >
                 <el-option
                   v-for="m in selectableExecutors"
@@ -307,25 +310,25 @@
           <el-divider content-position="left">标签与污点</el-divider>
 
           <div class="label-taint-grid">
-            <el-card class="sub-card" shadow="hover">
+            <el-card class="sub-card sub-card--compact" shadow="hover">
               <template #header>
                 <div class="sub-card-header"><span>主节点标签</span></div>
               </template>
             <LabelGroup v-model="masterLabelsModel" />
             </el-card>
-            <el-card class="sub-card" shadow="hover">
+            <el-card class="sub-card sub-card--compact" shadow="hover">
               <template #header>
                 <div class="sub-card-header"><span>主节点污点</span></div>
               </template>
             <TaintGroup v-model="masterTaintsModel" />
             </el-card>
-            <el-card class="sub-card" shadow="hover">
+            <el-card class="sub-card sub-card--compact" shadow="hover">
               <template #header>
                 <div class="sub-card-header"><span>工作节点标签</span></div>
               </template>
             <LabelGroup v-model="workerLabelsModel" />
             </el-card>
-            <el-card class="sub-card" shadow="hover">
+            <el-card class="sub-card sub-card--compact" shadow="hover">
               <template #header>
                 <div class="sub-card-header"><span>工作节点污点</span></div>
               </template>
@@ -2358,6 +2361,38 @@ const submitDeploy = async () => {
   margin-bottom: 14px;
 }
 
+.step-section--nodes .node-mode-form-item {
+  margin-bottom: 10px;
+}
+
+.node-mode-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.mode-hint-inline {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.node-hosts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+
+.node-hosts-item {
+  margin-bottom: 0;
+}
+
+.node-hosts-input :deep(.el-textarea__inner) {
+  min-height: 120px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -2368,7 +2403,7 @@ const submitDeploy = async () => {
 }
 
 .executor-select-item {
-  margin-bottom: 20px;
+  margin-bottom: 14px;
 }
 
 /* ==================== 标签/污点 网格 ==================== */
@@ -2395,6 +2430,14 @@ const submitDeploy = async () => {
 
 .sub-card:hover {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+}
+
+.sub-card--compact :deep(.el-card__body) {
+  padding: 12px;
+}
+
+.sub-card--compact :deep(.el-card__header) {
+  padding: 10px 12px;
 }
 
 .sub-card-header {
@@ -2485,6 +2528,10 @@ const submitDeploy = async () => {
   }
 
   .label-taint-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .node-hosts-grid {
     grid-template-columns: 1fr;
   }
 
