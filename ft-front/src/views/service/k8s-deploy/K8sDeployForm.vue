@@ -34,14 +34,14 @@
 
     <div class="deploy-layout">
       <main class="deploy-main">
-        <el-collapse v-model="openSections" class="deploy-config-collapse">
+        <el-collapse v-model="openSections" accordion class="deploy-config-collapse">
         <el-collapse-item name="precheck" class="deploy-config-item">
           <template #title>
             <div class="config-item-title">
               <span class="config-item-icon config-item-icon--precheck"><el-icon><CircleCheck /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">安装预检</span>
-                <span class="config-item-desc">控制机免密 SSH 与节点环境基础检查</span>
+                <span class="config-item-desc">{{ getSectionDesc('precheck', '控制机免密 SSH 与节点环境基础检查') }}</span>
               </span>
             </div>
           </template>
@@ -92,11 +92,11 @@
               <span class="config-item-icon"><el-icon><component :is="stepsMeta[0].icon" /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">{{ stepsMeta[0].title }}</span>
-                <span class="config-item-desc">{{ stepsMeta[0].desc }}</span>
+                <span class="config-item-desc">{{ getSectionDesc('basic', stepsMeta[0].desc) }}</span>
               </span>
             </div>
           </template>
-          <div class="step-section">
+          <div class="step-section step-section--basic">
           <el-divider content-position="left">基础集群信息</el-divider>
           <el-form
             ref="step1FormRef"
@@ -104,8 +104,8 @@
             :rules="step1Rules"
             label-position="top"
           >
-            <el-row :gutter="20">
-              <el-col :span="8">
+            <el-row :gutter="16">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="集群名称" prop="clusterName">
                   <el-input
                     v-model="deployConfig.clusterBasicInfo.clusterName"
@@ -114,7 +114,7 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="K8s 版本" prop="version">
                   <el-select
                     v-model="deployConfig.clusterBasicInfo.version"
@@ -131,7 +131,7 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="部署模式" prop="deployMode">
                   <el-radio-group v-model="deployConfig.clusterBasicInfo.deployMode">
                     <el-radio value="single">单节点</el-radio>
@@ -141,8 +141,8 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="20">
-              <el-col :span="8">
+            <el-row :gutter="16">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="运行环境 CPU 架构" prop="cpuArch">
                   <el-select
                     v-model="deployConfig.clusterBasicInfo.cpuArch"
@@ -154,7 +154,7 @@
                   </el-select>
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="镜像源" prop="imageSource">
                   <el-select
                     v-model="deployConfig.clusterBasicInfo.imageSource"
@@ -170,8 +170,8 @@
               </el-col>
             </el-row>
 
-            <el-row :gutter="20">
-              <el-col :span="8">
+            <el-row :gutter="16">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="内网制品地址" prop="downloadDomain">
                   <el-input
                     v-model="deployConfig.clusterBasicInfo.downloadDomain"
@@ -180,7 +180,7 @@
                   />
                 </el-form-item>
               </el-col>
-              <el-col :span="8">
+              <el-col :xs="24" :sm="12">
                 <el-form-item label="下载协议" prop="downloadProtocol">
                   <el-input
                     v-model="deployConfig.clusterBasicInfo.downloadProtocol"
@@ -236,7 +236,7 @@
               <span class="config-item-icon"><el-icon><component :is="stepsMeta[1].icon" /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">{{ stepsMeta[1].title }}</span>
-                <span class="config-item-desc">{{ stepsMeta[1].desc }}</span>
+                <span class="config-item-desc">{{ getSectionDesc('nodes', stepsMeta[1].desc) }}</span>
               </span>
             </div>
           </template>
@@ -345,7 +345,7 @@
               <span class="config-item-icon"><el-icon><component :is="stepsMeta[2].icon" /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">{{ stepsMeta[2].title }}</span>
-                <span class="config-item-desc">{{ stepsMeta[2].desc }}</span>
+                <span class="config-item-desc">{{ getSectionDesc('core', stepsMeta[2].desc) }}</span>
               </span>
             </div>
           </template>
@@ -411,7 +411,7 @@
               <span class="config-item-icon"><el-icon><component :is="stepsMeta[3].icon" /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">{{ stepsMeta[3].title }}</span>
-                <span class="config-item-desc">{{ stepsMeta[3].desc }}</span>
+                <span class="config-item-desc">{{ getSectionDesc('network', stepsMeta[3].desc) }}</span>
               </span>
             </div>
           </template>
@@ -548,7 +548,7 @@
               <span class="config-item-icon"><el-icon><component :is="stepsMeta[4].icon" /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">{{ stepsMeta[4].title }}</span>
-                <span class="config-item-desc">{{ stepsMeta[4].desc }}</span>
+                <span class="config-item-desc">{{ getSectionDesc('storage', stepsMeta[4].desc) }}</span>
               </span>
             </div>
           </template>
@@ -640,7 +640,7 @@
               <span class="config-item-icon"><el-icon><component :is="stepsMeta[5].icon" /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">{{ stepsMeta[5].title }}</span>
-                <span class="config-item-desc">{{ stepsMeta[5].desc }}</span>
+                <span class="config-item-desc">{{ getSectionDesc('advanced', stepsMeta[5].desc) }}</span>
               </span>
             </div>
           </template>
@@ -701,7 +701,7 @@
               <span class="config-item-icon"><el-icon><component :is="stepsMeta[6].icon" /></el-icon></span>
               <span class="config-item-text">
                 <span class="config-item-name">{{ stepsMeta[6].title }}</span>
-                <span class="config-item-desc">{{ stepsMeta[6].desc }}</span>
+                <span class="config-item-desc">{{ getSectionDesc('confirm', stepsMeta[6].desc) }}</span>
               </span>
             </div>
           </template>
@@ -999,12 +999,14 @@ const stepsMeta = [
 const step1FormRef = ref<FormInstance>()
 const step4FormRef = ref<FormInstance>()
 
+type SectionName = 'precheck' | 'basic' | 'nodes' | 'core' | 'network' | 'storage' | 'advanced' | 'confirm'
+
 // ---------- 状态 ----------
 const activeStep = ref(0)
 const submitting = ref(false)
 const downloadingBundle = ref(false)
 const creatingInvite = ref(false)
-const openSections = ref<string[]>(['precheck'])
+const openSections = ref<SectionName>('precheck')
 const k8sComponentCatalogLoading = ref(false)
 const k8sComponentCatalogImages = ref<
   { component: string; versionKey: string; version: string; image: string; notes: string }[]
@@ -1367,6 +1369,44 @@ const enabledComponentsText = computed(() => {
   return items.join('、')
 })
 
+const sectionSummary = computed<Record<SectionName, string>>(() => {
+  const basic = deployConfig.clusterBasicInfo
+  const node = deployConfig.nodeConfig
+  const core = deployConfig.coreComponentsConfig
+  const network = deployConfig.networkConfig
+  const storage = deployConfig.storageConfig
+  const advanced = deployConfig.advancedConfig
+  const masters = offlineBundleMode.value ? parseHostLines(masterHostsText.value).length : node.masterNodes.length
+  const workers = offlineBundleMode.value ? parseHostLines(workerHostsText.value).length : node.workerNodes.length
+  const advancedEnabled = [
+    advanced.enableNodeLocalDNS,
+    advanced.enableMetricsServer,
+    advanced.enableDashboard,
+    advanced.enablePrometheus,
+    advanced.enableIngressNginx,
+    advanced.enableHelm
+  ].filter(Boolean).length
+
+  return {
+    precheck: '已提供免密 SSH 与环境检查清单',
+    basic: `${basic.clusterName || '未命名'} · ${basic.version || '未选版本'} · ${basic.cpuArch}`,
+    nodes: offlineBundleMode.value
+      ? `离线清单：Master ${masters} 台 / Worker ${workers} 台`
+      : `在线部署：${node.executorNode ? '执行机已选' : '未选执行机'} · Master ${masters} / Worker ${workers}`,
+    core: `kube-proxy=${core.kubeProxyMode} · RBAC=${core.enableRBAC ? '开' : '关'} · 审计=${core.enableAudit ? '开' : '关'}`,
+    network: `${network.networkPlugin} · Pod ${network.podCIDR} · Svc ${network.serviceCIDR}`,
+    storage: `${storage.storageProvisioner} · 默认存储类${storage.defaultStorageClass ? '开启' : '关闭'}`,
+    advanced: `可选组件 ${advancedEnabled} 项 · Step0 ${advanced.preDeployCleanup ? '清理' : '不清理'}`,
+    confirm: lastInvite.value?.installRef
+      ? `安装引用已生成：${lastInvite.value.installRef}`
+      : '待确认后可生成一键安装命令'
+  }
+})
+
+function getSectionDesc(section: SectionName, fallback: string): string {
+  return openSections.value === section ? fallback : sectionSummary.value[section]
+}
+
 const confirmWorkerPreview = computed(() => {
   const fromCfg = deployConfig.nodeConfig.workerHosts?.length
     ? deployConfig.nodeConfig.workerHosts
@@ -1555,14 +1595,14 @@ async function validateDeployInputs(): Promise<boolean> {
     await step4FormRef.value?.validate()
   } catch {
     ElMessage.warning('请先完善基础信息与网络配置')
-    openSections.value = Array.from(new Set([...openSections.value, 'basic', 'network']))
+    openSections.value = 'basic'
     return false
   }
 
   const res = await checkClusterName({ clusterName: deployConfig.clusterBasicInfo.clusterName })
   if (!(res as any)?.isAvailable) {
     ElMessage.error('集群名称已存在，请换一个名称')
-    openSections.value = Array.from(new Set([...openSections.value, 'basic']))
+    openSections.value = 'basic'
     return false
   }
 
@@ -1573,7 +1613,7 @@ async function validateDeployInputs(): Promise<boolean> {
     deployConfig.nodeConfig.workerHosts = workers
     if (masters.length === 0) {
       ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
-      openSections.value = Array.from(new Set([...openSections.value, 'nodes']))
+      openSections.value = 'nodes'
       return false
     }
     return true
@@ -1581,12 +1621,12 @@ async function validateDeployInputs(): Promise<boolean> {
 
   if (!deployConfig.nodeConfig.executorNode) {
     ElMessage.warning('请选择执行节点（Agent 所在机器）')
-    openSections.value = Array.from(new Set([...openSections.value, 'nodes']))
+    openSections.value = 'nodes'
     return false
   }
   if (deployConfig.nodeConfig.masterNodes.length === 0) {
     ElMessage.warning('请至少选择一个 K8s 控制平面节点')
-    openSections.value = Array.from(new Set([...openSections.value, 'nodes']))
+    openSections.value = 'nodes'
     return false
   }
   return true
@@ -2245,6 +2285,24 @@ const submitDeploy = async () => {
 /* ==================== 步骤内容区域（fadeIn 动画） ==================== */
 .step-section {
   animation: fadeIn 0.25s ease-out;
+}
+
+.step-section--basic {
+  max-width: 980px;
+}
+
+.step-section--basic :deep(.el-row) {
+  row-gap: 2px;
+}
+
+.step-section--basic :deep(.el-form-item) {
+  margin-bottom: 14px;
+}
+
+.step-section--basic :deep(.el-input),
+.step-section--basic :deep(.el-select),
+.step-section--basic :deep(.el-input-number) {
+  max-width: 460px;
 }
 
 @keyframes fadeIn {
