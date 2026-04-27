@@ -2300,12 +2300,31 @@ const submitDeploy = async () => {
 .step-section :deep(.el-form-item__content > .el-input),
 .step-section :deep(.el-form-item__content > .el-select),
 .step-section :deep(.el-form-item__content > .el-input-number) {
-  width: min(100%, 360px);
+  width: min(100%, 320px);
 }
 
 /* 长文本类输入保留更宽可读区域 */
 .step-section :deep(.el-form-item__content > .el-textarea) {
-  width: min(100%, 620px);
+  width: min(100%, 560px);
+}
+
+/* 单选/多选/开关类控件不强制收窄，否则会影响可读性 */
+.step-section :deep(.el-form-item__content > .el-radio-group),
+.step-section :deep(.el-form-item__content > .el-checkbox-group),
+.step-section :deep(.el-form-item__content > .el-switch) {
+  width: auto;
+  max-width: 100%;
+}
+
+.step-section :deep(.el-form-item__label) {
+  padding-bottom: 4px;
+  font-size: 13px;
+  line-height: 1.35;
+}
+
+/* 统一每行视觉密度，避免“高低不齐” */
+.step-section :deep(.el-row) {
+  row-gap: 4px;
 }
 
 .step-section--basic :deep(.el-row) {
@@ -2416,6 +2435,12 @@ const submitDeploy = async () => {
 @media (max-width: 1200px) {
   .extra-args-grid {
     grid-template-columns: 1fr;
+  }
+
+  .step-section :deep(.el-form-item__content > .el-input),
+  .step-section :deep(.el-form-item__content > .el-select),
+  .step-section :deep(.el-form-item__content > .el-input-number) {
+    width: min(100%, 340px);
   }
 }
 
