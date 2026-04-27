@@ -158,22 +158,28 @@ type timeSyncPlaybookOpts struct {
 	SyncIntervalMin int
 }
 
+// genTimeSyncPlaybook 生成 chrony / systemd-timesyncd 的 Ansible playbook。
+//
+// 设计上**按条件 include 任务**，绝不使用 `when: "<const>" == "<const>"`
+// 这种以双引号开头的 YAML 标量——Ansible 的 YAML 解析器会把
+// 「以 " 开头」的 when 值视为单值字符串、不允许内部裸 "，导致解析器报
+// `Values starting with a quote must end with the same quote, and not contain that quote`。
+// 因此这里在 Go 端按 Tool / OnConflict 直接发出该跑的任务即可。
 func genTimeSyncPlaybook(o timeSyncPlaybookOpts) string {
 	tz := o.Timezone
 	if tz == "" {
 		tz = "Asia/Shanghai"
 	}
-
-	chronyConfBlock := fmt.Sprintf("server %s iburst prefer", o.NTPTarget)
-	if o.Fallback != "" {
-		chronyConfBlock += "\n          server " + o.Fallback + " iburst"
+	pollSec := o.SyncIntervalMin * 60
+	if pollSec <= 0 {
+		pollSec = 15 * 60
 	}
-	chronyConfBlock += "\n          makestep 1.0 3\n          rtcsync\n          driftfile /var/lib/chrony/chrony.drift\n          logdir /var/log/chrony"
 
-	masterPlaybook := ""
+	var sb strings.Builder
+	sb.WriteString("---\n")
+
 	if o.IsSelfHosted {
-		masterPlaybook = fmt.Sprintf(`
-- name: 配置 NTP 主节点（chrony 服务端）
+		sb.WriteString(fmt.Sprintf(`- name: 配置 NTP 主节点（chrony 服务端）
   hosts: ntp_master
   become: yes
   tasks:
@@ -202,83 +208,85 @@ func genTimeSyncPlaybook(o timeSyncPlaybookOpts) string {
         state: restarted
         enabled: yes
     - name: 设置时区
-      timezone: { name: %q }
-`, tz)
+      timezone: { name: %s }
+
+`, yamlDoubleQuoted(tz)))
 	}
 
-	pollSec := o.SyncIntervalMin * 60
-	if pollSec <= 0 {
-		pollSec = 15 * 60
-	}
-	clientPlaybook := fmt.Sprintf(`
-- name: 配置 NTP 客户端节点
+	sb.WriteString(`- name: 配置 NTP 客户端节点
   hosts: clients
   become: yes
   tasks:
-    - name: 安装 chrony (Debian/Ubuntu)
+`)
+
+	if o.Tool == "chrony" {
+		sb.WriteString(`    - name: 安装 chrony (Debian/Ubuntu)
       apt: { name: chrony, state: present, update_cache: yes }
-      when: ansible_os_family == "Debian" and %q == "chrony"
+      when: ansible_os_family == "Debian"
     - name: 安装 chrony (RedHat/CentOS)
       yum: { name: chrony, state: present }
-      when: ansible_os_family == "RedHat" and %q == "chrony"
-    - name: 检测现有时间同步服务
+      when: ansible_os_family == "RedHat"
+`)
+	}
+
+	if o.OnConflict == "skip" {
+		sb.WriteString(`    - name: 检测现有时间同步服务
       shell: systemctl is-active chrony chronyd ntpd systemd-timesyncd 2>/dev/null | grep -c active || true
       register: existing_ntp
       changed_when: false
     - name: 跳过（ON_CONFLICT=skip 且已有服务）
       meta: end_play
-      when: existing_ntp.stdout | int > 0 and %q == "skip"
-    - name: 配置 chrony 客户端
+      when: existing_ntp.stdout | int > 0
+`)
+	}
+
+	switch o.Tool {
+	case "chrony":
+		var conf strings.Builder
+		conf.WriteString("# Managed by ai-sre time-sync — NTP Client\n")
+		conf.WriteString(fmt.Sprintf("server %s iburst prefer\n", o.NTPTarget))
+		if o.Fallback != "" {
+			conf.WriteString(fmt.Sprintf("server %s iburst\n", o.Fallback))
+		}
+		conf.WriteString("makestep 1.0 3\nrtcsync\ndriftfile /var/lib/chrony/chrony.drift\nlogdir /var/log/chrony\n")
+		sb.WriteString(`    - name: 配置 chrony 客户端
       copy:
         dest: "{{ '/etc/chrony/chrony.conf' if ansible_os_family == 'Debian' else '/etc/chrony.conf' }}"
         content: |
-          # Managed by ai-sre time-sync — NTP Client
-          %s
-      when: %q == "chrony"
-    - name: 配置 systemd-timesyncd
-      copy:
-        dest: /etc/systemd/timesyncd.conf
-        content: |
-          [Time]
-          NTP=%s
-          %s
-          PollIntervalMinSec=%d
-      when: %q == "timesyncd"
-    - name: 启动并开机自启 chrony
+`)
+		sb.WriteString(indentBlock(conf.String(), "          "))
+		sb.WriteString(`    - name: 启动并开机自启 chrony
       service:
         name: "{{ 'chrony' if ansible_os_family == 'Debian' else 'chronyd' }}"
         state: restarted
         enabled: yes
-      when: %q == "chrony"
-    - name: 启用 systemd-timesyncd
-      shell: timedatectl set-ntp true && systemctl restart systemd-timesyncd
-      when: %q == "timesyncd"
-    - name: 设置时区
-      timezone: { name: %q }
     - name: 强制校时
       shell: chronyc makestep 2>/dev/null || true
-      when: %q == "chrony"
-`,
-		o.Tool, o.Tool, o.OnConflict,
-		chronyConfBlock,
-		o.Tool,
-		o.NTPTarget,
-		fallbackLine(o.Fallback),
-		pollSec,
-		o.Tool,
-		o.Tool, o.Tool,
-		tz,
-		o.Tool,
-	)
-
-	return "---" + masterPlaybook + clientPlaybook
-}
-
-func fallbackLine(fb string) string {
-	if strings.TrimSpace(fb) == "" {
-		return ""
+`)
+	case "timesyncd":
+		var conf strings.Builder
+		conf.WriteString("[Time]\n")
+		conf.WriteString(fmt.Sprintf("NTP=%s\n", o.NTPTarget))
+		if o.Fallback != "" {
+			conf.WriteString(fmt.Sprintf("FallbackNTP=%s\n", o.Fallback))
+		}
+		conf.WriteString(fmt.Sprintf("PollIntervalMinSec=%d\n", pollSec))
+		sb.WriteString(`    - name: 配置 systemd-timesyncd
+      copy:
+        dest: /etc/systemd/timesyncd.conf
+        content: |
+`)
+		sb.WriteString(indentBlock(conf.String(), "          "))
+		sb.WriteString(`    - name: 启用 systemd-timesyncd
+      shell: timedatectl set-ntp true && systemctl restart systemd-timesyncd
+`)
 	}
-	return "FallbackNTP=" + fb
+
+	sb.WriteString(fmt.Sprintf(`    - name: 设置时区
+      timezone: { name: %s }
+`, yamlDoubleQuoted(tz)))
+
+	return sb.String()
 }
 
 // ───────────────────────── sys-param ─────────────────────────
@@ -368,6 +376,27 @@ type sysParamPlaybookOpts struct {
 	RaiseUlimit bool
 }
 
+// yamlDoubleQuoted 把字符串包成合法的 YAML 双引号标量。
+// 仅对常用字符（字母数字 / 时区斜杠 / 点 / 减号 / 下划线）有效；如未来出现包含
+// 特殊字符的值，可在此处扩展为完整 JSON-encode。
+func yamlDoubleQuoted(s string) string {
+	return `"` + strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`) + `"`
+}
+
+// indentBlock 给文本每行添加固定缩进；末尾保留单一换行。
+func indentBlock(s, indent string) string {
+	if s == "" {
+		return ""
+	}
+	var sb strings.Builder
+	for _, line := range strings.Split(strings.TrimRight(s, "\n"), "\n") {
+		sb.WriteString(indent)
+		sb.WriteString(line)
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
 // defaultSysctlRows 与 ft-front/src/views/init-tools/InitToolsHome.vue 中
 // defaultSysParamRows() 保持一致；K8s 必填项在前。
 func defaultSysctlRows() map[string]string {
@@ -382,23 +411,28 @@ func defaultSysctlRows() map[string]string {
 	}
 }
 
+// genSysParamPlaybook 生成 sysctl + 内核模块 + ulimit + swap 的 Ansible playbook。
+//
+// 与 genTimeSyncPlaybook 一致：不使用 `when: "<const>" == "<const>"` 或 `when: %t`
+// 这种容易让 YAML 解析器解错的伪条件，而是按 OnConflict / RaiseUlimit / DisableSwap
+// 在 Go 端**条件 include 任务**。
 func genSysParamPlaybook(o sysParamPlaybookOpts) string {
 	keys := make([]string, 0, len(o.Rows))
 	for k := range o.Rows {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
-	var sb strings.Builder
+	var sysctl strings.Builder
+	sysctl.WriteString("# Managed by ai-sre sys-param init tool\n")
 	for _, k := range keys {
-		sb.WriteString("          ")
-		sb.WriteString(k)
-		sb.WriteString(" = ")
-		sb.WriteString(o.Rows[k])
-		sb.WriteString("\n")
+		sysctl.WriteString(k)
+		sysctl.WriteString(" = ")
+		sysctl.WriteString(o.Rows[k])
+		sysctl.WriteByte('\n')
 	}
-	sysctlBlock := strings.TrimRight(sb.String(), "\n")
 
-	return fmt.Sprintf(`---
+	var sb strings.Builder
+	sb.WriteString(`---
 - name: 系统参数优化 (sysctl + ulimit + 内核模块 + swap)
   hosts: targets
   become: yes
@@ -410,10 +444,16 @@ func genSysParamPlaybook(o sysParamPlaybookOpts) string {
     - name: 检测 sysctl drop-in 是否存在
       stat: { path: "{{ sysctl_file }}" }
       register: sysctl_stat
-    - name: 跳过（已存在且 on_conflict=skip）
+`)
+
+	if o.OnConflict == "skip" {
+		sb.WriteString(`    - name: 跳过（已存在且 on_conflict=skip）
       meta: end_play
-      when: sysctl_stat.stat.exists and %q == "skip"
-    - name: 加载内核模块 br_netfilter
+      when: sysctl_stat.stat.exists
+`)
+	}
+
+	sb.WriteString(`    - name: 加载内核模块 br_netfilter
       modprobe: { name: br_netfilter, state: present }
     - name: 加载内核模块 overlay
       modprobe: { name: overlay, state: present }
@@ -425,11 +465,14 @@ func genSysParamPlaybook(o sysParamPlaybookOpts) string {
       copy:
         dest: "{{ sysctl_file }}"
         content: |
-          # Managed by ai-sre sys-param init tool
-%s
-    - name: 应用 sysctl
+`)
+	sb.WriteString(indentBlock(sysctl.String(), "          "))
+	sb.WriteString(`    - name: 应用 sysctl
       command: sysctl --system
-    - name: 写入 ulimit 限制
+`)
+
+	if o.RaiseUlimit {
+		sb.WriteString(`    - name: 写入 ulimit 限制
       copy:
         dest: "{{ limits_file }}"
         content: |
@@ -438,18 +481,22 @@ func genSysParamPlaybook(o sysParamPlaybookOpts) string {
           *    hard nofile 655350
           root soft nofile 655350
           root hard nofile 655350
-      when: %t
-    - name: 关闭 swap（立即）
+`)
+	}
+
+	if o.DisableSwap {
+		sb.WriteString(`    - name: 关闭 swap（立即）
       command: swapoff -a
       ignore_errors: yes
-      when: %t
     - name: 注释 fstab 中的 swap 项
       replace:
         path: /etc/fstab
         regexp: '^([^#].*\sswap\s.*)'
         replace: '# \1'
-      when: %t
-`, o.OnConflict, sysctlBlock, o.RaiseUlimit, o.DisableSwap, o.DisableSwap)
+`)
+	}
+
+	return sb.String()
 }
 
 // ───────────────────────── 共用辅助 ─────────────────────────
@@ -529,6 +576,13 @@ func runAnsiblePlaybook(inventory, playbook string, autoInstall bool) error {
 	fmt.Fprintln(os.Stderr, "==> 目标 inventory:")
 	fmt.Fprintln(os.Stderr, strings.TrimRight(inventory, "\n"))
 	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "==> Playbook YAML 语法预检 (--syntax-check)...")
+	check := exec.Command("ansible-playbook", "-i", hostsPath, playPath, "--syntax-check")
+	check.Stdout = os.Stderr
+	check.Stderr = os.Stderr
+	if err := check.Run(); err != nil {
+		return fmt.Errorf("ansible-playbook --syntax-check 失败: %w（playbook 路径: %s；这通常是 ai-sre 模板 bug，请反馈）", err, playPath)
+	}
 	fmt.Fprintln(os.Stderr, "==> 开始执行 Ansible Playbook...")
 	c := exec.Command("ansible-playbook", "-i", hostsPath, playPath, "--timeout", "60")
 	c.Stdout = os.Stdout
