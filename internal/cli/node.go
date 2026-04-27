@@ -126,6 +126,9 @@ func nodeTuneTimeSyncCmd() *cobra.Command {
 				}
 			}
 			fmt.Fprintf(os.Stderr, "==> ai-sre 时间同步 | %s | 节点: %s\n", modeDesc, nodeDesc)
+			if len(clientIPs) > 0 {
+				fmt.Fprintf(os.Stderr, "    将变更: %s（如需顺带配置当前控制机，请把它的 IP 加进 --clients）\n", strings.Join(clientIPs, ", "))
+			}
 
 			if dryRun {
 				printDryRun(inventory, playbook)
@@ -219,6 +222,10 @@ func genTimeSyncPlaybook(o timeSyncPlaybookOpts) string {
   tasks:
 `)
 
+	sb.WriteString(fmt.Sprintf(`    - name: 设置时区（始终先于 NTP 处理执行）
+      timezone: { name: %s }
+`, yamlDoubleQuoted(tz)))
+
 	if o.Tool == "chrony" {
 		sb.WriteString(`    - name: 安装 chrony (Debian/Ubuntu)
       apt: { name: chrony, state: present, update_cache: yes }
@@ -281,10 +288,6 @@ func genTimeSyncPlaybook(o timeSyncPlaybookOpts) string {
       shell: timedatectl set-ntp true && systemctl restart systemd-timesyncd
 `)
 	}
-
-	sb.WriteString(fmt.Sprintf(`    - name: 设置时区
-      timezone: { name: %s }
-`, yamlDoubleQuoted(tz)))
 
 	return sb.String()
 }

@@ -4,7 +4,7 @@
     - Tab 1: Ansible 脚本（始终可直接执行）— 下载 / 复制 / 在控制机上 bash 执行
     - Tab 2: curl 一键 — roadmap，需后端 /ft-api/api/init-tools/scripts/<name>.sh 接口
     - Tab 3: ai-sre CLI — 是否可执行由 bundle.aiSreCommandExecutable 决定：
-        time-sync / sys-param 已在 ai-sre 中实现（>=0.4.6），可直接 sudo bash 执行；
+        time-sync / sys-param 已在 ai-sre 中实现（>=0.4.7），可直接 sudo bash 执行；
         security / disk 仍是 roadmap 占位。
     底部「复制 / 下载」按钮跟随当前 Tab；roadmap Tab 上禁用「下载」、并标注复制内容暂不可执行。
   -->
@@ -32,7 +32,7 @@
             未填写节点 IP 时，Ansible 仅对<code>localhost</code>执行（即控制机本身）。
             脚本已内置 Ansible 自动安装，目标节点须允许控制机 <strong>root 免密 SSH</strong>。
             <strong>「Ansible 执行脚本」</strong> 始终可执行；
-            <strong>「ai-sre CLI」</strong>当此卡片在 ai-sre 中已实现时（time-sync / sys-param ≥ 0.4.6）也可 <code>sudo bash</code> 直接运行，
+            <strong>「ai-sre CLI」</strong>当此卡片在 ai-sre 中已实现时（time-sync / sys-param ≥ 0.4.7）也可 <code>sudo bash</code> 直接运行，
             其它情况（curl 一键 / security / disk）仍是 roadmap 预览。
           </span>
         </template>
@@ -80,7 +80,7 @@
             type="success"
             :closable="false"
             show-icon
-            title="ai-sre CLI 已实现（>=0.4.6）"
+            title="ai-sre CLI 已实现（>=0.4.7）"
             :description="cliReadyHint"
             class="cli-roadmap"
           />
@@ -156,7 +156,7 @@ const cliRoadmapHint =
   '复制下面命令直接在节点运行会得到 unknown command 错误。' +
   '当前请使用「Ansible 执行脚本」Tab；ai-sre 自动升级（OPSFLEET_NO_AUTO_UPGRADE 未设置时）会拉取最新版本，但本卡片对应子命令在新版本实现前不可用。'
 const cliReadyHint =
-  'ai-sre 0.4.6 起已内置 time-sync / sys-param 并修正 playbook YAML 解析问题（执行前还会跑 ansible-playbook --syntax-check）。低版本节点上首次执行命令会自动升级到最新版（OPSFLEET_NO_AUTO_UPGRADE 未设置时）。' +
+  'ai-sre 0.4.7 起已内置 time-sync / sys-param 并修正 playbook YAML 解析与「skip 误跳时区」问题；time-sync 只对 --clients 列表的节点动手，不会自动包括跑 ai-sre 的本机；执行前还会跑 ansible-playbook --syntax-check。低版本节点上首次执行命令会自动升级到最新版（OPSFLEET_NO_AUTO_UPGRADE 未设置时）。' +
   '本机用 sudo 执行；未填节点 IP 时仅对控制机 localhost 执行；填节点 IP 时控制机须能 root 免密 SSH 到目标节点。'
 
 interface ActivePayload {
