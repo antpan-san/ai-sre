@@ -134,22 +134,27 @@
         <!-- 面包屑导航 -->
         <div class="breadcrumb-container">
           <el-breadcrumb separator="/" class="custom-breadcrumb">
-            <el-breadcrumb-item :to="{ path: '/' }" class="breadcrumb-item">
-              <el-icon class="breadcrumb-icon"><House /></el-icon>
-              <span>OpsFleetPilot</span>
-            </el-breadcrumb-item>
-            <el-breadcrumb-item
-              v-for="(routeItem, index) in breadcrumbItems"
-              :key="index"
-              :to="{ path: routeItem.path }"
-              class="breadcrumb-item"
-              :class="{ 'last-item': index === breadcrumbItems.length - 1 }"
-            >
-              <el-icon v-if="getRouteIcon(routeItem.path)" class="breadcrumb-icon">
-                <component :is="getRouteIcon(routeItem.path)" />
-              </el-icon>
-              <span>{{ routeItem.meta.title }}</span>
-            </el-breadcrumb-item>
+            <template v-for="item in breadcrumbItems" :key="item.key">
+              <el-breadcrumb-item
+                v-if="item.to && !item.current"
+                :to="{ path: item.to }"
+                class="breadcrumb-item"
+              >
+                <el-icon v-if="item.icon" class="breadcrumb-icon">
+                  <component :is="item.icon" />
+                </el-icon>
+                <span>{{ item.title }}</span>
+              </el-breadcrumb-item>
+              <el-breadcrumb-item
+                v-else
+                class="breadcrumb-item breadcrumb-item--current"
+              >
+                <el-icon v-if="item.icon" class="breadcrumb-icon">
+                  <component :is="item.icon" />
+                </el-icon>
+                <span>{{ item.title }}</span>
+              </el-breadcrumb-item>
+            </template>
           </el-breadcrumb>
         </div>
         <router-view />
@@ -162,14 +167,15 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
+import type { Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import type { RouteLocationMatched } from 'vue-router'
 import {
   User,
   SwitchButton,
   ArrowDown,
   PieChart,
   Monitor,
-  House,
   Management,
   Tools,
   Lock,
@@ -181,12 +187,24 @@ import {
   Link,
   Download
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
 import { wsService } from '../../utils/websocket'
 import { useMachineStore } from '../../stores/machine'
 
-// 路由路径到图标的映射
-const routeIconMap: Record<string, any> = {
+type BreadcrumbMetaItem = {
+  title: string
+  path?: string
+}
+
+type BreadcrumbItem = {
+  key: string
+  title: string
+  to?: string
+  icon?: Component
+  current: boolean
+}
+
+// 路由路径到图标的映射：仅用于面包屑视觉识别，路由层仍是标题的单一来源。
+const routeIconMap: Record<string, Component> = {
   '/dashboard': PieChart,
   '/service': Box,
   '/service/deploy': Operation,
@@ -199,6 +217,17 @@ const routeIconMap: Record<string, any> = {
   '/security-audit': Lock,
   '/advanced': DocumentCopy,
   '/init-tools': Tools
+}
+
+const sectionDefaultPath: Record<string, string> = {
+  '/service': '/service/deploy',
+  '/proxy': '/proxy/config',
+  '/monitoring': '/monitoring/prometheus',
+  '/job': '/job/center',
+  '/security-audit': '/security-audit/operation-logs',
+  '/advanced': '/advanced/backup-restore',
+  '/user': '/user/list',
+  '/init-tools': '/init-tools'
 }
 
 const route = useRoute()
@@ -271,7 +300,8 @@ const activeMenu = computed(() => {
 })
 
 // 获取路由对应的图标组件
-const getRouteIcon = (path: string): any => {
+const getRouteIcon = (path?: string): Component | undefined => {
+  if (!path) return undefined
   // 精确匹配
   if (routeIconMap[path]) {
     return routeIconMap[path]
@@ -284,68 +314,59 @@ const getRouteIcon = (path: string): any => {
   }
   
   // 默认不显示图标
-  return null
+  return undefined
 }
 
-// 计算面包屑项
-const breadcrumbItems = computed(() => {
-  // 定义面包屑项的类型
-  interface BreadcrumbItem {
-    path: string
-    meta: { title: string; [key: string]: any }
-  }
-  
-  // 获取当前路由的所有匹配项，过滤掉Login页面的路由
-  const matchedRoutes = route.matched.filter(routeItem => 
-    routeItem.name !== 'Login' && routeItem.meta && typeof routeItem.meta.title === 'string'
-  )
-  
-  const breadcrumbs: BreadcrumbItem[] = []
+function titleOfRoute(routeItem: RouteLocationMatched): string | undefined {
+  const title = routeItem.meta?.breadcrumbTitle ?? routeItem.meta?.title
+  return typeof title === 'string' && title.trim() ? title.trim() : undefined
+}
 
-  for (let i = 0; i < matchedRoutes.length; i++) {
-    const routeItem = matchedRoutes[i]
-    
-    // 确保routeItem存在
-    if (!routeItem) continue
-    
-    // 如果是根路径，跳过
-    if (routeItem.path === '/') {
-      continue
-    }
-    
-    // 构建正确的路径
-    let currentPath = ''
-    if (routeItem.path.startsWith('/')) {
-      currentPath = routeItem.path
-    } else {
-      // 这是一个子路由，使用完整路径
-      currentPath = route.path
-    }
-    
-    // 确保路由有标题
-    if (routeItem.meta && typeof routeItem.meta.title === 'string') {
-      // 如果是当前选中的路由，显示它
-      if (i === matchedRoutes.length - 1) {
-        // 检查当前标题是否与前一个标题重复
-        const lastBreadcrumb = breadcrumbs[breadcrumbs.length - 1]
-        if (breadcrumbs.length === 0 || routeItem.meta.title !== lastBreadcrumb?.meta.title) {
-          breadcrumbs.push({
-            path: currentPath,
-            meta: { title: routeItem.meta.title }
-          })
-        }
+function pathOfRoute(routeItem: RouteLocationMatched): string | undefined {
+  const path = routeItem.path
+  if (!path || path === '/' || path.includes(':')) return undefined
+  return sectionDefaultPath[path] ?? path
+}
+
+function pushBreadcrumb(items: BreadcrumbItem[], title: string, to?: string): void {
+  const last = items[items.length - 1]
+  if (last?.title === title) return
+  items.push({
+    key: `${to ?? title}-${items.length}`,
+    title,
+    to,
+    icon: getRouteIcon(to),
+    current: false
+  })
+}
+
+// 计算面包屑项：优先使用路由 meta.breadcrumb，兜底使用 matched 路由。
+const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
+  const items: BreadcrumbItem[] = []
+
+  const explicitBreadcrumb = route.meta.breadcrumb as BreadcrumbMetaItem[] | undefined
+  if (Array.isArray(explicitBreadcrumb) && explicitBreadcrumb.length > 0) {
+    explicitBreadcrumb.forEach(item => {
+      if (item.title?.trim()) {
+        pushBreadcrumb(items, item.title.trim(), item.path)
       }
-      // 如果是一级菜单且面包屑还没有任何项，显示它
-      else if (i === 0 && breadcrumbs.length === 0) {
-        breadcrumbs.push({
-          path: currentPath,
-          meta: { title: routeItem.meta.title }
-        })
-      }
-    }
+    })
+  } else {
+    route.matched
+      .filter(routeItem => routeItem.name !== 'Login')
+      .forEach(routeItem => {
+        const title = titleOfRoute(routeItem)
+        if (!title) return
+        pushBreadcrumb(items, title, pathOfRoute(routeItem))
+      })
   }
 
-  return breadcrumbs
+  const last = items[items.length - 1]
+  if (last) {
+    last.current = true
+    last.to = undefined
+  }
+  return items
 })
 
 // 处理菜单选择
@@ -515,8 +536,8 @@ const handleLogout = () => {
 
 /* 面包屑 */
 .breadcrumb-container {
-  margin-bottom: 16px;
-  padding: 4px 0;
+  margin-bottom: 14px;
+  padding: 2px 0 10px;
   border-bottom: 1px solid #e5e7eb;
   height: auto;
   line-height: 1.5;
@@ -526,109 +547,39 @@ const handleLogout = () => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  font-size: 14px;
-  color: #666;
+  gap: 2px 0;
+  font-size: 13px;
+  color: #64748b;
 }
 
 .breadcrumb-item {
   display: flex;
   align-items: center;
-  cursor: pointer;
-  padding: 2px 0;
-  border-radius: 4px;
-  transition: all 0.3s ease;
-  animation: breadcrumbSlideIn 0.3s ease forwards;
-  opacity: 0;
-  transform: translateX(-10px);
-}
-
-.breadcrumb-item:nth-child(1) {
-  animation-delay: 0.05s;
-}
-
-.breadcrumb-item:nth-child(2) {
-  animation-delay: 0.1s;
-}
-
-.breadcrumb-item:nth-child(3) {
-  animation-delay: 0.15s;
-}
-
-.breadcrumb-item:nth-child(4) {
-  animation-delay: 0.2s;
-}
-
-.breadcrumb-item:nth-child(5) {
-  animation-delay: 0.25s;
-}
-
-.breadcrumb-item:nth-child(6) {
-  animation-delay: 0.3s;
+  padding: 2px 1px;
+  border-radius: 6px;
+  transition: color 0.16s ease, background-color 0.16s ease;
 }
 
 .breadcrumb-item:hover {
-  background-color: rgba(30, 64, 175, 0.05);
-  color: #1E40AF;
-  transform: translateY(-1px);
+  color: var(--el-color-primary);
 }
 
-.breadcrumb-item.last-item {
-  font-weight: 500;
-  color: #1E40AF;
+.breadcrumb-item--current {
+  color: var(--el-text-color-primary);
+  font-weight: 600;
+  cursor: default;
 }
 
 .breadcrumb-icon {
-  margin-right: 3px;
-  margin-left: 2px;
+  margin-right: 4px;
   font-size: 14px;
-  color: #909399;
-  transition: all 0.3s ease;
+  color: currentColor;
 }
 
-.breadcrumb-item:hover .breadcrumb-icon {
-  color: #1E40AF;
-  transform: scale(1.1);
-}
-
-/* 优化分隔符样式 */
-.el-breadcrumb__separator {
-  margin: 0;
-  padding: 0 4px;
-  color: #909399;
-  font-size: 12px;
-  transition: color 0.3s ease;
-}
-
-.breadcrumb-item:hover + .el-breadcrumb__separator {
-  color: #1E40AF;
-}
-
-/* 动画关键帧 */
-@keyframes breadcrumbSlideIn {
-  from {
-    opacity: 0;
-    transform: translateX(-10px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-@keyframes breadcrumbLastItemIn {
-  from {
-    opacity: 0;
-    transform: translateX(-10px) scale(0.9);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0) scale(1);
-  }
-}
-
-/* 激活状态动画 */
-.breadcrumb-item.last-item {
-  animation: breadcrumbLastItemIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+.custom-breadcrumb :deep(.el-breadcrumb__separator) {
+  margin: 0 7px;
+  color: #cbd5e1;
+  font-weight: 500;
 }
 
 /* 主内容 */
@@ -644,17 +595,6 @@ const handleLogout = () => {
   width: 100%;
   display: flex;
   flex-direction: column;
-}
-
-/* 优化面包屑样式 */
-.el-breadcrumb {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.el-breadcrumb__item:last-child {
-  color: #1E40AF;
-  font-weight: 500;
 }
 
 /* 优化子菜单样式 */

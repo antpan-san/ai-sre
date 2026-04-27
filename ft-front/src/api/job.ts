@@ -15,7 +15,7 @@ export const getAvailableMachines = (): Promise<Machine[]> => {
  * @returns 执行结果
  */
 export const executeCommand = (data: {
-  machineIds: number[]
+  machine_ids: string[]
   command: string
   timeout?: number
 }): Promise<{ jobId: string }> => {

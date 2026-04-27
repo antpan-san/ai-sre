@@ -45,7 +45,7 @@ const routes: Array<RouteRecordRaw> = [
     path: '/service',
     name: 'Service',
     component: () => import('../components/layout/MainLayout.vue'),
-    meta: { title: '服务管理', requireAuth: true, roles: ['admin'] },
+    meta: { title: '服务与交付', requireAuth: true, roles: ['admin'] },
     children: [
       {
         path: 'deploy',
@@ -57,25 +57,42 @@ const routes: Array<RouteRecordRaw> = [
         path: 'k8s-deploy',
         name: 'K8sDeploy',
         component: () => import('../views/service/k8s-deploy/K8sDeployForm.vue'),
-        meta: { title: 'Kubernetes部署', requireAuth: true, roles: ['admin'] }
+        meta: {
+          title: 'Kubernetes 部署',
+          requireAuth: true,
+          roles: ['admin'],
+          breadcrumb: [
+            { title: '服务与交付', path: '/service/deploy' },
+            { title: 'Kubernetes 部署', path: '/service/k8s-deploy' }
+          ]
+        }
       },
       {
         path: 'k8s-deploy/progress',
         name: 'K8sDeployProgress',
         component: () => import('../views/service/k8s-deploy/K8sDeployProgress.vue'),
-        meta: { title: 'Kubernetes部署进度', requireAuth: true, roles: ['admin'] }
+        meta: {
+          title: 'Kubernetes 部署进度',
+          requireAuth: true,
+          roles: ['admin'],
+          breadcrumb: [
+            { title: '服务与交付', path: '/service/deploy' },
+            { title: 'Kubernetes 部署', path: '/service/k8s-deploy' },
+            { title: '部署进度' }
+          ]
+        }
       },
       {
         path: 'k8s-mirror',
         name: 'K8sMirrorCatalog',
         component: () => import('../views/service/k8s-mirror/K8sMirrorCatalog.vue'),
-        meta: { title: 'K8s制品镜像', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'K8s 制品镜像', requireAuth: true, roles: ['admin'] }
       },
       {
         path: 'k8s/clusters',
         name: 'K8sClusterList',
         component: () => import('../views/service/k8s-deploy/K8sClusterList.vue'),
-        meta: { title: 'Kubernetes集群列表', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'Kubernetes 集群列表', requireAuth: true, roles: ['admin'] }
       },
       {
         path: 'linux',

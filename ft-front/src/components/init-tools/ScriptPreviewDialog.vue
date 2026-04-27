@@ -11,7 +11,7 @@
     :title="title"
     width="780px"
     :close-on-click-modal="false"
-    @update:model-value="(v) => emit('update:modelValue', v)"
+    @update:model-value="(v: boolean) => emit('update:modelValue', v)"
   >
     <div v-if="bundle" class="script-dialog">
       <el-alert

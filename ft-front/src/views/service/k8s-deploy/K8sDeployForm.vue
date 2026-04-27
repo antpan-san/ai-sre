@@ -1,67 +1,74 @@
 <template>
-  <div class="k8s-deploy-form page-shell page-shell--wizard">
+  <div class="k8s-deploy-form page-shell">
     <header class="page-header">
       <div class="page-header-inner">
-        <span class="page-kicker">Kubernetes</span>
-        <h2 class="page-title">部署 Kubernetes 集群</h2>
-        <p class="page-desc">
-          离线：固定 curl 安装 ai-sre、生成集群命令；在线：Agent 执行。
-        </p>
+        <div class="page-header-copy">
+          <span class="page-kicker">Kubernetes</span>
+          <h2 class="page-title">部署 Kubernetes 集群</h2>
+          <p class="page-desc">
+            按信息类别展开配置，不必按步骤线性跳转；离线生成命令或 zip，在线由 Agent 执行。
+          </p>
+        </div>
+        <div class="install-ai-sre-card">
+          <div class="install-ai-sre-card__head">
+            <div>
+              <h3>安装 ai-sre</h3>
+              <p>控制机诊断、清理与离线安装工具</p>
+            </div>
+          </div>
+          <div
+            class="install-command-copy"
+            role="button"
+            tabindex="0"
+            title="点击复制安装命令"
+            @click="copyInstallAiSreCurl"
+            @keyup.enter="copyInstallAiSreCurl"
+            @keyup.space="copyInstallAiSreCurl"
+          >
+            <code>{{ installAiSreCurlCommand }}</code>
+            <span class="install-command-copy__hint">点击复制</span>
+          </div>
+        </div>
       </div>
     </header>
 
-    <!-- 步骤条（简洁横条，减少视觉噪音） -->
-    <el-steps
-      :active="activeStep"
-      class="deploy-steps"
-      align-center
-      finish-status="success"
-      simple
-    >
-      <el-step v-for="(s, i) in stepsMeta" :key="i" :title="s.title" :icon="s.icon" />
-    </el-steps>
-
-    <!-- ==================== 步骤内容 ==================== -->
-    <div class="step-card">
-      <!-- 步骤标题区域（固定风格） -->
-      <div class="step-card-header">
-        <div class="step-card-indicator">{{ activeStep + 1 }}</div>
-        <div class="step-card-meta">
-          <h3 class="step-card-title">{{ stepsMeta[activeStep].title }}</h3>
-          <p class="step-card-desc">{{ stepsMeta[activeStep].desc }}</p>
-        </div>
-      </div>
-
-      <div class="step-card-body">
-        <!-- ========== 步骤 1: 基础集群信息 ========== -->
-        <div v-show="activeStep === 0" class="step-section">
-          <el-collapse v-model="stepAuxOpen" class="step-aux-collapse">
-            <el-collapse-item name="ssh" title="离线安装必读：控制机须能免密 SSH 各节点 root（展开查看操作）">
+    <div class="deploy-layout">
+      <main class="deploy-main">
+        <el-collapse v-model="openSections" class="deploy-config-collapse">
+        <el-collapse-item name="precheck" class="deploy-config-item">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon config-item-icon--precheck"><el-icon><CircleCheck /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">安装预检</span>
+                <span class="config-item-desc">控制机免密 SSH 与节点环境基础检查</span>
+              </span>
+            </div>
+          </template>
+          <div class="install-precheck">
+            <section class="precheck-block">
+              <div class="precheck-block__head">
+                <h4>离线安装必读</h4>
+                <span>控制机须能免密 SSH 各节点 root</span>
+              </div>
               <div class="k8s-prereq-body">
-                <p class="k8s-prereq-lead">
-                  <code>install.sh</code> 在<strong>你执行命令的 Ubuntu 机</strong>上跑 Ansible，并以 <strong>root</strong> 连所有节点 IP。若报
-                  <code>Permission denied</code>，先完成下列步骤。
-                </p>
+                <p class="k8s-prereq-lead">离线安装由控制机执行 Ansible，控制机必须能以 <strong>root</strong> 免密连接所有节点。</p>
                 <ol class="k8s-prereq-ol">
-                  <li>
-                    控制机：<code>ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519</code>（若已有密钥可跳过）
-                  </li>
+                  <li>控制机：<code>ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519</code>（若已有密钥可跳过）</li>
                   <li>对每个节点：<code>ssh-copy-id -i ~/.ssh/id_ed25519.pub root@&lt;IP&gt;</code></li>
                   <li>验证：<code>ssh root@&lt;IP&gt;</code> 无密码</li>
                 </ol>
-                <p class="k8s-prereq-muted">
-                  脚本会另建 <code>ansible</code> 用户与密钥；清单为 <code>ansible_user=root</code>，不支持交互式密码。
-                </p>
+                <p class="k8s-prereq-muted">不支持交互式密码；请先完成免密 SSH 再生成安装命令。</p>
               </div>
-            </el-collapse-item>
-            <el-collapse-item
-              name="env"
-              title="环境预检（务必在点击「开始部署」前完成，否则 etcd / calico-node / coredns 可能反复重启）"
-            >
+            </section>
+
+            <section class="precheck-block">
+              <div class="precheck-block__head">
+                <h4>环境预检</h4>
+                <span>建议在生成命令或开始部署前完成</span>
+              </div>
               <div class="k8s-prereq-body">
-                <p class="k8s-prereq-lead">
-                  这些预检项来自真实现场踩坑（尤其在 VirtualBox / 嵌套虚拟化 / ARM64 实验机上）。安装完成后若发现 <code>calico-node</code>、<code>coredns</code> 反复 <code>SandboxChanged</code> 或被 <code>Killing</code>，几乎都是以下某一项未满足。若无法自行判断，安装后可在任一 master 上运行 <code>sudo ai-sre k8s diagnose</code> 自动识别。
-                </p>
+                <p class="k8s-prereq-lead">建议先确认下列项目，避免安装后出现 etcd 慢、CNI 抖动或 CoreDNS 反复重启。需要自动诊断时可在 master 上执行 <code>sudo ai-sre k8s diagnose</code>。</p>
                 <el-table :data="preflightRows" size="small" class="k8s-preflight-table" border>
                   <el-table-column prop="item" label="检查项" min-width="170" />
                   <el-table-column prop="why" label="不满足时的症状" min-width="240" />
@@ -72,81 +79,24 @@
                   </el-table-column>
                   <el-table-column prop="expected" label="期望值" min-width="170" />
                 </el-table>
-                <p class="k8s-prereq-muted">
-                  补充：节点间时钟偏差须 &lt; 1s；若为虚拟机，建议先让 <code>chrony</code>/<code>systemd-timesyncd</code> 同步完成再启动 <code>containerd</code>/<code>kubelet</code>（本仓库 <code>install.sh</code> 会在安装前等待一次时钟稳定）。
-                </p>
+                <p class="k8s-prereq-muted">节点间时钟偏差建议 &lt; 1s；虚拟机环境请先完成 NTP 同步。</p>
               </div>
-            </el-collapse-item>
-            <el-collapse-item
-              :title="`部署记录（${k8sDeployStore.deployRecords.length} 条）`"
-              name="records"
-            >
-              <div class="deploy-records-inner">
-                <div class="deploy-records-header">
-                  <el-button type="primary" link size="small" :loading="k8sDeployStore.loadingRecords" @click="k8sDeployStore.fetchDeployRecords">
-                    刷新
-                  </el-button>
-                </div>
-                <el-table
-                  :data="k8sDeployStore.deployRecords"
-                  stripe
-                  size="small"
-                  max-height="200"
-                  class="deploy-records-table"
-                >
-                  <el-table-column prop="clusterName" label="集群" min-width="100" show-overflow-tooltip />
-                  <el-table-column prop="status" label="状态" width="80" align="center">
-                    <template #default="{ row }">
-                      <el-tag
-                        :type="row.status === 'success' ? 'success' : row.status === 'failed' ? 'danger' : row.status === 'running' || row.status === 'pending' ? 'warning' : 'info'"
-                        size="small"
-                      >
-                        {{ statusLabel(row.status) }}
-                      </el-tag>
-                    </template>
-                  </el-table-column>
-                  <el-table-column prop="progress" label="进度" width="72" align="center">
-                    <template #default="{ row }">{{ row.progress }}%</template>
-                  </el-table-column>
-                  <el-table-column prop="createdAt" label="时间" width="140">
-                    <template #default="{ row }">{{ formatRecordTime(row.createdAt) }}</template>
-                  </el-table-column>
-                  <el-table-column label="" width="64" align="center" fixed="right">
-                    <template #default="{ row }">
-                      <el-button type="primary" link size="small" @click="goToProgress(row.deployId)">查看</el-button>
-                    </template>
-                  </el-table-column>
-                </el-table>
-                <div v-if="k8sDeployStore.deployRecords.length === 0 && !k8sDeployStore.loadingRecords" class="deploy-records-empty">
-                  暂无记录
-                </div>
-              </div>
-            </el-collapse-item>
-          </el-collapse>
-
-          <!-- 正在部署：通过 WS 实时展示当前进行中的部署 -->
-          <div v-if="runningDeploy" class="deploy-status-block">
-            <div class="deploy-status-header">
-              <span class="deploy-status-title">正在部署</span>
-              <el-tag type="warning" size="small">进行中</el-tag>
-              <el-button type="primary" link size="small" @click="goToProgress(runningDeploy.deployId)">
-                查看详情
-              </el-button>
-            </div>
-            <div class="deploy-status-body">
-              <div class="deploy-status-meta">
-                <span>{{ runningDeploy.clusterName }}</span>
-                <span class="deploy-status-step">{{ runningDeploy.currentStep || '准备中...' }}</span>
-              </div>
-              <el-progress
-                :percentage="runningDeploy.progress"
-                :stroke-width="10"
-                status=""
-              />
-            </div>
+            </section>
           </div>
+        </el-collapse-item>
 
-          <!-- 部署记录：与机器管理同源，展示历史与状态 -->
+        <!-- ========== 步骤 1: 基础集群信息 ========== -->
+        <el-collapse-item name="basic" class="deploy-config-item">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon"><el-icon><component :is="stepsMeta[0].icon" /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">{{ stepsMeta[0].title }}</span>
+                <span class="config-item-desc">{{ stepsMeta[0].desc }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section">
           <el-divider content-position="left">基础集群信息</el-divider>
           <el-form
             ref="step1FormRef"
@@ -276,10 +226,21 @@
               </el-row>
             </template>
           </el-form>
-        </div>
+          </div>
+        </el-collapse-item>
 
         <!-- ========== 步骤 2: 节点配置 ========== -->
-        <div v-show="activeStep === 1" class="step-section" v-loading="activeStep === 1 && machineStore.loading">
+        <el-collapse-item name="nodes" class="deploy-config-item" v-loading="machineStore.loading">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon"><el-icon><component :is="stepsMeta[1].icon" /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">{{ stepsMeta[1].title }}</span>
+                <span class="config-item-desc">{{ stepsMeta[1].desc }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section">
           <el-form-item label="部署方式" class="node-mode-form-item">
             <div class="node-mode-row">
               <el-switch
@@ -353,33 +314,43 @@
               <template #header>
                 <div class="sub-card-header"><span>主节点标签</span></div>
               </template>
-              <LabelGroup v-model="deployConfig.nodeConfig.masterLabels" />
+            <LabelGroup v-model="masterLabelsModel" />
             </el-card>
             <el-card class="sub-card" shadow="hover">
               <template #header>
                 <div class="sub-card-header"><span>主节点污点</span></div>
               </template>
-              <TaintGroup v-model="deployConfig.nodeConfig.masterTaints" />
+            <TaintGroup v-model="masterTaintsModel" />
             </el-card>
             <el-card class="sub-card" shadow="hover">
               <template #header>
                 <div class="sub-card-header"><span>工作节点标签</span></div>
               </template>
-              <LabelGroup v-model="deployConfig.nodeConfig.workerLabels" />
+            <LabelGroup v-model="workerLabelsModel" />
             </el-card>
             <el-card class="sub-card" shadow="hover">
               <template #header>
                 <div class="sub-card-header"><span>工作节点污点</span></div>
               </template>
-              <TaintGroup v-model="deployConfig.nodeConfig.workerTaints" />
+            <TaintGroup v-model="workerTaintsModel" />
             </el-card>
           </div>
-        </div>
+          </div>
+        </el-collapse-item>
 
         <!-- ========== 步骤 3: 核心组件配置 ========== -->
-        <div v-show="activeStep === 2" class="step-section">
+        <el-collapse-item name="core" class="deploy-config-item">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon"><el-icon><component :is="stepsMeta[2].icon" /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">{{ stepsMeta[2].title }}</span>
+                <span class="config-item-desc">{{ stepsMeta[2].desc }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section">
           <el-form
-            ref="step3FormRef"
             :model="deployConfig.coreComponentsConfig"
             label-position="top"
           >
@@ -430,10 +401,21 @@
               </el-form-item>
             </template>
           </el-form>
-        </div>
+          </div>
+        </el-collapse-item>
 
         <!-- ========== 步骤 4: 网络配置 ========== -->
-        <div v-show="activeStep === 3" class="step-section">
+        <el-collapse-item name="network" class="deploy-config-item">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon"><el-icon><component :is="stepsMeta[3].icon" /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">{{ stepsMeta[3].title }}</span>
+                <span class="config-item-desc">{{ stepsMeta[3].desc }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section">
           <el-form
             ref="step4FormRef"
             :model="deployConfig.networkConfig"
@@ -499,13 +481,13 @@
               <el-row :gutter="20">
                 <el-col :span="8">
                   <el-form-item label="VXLAN 模式">
-                    <el-switch v-model="deployConfig.networkConfig.calicoConfig.vxlanMode" />
+                    <el-switch v-model="calicoConfigModel.vxlanMode" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="8">
                   <el-form-item label="MTU 值">
                     <el-input-number
-                      v-model="deployConfig.networkConfig.calicoConfig.mtu"
+                      v-model="calicoConfigModel.mtu"
                       :min="1200"
                       :max="9000"
                       :step="100"
@@ -521,7 +503,7 @@
               <el-row :gutter="20">
                 <el-col :span="8">
                   <el-form-item label="后端类型">
-                    <el-select v-model="deployConfig.networkConfig.flannelConfig.backend" style="width: 100%">
+                    <el-select v-model="flannelConfigModel.backend" style="width: 100%">
                       <el-option label="VXLAN" value="vxlan" />
                       <el-option label="Host-GW" value="host-gw" />
                       <el-option label="UDP" value="udp" />
@@ -556,12 +538,22 @@
               >
             </p>
           </el-form>
-        </div>
+          </div>
+        </el-collapse-item>
 
         <!-- ========== 步骤 5: 存储配置 ========== -->
-        <div v-show="activeStep === 4" class="step-section">
+        <el-collapse-item name="storage" class="deploy-config-item">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon"><el-icon><component :is="stepsMeta[4].icon" /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">{{ stepsMeta[4].title }}</span>
+                <span class="config-item-desc">{{ stepsMeta[4].desc }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section">
           <el-form
-            ref="step5FormRef"
             :model="deployConfig.storageConfig"
             label-position="top"
           >
@@ -592,7 +584,7 @@
                 <el-col :span="12">
                   <el-form-item label="路径">
                     <el-input
-                      v-model="deployConfig.storageConfig.localPathConfig.path"
+                      v-model="localPathConfigModel.path"
                       placeholder="/var/lib/local-path-provisioner"
                     />
                   </el-form-item>
@@ -606,12 +598,12 @@
               <el-row :gutter="20">
                 <el-col :span="12">
                   <el-form-item label="NFS 服务器 IP">
-                    <el-input v-model="deployConfig.storageConfig.nfsConfig.server" placeholder="NFS 服务器 IP" />
+                    <el-input v-model="nfsConfigModel.server" placeholder="NFS 服务器 IP" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="12">
                   <el-form-item label="NFS 共享路径">
-                    <el-input v-model="deployConfig.storageConfig.nfsConfig.path" placeholder="/data/nfs" />
+                    <el-input v-model="nfsConfigModel.path" placeholder="/data/nfs" />
                   </el-form-item>
                 </el-col>
               </el-row>
@@ -623,13 +615,13 @@
               <el-row :gutter="20">
                 <el-col :span="12">
                   <el-form-item label="CSI 驱动名称">
-                    <el-input v-model="deployConfig.storageConfig.csiConfig.driver" placeholder="csi.aliyun.com" />
+                    <el-input v-model="csiConfigModel.driver" placeholder="csi.aliyun.com" />
                   </el-form-item>
                 </el-col>
                 <el-col :span="8">
                   <el-form-item label="控制器数量">
                     <el-input-number
-                      v-model="deployConfig.storageConfig.csiConfig.controllerCount"
+                      v-model="csiConfigModel.controllerCount"
                       :min="1"
                       :max="5"
                     />
@@ -638,12 +630,22 @@
               </el-row>
             </template>
           </el-form>
-        </div>
+          </div>
+        </el-collapse-item>
 
         <!-- ========== 步骤 6: 高级配置 ========== -->
-        <div v-show="activeStep === 5" class="step-section">
+        <el-collapse-item name="advanced" class="deploy-config-item">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon"><el-icon><component :is="stepsMeta[5].icon" /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">{{ stepsMeta[5].title }}</span>
+                <span class="config-item-desc">{{ stepsMeta[5].desc }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section">
           <el-form
-            ref="step6FormRef"
             :model="deployConfig.advancedConfig"
             label-position="top"
           >
@@ -673,26 +675,37 @@
                 <template #header>
                   <div class="sub-card-header"><span>Kubelet 额外参数</span></div>
                 </template>
-                <KeyValueGroup v-model="deployConfig.advancedConfig.extraKubeletArgs" />
+                <KeyValueGroup v-model="extraKubeletArgsModel" />
               </el-card>
               <el-card class="sub-card" shadow="hover">
                 <template #header>
                   <div class="sub-card-header"><span>KubeProxy 额外参数</span></div>
                 </template>
-                <KeyValueGroup v-model="deployConfig.advancedConfig.extraKubeProxyArgs" />
+                <KeyValueGroup v-model="extraKubeProxyArgsModel" />
               </el-card>
               <el-card class="sub-card" shadow="hover">
                 <template #header>
                   <div class="sub-card-header"><span>API Server 额外参数</span></div>
                 </template>
-                <KeyValueGroup v-model="deployConfig.advancedConfig.extraAPIServerArgs" />
+                <KeyValueGroup v-model="extraAPIServerArgsModel" />
               </el-card>
             </div>
           </el-form>
-        </div>
+          </div>
+        </el-collapse-item>
 
         <!-- ========== 步骤 7: 部署确认（精简：核心命令 + 摘要） ========== -->
-        <div v-show="activeStep === 6" class="step-section step-section--confirm">
+        <el-collapse-item name="confirm" class="deploy-config-item deploy-config-item--confirm">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon"><el-icon><component :is="stepsMeta[6].icon" /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">{{ stepsMeta[6].title }}</span>
+                <span class="config-item-desc">{{ stepsMeta[6].desc }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section step-section--confirm">
           <p v-if="offlineBundleMode" class="confirm-lead">
             在<strong>一台控制机</strong>上执行（须已对本单各节点 <strong>root 免密 SSH</strong>）。安装集群任选：先装
             <code>ai-sre</code> 再执行一键命令，或直接用下方「集群安装」的 curl（需 python3）。
@@ -700,22 +713,6 @@
           <p v-else class="confirm-lead confirm-lead--online">
             核对后点击<strong>开始在线部署</strong>；进度见「部署进度」。
           </p>
-
-          <!-- 离线：固定展示 — 安装 ai-sre（全站统一路径） -->
-          <div v-if="offlineBundleMode" class="confirm-cmd-card">
-            <div class="confirm-cmd-card__head">
-              <span class="confirm-cmd-card__title">安装 ai-sre（控制机）</span>
-              <el-button type="primary" size="small" link @click.stop="copyInstallAiSreCurl">
-                <el-icon class="btn-icon-left"><DocumentCopy /></el-icon>
-                复制
-              </el-button>
-            </div>
-            <p class="confirm-cmd-card__hint">
-              固定命令（与当前控制台同源）。服务器须在 <code>conf/config.yaml</code> 配置
-              <code>opsfleet.ai_sre_binary_path</code> 指向 Linux 可执行文件。
-            </p>
-            <el-input type="textarea" :rows="2" readonly :model-value="installAiSreCurlCommand" class="install-command-textarea" />
-          </div>
 
           <!-- 离线：集群一键安装（生成后出现） -->
           <div v-if="offlineBundleMode" class="confirm-cmd-card confirm-cmd-card--cluster">
@@ -854,73 +851,58 @@
               {{ deployConfig.networkConfig.networkPlugin }} · Pod {{ deployConfig.networkConfig.podCIDR }}
             </el-descriptions-item>
           </el-descriptions>
-        </div>
-      </div>
+          </div>
+        </el-collapse-item>
+        </el-collapse>
+      </main>
+
     </div>
 
-    <!-- ==================== 底部操作栏（最后一步仅展示与当前模式匹配的主操作） ==================== -->
+    <!-- ==================== 底部操作栏 ==================== -->
     <div class="step-actions">
-      <el-button
-        v-if="activeStep > 0"
-        @click="prevStep"
-        :disabled="submitting || downloadingBundle || creatingInvite"
-      >
-        上一步
-      </el-button>
       <div class="action-spacer" />
       <el-button
-        v-if="activeStep < 6"
-        type="primary"
-        class="step-next-btn"
-        @click="nextStep"
-        :loading="validating"
+        v-if="offlineBundleMode"
+        type="success"
+        size="large"
+        class="primary-finish-btn"
+        :loading="creatingInvite"
+        :disabled="downloadingBundle"
+        @click="handleCreateInstallRef"
       >
-        下一步
+        <el-icon class="primary-finish-btn-icon"><Promotion /></el-icon>
+        生成一键安装命令
       </el-button>
-      <template v-if="activeStep === 6">
-        <el-button
-          v-if="offlineBundleMode"
-          type="success"
-          size="large"
-          class="primary-finish-btn"
-          :loading="creatingInvite"
-          :disabled="downloadingBundle"
-          @click="handleCreateInstallRef"
-        >
-          <el-icon class="primary-finish-btn-icon"><Promotion /></el-icon>
-          生成一键安装命令
-        </el-button>
-        <el-button
-          v-if="offlineBundleMode"
-          type="primary"
-          size="large"
-          class="primary-finish-btn"
-          :loading="downloadingBundle"
-          :disabled="creatingInvite"
-          @click="handleDownloadBundle"
-        >
-          <el-icon class="primary-finish-btn-icon"><Download /></el-icon>
-          下载离线安装包（zip）
-        </el-button>
-        <el-button
-          v-else
-          type="success"
-          size="large"
-          class="primary-finish-btn"
-          :loading="submitting"
-          @click="submitDeploy"
-        >
-          开始在线部署
-        </el-button>
-      </template>
+      <el-button
+        v-if="offlineBundleMode"
+        type="primary"
+        size="large"
+        class="primary-finish-btn"
+        :loading="downloadingBundle"
+        :disabled="creatingInvite"
+        @click="handleDownloadBundle"
+      >
+        <el-icon class="primary-finish-btn-icon"><Download /></el-icon>
+        下载离线安装包（zip）
+      </el-button>
+      <el-button
+        v-else
+        type="success"
+        size="large"
+        class="primary-finish-btn"
+        :loading="submitting"
+        @click="submitDeploy"
+      >
+        开始在线部署
+      </el-button>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, watch, onMounted, markRaw, h } from 'vue'
+import { ref, reactive, computed, watch, onMounted, markRaw } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import {
   Monitor,
@@ -949,7 +931,9 @@ import {
 import type {
   DeployConfig,
   K8sMachineInfo,
-  K8sVersion
+  K8sVersion,
+  KeyValuePair,
+  Taint
 } from '../../../types/k8s-deploy'
 import { useK8sDeployStore } from '../../../stores/k8s-deploy'
 import { useMachineStore } from '../../../stores/machine'
@@ -1009,34 +993,28 @@ const stepsMeta = [
     desc: '离线：固定 curl 安装 ai-sre、生成集群命令、摘要',
     icon: markRaw(CircleCheck)
   }
-]
+] as const
 
 // ---------- 表单 Refs ----------
 const step1FormRef = ref<FormInstance>()
-const step3FormRef = ref<FormInstance>()
 const step4FormRef = ref<FormInstance>()
-const step5FormRef = ref<FormInstance>()
-const step6FormRef = ref<FormInstance>()
 
 // ---------- 状态 ----------
 const activeStep = ref(0)
-const validating = ref(false)
 const submitting = ref(false)
 const downloadingBundle = ref(false)
 const creatingInvite = ref(false)
+const openSections = ref<string[]>(['precheck'])
 const k8sComponentCatalogLoading = ref(false)
 const k8sComponentCatalogImages = ref<
   { component: string; versionKey: string; version: string; image: string; notes: string }[]
 >([])
 const k8sComponentCatalogDocs = ref<{ key: string; value: string; description: string }[]>([])
-/** 步骤 1：折叠区默认收起，减少首屏噪音 */
-const stepAuxOpen = ref<string[]>([])
 /**
  * 部署 K8s 前的环境预检清单。来自本仓库踩坑：
  *   1) 虚拟机 RTC 漂移 → systemd-timesyncd/chrony 跳变 → kubelet 误判 sandbox 过期 → calico-node / coredns 60s 左右被 Killing；
- *   2) 低内存 + etcd 慢盘（嵌套虚拟化 / 机械盘）→ apply request took too long → pod lifecycle 抖动；
- *   3) swap 未关 / br_netfilter 未加载 / ip_forward=0 → kubelet 拒绝启动或 pod 跨节点不通；
- *   4) hostname 冲突或 cgroup v1（systemd driver 不一致）→ kubelet+containerd 频繁崩溃。
+ *   2) swap 未关 / br_netfilter 未加载 / ip_forward=0 → kubelet 拒绝启动或 pod 跨节点不通；
+ *   3) hostname 冲突或 cgroup v1（systemd driver 不一致）→ kubelet+containerd 频繁崩溃。
  * 前端只做静态展示（真正校验在 CLI `ai-sre k8s diagnose` 中）。
  */
 const preflightRows = [
@@ -1075,12 +1053,6 @@ const preflightRows = [
     why: '内存不足会导致 etcd fsync 抖动、kubelet OOM、sandbox 反复重建',
     cmd: 'free -g | awk "/Mem:/ {print $2\\\" GiB total, \\\"$7\\\" GiB available\\\"}"',
     expected: '充足',
-  },
-  {
-    item: '磁盘 IO（etcd 目录所在盘）',
-    why: '慢盘 → etcd apply request took too long → apiserver 超时 → 级联重启',
-    cmd: 'fio --name=fsync --rw=write --ioengine=sync --fsync=1 --size=64M --filename=/var/lib/etcd/.iotest --loops=1 2>/dev/null || echo "fio 未安装可跳过"',
-    expected: 'fsync p99 < 20ms',
   },
   {
     item: '架构与离线包一致 (amd64 / arm64)',
@@ -1212,6 +1184,81 @@ const deployConfig = reactive<DeployConfig>({
     extraKubeProxyArgs: [],
     extraAPIServerArgs: []
   }
+})
+
+const masterLabelsModel = computed<Record<string, string>>({
+  get: () => deployConfig.nodeConfig.masterLabels ?? {},
+  set: value => { deployConfig.nodeConfig.masterLabels = value }
+})
+
+const workerLabelsModel = computed<Record<string, string>>({
+  get: () => deployConfig.nodeConfig.workerLabels ?? {},
+  set: value => { deployConfig.nodeConfig.workerLabels = value }
+})
+
+const masterTaintsModel = computed<Taint[]>({
+  get: () => deployConfig.nodeConfig.masterTaints ?? [],
+  set: value => { deployConfig.nodeConfig.masterTaints = value }
+})
+
+const workerTaintsModel = computed<Taint[]>({
+  get: () => deployConfig.nodeConfig.workerTaints ?? [],
+  set: value => { deployConfig.nodeConfig.workerTaints = value }
+})
+
+const calicoConfigModel = computed({
+  get: () => {
+    deployConfig.networkConfig.calicoConfig ??= { vxlanMode: true, mtu: 1450 }
+    return deployConfig.networkConfig.calicoConfig
+  },
+  set: value => { deployConfig.networkConfig.calicoConfig = value }
+})
+
+const flannelConfigModel = computed({
+  get: () => {
+    deployConfig.networkConfig.flannelConfig ??= { backend: 'vxlan' }
+    return deployConfig.networkConfig.flannelConfig
+  },
+  set: value => { deployConfig.networkConfig.flannelConfig = value }
+})
+
+const localPathConfigModel = computed({
+  get: () => {
+    deployConfig.storageConfig.localPathConfig ??= { path: '/var/lib/local-path-provisioner' }
+    return deployConfig.storageConfig.localPathConfig
+  },
+  set: value => { deployConfig.storageConfig.localPathConfig = value }
+})
+
+const nfsConfigModel = computed({
+  get: () => {
+    deployConfig.storageConfig.nfsConfig ??= { server: '', path: '' }
+    return deployConfig.storageConfig.nfsConfig
+  },
+  set: value => { deployConfig.storageConfig.nfsConfig = value }
+})
+
+const csiConfigModel = computed({
+  get: () => {
+    deployConfig.storageConfig.csiConfig ??= { driver: '', controllerCount: 1 }
+    return deployConfig.storageConfig.csiConfig
+  },
+  set: value => { deployConfig.storageConfig.csiConfig = value }
+})
+
+const extraKubeletArgsModel = computed<KeyValuePair[]>({
+  get: () => deployConfig.advancedConfig.extraKubeletArgs ?? [],
+  set: value => { deployConfig.advancedConfig.extraKubeletArgs = value }
+})
+
+const extraKubeProxyArgsModel = computed<KeyValuePair[]>({
+  get: () => deployConfig.advancedConfig.extraKubeProxyArgs ?? [],
+  set: value => { deployConfig.advancedConfig.extraKubeProxyArgs = value }
+})
+
+const extraAPIServerArgsModel = computed<KeyValuePair[]>({
+  get: () => deployConfig.advancedConfig.extraAPIServerArgs ?? [],
+  set: value => { deployConfig.advancedConfig.extraAPIServerArgs = value }
 })
 
 // ---------- checkbox ↔ boolean 双向绑定 ----------
@@ -1384,33 +1431,6 @@ watch(
   { deep: true }
 )
 
-// ---------- 部署记录与正在部署 ----------
-const runningDeploy = computed(() => k8sDeployStore.getRunningDeploy())
-
-function statusLabel(s: string): string {
-  const m: Record<string, string> = {
-    pending: '待执行',
-    running: '进行中',
-    success: '成功',
-    failed: '失败',
-    cancelled: '已取消'
-  }
-  return m[s] ?? s
-}
-
-function formatRecordTime(iso: string): string {
-  if (!iso) return '--'
-  try {
-    return new Date(iso).toLocaleString('zh-CN')
-  } catch {
-    return iso
-  }
-}
-
-function goToProgress(deployId: string) {
-  router.push({ path: '/service/k8s-deploy/progress', query: { deployId } })
-}
-
 function formatInviteExpiry(iso: string): string {
   if (!iso) return '—'
   try {
@@ -1477,12 +1497,6 @@ onMounted(() => {
   loadK8sVersions()
   loadK8sComponentCatalog()
   loadMachines()
-  k8sDeployStore.fetchDeployRecords()
-})
-
-// 切换到节点配置步骤时刷新机器列表，确保与机器管理页状态一致
-watch(activeStep, (step) => {
-  if (step === 1) loadMachines()
 })
 
 watch(offlineBundleMode, () => {
@@ -1511,8 +1525,11 @@ const loadK8sVersions = async () => {
     const recommended = (res as K8sVersion[]).find(v => v.recommended)
     if (recommended) {
       deployConfig.clusterBasicInfo.version = recommended.version
-    } else if ((res as K8sVersion[]).length > 0) {
-      deployConfig.clusterBasicInfo.version = (res as K8sVersion[])[0].version
+    } else {
+      const firstVersion = (res as K8sVersion[])[0]
+      if (firstVersion) {
+        deployConfig.clusterBasicInfo.version = firstVersion.version
+      }
     }
   } catch (e: any) {
     ElMessage.error('获取 K8s 版本列表失败: ' + (e.msg || e.message))
@@ -1528,176 +1545,56 @@ const loadMachines = async () => {
   }
 }
 
-// ---------- 步骤切换 ----------
-const prevStep = () => { activeStep.value-- }
-
-/**
- * 节点配置完成后，提示用户是否先去优化节点环境（时钟/内核参数/安全/磁盘）。
- * - 返回 true 表示应继续 nextStep 流程；false 表示停留当前步骤（用户取消或已跳转到优化页）
- * - 用户勾选「不再提示」会持久化到 localStorage，下次直接放行
- */
-const PREREQ_SKIP_KEY = 'k8s-deploy.skip-prereq-optimize-prompt'
-const dontAskOptimizeAgain = ref(false)
-
-const maybePromptOptimize = async (): Promise<boolean> => {
-  try {
-    if (localStorage.getItem(PREREQ_SKIP_KEY) === '1') {
-      return true
-    }
-  } catch {
-    // localStorage 不可用时按提示流程走
-  }
-  // 先把当前选择重置为默认
-  dontAskOptimizeAgain.value = false
-  try {
-    await ElMessageBox({
-      title: '部署前依赖提示',
-      // 自定义消息：包含说明 + 「不再提示」复选框
-      message: () =>
-        h('div', { class: 'k8s-prereq-prompt' }, [
-          h(
-            'p',
-            { style: 'margin: 0 0 8px; line-height: 1.7; color: #1f2937;' },
-            '检测到尚未确认是否完成节点初始化优化。强烈建议在 K8s 部署前完成以下项目，否则 etcd / calico-node / coredns 可能在安装后反复重启：'
-          ),
-          h('ul', { style: 'margin: 0 0 12px 18px; padding: 0; color: #334155; font-size: 13px;' }, [
-            h('li', '时间同步（chrony / systemd-timesyncd，节点间时差 < 1s）'),
-            h('li', '系统参数（br_netfilter / overlay 模块，ip_forward、bridge-nf-call-iptables = 1）'),
-            h('li', '关闭 swap、提升 fs.file-max / somaxconn'),
-            h('li', '磁盘（etcd 所在盘 fsync p99 < 20ms）'),
-          ]),
-          h(
-            'label',
-            {
-              style:
-                'display: flex; align-items: center; gap: 6px; font-size: 13px; color: #475569; user-select: none;',
-            },
-            [
-              h('input', {
-                type: 'checkbox',
-                style: 'margin: 0;',
-                onChange: (e: Event) => {
-                  dontAskOptimizeAgain.value = (e.target as HTMLInputElement).checked
-                },
-              }),
-              '以后不再提示（记住此选择，仅限本机浏览器）',
-            ]
-          ),
-        ]),
-      showCancelButton: true,
-      confirmButtonText: '先去优化',
-      cancelButtonText: '跳过继续',
-      distinguishCancelAndClose: true,
-      closeOnClickModal: false,
-      type: 'warning',
-      customClass: 'k8s-prereq-msgbox',
-    })
-    // confirm = 先去优化：跳到初始化工具总览，并把当前集群名传过去
-    if (dontAskOptimizeAgain.value) {
-      try {
-        localStorage.setItem(PREREQ_SKIP_KEY, '1')
-      } catch {
-        // 忽略 localStorage 写入失败
-      }
-    }
-    router.push({
-      path: '/init-tools',
-      query: {
-        from: 'k8s-deploy',
-        cluster: deployConfig.clusterBasicInfo.clusterName || '',
-      },
-    })
-    // 不前进步骤；store 内已有 watch 自动保存当前进度，回来后可继续
-    return false
-  } catch (action) {
-    // cancel = 跳过继续；close (X) = 取消整个动作
-    if (action === 'cancel') {
-      if (dontAskOptimizeAgain.value) {
-        try {
-          localStorage.setItem(PREREQ_SKIP_KEY, '1')
-        } catch {
-          // 忽略 localStorage 写入失败
-        }
-      }
-      return true
-    }
-    // 关闭按钮：保持当前步骤
-    return false
-  }
-}
-
-const nextStep = async () => {
-  validating.value = true
-  try {
-    // 步骤 1 校验
-    if (activeStep.value === 0) {
-      await step1FormRef.value?.validate()
-      // 校验集群名称唯一性
-      const res = await checkClusterName({
-        clusterName: deployConfig.clusterBasicInfo.clusterName
-      })
-      if (!(res as any)?.isAvailable) {
-        ElMessage.error('集群名称已存在，请换一个名称')
-        return
-      }
-    }
-    // 步骤 2 校验
-    else if (activeStep.value === 1) {
-      if (offlineBundleMode.value) {
-        const masters = parseHostLines(masterHostsText.value)
-        const workers = parseHostLines(workerHostsText.value)
-        deployConfig.nodeConfig.masterHosts = masters
-        deployConfig.nodeConfig.workerHosts = workers
-        if (masters.length === 0) {
-          ElMessage.warning('请至少填写一行控制平面节点 IP')
-          return
-        }
-      } else {
-        if (!deployConfig.nodeConfig.executorNode) {
-          ElMessage.warning('请选择执行节点（Agent 所在机器）')
-          return
-        }
-        if (deployConfig.nodeConfig.masterNodes.length === 0) {
-          ElMessage.warning('请至少选择一个 K8s 控制平面节点')
-          return
-        }
-      }
-      // 节点配置完成后，提示是否先去优化节点环境
-      const shouldContinue = await maybePromptOptimize()
-      if (!shouldContinue) {
-        return
-      }
-    }
-    // 步骤 4 校验
-    else if (activeStep.value === 3) {
-      await step4FormRef.value?.validate()
-    }
-    activeStep.value++
-  } catch {
-    // validate() 抛错表示校验失败，不切步骤
-  } finally {
-    validating.value = false
-  }
-}
-
 function parseHostLines(s: string): string[] {
   return s.split(/\r?\n/).map(x => x.trim()).filter(Boolean)
 }
 
+async function validateDeployInputs(): Promise<boolean> {
+  try {
+    await step1FormRef.value?.validate()
+    await step4FormRef.value?.validate()
+  } catch {
+    ElMessage.warning('请先完善基础信息与网络配置')
+    openSections.value = Array.from(new Set([...openSections.value, 'basic', 'network']))
+    return false
+  }
+
+  const res = await checkClusterName({ clusterName: deployConfig.clusterBasicInfo.clusterName })
+  if (!(res as any)?.isAvailable) {
+    ElMessage.error('集群名称已存在，请换一个名称')
+    openSections.value = Array.from(new Set([...openSections.value, 'basic']))
+    return false
+  }
+
+  if (offlineBundleMode.value) {
+    const masters = parseHostLines(masterHostsText.value)
+    const workers = parseHostLines(workerHostsText.value)
+    deployConfig.nodeConfig.masterHosts = masters
+    deployConfig.nodeConfig.workerHosts = workers
+    if (masters.length === 0) {
+      ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
+      openSections.value = Array.from(new Set([...openSections.value, 'nodes']))
+      return false
+    }
+    return true
+  }
+
+  if (!deployConfig.nodeConfig.executorNode) {
+    ElMessage.warning('请选择执行节点（Agent 所在机器）')
+    openSections.value = Array.from(new Set([...openSections.value, 'nodes']))
+    return false
+  }
+  if (deployConfig.nodeConfig.masterNodes.length === 0) {
+    ElMessage.warning('请至少选择一个 K8s 控制平面节点')
+    openSections.value = Array.from(new Set([...openSections.value, 'nodes']))
+    return false
+  }
+  return true
+}
+
 // ---------- 下载离线包 ----------
 const handleCreateInstallRef = async () => {
-  if (!deployConfig.clusterBasicInfo.clusterName?.trim()) {
-    ElMessage.warning('请填写集群名称')
-    return
-  }
-  if (!deployConfig.clusterBasicInfo.version) {
-    ElMessage.warning('请选择 K8s 版本')
-    return
-  }
-  deployConfig.nodeConfig.masterHosts = parseHostLines(masterHostsText.value)
-  deployConfig.nodeConfig.workerHosts = parseHostLines(workerHostsText.value)
-  if (deployConfig.nodeConfig.masterHosts.length === 0) {
-    ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
+  if (!(await validateDeployInputs())) {
     return
   }
   creatingInvite.value = true
@@ -1729,18 +1626,7 @@ const handleCreateInstallRef = async () => {
 }
 
 const handleDownloadBundle = async () => {
-  if (!deployConfig.clusterBasicInfo.clusterName?.trim()) {
-    ElMessage.warning('请填写集群名称')
-    return
-  }
-  if (!deployConfig.clusterBasicInfo.version) {
-    ElMessage.warning('请选择 K8s 版本')
-    return
-  }
-  deployConfig.nodeConfig.masterHosts = parseHostLines(masterHostsText.value)
-  deployConfig.nodeConfig.workerHosts = parseHostLines(workerHostsText.value)
-  if (deployConfig.nodeConfig.masterHosts.length === 0) {
-    ElMessage.warning('请在「节点配置」填写至少一行控制平面 IP')
+  if (!(await validateDeployInputs())) {
     return
   }
   downloadingBundle.value = true
@@ -1758,6 +1644,9 @@ const handleDownloadBundle = async () => {
 const submitDeploy = async () => {
   if (offlineBundleMode.value) {
     ElMessage.warning('当前为离线模式，请使用最后一步的「一键安装命令」或「下载 zip」')
+    return
+  }
+  if (!(await validateDeployInputs())) {
     return
   }
   submitting.value = true
@@ -1779,34 +1668,6 @@ const submitDeploy = async () => {
 
 <style scoped>
 /* ==================== 页面布局 ==================== */
-.step-aux-collapse {
-  margin-bottom: 16px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  overflow: hidden;
-  --el-collapse-header-height: 44px;
-}
-
-.step-aux-collapse :deep(.el-collapse-item__header) {
-  font-weight: 600;
-  font-size: 13px;
-  padding: 0 14px;
-  background: var(--el-fill-color-light);
-}
-
-.step-aux-collapse :deep(.el-collapse-item__wrap) {
-  border-top: 1px solid var(--el-border-color-lighter);
-}
-
-.step-aux-collapse :deep(.el-collapse-item__content) {
-  padding: 12px 14px 14px;
-}
-
-.deploy-records-inner .deploy-records-header {
-  justify-content: flex-end;
-  margin-bottom: 8px;
-}
-
 .k8s-prereq-body {
   font-size: 13px;
   line-height: 1.6;
@@ -1867,7 +1728,11 @@ const submitDeploy = async () => {
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 12px;
+  overflow-x: hidden;
+  background:
+    radial-gradient(circle at top left, rgba(30, 64, 175, 0.08), transparent 32%),
+    linear-gradient(180deg, #f8fafc 0%, #fff 36%);
 }
 
 .page-header {
@@ -1875,14 +1740,22 @@ const submitDeploy = async () => {
 }
 
 .page-header-inner {
-  text-align: center;
-  max-width: 640px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  align-items: center;
+  gap: 18px;
+  text-align: left;
+  max-width: none;
   margin: 0 auto;
-  padding: 20px 20px 18px;
+  padding: 16px 18px;
   border-radius: 14px;
   background: linear-gradient(165deg, var(--el-color-primary-light-9) 0%, #fff 55%);
   border: 1px solid var(--el-border-color-lighter);
   box-shadow: 0 1px 2px rgba(30, 64, 175, 0.06);
+}
+
+.page-header-copy {
+  min-width: 0;
 }
 
 .page-kicker {
@@ -1897,7 +1770,7 @@ const submitDeploy = async () => {
 
 .page-title {
   color: var(--el-text-color-primary);
-  margin: 0 0 10px;
+  margin: 0 0 8px;
   font-size: 24px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1914,6 +1787,202 @@ const submitDeploy = async () => {
 .page-desc strong {
   color: var(--el-text-color-regular);
   font-weight: 600;
+}
+
+.deploy-layout {
+  display: block;
+  width: 100%;
+}
+
+.deploy-main {
+  min-width: 0;
+}
+
+.deploy-config-collapse {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  border: none;
+}
+
+.deploy-config-collapse :deep(.el-collapse-item) {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.05);
+}
+
+.deploy-config-collapse :deep(.el-collapse-item__header) {
+  min-height: 56px;
+  height: auto;
+  padding: 9px 16px;
+  border-bottom: none;
+  background: linear-gradient(135deg, #fff 0%, #f8fbff 100%);
+}
+
+.deploy-config-collapse :deep(.el-collapse-item__wrap) {
+  border-top: 1px solid var(--el-border-color-lighter);
+}
+
+.deploy-config-collapse :deep(.el-collapse-item__content) {
+  padding: 18px 20px 20px;
+}
+
+.config-item-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  width: 100%;
+}
+
+.config-item-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: #fff;
+  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-light-3));
+  box-shadow: 0 8px 16px rgba(30, 64, 175, 0.18);
+}
+
+.config-item-icon--precheck {
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  box-shadow: 0 8px 16px rgba(15, 118, 110, 0.16);
+}
+
+.config-item-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.35;
+}
+
+.config-item-name {
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.config-item-desc {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  font-weight: 400;
+  white-space: normal;
+}
+
+.install-precheck {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.precheck-block {
+  padding: 14px 16px;
+  border: 1px solid rgba(30, 64, 175, 0.08);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.96));
+}
+
+.precheck-block__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.precheck-block__head h4 {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.precheck-block__head span {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.precheck-block__head--actions {
+  align-items: center;
+}
+
+.install-ai-sre-card {
+  min-width: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(30, 64, 175, 0.1);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(219, 234, 254, 0.34));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
+}
+
+.install-ai-sre-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.install-ai-sre-card h3 {
+  margin: 0;
+  color: var(--el-text-color-primary);
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+.install-ai-sre-card p {
+  margin: 3px 0 0;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.install-command-copy {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid rgba(30, 64, 175, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.74);
+  color: var(--el-text-color-primary);
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+}
+
+.install-command-copy:hover,
+.install-command-copy:focus-visible {
+  border-color: rgba(30, 64, 175, 0.22);
+  background: #fff;
+  box-shadow: 0 6px 16px rgba(30, 64, 175, 0.08);
+  outline: none;
+}
+
+.install-command-copy code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #1e3a8a;
+  background: transparent;
+}
+
+.install-command-copy__hint {
+  color: var(--el-color-primary);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 .node-mode-form-item {
@@ -1966,62 +2035,6 @@ const submitDeploy = async () => {
   background: var(--el-fill-color-light);
 }
 
-.deploy-status-block {
-  padding: 14px 16px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 10px;
-  background: linear-gradient(135deg, #fffbf0 0%, #fff 100%);
-  margin-bottom: 16px;
-}
-
-.deploy-status-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.deploy-status-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
-.deploy-status-body .deploy-status-meta {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 8px;
-}
-
-.deploy-status-step {
-  margin-left: 12px;
-  color: var(--el-text-color-regular);
-}
-
-.deploy-records-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-
-.deploy-records-title {
-  font-weight: 600;
-  font-size: 14px;
-  color: var(--el-text-color-primary);
-}
-
-.deploy-records-table {
-  font-size: 13px;
-}
-
-.deploy-records-empty {
-  text-align: center;
-  color: var(--el-text-color-placeholder);
-  padding: 24px;
-  font-size: 13px;
-}
-
 .deploy-steps {
   margin-bottom: 4px;
   padding: 2px 0 8px;
@@ -2037,7 +2050,7 @@ const submitDeploy = async () => {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  padding-bottom: 96px;
+  padding-bottom: 0;
 }
 
 .confirm-lead {
@@ -2250,17 +2263,14 @@ const submitDeploy = async () => {
 /* ==================== 标签/污点 网格 ==================== */
 .label-taint-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 16px;
-  max-height: 380px;
-  overflow-y: auto;
-  padding-right: 4px;
 }
 
 /* ==================== 额外参数网格 ==================== */
 .extra-args-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 16px;
 }
 
@@ -2298,14 +2308,14 @@ const submitDeploy = async () => {
 .step-actions {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 12px;
-  padding: 16px 4px 8px;
-  margin-top: 8px;
-  position: sticky;
-  bottom: 0;
+  padding: 12px 14px;
   z-index: 20;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, #fff 18%);
-  border-top: 1px solid var(--el-border-color-lighter);
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 14px;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.05);
 }
 .action-spacer {
   flex: 1;
@@ -2328,6 +2338,12 @@ const submitDeploy = async () => {
 }
 
 /* ==================== 响应式 ==================== */
+@media (max-width: 1280px) {
+  .page-header-inner {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 1200px) {
   .extra-args-grid {
     grid-template-columns: 1fr;
@@ -2335,8 +2351,24 @@ const submitDeploy = async () => {
 }
 
 @media (max-width: 900px) {
+  .k8s-deploy-form {
+    padding: 0;
+  }
+
   .label-taint-grid {
     grid-template-columns: 1fr;
+  }
+
+  .step-actions {
+    justify-content: stretch;
+  }
+
+  .action-spacer {
+    display: none;
+  }
+
+  .primary-finish-btn {
+    flex: 1 1 100%;
   }
 }
 
@@ -2348,5 +2380,16 @@ const submitDeploy = async () => {
 }
 .k8s-component-catalog-table {
   margin-bottom: 12px;
+}
+
+.k8s-preflight-table,
+.k8s-component-catalog-table {
+  width: 100%;
+}
+
+.k8s-preflight-table :deep(.cell),
+.k8s-component-catalog-table :deep(.cell) {
+  white-space: normal;
+  word-break: break-word;
 }
 </style>

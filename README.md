@@ -211,9 +211,9 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 **OpsFleet 控制台登录**：数据库迁移脚本初始化时默认用户名为 **`admin`**、密码为明文 **`password`**（bcrypt）。生产环境请修改；忘记密码可在数据库所在机执行 **`ft-backend/database/reset_admin_password_pg.sql`**（将 **`admin`** 重置为 **`123456`**，与当前运维约定一致）。
 
-**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 向导中填写参数与节点 IP。离线控制机：**安装或升级 ai-sre**（已安装则覆盖）：`curl -fsSL '<publicApiBase>/api/k8s/deploy/install-ai-sre.sh' | sudo bash`（会写入 `~/.config/ai-sre/opsfleet_api_url` 供后续**自动比对升级**）。全栈机执行 **`./scripts/deploy-opsfleet-remote.sh`** 时，远端 **`build-all.sh` 会生成 `bin/ai-sre`**，并在 **`/etc/opsfleet/backend.env`** 写入 **`OPSFLEET_AISRE_BINARY_PATH=<仓库>/bin/ai-sre`**（**systemd 优先于 config.yaml**），故每次发布控制台分发的 CLI 与源码一致；仅当**未用该脚本部署**时，才需在 `conf/config.yaml` 配置 **`opsfleet.ai_sre_binary_path`**。集群安装：**①** `sudo ai-sre k8s install 'ofpk8s1.…'`；**②** `curl -fsSL '<publicApiBase>/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'`（需 `python3`）；**③** zip 解压后 **`sudo bash install.sh`**。**控制机须能免密 SSH 各节点 `root`**。离线配置里若 worker 填了与 master 相同 IP，后端会在生成 inventory 时自动去重（master 本身已安装 kubelet 并注册为 Node，无需重复声明）。同一角色列表内（master 或 worker 自身）仍不允许重复 IP。**卸载**（在曾安装过并记录了引用的控制机上）：`sudo ai-sre uninstall k8s` 或 `sudo ai-sre k8s cleanup 'ofpk8s1.…'`。
+**Kubernetes 部署（推荐）**：在 **Kubernetes 部署** 页按折叠配置项填写安装预检、基础集群信息、节点、核心组件、网络、存储、高级配置与部署确认，不再使用「下一步」线性向导。默认仅展开 **安装预检**，其它配置项默认折叠；标题区域右侧提供 **安装或升级 ai-sre**（已安装则覆盖）：`curl -fsSL '<publicApiBase>/api/k8s/deploy/install-ai-sre.sh' | sudo bash`（会写入 `~/.config/ai-sre/opsfleet_api_url` 供后续**自动比对升级**）。全栈机执行 **`./scripts/deploy-opsfleet-remote.sh`** 时，远端 **`build-all.sh` 会生成 `bin/ai-sre`**，并在 **`/etc/opsfleet/backend.env`** 写入 **`OPSFLEET_AISRE_BINARY_PATH=<仓库>/bin/ai-sre`**（**systemd 优先于 config.yaml**），故每次发布控制台分发的 CLI 与源码一致；仅当**未用该脚本部署**时，才需在 `conf/config.yaml` 配置 **`opsfleet.ai_sre_binary_path`**。集群安装：**①** `sudo ai-sre k8s install 'ofpk8s1.…'`；**②** `curl -fsSL '<publicApiBase>/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.…'`（需 `python3`）；**③** zip 解压后 **`sudo bash install.sh`**。**控制机须能免密 SSH 各节点 `root`**。离线配置里若 worker 填了与 master 相同 IP，后端会在生成 inventory 时自动去重（master 本身已安装 kubelet 并注册为 Node，无需重复声明）。同一角色列表内（master 或 worker 自身）仍不允许重复 IP。**卸载**（在曾安装过并记录了引用的控制机上）：`sudo ai-sre uninstall k8s` 或 `sudo ai-sre k8s cleanup 'ofpk8s1.…'`。
 
-**部署前的节点初始化（可选但推荐）**：在 **节点配置 → 下一步** 时控制台会提示是否先去优化节点环境（避免 etcd / calico-node / coredns 在 NTP 漂移、br_netfilter 缺失、慢盘等情况下反复 Killing）。点击「先去优化」会跳转到 **初始化工具**（`/init-tools`，**单页、无子菜单、内容区满宽、3 列固定卡片**），所有优化项以紧凑卡片形式集中：**时间同步 / 系统参数优化 / 系统安全加固 / 磁盘分区优化**。卡片固定高度，顶部目标节点 / 系统类型与底部操作按钮固定，配置项较多时仅卡片中部区域纵向滚动，不产生横向滚动条。每张卡片自包含 **目标节点（多选）**、**系统类型**（Ubuntu/Debian/CentOS/Rocky/RHEL/openEuler/Kylin/其它 Linux）与对应工具的关键参数：
+**部署前的节点初始化（可选但推荐）**：Kubernetes 部署页最前面的 **安装预检** 配置项合并展示「离线安装必读」与「环境预检」，用于提前确认 root 免密 SSH、NTP、br_netfilter、sysctl、swap、节点架构与主机名等风险；也可手动进入 **初始化工具**（`/init-tools`，**单页、无子菜单、内容区满宽、3 列固定卡片**）优化节点环境，避免 calico-node / coredns 在 NTP 漂移、br_netfilter 缺失等情况下反复 Killing。所有优化项以紧凑卡片形式集中：**时间同步 / 系统参数优化 / 系统安全加固 / 磁盘分区优化**。卡片固定高度，顶部目标节点 / 系统类型与底部操作按钮固定，配置项较多时仅卡片中部区域纵向滚动，不产生横向滚动条。每张卡片自包含 **目标节点（多选）**、**系统类型**（Ubuntu/Debian/CentOS/Rocky/RHEL/openEuler/Kylin/其它 Linux）与对应工具的关键参数：
 
 - **时间同步**：NTP 工具（chrony / timesyncd）、主源、备用源、时区、同步间隔、`ON_CONFLICT` 策略
 - **系统参数**：sysctl 参数表（K8s 必填项默认勾选）、关 swap、提升 ulimit、`ON_CONFLICT`
@@ -227,7 +227,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 - **ai-sre CLI**：未来 `ai-sre node tune <subcmd>` 子命令的等价调用占位（roadmap），参数与脚本一一对应
 - **多节点批量**：`for ip in <ips>; do ssh root@$ip "bash -s" < script.sh; done` 与 curl 一键模式（curl 模式需后端 `/ft-api/api/init-tools/scripts/<name>.sh` 配合，列在 roadmap）
 
-完成所需项后点顶部「返回 K8s 部署」继续向导。提示对话框支持「以后不再提示」（写入 localStorage）。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
+完成所需项后点顶部「返回 K8s 部署」回到折叠配置页。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
 
 **机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 与作业中心仍用于在线机器列表与任务目标（见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)）。
 

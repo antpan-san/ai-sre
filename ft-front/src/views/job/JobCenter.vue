@@ -217,14 +217,14 @@ const machineStore = useMachineStore()
 
 // 机器列表数据
 const selectedMachines = ref<Machine[]>([])
-const transferValue = ref<number[]>([])
+const transferValue = ref<string[]>([])
 
 // 穿梭框数据转换
 const transferData = computed(() => {
   return machineStore.machineList.map(machine => {
     const isOnline = machine.status === 'online'
     return {
-      key: machine.id as number,
+      key: machine.id,
       label: `${machine.id} - ${machine.ip} (${isOnline ? '在线' : machine.status === 'offline' ? '离线' : '维护中'})`,
       id: machine.id,
       ip: machine.ip,
@@ -425,10 +425,10 @@ const refreshMachines = () => {
 }
 
 // 处理穿梭框选择变化
-const handleTransferChange = (value: number[]) => {
+const handleTransferChange = (value: string[]) => {
   transferValue.value = value
   selectedMachines.value = machineStore.machineList.filter(machine => 
-    value.includes(machine.id as number)
+    value.includes(machine.id)
   )
 }
 
@@ -469,13 +469,10 @@ const executeCommands = async () => {
   
   executing.value = true
   try {
-    const machineIds = selectedMachines.value.map(machine => machine.id)
-    const commands = commandText.value.trim().split('\n').filter(cmd => cmd.trim())
-    
     // 响应拦截器已解包，response 即为 data 部分
     const response = await executeCommand({
-      machineIds,
-      commands
+      machine_ids: selectedMachines.value.map(machine => machine.id),
+      command: commandText.value.trim()
     }) as any
     
     // 处理执行结果

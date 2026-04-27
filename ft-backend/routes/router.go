@@ -120,7 +120,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.POST("/k8s/deploy/terminate", handlers.TerminateK8sDeploy)      // 终止部署并下发清理任务
 		protected.GET("/k8s/deploy/progress", handlers.GetK8sDeployProgress)
 		protected.GET("/k8s/deploy/logs", handlers.GetK8sDeployLogs)
-		protected.GET("/k8s/deploy/records", handlers.GetK8sDeployRecords)
 		protected.GET("/k8s/clusters", handlers.GetK8sClusters)
 		protected.POST("/k8s/deploy/bundle", handlers.GenerateK8sOfflineBundle)
 		protected.POST("/k8s/deploy/bundle-invite", handlers.CreateK8sBundleInvite)

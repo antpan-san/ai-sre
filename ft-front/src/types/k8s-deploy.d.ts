@@ -216,20 +216,6 @@ export interface DeployProgress {
   failedCount?: number;
 }
 
-// 部署记录（列表项，与后端 GetK8sDeployRecords 对齐）
-export interface DeployRecord {
-  deployId: string;
-  clusterName: string;
-  status: string;
-  progress: number;
-  currentStep: string;
-  stepProgress: number;
-  startTime?: string;
-  endTime?: string;
-  error?: string;
-  createdAt: string;
-}
-
 // 部署日志（与后端 DeployLogDTO 对齐）
 export interface DeployLog {
   timestamp: string;
@@ -262,7 +248,6 @@ export interface GetDeployLogsParams {
 // ---- API 响应类型 ----
 export type GetK8sVersionsResponse = K8sVersion[];
 export type GetMachinesResponse = K8sMachineInfo[];
-export type GetDeployRecordsResponse = DeployRecord[];
 export interface CheckClusterNameResponse {
   isAvailable: boolean;
 }

@@ -13,7 +13,6 @@ import type {
   GetDeployProgressResponse,
   GetDeployLogsParams,
   GetDeployLogsResponse,
-  GetDeployRecordsResponse,
   DeployConfig,
 } from '../types/k8s-deploy'
 
@@ -198,11 +197,6 @@ export const getDeployProgress = (params: GetDeployProgressParams): Promise<GetD
 /** 获取 K8s 集群部署日志 */
 export const getDeployLogs = (params: GetDeployLogsParams): Promise<GetDeployLogsResponse> => {
   return request.get('/api/k8s/deploy/logs', { params })
-}
-
-/** 获取 K8s 部署记录列表（用于第一步展示部署记录与正在部署） */
-export const getDeployRecords = (): Promise<GetDeployRecordsResponse> => {
-  return request.get('/api/k8s/deploy/records') as Promise<GetDeployRecordsResponse>
 }
 
 /** 终止 K8s 部署并下发清理任务，使 client 端恢复到部署前状态 */
