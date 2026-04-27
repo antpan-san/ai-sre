@@ -1,57 +1,51 @@
 <template>
   <div class="label-group">
-    <div class="label-list">
+    <!-- 已添加标签 -->
+    <div class="label-list" v-if="Object.keys(labels).length">
       <div
         v-for="(value, key) in labels"
         :key="key"
         class="label-item"
       >
-        <div class="label-text">
-          <span class="label-key">{{ key }}</span>
-          <span class="label-separator">:</span>
-          <span class="label-value">{{ value }}</span>
-        </div>
+        <span class="label-key">{{ key }}</span>
+        <span class="label-separator">:</span>
+        <span class="label-value">{{ value }}</span>
         <el-button
           size="small"
           type="danger"
-          circle
+          link
+          class="label-del-btn"
           @click="removeLabel(key)"
         >
-          <el-icon><Delete /></el-icon>
+          <el-icon><Close /></el-icon>
         </el-button>
       </div>
     </div>
+    <p v-else class="label-empty">暂无标签</p>
 
-    <div class="label-input-group">
-      <div class="label-input-wrapper">
-        <div class="label-input-row">
-          <div class="label-input-label">键</div>
-          <el-input
-            v-model="newLabelKey"
-            placeholder="输入键"
-            size="small"
-            class="label-input"
-            @keyup.enter="addLabel"
-          />
-        </div>
-        <div class="label-input-row">
-          <div class="label-input-label">值</div>
-          <el-input
-            v-model="newLabelValue"
-            placeholder="输入值"
-            size="small"
-            class="label-input"
-            @keyup.enter="addLabel"
-          />
-        </div>
-      </div>
+    <!-- 紧凑单行添加 -->
+    <div class="label-add-row">
+      <el-input
+        v-model="newLabelKey"
+        placeholder="键"
+        size="small"
+        clearable
+        @keyup.enter="addLabel"
+      />
+      <el-input
+        v-model="newLabelValue"
+        placeholder="值"
+        size="small"
+        clearable
+        @keyup.enter="addLabel"
+      />
       <el-button
         size="small"
         type="primary"
-        @click="addLabel"
         :disabled="!newLabelKey.trim() || !newLabelValue.trim()"
+        @click="addLabel"
       >
-        <el-icon><Plus /></el-icon> 添加
+        <el-icon><Plus /></el-icon>
       </el-button>
     </div>
   </div>
@@ -59,7 +53,7 @@
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { Close, Plus } from '@element-plus/icons-vue'
 
 interface Props {
   modelValue: Record<string, string>
@@ -90,13 +84,10 @@ const isFull = computed(() => Object.keys(labels.value).length >= props.maxLabel
 const addLabel = () => {
   if (!newLabelKey.value.trim() || !newLabelValue.value.trim()) return
   if (isFull.value) return
-
   const key = newLabelKey.value.trim()
   const value = newLabelValue.value.trim()
-
   labels.value[key] = value
   emitUpdate()
-
   newLabelKey.value = ''
   newLabelValue.value = ''
 }
@@ -114,87 +105,70 @@ const emitUpdate = () => {
 
 <style scoped>
 .label-group {
-  padding: 8px;
-  background-color: transparent;
-  border: none;
-  border-radius: 0;
+  padding: 0;
+}
+
+.label-empty {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
 }
 
 .label-list {
-  margin-bottom: 12px;
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  max-height: 150px;
+  gap: 4px;
+  max-height: 72px;
   overflow-y: auto;
+  margin-bottom: 6px;
 }
 
 .label-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  padding: 6px 12px;
-  background-color: #e5f3ff;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #e8f4ff;
   border: 1px solid #91caff;
-  border-radius: 16px;
-  font-size: 12px;
-  transition: all 0.2s ease;
-}
-
-.label-item:hover {
-  background-color: #d4ebff;
-  border-color: #73b3ff;
-}
-
-.label-text {
-  display: flex;
-  align-items: center;
-  margin-right: 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .label-key {
-  font-weight: bold;
-  color: #1890ff;
+  font-weight: 600;
+  color: #1677ff;
 }
 
 .label-separator {
-  margin: 0 4px;
-  color: #6b7280;
+  color: #9ca3af;
+  margin: 0 2px;
 }
 
 .label-value {
   color: #374151;
 }
 
-.label-input-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: stretch;
-  margin-top: 8px;
+.label-del-btn {
+  padding: 0 0 0 2px !important;
+  height: auto !important;
+  font-size: 10px;
+  color: #9ca3af !important;
 }
 
-.label-input {
-  width: 100%;
-  border-radius: 4px;
+.label-del-btn:hover {
+  color: #f5222d !important;
 }
 
-.label-input-wrapper {
+/* 单行添加区 */
+.label-add-row {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 100%;
-}
-
-.label-input-row {
-  display: flex;
+  gap: 4px;
   align-items: center;
-  gap: 8px;
 }
 
-.label-input-label {
-  font-weight: normal;
-  color: #6b7280;
-  min-width: 60px;
-  font-size: 14px;
+.label-add-row :deep(.el-input) {
+  flex: 1;
+  min-width: 0;
 }
 </style>

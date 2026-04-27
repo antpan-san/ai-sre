@@ -2298,11 +2298,12 @@ const submitDeploy = async () => {
 }
 
 .sub-card--compact :deep(.el-card__body) {
-  padding: 12px;
+  padding: 8px 10px;
 }
 
 .sub-card--compact :deep(.el-card__header) {
-  padding: 10px 12px;
+  padding: 7px 10px;
+  min-height: 0;
 }
 
 .sub-card-header {

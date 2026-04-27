@@ -1,72 +1,71 @@
 <template>
   <div class="taint-group">
-    <div class="taint-list">
+    <!-- 已添加污点 -->
+    <div class="taint-list" v-if="taints.length">
       <div
         v-for="(taint, index) in taints"
         :key="index"
         class="taint-item"
       >
-        <div class="taint-text">
-          <span class="taint-key">{{ taint.key }}</span>
-          <span class="taint-separator">:</span>
-          <span class="taint-value">{{ taint.value }}</span>
-          <span class="taint-effect">({{ taint.effect }})</span>
-        </div>
+        <span class="taint-key">{{ taint.key }}</span>
+        <span class="taint-separator">:</span>
+        <span class="taint-value">{{ taint.value }}</span>
+        <span class="taint-effect">{{ taint.effect }}</span>
         <el-button
           size="small"
           type="danger"
-          circle
+          link
+          class="taint-del-btn"
           @click="removeTaint(index)"
         >
-          <el-icon><Delete /></el-icon>
+          <el-icon><Close /></el-icon>
         </el-button>
       </div>
     </div>
+    <p v-else class="taint-empty">暂无污点</p>
 
-    <div class="taint-form">
-      <el-form :model="newTaint" label-position="left" label-width="60px" size="small">
-        <el-form-item label="键">
-          <el-input
-            v-model="newTaint.key"
-            placeholder="输入键"
-            class="taint-input"
-          />
-        </el-form-item>
-        <el-form-item label="值">
-          <el-input
-            v-model="newTaint.value"
-            placeholder="输入值"
-            class="taint-input"
-          />
-        </el-form-item>
-        <el-form-item label="效果">
-          <el-select
-            v-model="newTaint.effect"
-            placeholder="选择效果"
-            class="taint-input"
-          >
-            <el-option label="NoSchedule" value="NoSchedule" />
-            <el-option label="PreferNoSchedule" value="PreferNoSchedule" />
-            <el-option label="NoExecute" value="NoExecute" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="">
-          <el-button
-            type="primary"
-            @click="addTaint"
-            :disabled="!isTaintValid"
-          >
-            <el-icon><Plus /></el-icon> 添加
-          </el-button>
-        </el-form-item>
-      </el-form>
+    <!-- 紧凑两行添加 -->
+    <div class="taint-add-area">
+      <div class="taint-add-row">
+        <el-input
+          v-model="newTaint.key"
+          placeholder="键"
+          size="small"
+          clearable
+        />
+        <el-input
+          v-model="newTaint.value"
+          placeholder="值"
+          size="small"
+          clearable
+        />
+      </div>
+      <div class="taint-add-row">
+        <el-select
+          v-model="newTaint.effect"
+          placeholder="效果"
+          size="small"
+        >
+          <el-option label="NoSchedule" value="NoSchedule" />
+          <el-option label="PreferNoSchedule" value="PreferNoSchedule" />
+          <el-option label="NoExecute" value="NoExecute" />
+        </el-select>
+        <el-button
+          size="small"
+          type="primary"
+          :disabled="!isTaintValid"
+          @click="addTaint"
+        >
+          <el-icon><Plus /></el-icon> 添加
+        </el-button>
+      </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, watch, computed } from 'vue'
-import { Delete, Plus } from '@element-plus/icons-vue'
+import { Close, Plus } from '@element-plus/icons-vue'
 import type { Taint } from '../../types/k8s-deploy'
 
 interface Props {
@@ -109,20 +108,13 @@ const isTaintValid = computed(() => {
 
 const addTaint = () => {
   if (!isTaintValid.value) return
-
   taints.value.push({
     key: newTaint.value.key.trim(),
     value: newTaint.value.value.trim(),
     effect: newTaint.value.effect
   })
-
   emitUpdate()
-
-  newTaint.value = {
-    key: '',
-    value: '',
-    effect: 'NoSchedule'
-  }
+  newTaint.value = { key: '', value: '', effect: 'NoSchedule' }
 }
 
 const removeTaint = (index: number) => {
@@ -138,49 +130,44 @@ const emitUpdate = () => {
 
 <style scoped>
 .taint-group {
-  padding: 8px;
-  background-color: transparent;
-  border: none;
-  border-radius: 0;
+  padding: 0;
+}
+
+.taint-empty {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
 }
 
 .taint-list {
-  margin-bottom: 12px;
-  max-height: 150px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 72px;
   overflow-y: auto;
+  margin-bottom: 6px;
 }
 
 .taint-item {
   display: flex;
   align-items: center;
-  padding: 6px 12px;
-  background-color: #fff3f0;
+  gap: 2px;
+  padding: 2px 6px;
+  background: #fff2f0;
   border: 1px solid #ffccc7;
-  border-radius: 16px;
-  font-size: 12px;
-  margin-bottom: 8px;
-  transition: all 0.2s ease;
-}
-
-.taint-item:hover {
-  background-color: #ffe7e3;
-  border-color: #ffac9d;
-}
-
-.taint-text {
-  display: flex;
-  align-items: center;
-  margin-right: 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  line-height: 1.4;
 }
 
 .taint-key {
-  font-weight: bold;
+  font-weight: 600;
   color: #cf1322;
 }
 
 .taint-separator {
-  margin: 0 4px;
-  color: #6b7280;
+  color: #9ca3af;
+  margin: 0 2px;
 }
 
 .taint-value {
@@ -190,42 +177,43 @@ const emitUpdate = () => {
 .taint-effect {
   color: #722ed1;
   margin-left: 4px;
+  font-size: 10px;
+  background: #f9f0ff;
+  border: 1px solid #d3adf7;
+  border-radius: 6px;
+  padding: 0 4px;
 }
 
-.taint-form {
-  border-top: 1px solid #e5e7eb;
-  padding-top: 12px;
+.taint-del-btn {
+  margin-left: auto;
+  padding: 0 !important;
+  height: auto !important;
+  font-size: 10px;
+  color: #9ca3af !important;
 }
 
-.taint-input {
-  width: 100%;
-  border-radius: 4px;
+.taint-del-btn:hover {
+  color: #f5222d !important;
 }
 
-.taint-form .el-form {
+/* 两行紧凑添加区 */
+.taint-add-area {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  padding-top: 6px;
 }
 
-.taint-form .el-form-item {
-  margin-right: 0;
-  margin-bottom: 0;
-}
-
-.taint-form .el-form-item__label {
-  font-weight: normal;
-  color: #6b7280;
-  min-width: 60px;
-}
-
-.taint-form .el-form-item__content {
+.taint-add-row {
   display: flex;
+  gap: 4px;
   align-items: center;
 }
 
-.taint-form .el-button {
-  margin-top: 4px;
-  align-self: flex-start;
+.taint-add-row :deep(.el-input),
+.taint-add-row :deep(.el-select) {
+  flex: 1;
+  min-width: 0;
 }
 </style>
