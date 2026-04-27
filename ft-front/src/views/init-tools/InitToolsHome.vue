@@ -527,12 +527,17 @@ onMounted(() => {
 .init-tools-home {
   max-width: none;
   width: 100%;
-  min-height: 100%;
-  padding: 12px 8px 24px;
-  overflow-x: hidden;
+  height: 100%;
+  min-height: 0;
+  padding: 12px 8px 16px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
 .page-header {
+  flex: 0 0 auto;
   margin-bottom: 14px;
 }
 
@@ -563,6 +568,7 @@ onMounted(() => {
 }
 
 .from-k8s-banner {
+  flex: 0 0 auto;
   margin-bottom: 14px;
 }
 
@@ -575,15 +581,21 @@ onMounted(() => {
 }
 
 .tool-grid {
+  flex: 1 1 auto;
+  min-height: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  gap: 12px;
   width: 100%;
-  align-items: start;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 .tool-card {
   min-width: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
   border-radius: 10px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   overflow: hidden;
@@ -598,11 +610,17 @@ onMounted(() => {
 }
 
 .tool-card :deep(.el-card__header) {
+  flex: 0 0 auto;
   padding: 12px 14px;
 }
 
 .tool-card :deep(.el-card__body) {
+  flex: 1 1 auto;
+  min-height: 0;
   padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .tool-card-header {
@@ -649,15 +667,41 @@ onMounted(() => {
 }
 
 .tool-card-body {
+  flex: 1 1 auto;
+  min-height: 0;
   min-width: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
+  overflow: hidden;
 }
 
 .tool-card-scroll {
+  flex: 1 1 auto;
   min-height: 0;
   min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding-right: 4px;
+  scrollbar-gutter: stable;
+}
+
+.tool-card-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 0;
+}
+
+.tool-card-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.tool-card-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+.tool-card-scroll::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .tool-form :deep(.el-form-item) {
@@ -768,15 +812,14 @@ onMounted(() => {
   padding: 7px 9px;
 }
 
-@media (max-width: 1600px) {
-  .tool-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.tool-form :deep(.el-input),
+.tool-form :deep(.el-select),
+.tool-form :deep(.el-textarea),
+.tool-form :deep(.el-input-number) {
+  max-width: 100%;
 }
 
-@media (max-width: 900px) {
-  .tool-grid {
-    grid-template-columns: 1fr;
-  }
+.tool-card-actions :deep(.el-button) {
+  white-space: nowrap;
 }
 </style>
