@@ -6,28 +6,8 @@
           <span class="page-kicker">Kubernetes</span>
           <h2 class="page-title">部署 Kubernetes 集群</h2>
           <p class="page-desc">
-            按信息类别展开配置，不必按步骤线性跳转；离线生成命令或 zip，在线由 Agent 执行。
+            按信息类别展开配置，不必按步骤线性跳转；离线生成命令或 zip，在线由 Agent 执行。安装 <strong>ai-sre</strong> CLI 请使用顶部导航栏「安装 ai-sre」。
           </p>
-        </div>
-        <div class="install-ai-sre-card">
-          <div class="install-ai-sre-card__head">
-            <div>
-              <h3>安装 ai-sre</h3>
-              <p>控制机诊断、清理与离线安装工具</p>
-            </div>
-          </div>
-          <div
-            class="install-command-copy"
-            role="button"
-            tabindex="0"
-            title="点击复制安装命令"
-            @click="copyInstallAiSreCurl"
-            @keyup.enter="copyInstallAiSreCurl"
-            @keyup.space="copyInstallAiSreCurl"
-          >
-            <code>{{ installAiSreCurlCommand }}</code>
-            <span class="install-command-copy__hint">点击复制</span>
-          </div>
         </div>
       </div>
     </header>
@@ -799,40 +779,11 @@ import type {
 } from '../../../types/k8s-deploy'
 import { useK8sDeployStore } from '../../../stores/k8s-deploy'
 import { useMachineStore } from '../../../stores/machine'
+import { copyTextToClipboard } from '../../../utils/clipboard'
 
 const router = useRouter()
 const k8sDeployStore = useK8sDeployStore()
 const machineStore = useMachineStore()
-
-/** 非 HTTPS / 部分浏览器下 Clipboard API 不可用，降级到 execCommand */
-async function copyTextToClipboard(text: string): Promise<void> {
-  const fallback = (): void => {
-    const ta = document.createElement('textarea')
-    ta.value = text
-    ta.setAttribute('readonly', '')
-    ta.style.position = 'fixed'
-    ta.style.left = '-9999px'
-    document.body.appendChild(ta)
-    ta.select()
-    try {
-      if (!document.execCommand('copy')) {
-        throw new Error('execCommand copy failed')
-      }
-    } finally {
-      document.body.removeChild(ta)
-    }
-  }
-
-  if (navigator.clipboard && window.isSecureContext) {
-    try {
-      await navigator.clipboard.writeText(text)
-      return
-    } catch {
-      // 权限或策略失败时再试降级
-    }
-  }
-  fallback()
-}
 
 // ---------- 步骤元信息（统一每步的标题、描述、图标） ----------
 const stepsMeta = [
@@ -1279,16 +1230,6 @@ const confirmWorkerPreview = computed(() => {
   return fromCfg.length ? fromCfg.join('、') : '无'
 })
 
-/** 与生成 bundle-invite 时使用的 publicApiBase 一致，供确认页展示 */
-const publicApiBasePreview = computed(() =>
-  `${window.location.origin}${import.meta.env.VITE_BASE_API || '/ft-api'}`.replace(/\/$/, '')
-)
-
-/** 全站固定：curl 安装 ai-sre（同源 API，脚本内再拉二进制） */
-const installAiSreCurlCommand = computed(
-  () => `curl -fsSL '${publicApiBasePreview.value}/api/k8s/deploy/install-ai-sre.sh' | sudo bash`
-)
-
 /** 部署确认页：精简需求说明（不含一键命令密钥） */
 const deployRequirementText = computed(() => {
   const now = new Date().toLocaleString('zh-CN', { hour12: false })
@@ -1366,15 +1307,6 @@ function copyBootstrapCommand() {
   void copyTextToClipboard(cmd).then(
     () => ElMessage.success('已复制集群安装命令'),
     () => ElMessage.error('复制失败，请手动选择文本复制')
-  )
-}
-
-function copyInstallAiSreCurl() {
-  const cmd = installAiSreCurlCommand.value
-  if (!cmd?.trim()) return
-  void copyTextToClipboard(cmd).then(
-    () => ElMessage.success('已复制安装 ai-sre 命令'),
-    () => ElMessage.error('复制失败')
   )
 }
 
@@ -1642,10 +1574,7 @@ const submitDeploy = async () => {
 }
 
 .page-header-inner {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
-  align-items: center;
-  gap: 18px;
+  display: block;
   text-align: left;
   max-width: none;
   margin: 0 auto;
@@ -1813,78 +1742,6 @@ const submitDeploy = async () => {
 
 .precheck-block__head--actions {
   align-items: center;
-}
-
-.install-ai-sre-card {
-  min-width: 0;
-  padding: 12px 14px;
-  border: 1px solid rgba(255, 105, 0, 0.12);
-  border-radius: 12px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 236, 224, 0.42));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
-}
-
-.install-ai-sre-card__head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 8px;
-}
-
-.install-ai-sre-card h3 {
-  margin: 0;
-  color: var(--el-text-color-primary);
-  font-size: 15px;
-  line-height: 1.25;
-}
-
-.install-ai-sre-card p {
-  margin: 3px 0 0;
-  color: var(--el-text-color-secondary);
-  font-size: 12px;
-  line-height: 1.4;
-}
-
-.install-command-copy {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 10px;
-  border: 1px solid rgba(255, 105, 0, 0.1);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.74);
-  color: var(--el-text-color-primary);
-  cursor: pointer;
-  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
-}
-
-.install-command-copy:hover,
-.install-command-copy:focus-visible {
-  border-color: rgba(255, 105, 0, 0.28);
-  background: #fff;
-  box-shadow: 0 6px 16px rgba(255, 105, 0, 0.09);
-  outline: none;
-}
-
-.install-command-copy code {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  font-size: 12px;
-  line-height: 1.45;
-  color: var(--el-color-primary-dark-2);
-  background: transparent;
-}
-
-.install-command-copy__hint {
-  color: var(--el-color-primary);
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
 }
 
 .btn-icon-left {

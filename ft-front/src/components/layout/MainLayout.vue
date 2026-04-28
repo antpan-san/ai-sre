@@ -129,6 +129,37 @@
       <header class="header">
         <div class="header-spacer" aria-hidden="true" />
         <div class="header-right">
+          <el-popover
+            placement="bottom-end"
+            :width="440"
+            trigger="hover"
+            :show-after="180"
+            popper-class="install-ai-sre-popover"
+          >
+            <template #reference>
+              <button type="button" class="install-ai-sre-trigger" aria-haspopup="true" aria-label="安装 ai-sre，悬停显示命令">
+                <el-icon :size="18"><Download /></el-icon>
+                <span class="install-ai-sre-trigger__text">安装 ai-sre</span>
+                <el-icon class="install-ai-sre-trigger__caret" :size="12"><ArrowDown /></el-icon>
+              </button>
+            </template>
+            <div class="install-ai-sre-panel">
+              <p class="install-ai-sre-panel__desc">
+                在控制机执行，一键安装 <strong>ai-sre</strong> CLI（同源拉取引导脚本与二进制）。请妥善保管，勿泄露到公网。
+              </p>
+              <el-input
+                class="install-ai-sre-panel__input"
+                type="textarea"
+                :model-value="installAiSreCommand"
+                :autosize="{ minRows: 3, maxRows: 6 }"
+                readonly
+              />
+              <div class="install-ai-sre-panel__actions">
+                <el-button type="primary" size="small" @click="copyInstallAiSreCommand">复制命令</el-button>
+              </div>
+            </div>
+          </el-popover>
+
           <el-dropdown trigger="click" popper-class="layout-user-dropdown">
             <div class="user-trigger" role="button" tabindex="0">
               <el-avatar :size="34" class="user-avatar">{{ userInitial }}</el-avatar>
@@ -187,6 +218,7 @@ import { computed, ref, onMounted, onUnmounted } from 'vue'
 import type { Component } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import type { RouteLocationMatched } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
   User,
   SwitchButton,
@@ -205,6 +237,8 @@ import {
   Download
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
+import { copyTextToClipboard } from '../../utils/clipboard'
+import { getInstallAiSreShellCurlLine } from '../../utils/installAiSre'
 import { useMachineStore } from '../../stores/machine'
 
 type BreadcrumbMetaItem = {
@@ -287,6 +321,19 @@ const userInitial = computed(() => {
 })
 
 const brandShort = computed(() => 'OP')
+
+const installAiSreCommand = computed(() => getInstallAiSreShellCurlLine())
+
+const copyInstallAiSreCommand = async () => {
+  const cmd = installAiSreCommand.value
+  if (!cmd?.trim()) return
+  try {
+    await copyTextToClipboard(cmd)
+    ElMessage.success('已复制安装 ai-sre 命令')
+  } catch {
+    ElMessage.error('复制失败，请手动全选复制')
+  }
+}
 
 const machineStore = useMachineStore()
 const handleMachineHeartbeatMessage = (msg: any) => {
@@ -557,8 +604,46 @@ const handleLogout = () => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 14px;
   flex-shrink: 0;
+}
+
+.install-ai-sre-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--layout-sidebar-text-strong);
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.install-ai-sre-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.95);
+  border-color: var(--layout-sidebar-border);
+  box-shadow: var(--layout-shadow-soft);
+}
+
+.install-ai-sre-trigger__text {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.install-ai-sre-trigger__caret {
+  color: var(--layout-sidebar-text);
+  margin-left: -2px;
 }
 
 .user-trigger {

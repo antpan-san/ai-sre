@@ -169,3 +169,43 @@ a:hover {
   vertical-align: -2px;
   color: var(--layout-sidebar-text);
 }
+
+/* 顶栏「安装 ai-sre」悬浮层（挂载在 body） */
+.install-ai-sre-popover.el-popper.is-light,
+.install-ai-sre-popover.el-popper {
+  padding: 16px !important;
+  border: 1px solid var(--layout-sidebar-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1) !important;
+}
+
+.install-ai-sre-popover .install-ai-sre-panel__desc {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--layout-sidebar-text);
+}
+
+.install-ai-sre-popover .install-ai-sre-panel__desc strong {
+  color: var(--layout-sidebar-text-strong);
+  font-weight: 600;
+}
+
+.install-ai-sre-popover .install-ai-sre-panel__input textarea {
+  font-family:
+    ui-monospace,
+    SFMono-Regular,
+    Menlo,
+    Monaco,
+    Consolas,
+    'Liberation Mono',
+    monospace;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.install-ai-sre-popover .install-ai-sre-panel__actions {
+  margin-top: 12px;
+  display: flex;
+  justify-content: flex-end;
+}
