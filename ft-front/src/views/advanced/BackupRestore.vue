@@ -458,7 +458,7 @@ const formatFileSize = (size: number): string => {
 
 .page-header h2 {
   margin: 0 0 20px 0;
-  color: #1890ff;
+  color: var(--el-color-primary);
   font-size: 30px;
   font-weight: 600;
 }

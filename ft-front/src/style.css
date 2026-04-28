@@ -1,45 +1,56 @@
 :root {
-  /* 基础样式 */
+  /* 基础样式：偏小米官网 — 深色正文 + 留白 + 米橙点缀 */
   font-family:
-    ui-sans-serif,
-    system-ui,
     -apple-system,
+    BlinkMacSystemFont,
     "Segoe UI",
     Roboto,
     "Helvetica Neue",
+    Helvetica,
     Arial,
-    "Noto Sans",
     "PingFang SC",
+    "Hiragino Sans GB",
     "Microsoft YaHei",
     sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #1e293b;
+  color: #333333;
   background-color: #ffffff;
 
-  /* Element Plus 主题变量（保持业务区按钮/表单语义不变） */
-  --el-color-primary: #1e40af;
-  --el-color-primary-light-3: #3b82f6;
-  --el-color-primary-light-5: #60a5fa;
-  --el-color-primary-light-7: #93c5fd;
-  --el-color-primary-light-8: #bfdbfe;
-  --el-color-primary-light-9: #dbeafe;
-  --el-color-primary-dark-2: #1e3a8a;
-  --el-color-info: #1e40af;
+  /* Element Plus：米橙主色（与小米系官网 common 橙色接近） */
+  --el-color-primary: #ff6900;
+  --el-color-primary-light-3: #ff8533;
+  --el-color-primary-light-5: #ff9f5c;
+  --el-color-primary-light-7: #ffc299;
+  --el-color-primary-light-8: #ffd4b8;
+  --el-color-primary-light-9: #fff0e8;
+  --el-color-primary-dark-2: #e85f00;
+  --el-color-info: #8c8c8c;
 
-  /* 布局：清爽浅色系壳层 */
-  --layout-page-bg: #f1f5f9;
-  --layout-sidebar-bg: #f8fafc;
-  --layout-sidebar-border: #e2e8f0;
-  --layout-sidebar-text: #64748b;
-  --layout-sidebar-text-strong: #334155;
-  --layout-sidebar-active-bg: rgba(37, 99, 235, 0.09);
-  --layout-sidebar-hover-bg: rgba(148, 163, 184, 0.14);
-  --layout-sidebar-sub-bg: #f1f5f9;
-  --layout-header-bg: rgba(255, 255, 255, 0.82);
-  --layout-header-border: rgba(226, 232, 240, 0.95);
+  /* 与小米风页面块、K8s 向导等共用的暖色高光（替代原冷蓝渐变） */
+  --mi-surface-warm-a: #fffaf6;
+  --mi-surface-warm-b: #fff0e8;
+  --mi-brand-rgb: 255, 105, 0;
+
+  /* 布局壳层 */
+  --layout-page-bg: #f5f5f5;
+  --layout-sidebar-bg: #ffffff;
+  --layout-sidebar-border: #e7e7e7;
+  --layout-sidebar-text: #666666;
+  --layout-sidebar-text-strong: #333333;
+  --layout-sidebar-active-bg: rgba(255, 105, 0, 0.08);
+  --layout-sidebar-hover-bg: rgba(0, 0, 0, 0.04);
+  --layout-sidebar-sub-bg: #fafafa;
+  --layout-header-bg: rgba(255, 255, 255, 0.96);
+  --layout-header-border: #ebebeb;
   --layout-content-surface: #ffffff;
-  --layout-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --layout-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06);
+
+  /* Element Plus 正文灰阶（小米官网常见对比） */
+  --el-text-color-primary: #333333;
+  --el-text-color-regular: #666666;
+  --el-text-color-secondary: #999999;
+  --el-text-color-placeholder: #b0b0b0;
 
   /* 布局变量 */
   --layout-header-height: 52px;
@@ -77,7 +88,7 @@
 }
 
 .page-shell--crud .el-card {
-  border-radius: 10px;
+  border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
@@ -137,7 +148,7 @@ a:hover {
 .layout-user-dropdown.el-popper {
   border: 1px solid var(--layout-sidebar-border) !important;
   border-radius: 12px !important;
-  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08) !important;
   padding: 6px !important;
 }
 

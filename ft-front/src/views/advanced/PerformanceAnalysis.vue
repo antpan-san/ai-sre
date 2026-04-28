@@ -458,7 +458,7 @@ const formatNetworkSpeed = (speed: number): string => {
 
 .page-header h2 {
   margin: 0 0 20px 0;
-  color: #1890ff;
+  color: var(--el-color-primary);
   font-size: 30px;
   font-weight: 600;
 }
@@ -503,7 +503,7 @@ const formatNetworkSpeed = (speed: number): string => {
 .card-value {
   font-size: 32px;
   font-weight: 600;
-  color: #1890ff;
+  color: var(--el-color-primary);
   margin-bottom: 8px;
 }
 

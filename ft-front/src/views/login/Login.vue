@@ -148,9 +148,9 @@ const handleLogin = async () => {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 55% at 15% 12%, rgba(30, 64, 175, 0.06) 0%, transparent 55%),
-    radial-gradient(ellipse 70% 50% at 88% 18%, rgba(59, 130, 246, 0.05) 0%, transparent 52%),
-    radial-gradient(ellipse 60% 45% at 50% 95%, rgba(148, 163, 184, 0.12) 0%, transparent 50%);
+    radial-gradient(ellipse 80% 55% at 12% 10%, rgba(255, 105, 0, 0.07) 0%, transparent 56%),
+    radial-gradient(ellipse 70% 50% at 90% 16%, rgba(255, 105, 0, 0.05) 0%, transparent 52%),
+    radial-gradient(ellipse 55% 42% at 50% 96%, rgba(0, 0, 0, 0.04) 0%, transparent 48%);
 }
 
 .login-card {
@@ -164,7 +164,7 @@ const handleLogin = async () => {
   border-radius: 16px;
   box-shadow:
     var(--layout-shadow-soft),
-    0 24px 48px rgba(15, 23, 42, 0.06);
+    0 24px 48px rgba(0, 0, 0, 0.06);
 }
 
 .login-brand {
@@ -189,7 +189,7 @@ const handleLogin = async () => {
   letter-spacing: 0.04em;
   color: #fff;
   background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-light-3) 100%);
-  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.2);
+  box-shadow: 0 4px 16px rgba(255, 105, 0, 0.2);
 }
 
 .login-brand-text {

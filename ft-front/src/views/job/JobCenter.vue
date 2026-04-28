@@ -524,7 +524,7 @@ const formatDate = (dateString: string): string => {
 }
 
 .page-header h2 {
-  color: #1890ff;
+  color: var(--el-color-primary);
   margin: 0;
   font-size: 30px;
   font-weight: 600;
@@ -968,13 +968,15 @@ const formatDate = (dateString: string): string => {
 }
 
 .command-input-container:hover {
-  border-color: #409eff;
+  border-color: var(--el-color-primary);
   box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
 }
 
 .command-input-container:focus-within {
-  border-color: #409eff;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08), 0 0 0 2px rgba(64, 158, 255, 0.2);
+  border-color: var(--el-color-primary);
+  box-shadow:
+    0 2px 12px rgba(0, 0, 0, 0.08),
+    0 0 0 2px rgba(255, 105, 0, 0.2);
 }
 
 /* 终端内容区域 */
@@ -995,7 +997,7 @@ const formatDate = (dateString: string): string => {
   margin-left: 4px;
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 14px;
-  color: #1890ff;
+  color: var(--el-color-primary);
   font-weight: bold;
   pointer-events: none;
   z-index: 1;
@@ -1240,7 +1242,7 @@ const formatDate = (dateString: string): string => {
   color: #1f2937;
   white-space: pre-wrap;
   word-break: break-all;
-  border-left: 3px solid #409eff;
+  border-left: 3px solid var(--el-color-primary);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 

@@ -1633,8 +1633,8 @@ const submitDeploy = async () => {
   gap: 12px;
   overflow-x: hidden;
   background:
-    radial-gradient(circle at top left, rgba(30, 64, 175, 0.08), transparent 32%),
-    linear-gradient(180deg, #f8fafc 0%, #fff 36%);
+    radial-gradient(circle at top left, rgba(255, 105, 0, 0.07), transparent 32%),
+    linear-gradient(180deg, #fafafa 0%, #ffffff 36%);
 }
 
 .page-header {
@@ -1653,7 +1653,7 @@ const submitDeploy = async () => {
   border-radius: 14px;
   background: linear-gradient(165deg, var(--el-color-primary-light-9) 0%, #fff 55%);
   border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 1px 2px rgba(30, 64, 175, 0.06);
+  box-shadow: 0 1px 2px rgba(255, 105, 0, 0.07);
 }
 
 .page-header-copy {
@@ -1720,7 +1720,7 @@ const submitDeploy = async () => {
   height: auto;
   padding: 9px 16px;
   border-bottom: none;
-  background: linear-gradient(135deg, #fff 0%, #f8fbff 100%);
+  background: linear-gradient(135deg, #ffffff 0%, var(--mi-surface-warm-a) 100%);
 }
 
 .deploy-config-collapse :deep(.el-collapse-item__wrap) {
@@ -1749,7 +1749,7 @@ const submitDeploy = async () => {
   flex: 0 0 auto;
   color: #fff;
   background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-light-3));
-  box-shadow: 0 8px 16px rgba(30, 64, 175, 0.18);
+  box-shadow: 0 8px 16px rgba(255, 105, 0, 0.18);
 }
 
 .config-item-icon--precheck {
@@ -1785,9 +1785,9 @@ const submitDeploy = async () => {
 
 .precheck-block {
   padding: 14px 16px;
-  border: 1px solid rgba(30, 64, 175, 0.08);
+  border: 1px solid rgba(255, 105, 0, 0.09);
   border-radius: 12px;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.92), rgba(255, 255, 255, 0.96));
+  background: linear-gradient(180deg, rgba(250, 250, 250, 0.94), rgba(255, 255, 255, 0.97));
 }
 
 .precheck-block__head {
@@ -1818,9 +1818,9 @@ const submitDeploy = async () => {
 .install-ai-sre-card {
   min-width: 0;
   padding: 12px 14px;
-  border: 1px solid rgba(30, 64, 175, 0.1);
+  border: 1px solid rgba(255, 105, 0, 0.12);
   border-radius: 12px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.82), rgba(219, 234, 254, 0.34));
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(255, 236, 224, 0.42));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
@@ -1852,7 +1852,7 @@ const submitDeploy = async () => {
   align-items: center;
   gap: 10px;
   padding: 9px 10px;
-  border: 1px solid rgba(30, 64, 175, 0.08);
+  border: 1px solid rgba(255, 105, 0, 0.1);
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.74);
   color: var(--el-text-color-primary);
@@ -1862,9 +1862,9 @@ const submitDeploy = async () => {
 
 .install-command-copy:hover,
 .install-command-copy:focus-visible {
-  border-color: rgba(30, 64, 175, 0.22);
+  border-color: rgba(255, 105, 0, 0.28);
   background: #fff;
-  box-shadow: 0 6px 16px rgba(30, 64, 175, 0.08);
+  box-shadow: 0 6px 16px rgba(255, 105, 0, 0.09);
   outline: none;
 }
 
@@ -1876,7 +1876,7 @@ const submitDeploy = async () => {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   font-size: 12px;
   line-height: 1.45;
-  color: #1e3a8a;
+  color: var(--el-color-primary-dark-2);
   background: transparent;
 }
 
@@ -2076,14 +2076,14 @@ const submitDeploy = async () => {
   gap: 16px;
   padding: 20px 28px;
   border-bottom: 1px solid #f0f0f0;
-  background: linear-gradient(135deg, #f8fbff 0%, #f0f7ff 100%);
+  background: linear-gradient(135deg, var(--mi-surface-warm-a) 0%, var(--mi-surface-warm-b) 100%);
 }
 
 .step-card-indicator {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #1890ff, #096dd9);
+  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-dark-2));
   color: #fff;
   font-size: 18px;
   font-weight: 700;
@@ -2309,7 +2309,7 @@ const submitDeploy = async () => {
 .sub-card-header {
   font-weight: 600;
   font-size: 14px;
-  color: #1e40af;
+  color: var(--el-color-primary);
   display: flex;
   align-items: center;
 }
@@ -2318,7 +2318,7 @@ const submitDeploy = async () => {
   content: '';
   width: 4px;
   height: 14px;
-  background: #1e40af;
+  background: var(--el-color-primary);
   border-radius: 2px;
   margin-right: 8px;
   flex-shrink: 0;

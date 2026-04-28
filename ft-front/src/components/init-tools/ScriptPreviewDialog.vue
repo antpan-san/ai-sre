@@ -327,7 +327,7 @@ exit "$exit_code"
 }
 
 .dialog-hint code {
-  background: #f1f5f9;
+  background: #f5f5f5;
   padding: 0 4px;
   border-radius: 3px;
   font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -335,7 +335,7 @@ exit "$exit_code"
 }
 
 .dialog-hint strong {
-  color: #1e40af;
+  color: var(--el-color-primary);
 }
 
 .dialog-tabs {

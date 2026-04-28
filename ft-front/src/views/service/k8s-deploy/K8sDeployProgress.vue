@@ -402,7 +402,7 @@ const logLevelText = (l: string) => {
 }
 
 .page-header h2 {
-  color: #1890ff;
+  color: var(--el-color-primary);
   margin: 0 0 6px 0;
   font-size: 26px;
   font-weight: 600;
@@ -429,14 +429,14 @@ const logLevelText = (l: string) => {
   gap: 14px;
   padding: 18px 28px;
   border-bottom: 1px solid #f0f0f0;
-  background: linear-gradient(135deg, #f8fbff 0%, #f0f7ff 100%);
+  background: linear-gradient(135deg, var(--mi-surface-warm-a) 0%, var(--mi-surface-warm-b) 100%);
 }
 
 .progress-card-indicator {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: linear-gradient(135deg, #1890ff, #096dd9);
+  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-dark-2));
   color: #fff;
   display: flex;
   align-items: center;
@@ -492,7 +492,7 @@ const logLevelText = (l: string) => {
 .progress-value {
   font-size: 22px;
   font-weight: 700;
-  color: #1890ff;
+  color: var(--el-color-primary);
 }
 
 /* 状态网格 */
@@ -558,7 +558,7 @@ const logLevelText = (l: string) => {
 .time-duration {
   font-family: 'JetBrains Mono', 'Consolas', monospace;
   font-weight: 600;
-  color: #1890ff;
+  color: var(--el-color-primary);
 }
 
 /* 结果提示 */
@@ -602,14 +602,14 @@ const logLevelText = (l: string) => {
   gap: 12px;
   padding: 16px 28px;
   border-bottom: 1px solid #f0f0f0;
-  background: linear-gradient(135deg, #f8fbff 0%, #f0f7ff 100%);
+  background: linear-gradient(135deg, var(--mi-surface-warm-a) 0%, var(--mi-surface-warm-b) 100%);
 }
 
 .log-card-indicator {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #1890ff, #096dd9);
+  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-dark-2));
   color: #fff;
   display: flex;
   align-items: center;

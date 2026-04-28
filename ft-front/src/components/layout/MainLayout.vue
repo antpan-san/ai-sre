@@ -432,7 +432,7 @@ const handleLogout = () => {
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  background: linear-gradient(180deg, #ffffff 0%, var(--layout-sidebar-bg) 100%);
+  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
 }
 
 .sidebar-brand {
@@ -456,7 +456,7 @@ const handleLogout = () => {
   letter-spacing: 0.02em;
   color: #fff;
   background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-light-3) 100%);
-  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.22);
+  box-shadow: 0 2px 10px rgba(255, 105, 0, 0.22);
 }
 
 .sidebar-brand-text {
@@ -658,7 +658,7 @@ const handleLogout = () => {
 
 .custom-breadcrumb :deep(.el-breadcrumb__separator) {
   margin: 0 8px;
-  color: #cbd5e1;
+  color: #d0d0d0;
   font-weight: 500;
 }
 
@@ -668,7 +668,7 @@ const handleLogout = () => {
   overflow: auto;
   overflow-x: hidden;
   background: var(--layout-content-surface);
-  border-radius: 12px;
+  border-radius: 16px;
   border: 1px solid var(--layout-sidebar-border);
   box-shadow: var(--layout-shadow-soft);
   padding: var(--layout-content-padding);

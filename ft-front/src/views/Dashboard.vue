@@ -332,7 +332,7 @@ const getStatusColor = (status: 'running' | 'stopped' | 'error') => {
     case 'error':
       return '#f56c6c'
     default:
-      return '#409eff'
+      return '#ff6900'
   }
 }
 
@@ -453,7 +453,7 @@ const navigateToServiceList = () => {
 }
 
 .overview-icon {
-  color: #409eff;
+  color: var(--el-color-primary);
 }
 
 .overview-info {

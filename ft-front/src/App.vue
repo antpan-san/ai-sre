@@ -31,11 +31,11 @@ router.afterEach(() => {
 <style>
 /* 自定义进度条颜色 */
 #nprogress .bar {
-  background-color: #1E40AF !important;
+  background-color: #ff6900 !important;
   height: 3px !important;
 }
 
 #nprogress .peg {
-  box-shadow: 0 0 10px #1E40AF, 0 0 5px #1E40AF !important;
+  box-shadow: 0 0 10px rgba(255, 105, 0, 0.55), 0 0 5px rgba(255, 105, 0, 0.35) !important;
 }
 </style>
