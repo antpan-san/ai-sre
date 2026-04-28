@@ -1,8 +1,15 @@
 <template>
-  <div class="login-container">
-    <div class="login-box">
-      <h2 class="login-title">OpsFleetPilot</h2>
-      <p class="login-subtitle">运维控制台</p>
+  <div class="login-page">
+    <div class="login-page-bg" aria-hidden="true" />
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="login-brand-mark">OP</div>
+        <div class="login-brand-text">
+          <h1 class="login-title">OpsFleetPilot</h1>
+          <p class="login-subtitle">运维控制台</p>
+        </div>
+      </div>
+
       <el-form
         ref="loginFormRef"
         :model="loginForm"
@@ -19,7 +26,7 @@
             @keyup.enter="handleLogin"
           />
         </el-form-item>
-        
+
         <el-form-item label="密码" prop="password">
           <el-input
             v-model="loginForm.password"
@@ -31,7 +38,7 @@
             @keyup.enter="handleLogin"
           />
         </el-form-item>
-        
+
         <el-alert
           v-if="loginError"
           :title="loginError"
@@ -41,17 +48,17 @@
           class="login-error-alert"
           @close="loginError = ''"
         />
-        
+
         <el-form-item class="remember-item">
           <el-checkbox v-model="loginForm.remember">记住用户名</el-checkbox>
         </el-form-item>
-        
+
         <el-form-item class="submit-item">
           <el-button
             type="primary"
             :loading="userStore.loading"
-            @click="handleLogin"
             class="login-btn"
+            @click="handleLogin"
           >
             登录
           </el-button>
@@ -73,14 +80,12 @@ const router = useRouter()
 const userStore = useUserStore()
 const loginFormRef = ref()
 
-// 登录表单
 const loginForm = reactive<LoginForm>({
   username: '',
   password: '',
   remember: false
 })
 
-// 登录规则
 const loginRules = reactive({
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
@@ -94,7 +99,6 @@ const loginRules = reactive({
 
 const loginError = ref('')
 
-// 仅从 localStorage 读取记住的用户名（不存储密码）
 onMounted(() => {
   const savedUsername = localStorage.getItem('rememberedUsername')
   if (savedUsername) {
@@ -103,7 +107,6 @@ onMounted(() => {
   }
 })
 
-// 处理登录
 const handleLogin = async () => {
   if (!loginFormRef.value) return
   loginError.value = ''
@@ -111,7 +114,6 @@ const handleLogin = async () => {
     await loginFormRef.value.validate()
     const result = await userStore.login(loginForm)
     if (result) {
-      // 仅记住用户名，不在客户端存储密码
       if (loginForm.remember) {
         localStorage.setItem('rememberedUsername', loginForm.username)
       } else {
@@ -129,43 +131,98 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-.login-container {
+.login-page {
+  position: relative;
   display: flex;
   justify-content: center;
   align-items: center;
-  height: 100vh;
-  background: linear-gradient(135deg, #1E40AF 0%, #3B82F6 50%, #60A5FA 100%);
+  min-height: 100vh;
+  padding: 24px;
+  box-sizing: border-box;
+  background-color: var(--layout-page-bg);
+  overflow: hidden;
 }
 
-.login-box {
-  width: 400px;
-  padding: 40px;
-  background-color: #fff;
+.login-page-bg {
+  pointer-events: none;
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 80% 55% at 15% 12%, rgba(30, 64, 175, 0.06) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 50% at 88% 18%, rgba(59, 130, 246, 0.05) 0%, transparent 52%),
+    radial-gradient(ellipse 60% 45% at 50% 95%, rgba(148, 163, 184, 0.12) 0%, transparent 50%);
+}
+
+.login-card {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  max-width: 420px;
+  padding: 36px 36px 32px;
+  background: var(--layout-content-surface);
+  border: 1px solid var(--layout-sidebar-border);
+  border-radius: 16px;
+  box-shadow:
+    var(--layout-shadow-soft),
+    0 24px 48px rgba(15, 23, 42, 0.06);
+}
+
+.login-brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 28px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--layout-sidebar-border);
+}
+
+.login-brand-mark {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
   border-radius: 12px;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-light-3) 100%);
+  box-shadow: 0 4px 14px rgba(30, 64, 175, 0.2);
+}
+
+.login-brand-text {
+  min-width: 0;
 }
 
 .login-title {
-  text-align: center;
-  margin-bottom: 4px;
-  color: #1E40AF;
-  font-size: 28px;
-  font-weight: 700;
+  margin: 0 0 4px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--layout-sidebar-text-strong);
+  line-height: 1.3;
 }
 
 .login-subtitle {
-  text-align: center;
-  margin-bottom: 30px;
-  color: #909399;
-  font-size: 14px;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--layout-sidebar-text);
 }
 
 .login-form {
   width: 100%;
 }
 
+.login-form :deep(.el-form-item__label) {
+  color: var(--layout-sidebar-text-strong);
+  font-weight: 500;
+}
+
 .remember-item {
-  margin-bottom: 20px;
+  margin-bottom: 18px;
 }
 
 .login-error-alert {
@@ -178,7 +235,9 @@ const handleLogin = async () => {
 
 .login-btn {
   width: 100%;
-  height: 42px;
-  font-size: 16px;
+  height: 44px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 10px;
 }
 </style>
