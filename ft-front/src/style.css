@@ -1,26 +1,51 @@
 :root {
   /* 基础样式 */
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+  font-family:
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    "Noto Sans",
+    "PingFang SC",
+    "Microsoft YaHei",
+    sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #212529;
+  color: #1e293b;
   background-color: #ffffff;
 
-  /* Element Plus 主题变量 */
-  --el-color-primary: #1E40AF;
-  --el-color-primary-light-3: #3B82F6;
-  --el-color-primary-light-5: #60A5FA;
-  --el-color-primary-light-7: #93C5FD;
-  --el-color-primary-light-8: #BFDBFE;
-  --el-color-primary-light-9: #DBEAFE;
-  --el-color-primary-dark-2: #1E3A8A;
-  --el-color-info: #1E40AF;
+  /* Element Plus 主题变量（保持业务区按钮/表单语义不变） */
+  --el-color-primary: #1e40af;
+  --el-color-primary-light-3: #3b82f6;
+  --el-color-primary-light-5: #60a5fa;
+  --el-color-primary-light-7: #93c5fd;
+  --el-color-primary-light-8: #bfdbfe;
+  --el-color-primary-light-9: #dbeafe;
+  --el-color-primary-dark-2: #1e3a8a;
+  --el-color-info: #1e40af;
+
+  /* 布局：清爽浅色系壳层 */
+  --layout-page-bg: #f1f5f9;
+  --layout-sidebar-bg: #f8fafc;
+  --layout-sidebar-border: #e2e8f0;
+  --layout-sidebar-text: #64748b;
+  --layout-sidebar-text-strong: #334155;
+  --layout-sidebar-active-bg: rgba(37, 99, 235, 0.09);
+  --layout-sidebar-hover-bg: rgba(148, 163, 184, 0.14);
+  --layout-sidebar-sub-bg: #f1f5f9;
+  --layout-header-bg: rgba(255, 255, 255, 0.82);
+  --layout-header-border: rgba(226, 232, 240, 0.95);
+  --layout-content-surface: #ffffff;
+  --layout-shadow-soft: 0 1px 2px rgba(15, 23, 42, 0.04);
 
   /* 布局变量 */
-  --layout-header-height: 56px;
-  --layout-sidebar-width: 200px;
-  --layout-sidebar-collapsed-width: 60px;
-  --layout-content-padding: 16px;
+  --layout-header-height: 52px;
+  --layout-sidebar-width: 216px;
+  --layout-sidebar-collapsed-width: 64px;
+  --layout-content-padding: 20px;
 
   /* 页面模板分级：仪表盘 / 向导 / 列表表单 */
   --page-padding-y: 20px;
@@ -106,4 +131,30 @@ a:hover {
 
 ::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
+}
+
+/* 顶栏用户下拉（挂载在 body，与 MainLayout 配套） */
+.layout-user-dropdown.el-popper {
+  border: 1px solid var(--layout-sidebar-border) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 10px 40px rgba(15, 23, 42, 0.08) !important;
+  padding: 6px !important;
+}
+
+.layout-user-dropdown .el-dropdown-menu__item {
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  color: var(--layout-sidebar-text-strong);
+}
+
+.layout-user-dropdown .el-dropdown-menu__item:not(.is-disabled):focus {
+  background-color: var(--layout-sidebar-hover-bg);
+  color: var(--layout-sidebar-text-strong);
+}
+
+.layout-user-dropdown .el-dropdown-menu__item .el-icon {
+  margin-right: 8px;
+  vertical-align: -2px;
+  color: var(--layout-sidebar-text);
 }

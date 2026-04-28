@@ -1,122 +1,140 @@
 <template>
   <div class="main-layout">
-    <!-- 侧边栏 -->
     <aside class="sidebar" :class="{ 'sidebar-collapsed': isCollapse }">
       <div class="sidebar-header">
-        <h2 class="logo" v-show="!isCollapse">OpsFleetPilot</h2>
-        <el-button
-          type="text"
-          class="collapse-btn"
-          @click="isCollapse = !isCollapse"
-        >
-          <el-icon>
-            <svg v-if="isCollapse" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="20" height="20"><path d="M877.824 505.728l-480.64 480.64c-12.544 12.544-32.96 12.544-45.504 0-12.544-12.544-12.544-32.96 0-45.504l458.112-458.112-458.112-458.112c-12.544-12.544-12.544-32.96 0-45.504 12.544-12.544 32.96-12.544 45.504 0l480.64 480.64c12.544 12.544 12.544 32.96 0 45.504z" fill="currentColor"/></svg>
-            <svg v-else xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="20" height="20"><path d="M867.84 512c0 12.544-10.048 22.528-22.528 22.528h-616.96l294.4 294.4c12.544 12.544 12.544 32.96 0 45.504-12.544 12.544-32.96 12.544-45.504 0l-360.96-360.96c-12.544-12.544-12.544-32.96 0-45.504l360.96-360.96c12.544-12.544 32.96-12.544 45.504 0 12.544 12.544 12.544 32.96 0 45.504l-294.4 294.4h616.96c12.544 0 22.528 10.048 22.528 22.528z" fill="currentColor"/></svg>
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-mark" aria-hidden="true">{{ brandShort }}</div>
+          <div v-show="!isCollapse" class="sidebar-brand-text">
+            <span class="sidebar-brand-title">OpsFleetPilot</span>
+            <span class="sidebar-brand-sub">运维控制台</span>
+          </div>
+        </div>
+        <el-button type="primary" link class="collapse-btn" @click="isCollapse = !isCollapse">
+          <el-icon :size="18">
+            <svg
+              v-if="isCollapse"
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 1024 1024"
+              width="20"
+              height="20"
+            >
+              <path
+                d="M877.824 505.728l-480.64 480.64c-12.544 12.544-32.96 12.544-45.504 0-12.544-12.544-12.544-32.96 0-45.504l458.112-458.112-458.112-458.112c-12.544-12.544-12.544-32.96 0-45.504 12.544-12.544 32.96-12.544 45.504 0l480.64 480.64c12.544 12.544 12.544 32.96 0 45.504z"
+                fill="currentColor"
+              />
+            </svg>
+            <svg
+              v-else
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 0 1024 1024"
+              width="20"
+              height="20"
+            >
+              <path
+                d="M867.84 512c0 12.544-10.048 22.528-22.528 22.528h-616.96l294.4 294.4c12.544 12.544 12.544 32.96 0 45.504-12.544 12.544-32.96 12.544-45.504 0l-360.96-360.96c-12.544-12.544-12.544-32.96 0-45.504l360.96-360.96c12.544-12.544 32.96-12.544 45.504 0 12.544 12.544 12.544 32.96 0 45.504l-294.4 294.4h616.96c12.544 0 22.528 10.048 22.528 22.528z"
+                fill="currentColor"
+              />
+            </svg>
           </el-icon>
         </el-button>
       </div>
-      <el-menu
-        :key="menuRemountKey"
-        :default-active="activeMenu"
-        :default-openeds="menuDefaultOpeneds"
-        class="el-menu-vertical-demo"
-        @select="handleMenuSelect"
-        background-color="#001529"
-        text-color="#fff"
-        active-text-color="#ffffff"
-        :collapse="isCollapse"
-        :collapse-transition="true"
-      >
-        <el-menu-item index="/dashboard">
-          <el-icon><PieChart /></el-icon>
-          <template #title>仪表盘</template>
-        </el-menu-item>
-        <el-sub-menu index="service-delivery">
-          <template #title>
-            <el-icon><Box /></el-icon>
-            <span>服务与交付</span>
-          </template>
-          <el-menu-item index="/service/deploy">
-            <el-icon><Operation /></el-icon>
-            <template #title>服务部署</template>
+      <el-scrollbar class="sidebar-scroll">
+        <el-menu
+          :key="menuRemountKey"
+          :default-active="activeMenu"
+          :default-openeds="menuDefaultOpeneds"
+          class="sidebar-menu"
+          @select="handleMenuSelect"
+          background-color="transparent"
+          :text-color="menuTextColor"
+          :active-text-color="menuActiveColor"
+          :collapse="isCollapse"
+          :collapse-transition="true"
+        >
+          <el-menu-item index="/dashboard">
+            <el-icon><PieChart /></el-icon>
+            <template #title>仪表盘</template>
           </el-menu-item>
-          <el-menu-item index="/service/k8s-deploy">
-            <el-icon><Connection /></el-icon>
-            <template #title>Kubernetes 部署</template>
+          <el-sub-menu index="service-delivery">
+            <template #title>
+              <el-icon><Box /></el-icon>
+              <span>服务与交付</span>
+            </template>
+            <el-menu-item index="/service/deploy">
+              <el-icon><Operation /></el-icon>
+              <template #title>服务部署</template>
+            </el-menu-item>
+            <el-menu-item index="/service/k8s-deploy">
+              <el-icon><Connection /></el-icon>
+              <template #title>Kubernetes 部署</template>
+            </el-menu-item>
+            <el-menu-item index="/service/k8s-mirror">
+              <el-icon><Download /></el-icon>
+              <template #title>K8s 制品镜像</template>
+            </el-menu-item>
+            <el-menu-item index="/service/linux">
+              <el-icon><Cpu /></el-icon>
+              <template #title>Linux 服务管理</template>
+            </el-menu-item>
+          </el-sub-menu>
+          <el-menu-item index="/proxy/config">
+            <el-icon><Link /></el-icon>
+            <template #title>代理配置</template>
           </el-menu-item>
-          <el-menu-item index="/service/k8s-mirror">
-            <el-icon><Download /></el-icon>
-            <template #title>K8s 制品镜像</template>
+          <el-sub-menu index="/monitoring">
+            <template #title>
+              <el-icon><Monitor /></el-icon>
+              <span>监控告警</span>
+            </template>
+            <el-menu-item index="/monitoring/prometheus">Prometheus</el-menu-item>
+            <el-menu-item index="/monitoring/node-exporter">Node Exporter</el-menu-item>
+            <el-menu-item index="/monitoring/jmx-exporter">JMX Exporter</el-menu-item>
+            <el-menu-item index="/monitoring/redis-exporter">Redis Exporter</el-menu-item>
+            <el-menu-item index="/monitoring/mongodb-exporter">MongoDB Exporter</el-menu-item>
+            <el-menu-item index="/monitoring/blackbox-exporter">Blackbox Exporter</el-menu-item>
+          </el-sub-menu>
+          <el-menu-item index="/job/center">
+            <el-icon><Management /></el-icon>
+            <template #title>作业中心</template>
           </el-menu-item>
-          <el-menu-item index="/service/linux">
-            <el-icon><Cpu /></el-icon>
-            <template #title>Linux 服务管理</template>
+          <el-sub-menu index="/security-audit">
+            <template #title>
+              <el-icon><Lock /></el-icon>
+              <span>安全与审计</span>
+            </template>
+            <el-menu-item index="/security-audit/operation-logs">操作日志</el-menu-item>
+            <el-menu-item index="/security-audit/permission-management">权限管理</el-menu-item>
+          </el-sub-menu>
+          <el-sub-menu index="/advanced">
+            <template #title>
+              <el-icon><DocumentCopy /></el-icon>
+              <span>高级功能</span>
+            </template>
+            <el-menu-item index="/advanced/backup-restore">备份与恢复</el-menu-item>
+            <el-menu-item index="/advanced/performance-analysis">性能分析</el-menu-item>
+          </el-sub-menu>
+          <el-menu-item index="/init-tools">
+            <el-icon><Tools /></el-icon>
+            <template #title>初始化工具</template>
           </el-menu-item>
-        </el-sub-menu>
-        <el-menu-item index="/proxy/config">
-          <el-icon><Link /></el-icon>
-          <template #title>代理配置</template>
-        </el-menu-item>
-        <el-sub-menu index="/monitoring">
-          <template #title>
-            <el-icon><Monitor /></el-icon>
-            <span>监控告警</span>
-          </template>
-          <el-menu-item index="/monitoring/prometheus">Prometheus</el-menu-item>
-          <el-menu-item index="/monitoring/node-exporter">Node Exporter</el-menu-item>
-          <el-menu-item index="/monitoring/jmx-exporter">JMX Exporter</el-menu-item>
-          <el-menu-item index="/monitoring/redis-exporter">Redis Exporter</el-menu-item>
-          <el-menu-item index="/monitoring/mongodb-exporter">MongoDB Exporter</el-menu-item>
-          <el-menu-item index="/monitoring/blackbox-exporter">Blackbox Exporter</el-menu-item>
-      </el-sub-menu>
-      <el-menu-item index="/job/center">
-          <el-icon><Management /></el-icon>
-          <template #title>作业中心</template>
-        </el-menu-item>
-        <el-sub-menu index="/security-audit">
-          <template #title>
-            <el-icon><Lock /></el-icon>
-            <span>安全与审计</span>
-          </template>
-          <el-menu-item index="/security-audit/operation-logs">操作日志</el-menu-item>
-          <el-menu-item index="/security-audit/permission-management">权限管理</el-menu-item>
-        </el-sub-menu>
-        <el-sub-menu index="/advanced">
-          <template #title>
+          <el-menu-item index="/execution-records">
             <el-icon><DocumentCopy /></el-icon>
-            <span>高级功能</span>
-          </template>
-          <el-menu-item index="/advanced/backup-restore">备份与恢复</el-menu-item>
-          <el-menu-item index="/advanced/performance-analysis">性能分析</el-menu-item>
-        </el-sub-menu>
-        <el-menu-item index="/init-tools">
-          <el-icon><Tools /></el-icon>
-          <template #title>初始化工具</template>
-        </el-menu-item>
-        <el-menu-item index="/execution-records">
-          <el-icon><DocumentCopy /></el-icon>
-          <template #title>执行记录</template>
-        </el-menu-item>
-      </el-menu>
+            <template #title>执行记录</template>
+          </el-menu-item>
+        </el-menu>
+      </el-scrollbar>
     </aside>
 
-    <!-- 右侧内容区 -->
     <div class="main-content" :class="{ 'sidebar-collapsed': isCollapse }">
-      <!-- 头部 -->
       <header class="header">
-        <div class="header-brand">
-          <span class="header-brand-title">OpsFleetPilot</span>
-          <span class="header-brand-sub">运维控制台</span>
-        </div>
-
+        <div class="header-spacer" aria-hidden="true" />
         <div class="header-right">
-          <!-- 用户信息 -->
-          <el-dropdown>
-            <span class="user-info">
-              <el-icon><User /></el-icon>
-              {{ currentUser.username }}
-              <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </span>
+          <el-dropdown trigger="click" popper-class="layout-user-dropdown">
+            <div class="user-trigger" role="button" tabindex="0">
+              <el-avatar :size="34" class="user-avatar">{{ userInitial }}</el-avatar>
+              <span class="user-trigger-name">{{ currentUser.username }}</span>
+              <el-icon class="user-trigger-chevron"><ArrowDown /></el-icon>
+            </div>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item @click="handleUserManagement">
@@ -133,9 +151,7 @@
         </div>
       </header>
 
-      <!-- 内容区 -->
       <main class="content">
-        <!-- 面包屑导航 -->
         <div class="breadcrumb-container">
           <el-breadcrumb separator="/" class="custom-breadcrumb">
             <template v-for="item in breadcrumbItems" :key="item.key">
@@ -149,10 +165,7 @@
                 </el-icon>
                 <span>{{ item.title }}</span>
               </el-breadcrumb-item>
-              <el-breadcrumb-item
-                v-else
-                class="breadcrumb-item breadcrumb-item--current"
-              >
+              <el-breadcrumb-item v-else class="breadcrumb-item breadcrumb-item--current">
                 <el-icon v-if="item.icon" class="breadcrumb-icon">
                   <component :is="item.icon" />
                 </el-icon>
@@ -161,11 +174,11 @@
             </template>
           </el-breadcrumb>
         </div>
-        <router-view />
+        <div class="content-inner">
+          <router-view />
+        </div>
       </main>
     </div>
-
-
   </div>
 </template>
 
@@ -207,7 +220,6 @@ type BreadcrumbItem = {
   current: boolean
 }
 
-// 路由路径到图标的映射：仅用于面包屑视觉识别，路由层仍是标题的单一来源。
 const routeIconMap: Record<string, Component> = {
   '/dashboard': PieChart,
   '/service': Box,
@@ -239,10 +251,11 @@ const sectionDefaultPath: Record<string, string> = {
 const route = useRoute()
 const router = useRouter()
 
-// 侧边栏折叠状态
 const isCollapse = ref(false)
 
-// 子菜单随路由展开（与分组 index 一致）
+const menuTextColor = 'var(--layout-sidebar-text)'
+const menuActiveColor = 'var(--el-color-primary)'
+
 const menuDefaultOpeneds = computed(() => {
   const p = route.path
   const open: string[] = []
@@ -253,12 +266,9 @@ const menuDefaultOpeneds = computed(() => {
   return open
 })
 
-/** 仅当「应展开的子菜单集合」变化时 remount，以应用 default-openeds 且减少闪烁 */
 const menuRemountKey = computed(() => menuDefaultOpeneds.value.join('|'))
 
-// 获取当前用户信息
 const currentUser = computed(() => {
-  // 从localStorage获取用户信息（简化处理）
   const userInfoStr = localStorage.getItem('userInfo')
   if (userInfoStr) {
     try {
@@ -270,7 +280,14 @@ const currentUser = computed(() => {
   return { username: '管理员' }
 })
 
-// ---- WebSocket Real-Time Connection ----
+const userInitial = computed(() => {
+  const name = String(currentUser.value?.username ?? '?').trim()
+  const ch = name.slice(0, 1)
+  return ch || '?'
+})
+
+const brandShort = computed(() => 'OP')
+
 const machineStore = useMachineStore()
 const handleMachineHeartbeatMessage = (msg: any) => {
   machineStore.handleMachineHeartbeat(msg.data)
@@ -280,11 +297,9 @@ const handleMachineStatusMessage = (msg: any) => {
 }
 
 onMounted(() => {
-  // Connect WebSocket using current user ID (or fallback)
   const userId = currentUser.value?.id || 'anonymous'
   wsService.connect(String(userId))
 
-  // Register handler for machine heartbeat events
   wsService.on('machine_heartbeat', handleMachineHeartbeatMessage)
   wsService.on('machine_status_update', handleMachineStatusMessage)
 })
@@ -295,31 +310,25 @@ onUnmounted(() => {
   wsService.disconnect()
 })
 
-// 处理用户管理
 const handleUserManagement = () => {
   router.push('/user/list')
 }
 
-// 计算当前激活的菜单
 const activeMenu = computed(() => {
   return route.path
 })
 
-// 获取路由对应的图标组件
 const getRouteIcon = (path?: string): Component | undefined => {
   if (!path) return undefined
-  // 精确匹配
   if (routeIconMap[path]) {
     return routeIconMap[path]
   }
-  
-  // 匹配父路径
+
   const parentPath = path.substring(0, path.lastIndexOf('/'))
   if (parentPath && routeIconMap[parentPath]) {
     return routeIconMap[parentPath]
   }
-  
-  // 默认不显示图标
+
   return undefined
 }
 
@@ -346,7 +355,6 @@ function pushBreadcrumb(items: BreadcrumbItem[], title: string, to?: string): vo
   })
 }
 
-// 计算面包屑项：优先使用路由 meta.breadcrumb，兜底使用 matched 路由。
 const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const items: BreadcrumbItem[] = []
 
@@ -375,14 +383,11 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   return items
 })
 
-// 处理菜单选择
 const handleMenuSelect = (index: string) => {
   router.push(index)
 }
 
-// 处理退出登录
 const handleLogout = () => {
-  // 清除localStorage中的token和用户信息
   localStorage.removeItem('token')
   localStorage.removeItem('userInfo')
   router.push('/login')
@@ -390,76 +395,137 @@ const handleLogout = () => {
 </script>
 
 <style scoped>
-/* 主布局容器 */
 .main-layout {
   display: flex;
   height: 100vh;
   overflow: hidden;
-  background-color: #f9fafb;
+  background-color: var(--layout-page-bg);
 }
 
-/* 侧边栏 */
 .sidebar {
   width: var(--layout-sidebar-width);
-  background-color: #001529;
-  color: #fff;
-  overflow-y: auto;
-  transition: width 0.3s ease-in-out;
+  background-color: var(--layout-sidebar-bg);
+  color: var(--layout-sidebar-text-strong);
+  overflow: hidden;
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   position: fixed;
   top: 0;
   left: 0;
   bottom: 0;
   z-index: 1000;
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.1);
+  border-right: 1px solid var(--layout-sidebar-border);
+  box-shadow: var(--layout-shadow-soft);
+  display: flex;
+  flex-direction: column;
 }
 
 .sidebar.sidebar-collapsed {
   width: var(--layout-sidebar-collapsed-width);
 }
 
-/* 侧边栏头部 */
 .sidebar-header {
+  flex-shrink: 0;
   height: var(--layout-header-height);
-  padding: 0 20px;
-  border-bottom: 1px solid #1f2d3d;
+  padding: 0 12px 0 14px;
+  border-bottom: 1px solid var(--layout-sidebar-border);
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  background-color: #001529;
-  position: sticky;
-  top: 0;
-  z-index: 1001;
+  justify-content: space-between;
+  gap: 8px;
+  background: linear-gradient(180deg, #ffffff 0%, var(--layout-sidebar-bg) 100%);
 }
 
-.logo {
-  margin: 0;
-  font-size: 16px;
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-brand-mark {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #fff;
+  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-light-3) 100%);
+  box-shadow: 0 2px 8px rgba(30, 64, 175, 0.22);
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sidebar-brand-title {
+  font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.02em;
-  color: #fff;
+  color: var(--layout-sidebar-text-strong);
+  line-height: 1.25;
   white-space: nowrap;
-  transition: opacity 0.3s ease;
+}
+
+.sidebar-brand-sub {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--layout-sidebar-text);
+  letter-spacing: 0.02em;
+  opacity: 0.92;
 }
 
 .collapse-btn {
-  color: #fff;
-  padding: 8px;
-  margin-left: 10px;
-  transition: background-color 0.3s;
+  flex-shrink: 0;
+  padding: 6px;
+  margin: 0 -4px 0 0;
+  height: auto;
+  color: var(--layout-sidebar-text);
+  border-radius: 8px;
 }
 
 .collapse-btn:hover {
-  background-color: rgba(255, 255, 255, 0.1);
+  color: var(--el-color-primary);
+  background-color: var(--layout-sidebar-hover-bg);
 }
 
-/* 主内容区 */
+.sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.sidebar-scroll :deep(.el-scrollbar__view) {
+  padding-bottom: 16px;
+}
+
+.sidebar-menu {
+  border-right: none !important;
+  padding: 10px 8px 16px;
+  --el-menu-base-level-padding: 14px;
+  --el-menu-icon-width: 22px;
+  --el-menu-item-height: 44px;
+}
+
+.sidebar-menu:not(.el-menu--collapse) {
+  width: 100%;
+}
+
+/* 顶栏 */
 .main-content {
   flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   margin-left: var(--layout-sidebar-width);
-  transition: margin-left 0.3s ease-in-out;
+  transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
   width: calc(100% - var(--layout-sidebar-width));
 }
 
@@ -468,85 +534,91 @@ const handleLogout = () => {
   width: calc(100% - var(--layout-sidebar-collapsed-width));
 }
 
-/* 顶部导航栏 */
 .header {
+  flex-shrink: 0;
   height: var(--layout-header-height);
-  background-color: #fff;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--layout-header-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--layout-header-border);
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 20px;
-  gap: 16px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+  justify-content: flex-end;
+  padding: 0 20px 0 24px;
   position: sticky;
   top: 0;
   z-index: 900;
 }
 
-.header-brand {
-  display: flex;
-  align-items: baseline;
-  gap: 10px;
-  min-width: 0;
-  flex-shrink: 1;
+.header-spacer {
+  flex: 1;
 }
 
-.header-brand-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #111827;
-  letter-spacing: -0.02em;
-}
-
-.header-brand-sub {
-  font-size: 13px;
-  color: #6b7280;
-  font-weight: 400;
-}
-
-/* 头部右侧 */
 .header-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
 }
 
-/* 用户信息 */
-.user-info {
-  display: flex;
+.user-trigger {
+  display: inline-flex;
   align-items: center;
+  gap: 10px;
   cursor: pointer;
-  padding: 8px 12px;
-  border-radius: 8px;
-  transition: background-color 0.3s;
+  padding: 4px 6px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+  outline: none;
 }
 
-.user-info:hover {
-  background-color: #f3f4f6;
+.user-trigger:hover {
+  background-color: rgba(255, 255, 255, 0.9);
+  border-color: var(--layout-sidebar-border);
+  box-shadow: var(--layout-shadow-soft);
 }
 
-.user-info .el-icon {
-  margin-right: 8px;
-  font-size: 18px;
+.user-avatar {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: linear-gradient(145deg, var(--el-color-primary-light-3), var(--el-color-primary)) !important;
 }
 
-/* 内容区域 */
-.content-wrapper {
+.user-trigger-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--layout-sidebar-text-strong);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-trigger-chevron {
+  font-size: 12px;
+  color: var(--layout-sidebar-text);
+  margin-right: 4px;
+}
+
+/* 内容 */
+.content {
   flex: 1;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  padding: 0 var(--layout-content-padding) var(--layout-content-padding);
+  min-height: 0;
 }
 
-/* 面包屑 */
 .breadcrumb-container {
-  margin-bottom: 14px;
-  padding: 2px 0 10px;
-  border-bottom: 1px solid #e5e7eb;
-  height: auto;
-  line-height: 1.5;
+  flex-shrink: 0;
+  padding: 14px 4px 12px;
 }
 
 .custom-breadcrumb {
@@ -555,15 +627,17 @@ const handleLogout = () => {
   flex-wrap: wrap;
   gap: 2px 0;
   font-size: 13px;
-  color: #64748b;
+  color: var(--layout-sidebar-text);
 }
 
 .breadcrumb-item {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  padding: 2px 1px;
+  padding: 2px 4px;
   border-radius: 6px;
-  transition: color 0.16s ease, background-color 0.16s ease;
+  transition:
+    color 0.15s ease,
+    background-color 0.15s ease;
 }
 
 .breadcrumb-item:hover {
@@ -571,7 +645,7 @@ const handleLogout = () => {
 }
 
 .breadcrumb-item--current {
-  color: var(--el-text-color-primary);
+  color: var(--layout-sidebar-text-strong);
   font-weight: 600;
   cursor: default;
 }
@@ -583,80 +657,76 @@ const handleLogout = () => {
 }
 
 .custom-breadcrumb :deep(.el-breadcrumb__separator) {
-  margin: 0 7px;
+  margin: 0 8px;
   color: #cbd5e1;
   font-weight: 500;
 }
 
-/* 主内容 */
-.content {
+.content-inner {
   flex: 1;
-  overflow-y: auto;
+  min-height: 0;
+  overflow: auto;
   overflow-x: hidden;
+  background: var(--layout-content-surface);
+  border-radius: 12px;
+  border: 1px solid var(--layout-sidebar-border);
+  box-shadow: var(--layout-shadow-soft);
   padding: var(--layout-content-padding);
-  background-color: #ffffff;
-  border-radius: 4px;
-  margin: 8px 0;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
-  width: 100%;
-  display: flex;
-  flex-direction: column;
 }
 
-/* 优化子菜单样式 */
-.el-menu-vertical-demo .el-sub-menu .el-menu {
-  background-color: #002a4f !important;
-  padding: 4px 0;
+/* Element Plus 菜单：浅色侧栏 */
+.sidebar-menu :deep(.el-sub-menu__title),
+.sidebar-menu :deep(.el-menu-item) {
+  border-radius: 10px;
+  margin: 2px 0;
+  font-weight: 500;
 }
 
-.el-menu-vertical-demo .el-sub-menu .el-menu-item {
+.sidebar-menu :deep(.el-sub-menu__title:hover),
+.sidebar-menu :deep(.el-menu-item:hover) {
+  background-color: var(--layout-sidebar-hover-bg) !important;
+}
+
+.sidebar-menu :deep(.el-menu-item.is-active) {
+  background-color: var(--layout-sidebar-active-bg) !important;
+  color: var(--el-color-primary) !important;
+  font-weight: 600;
+}
+
+.sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
+  color: var(--layout-sidebar-text-strong);
+}
+
+.sidebar-menu :deep(.el-menu-item .el-icon),
+.sidebar-menu :deep(.el-sub-menu__title .el-icon) {
+  font-size: 18px;
+}
+
+.sidebar-menu :deep(.el-sub-menu .el-menu) {
+  background-color: transparent !important;
+}
+
+.sidebar-menu :deep(.el-sub-menu .el-menu-item) {
+  min-height: 40px;
+  height: auto;
+  line-height: 1.35;
+  padding-top: 9px !important;
+  padding-bottom: 9px !important;
+  padding-right: 12px !important;
+  margin: 1px 0;
+  font-weight: 400;
   font-size: 13px;
-  height: 36px;
-  line-height: 36px;
-  padding: 0 20px 0 50px !important;
-  margin: 2px 8px;
-  border-radius: 4px;
 }
 
-.el-menu-vertical-demo .el-sub-menu .el-menu-item:hover {
-  background-color: rgba(30, 64, 175, 0.2) !important;
+.sidebar-menu :deep(.el-sub-menu .el-menu-item.is-active) {
+  font-weight: 600;
 }
 
-.el-menu-vertical-demo .el-sub-menu .el-menu-item.is-active {
-  background-color: rgba(30, 64, 175, 0.3) !important;
-  color: #409eff;
+.sidebar-menu.el-menu--collapse :deep(.el-sub-menu__title) {
+  padding: 0 calc(var(--el-menu-base-level-padding) + 2px) !important;
 }
 
-/* 优化子菜单标题样式 */
-.el-menu-vertical-demo .el-sub-menu__title {
-  height: 48px;
-  line-height: 48px;
-  font-weight: 500;
-}
-/* 子菜单样式调整 */
-:deep(.el-sub-menu__title) {
-  background-color: #001529 !important;
-}
-
-:deep(.el-menu--popup) {
-  background-color: #0a1930 !important;
-}
-
-:deep(.el-menu-item) {
-  background-color: #0a1930 !important;
-}
-
-:deep(.el-menu-item:hover) {
-  background-color: #1a365d !important;
-}
-
-:deep(.el-menu-item.is-active) {
-  background-color: #1E40AF !important;
-  color: #ffffff !important;
-  font-weight: 500;
-}
-
-:deep(.el-sub-menu .el-menu-item) {
-  background-color: #0a1930 !important;
+.sidebar-menu.el-menu--collapse :deep(.el-tooltip__trigger) {
+  justify-content: center;
 }
 </style>
