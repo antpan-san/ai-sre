@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"crypto/sha256"
+	"crypto/tls"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -14,7 +16,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/IBM/sarama"
 	"github.com/spf13/cobra"
+	"github.com/xdg-go/scram"
 )
 
 type kafkaDiagnoseOptions struct {
@@ -159,6 +163,18 @@ func kafkaDiagnoseCmd() *cobra.Command {
 }
 
 func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDiagnoseReport, error) {
+	if nativeSnap, nativeErr := collectKafkaSnapshotByGo(ctx, opts); nativeErr == nil {
+		report := buildKafkaReport(nativeSnap)
+		if opts.AI {
+			if answer, err := explainKafkaReportWithAI(ctx, report); err == nil {
+				report.AIAnswer = answer
+			} else {
+				report.Errors = append(report.Errors, "AI 解释失败: "+err.Error())
+			}
+		}
+		return report, nil
+	}
+
 	paths, errs := resolveKafkaCommandPaths(opts.CommandDir)
 	if paths.ConsumerGroups == "" && paths.Topics == "" {
 		fallbackCtx := map[string]string{
@@ -168,7 +184,18 @@ func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDia
 		}
 		diag, derr := runAnalyzeWithOrchestrator(ctx, "kafka", fallbackCtx)
 		if derr != nil {
-			return nil, errors.New("未找到 Kafka CLI，且服务端回退失败：" + derr.Error())
+			return &kafkaDiagnoseReport{
+				BootstrapServer: opts.BootstrapServer,
+				Findings: []kafkaFinding{
+					{
+						Priority: 1, Severity: "P1", Title: "Kafka 采集不可用（原生与回退均失败）",
+						Evidence: "native go client failed; kafka cli missing; orchestrator fallback failed",
+						Cause:    "网络/认证配置异常，或服务端 AI 诊断接口不可用",
+						Verify:   "补充 --config 后重试；或检查服务端 /api/ai/diagnose 可用性",
+					},
+				},
+				Errors: append(errs, "未找到 Kafka CLI，且服务端回退失败："+derr.Error()),
+			}, nil
 		}
 		return &kafkaDiagnoseReport{
 			BootstrapServer: opts.BootstrapServer,
@@ -740,4 +767,252 @@ func shortKafkaError(scope string, err error) string {
 		msg = msg[:240] + "..."
 	}
 	return scope + ": " + msg
+}
+
+type kafkaSCRAMClient struct {
+	hashGenerator scram.HashGeneratorFcn
+	client        *scram.Client
+	conversation  *scram.ClientConversation
+}
+
+func (x *kafkaSCRAMClient) Begin(userName, password, authzID string) error {
+	client, err := x.hashGenerator.NewClient(userName, password, authzID)
+	if err != nil {
+		return err
+	}
+	x.client = client
+	x.conversation = client.NewConversation()
+	return nil
+}
+
+func (x *kafkaSCRAMClient) Step(challenge string) (string, error) {
+	return x.conversation.Step(challenge)
+}
+
+func (x *kafkaSCRAMClient) Done() bool {
+	return x.conversation.Done()
+}
+
+func collectKafkaSnapshotByGo(ctx context.Context, opts kafkaDiagnoseOptions) (kafkaSnapshot, error) {
+	props, _ := loadKafkaClientProperties(opts.ClientConfig)
+	cfg, err := buildSaramaConfig(opts, props)
+	if err != nil {
+		return kafkaSnapshot{}, err
+	}
+	brokers := splitKafkaCSV(opts.BootstrapServer)
+	if len(brokers) == 0 {
+		return kafkaSnapshot{}, errors.New("bootstrap-server 为空")
+	}
+	client, err := sarama.NewClient(brokers, cfg)
+	if err != nil {
+		return kafkaSnapshot{}, err
+	}
+	defer client.Close()
+	admin, err := sarama.NewClusterAdminFromClient(client)
+	if err != nil {
+		return kafkaSnapshot{}, err
+	}
+	defer admin.Close()
+
+	snap := kafkaSnapshot{BootstrapServer: opts.BootstrapServer}
+	topics, terr := collectKafkaTopicsByGo(client)
+	if terr != nil {
+		snap.Errors = append(snap.Errors, shortKafkaError("native topics", terr))
+	} else {
+		snap.Topics = topics
+	}
+	groups, gerr := collectKafkaGroupsByGo(ctx, client, admin, opts.Limit)
+	if gerr != nil {
+		snap.Errors = append(snap.Errors, shortKafkaError("native groups", gerr))
+	} else {
+		snap.Groups = groups
+	}
+	if len(snap.Topics) == 0 && len(snap.Groups) == 0 {
+		return kafkaSnapshot{}, errors.New(strings.Join(snap.Errors, "; "))
+	}
+	return snap, nil
+}
+
+func collectKafkaTopicsByGo(client sarama.Client) ([]kafkaTopicSummary, error) {
+	names, err := client.Topics()
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(names)
+	out := make([]kafkaTopicSummary, 0, len(names))
+	for _, topic := range names {
+		partitions, err := client.Partitions(topic)
+		if err != nil {
+			continue
+		}
+		ts := kafkaTopicSummary{Name: topic, PartitionCount: len(partitions)}
+		for _, p := range partitions {
+			leader, _ := client.Leader(topic, p)
+			replicas, _ := client.Replicas(topic, p)
+			isr, _ := client.InSyncReplicas(topic, p)
+			part := kafkaTopicPartition{
+				Topic:     topic,
+				Partition: int(p),
+				Leader:    fmt.Sprintf("%d", leader.ID()),
+				Replicas:  int32ToStringSlice(replicas),
+				ISR:       int32ToStringSlice(isr),
+			}
+			if leader == nil {
+				part.Leader = "unknown"
+			}
+			if isKafkaOfflineLeader(part.Leader) {
+				ts.OfflinePartitions++
+			}
+			if len(part.Replicas) > 0 && len(part.ISR) < len(part.Replicas) {
+				ts.UnderReplicatedPartitions++
+			}
+			ts.Partitions = append(ts.Partitions, part)
+		}
+		sort.Slice(ts.Partitions, func(i, j int) bool { return ts.Partitions[i].Partition < ts.Partitions[j].Partition })
+		out = append(out, ts)
+	}
+	return out, nil
+}
+
+func collectKafkaGroupsByGo(ctx context.Context, client sarama.Client, admin sarama.ClusterAdmin, limit int) ([]kafkaGroupSummary, error) {
+	groupMap, err := admin.ListConsumerGroups()
+	if err != nil {
+		return nil, err
+	}
+	names := make([]string, 0, len(groupMap))
+	for name := range groupMap {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if limit > 0 && len(names) > limit {
+		names = names[:limit]
+	}
+
+	out := make([]kafkaGroupSummary, 0, len(names))
+	for _, name := range names {
+		select {
+		case <-ctx.Done():
+			return out, ctx.Err()
+		default:
+		}
+		descList, _ := admin.DescribeConsumerGroups([]string{name})
+		g := kafkaGroupSummary{Name: name, MaxLagPartition: -1}
+		if len(descList) > 0 {
+			g.State = descList[0].State
+			g.ActiveMembers = len(descList[0].Members)
+		}
+		offsets, err := admin.ListConsumerGroupOffsets(name, nil)
+		if err != nil {
+			g.RawError = shortKafkaError("group "+name, err)
+			out = append(out, g)
+			continue
+		}
+		for topic, pmap := range offsets.Blocks {
+			for part, block := range pmap {
+				latest, lerr := client.GetOffset(topic, part, sarama.OffsetNewest)
+				if lerr != nil {
+					continue
+				}
+				current := block.Offset
+				if current < 0 {
+					current = 0
+				}
+				lag := latest - current
+				if lag < 0 {
+					lag = 0
+				}
+				row := kafkaConsumerGroupRow{
+					Group:         name,
+					Topic:         topic,
+					Partition:     int(part),
+					CurrentOffset: fmt.Sprintf("%d", current),
+					LogEndOffset:  fmt.Sprintf("%d", latest),
+					Lag:           lag,
+				}
+				g.Rows = append(g.Rows, row)
+				g.Partitions++
+				g.TotalLag += lag
+				if lag > g.MaxPartitionLag {
+					g.MaxPartitionLag = lag
+					g.MaxLagTopic = topic
+					g.MaxLagPartition = int(part)
+				}
+			}
+		}
+		if g.ActiveMembers == 0 && g.TotalLag > 0 {
+			g.NoActiveMembers = true
+		}
+		out = append(out, g)
+	}
+	return out, nil
+}
+
+func int32ToStringSlice(v []int32) []string {
+	if len(v) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(v))
+	for _, n := range v {
+		out = append(out, strconv.Itoa(int(n)))
+	}
+	return out
+}
+
+func loadKafkaClientProperties(path string) (map[string]string, error) {
+	props := map[string]string{}
+	if strings.TrimSpace(path) == "" {
+		return props, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		s := strings.TrimSpace(line)
+		if s == "" || strings.HasPrefix(s, "#") {
+			continue
+		}
+		idx := strings.Index(s, "=")
+		if idx <= 0 {
+			continue
+		}
+		k := strings.TrimSpace(s[:idx])
+		v := strings.TrimSpace(s[idx+1:])
+		props[k] = v
+	}
+	return props, nil
+}
+
+func buildSaramaConfig(opts kafkaDiagnoseOptions, props map[string]string) (*sarama.Config, error) {
+	cfg := sarama.NewConfig()
+	cfg.Version = sarama.MaxVersion
+	cfg.Net.DialTimeout = opts.Timeout
+	cfg.Net.ReadTimeout = opts.Timeout
+	cfg.Net.WriteTimeout = opts.Timeout
+	cfg.Metadata.Timeout = opts.Timeout
+	cfg.Admin.Timeout = opts.Timeout
+
+	sec := strings.ToUpper(strings.TrimSpace(props["security.protocol"]))
+	if strings.Contains(sec, "SSL") {
+		cfg.Net.TLS.Enable = true
+		cfg.Net.TLS.Config = &tls.Config{MinVersion: tls.VersionTLS12}
+	}
+	if strings.Contains(sec, "SASL") || strings.TrimSpace(props["sasl.mechanism"]) != "" {
+		cfg.Net.SASL.Enable = true
+		cfg.Net.SASL.User = strings.TrimSpace(props["sasl.username"])
+		cfg.Net.SASL.Password = strings.TrimSpace(props["sasl.password"])
+		mech := strings.ToUpper(strings.TrimSpace(props["sasl.mechanism"]))
+		switch mech {
+		case "PLAIN", "":
+			cfg.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+		case "SCRAM-SHA-256":
+			cfg.Net.SASL.Mechanism = sarama.SASLTypeSCRAMSHA256
+			cfg.Net.SASL.SCRAMClientGeneratorFunc = func() sarama.SCRAMClient {
+				return &kafkaSCRAMClient{hashGenerator: sha256.New}
+			}
+		default:
+			return nil, fmt.Errorf("暂不支持的 sasl.mechanism: %s", mech)
+		}
+	}
+	return cfg, nil
 }
