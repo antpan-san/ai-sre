@@ -130,6 +130,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/service/linux/list", handlers.GetLinuxServiceList)
 		protected.POST("/service/linux/operate", handlers.OperateLinuxService)
 		protected.POST("/service-deploy/deployments", handlers.CreateServiceDeployment)
+		protected.PUT("/service-deploy/deployments/:id", handlers.UpdateServiceDeployment)
 
 		// ---- K8s Deployment ----
 		protected.GET("/k8s/deploy/versions", handlers.GetK8sVersions)

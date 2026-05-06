@@ -238,16 +238,25 @@
 
           <div class="actions">
             <el-button type="primary" :icon="Upload" :loading="generating" @click="onGenerate">生成部署脚本</el-button>
+            <el-button
+              type="success"
+              :icon="Check"
+              :loading="submittingUpdate"
+              :disabled="!canSubmitUpdate"
+              @click="onSubmitUpdate"
+            >
+              提交配置变更
+            </el-button>
             <el-button :icon="RefreshRight" @click="onReset">重置</el-button>
           </div>
           <el-alert
             v-if="generatedDeployment"
             class="deploy-status"
-            type="success"
+            :type="deploymentDirty ? 'warning' : 'success'"
             :closable="false"
             show-icon
             :title="`部署任务已保存：${generatedDeployment.deploymentId}`"
-            :description="`状态：${generatedDeployment.status}。目标机执行 curl 命令后，ai-sre 会从服务端拉取参数并回传步骤状态。`"
+            :description="deploymentStatusDescription"
           />
         </template>
       </div>
@@ -302,7 +311,7 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Download, Upload, RefreshRight, Check, InfoFilled } from '@element-plus/icons-vue'
-import { createServiceDeployment } from '../../api/service'
+import { createServiceDeployment, updateServiceDeployment } from '../../api/service'
 import type { CreateServiceDeploymentResponse } from '../../types/service'
 
 interface CatalogField {
@@ -867,9 +876,46 @@ const sectionNormalColMd = (f: CatalogField) => {
 const previewVisible = ref(false)
 const activeTab = ref<'bash' | 'cli'>('bash')
 const generating = ref(false)
+const submittingUpdate = ref(false)
 const generatedDeployment = ref<CreateServiceDeploymentResponse | null>(null)
+const savedDeploymentSnapshot = ref('')
 const curlCommand = computed(() => generatedDeployment.value?.curlCommand || '')
 const aiSreInstallCommand = computed(() => generatedDeployment.value?.aiSreCommand || '')
+const aiSreUpdateCommand = computed(() => generatedDeployment.value?.aiSreUpdateCommand || 'sudo ai-sre nginx update')
+
+const buildDeploymentPayload = () => ({
+  service: form.service,
+  profile: selectedProfile.value,
+  install_method: form.installMethod,
+  version: String(form.params.version || ''),
+  params: {
+    ...form.params,
+    osType: form.osType
+  }
+})
+
+const stableStringify = (value: any): string => {
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(',')}]`
+  if (value && typeof value === 'object') {
+    return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stableStringify(value[key])}`).join(',')}}`
+  }
+  return JSON.stringify(value) ?? 'null'
+}
+
+const currentDeploymentSnapshot = computed(() => stableStringify(buildDeploymentPayload()))
+const deploymentDirty = computed(() =>
+  !!generatedDeployment.value && savedDeploymentSnapshot.value !== currentDeploymentSnapshot.value
+)
+const canSubmitUpdate = computed(() =>
+  !!generatedDeployment.value && form.service === 'nginx' && deploymentDirty.value && !submittingUpdate.value
+)
+const deploymentStatusDescription = computed(() => {
+  if (!generatedDeployment.value) return ''
+  if (deploymentDirty.value) {
+    return `页面配置有新修改，点击“提交配置变更”后，目标机执行 ${aiSreUpdateCommand.value} 即可拉取最新配置并重启 nginx 生效。`
+  }
+  return `状态：${generatedDeployment.value.status}。当前页面配置已保存；后续修改后可提交，并在目标机执行 ${aiSreUpdateCommand.value} 更新 nginx。`
+})
 
 const seedParams = (item: CatalogItem) => {
   const out: Record<string, any> = {}
@@ -882,6 +928,8 @@ const selectService = (key: string) => {
   form.service = key
   const item = catalog.find(c => c.key === key)
   if (!item) return
+  generatedDeployment.value = null
+  savedDeploymentSnapshot.value = ''
   form.params = seedParams(item)
   if (!item.installMethods.includes(form.installMethod)) {
     form.installMethod = item.installMethods[0]
@@ -899,20 +947,41 @@ const onGenerate = async () => {
   }
   generating.value = true
   try {
-    generatedDeployment.value = await createServiceDeployment({
-      service: form.service,
-      profile: selectedProfile.value,
-      install_method: form.installMethod,
-      version: String(form.params.version || ''),
-      params: {
-        ...form.params,
-        osType: form.osType
-      }
-    })
+    generatedDeployment.value = await createServiceDeployment(buildDeploymentPayload())
+    savedDeploymentSnapshot.value = currentDeploymentSnapshot.value
     activeTab.value = 'bash'
     previewVisible.value = true
   } finally {
     generating.value = false
+  }
+}
+
+const onSubmitUpdate = async () => {
+  if (!generatedDeployment.value || form.service !== 'nginx') {
+    ElMessage.warning('请先生成 Nginx 部署任务')
+    return
+  }
+  if (!deploymentDirty.value) {
+    ElMessage.info('当前配置已保存，无需提交')
+    return
+  }
+  submittingUpdate.value = true
+  try {
+    const res = await updateServiceDeployment(generatedDeployment.value.deploymentId, {
+      ...buildDeploymentPayload(),
+      token: generatedDeployment.value.token
+    })
+    generatedDeployment.value = {
+      ...generatedDeployment.value,
+      ...res,
+      token: generatedDeployment.value.token,
+      curlCommand: generatedDeployment.value.curlCommand,
+      aiSreCommand: generatedDeployment.value.aiSreCommand
+    }
+    savedDeploymentSnapshot.value = currentDeploymentSnapshot.value
+    ElMessage.success(`配置已提交，目标机执行 ${aiSreUpdateCommand.value} 后生效`)
+  } finally {
+    submittingUpdate.value = false
   }
 }
 

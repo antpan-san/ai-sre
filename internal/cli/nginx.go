@@ -43,7 +43,23 @@ func nginxCmd() *cobra.Command {
 		Use:   "nginx",
 		Short: "Nginx 统计分析与快诊",
 	}
-	cmd.AddCommand(nginxDiagnoseCmd())
+	cmd.AddCommand(nginxDiagnoseCmd(), nginxUpdateCmd())
+	return cmd
+}
+
+func nginxUpdateCmd() *cobra.Command {
+	var opts serviceUpdateOptions
+	cmd := &cobra.Command{
+		Use:   "update",
+		Short: "从 OpsFleet 拉取最新 Nginx 部署规格并重启生效",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runServiceUpdate(cmd, "nginx", opts)
+		},
+	}
+	cmd.Flags().StringVar(&opts.APIURL, "api-url", "", "OpsFleet API base，例如 http://host:9080/ft-api；默认读取本机安装状态")
+	cmd.Flags().StringVar(&opts.DeployID, "deploy-id", "", "服务端部署 ID；默认读取本机安装状态")
+	cmd.Flags().StringVar(&opts.Token, "token", "", "服务端部署 token；默认读取本机安装状态")
+	cmd.Flags().StringVar(&opts.FromURL, "from", "", "完整 spec URL（可替代 api-url/deploy-id/token）")
 	return cmd
 }
 
@@ -238,4 +254,3 @@ func formatNginxDiagnoseText(r *nginxDiagnoseReport) string {
 	}
 	return b.String()
 }
-

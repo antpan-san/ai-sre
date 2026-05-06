@@ -40,6 +40,7 @@ export interface CreateServiceDeploymentParams {
   install_method: string
   version?: string
   params: Record<string, any>
+  token?: string
 }
 
 export interface CreateServiceDeploymentResponse {
@@ -47,6 +48,7 @@ export interface CreateServiceDeploymentResponse {
   token: string
   curlCommand: string
   aiSreCommand: string
+  aiSreUpdateCommand?: string
   status: string
 }
 

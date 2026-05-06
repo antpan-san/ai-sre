@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -23,6 +24,8 @@ type serviceInstallOptions struct {
 	FromURL  string
 }
 
+type serviceUpdateOptions = serviceInstallOptions
+
 type serviceInstallSpec struct {
 	ID            string                 `json:"id"`
 	Service       string                 `json:"service"`
@@ -30,6 +33,14 @@ type serviceInstallSpec struct {
 	InstallMethod string                 `json:"install_method"`
 	Version       string                 `json:"version"`
 	Params        map[string]interface{} `json:"params"`
+}
+
+type serviceDeploymentState struct {
+	Service   string    `json:"service"`
+	APIURL    string    `json:"api_url"`
+	DeployID  string    `json:"deploy_id"`
+	Token     string    `json:"token"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 func serviceCmd() *cobra.Command {
@@ -78,7 +89,41 @@ func runServiceInstall(cmd *cobra.Command, opts serviceInstallOptions) error {
 		_ = postServiceFinish(apiURL, deployID, token, "failed", err.Error())
 		return err
 	}
+	if err := saveServiceDeploymentState(spec.Service, apiURL, deployID, token); err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "[state] warning: save local deployment state failed: %v\n", err)
+	}
 	return postServiceFinish(apiURL, deployID, token, "success", "service install completed")
+}
+
+func runServiceUpdate(cmd *cobra.Command, service string, opts serviceUpdateOptions) error {
+	opts = fillServiceUpdateOptionsFromState(service, opts)
+	specURL, apiURL, deployID, token, err := resolveServiceSpecURL(serviceInstallOptions(opts))
+	if err != nil {
+		return fmt.Errorf("%w; 如首次安装已成功，请使用 sudo 执行，或显式传入 --api-url/--deploy-id/--token", err)
+	}
+	spec, err := fetchServiceSpec(specURL)
+	if err != nil {
+		_ = postServiceFinish(apiURL, deployID, token, "failed", err.Error())
+		return err
+	}
+	if spec.ID == "" {
+		spec.ID = deployID
+	}
+	if spec.Service != service {
+		return fmt.Errorf("deployment service mismatch: want %s, got %s", service, spec.Service)
+	}
+	report := func(step, status, msg string) {
+		fmt.Fprintf(cmd.OutOrStdout(), "[%s] %s: %s\n", step, status, msg)
+		_ = postServiceEvent(apiURL, deployID, token, step, status, msg)
+	}
+	if err := runServiceUpdateTemplate(spec, report); err != nil {
+		_ = postServiceFinish(apiURL, deployID, token, "failed", err.Error())
+		return err
+	}
+	if err := saveServiceDeploymentState(service, apiURL, deployID, token); err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "[state] warning: save local deployment state failed: %v\n", err)
+	}
+	return postServiceFinish(apiURL, deployID, token, "success", "service update completed")
 }
 
 func resolveServiceSpecURL(opts serviceInstallOptions) (specURL, apiURL, deployID, token string, err error) {
@@ -201,6 +246,31 @@ func runServiceTemplate(spec *serviceInstallSpec, report func(string, string, st
 	return nil
 }
 
+func runServiceUpdateTemplate(spec *serviceInstallSpec, report func(string, string, string)) error {
+	steps := []struct {
+		name string
+		body string
+	}{
+		{"write-config", serviceConfigScript(spec)},
+		{"restart", serviceRestartScript(spec)},
+		{"status-check", serviceStatusScript(spec)},
+		{"port-check", servicePortScript(spec)},
+		{"service-check", serviceHealthScript(spec)},
+	}
+	for _, s := range steps {
+		if strings.TrimSpace(s.body) == "" {
+			continue
+		}
+		report(s.name, "running", "start")
+		if err := runBash(s.body); err != nil {
+			report(s.name, "failed", err.Error())
+			return fmt.Errorf("%s failed: %w", s.name, err)
+		}
+		report(s.name, "success", "ok")
+	}
+	return nil
+}
+
 func runBash(script string) error {
 	cmd := exec.Command("bash", "-e", "-u", "-o", "pipefail", "-c", script)
 	cmd.Stdout = os.Stdout
@@ -278,6 +348,20 @@ systemctl restart mysql || systemctl restart mysqld`
 systemctl restart postgresql`
 	}
 	return fmt.Sprintf("systemctl enable %s\nsystemctl restart %s", unit, unit)
+}
+
+func serviceRestartScript(spec *serviceInstallSpec) string {
+	if strParam(spec, "install_method", spec.InstallMethod) == "docker" || spec.Service == "kafka" {
+		return fmt.Sprintf("docker restart %s", shellQuote(spec.Service))
+	}
+	unit := spec.Service
+	if unit == "redis" {
+		return "systemctl restart redis-server || systemctl restart redis"
+	}
+	if unit == "mysql" {
+		return "systemctl restart mysql || systemctl restart mysqld"
+	}
+	return fmt.Sprintf("systemctl restart %s", unit)
 }
 
 func serviceStatusScript(spec *serviceInstallSpec) string {
@@ -598,6 +682,83 @@ func dockerImage(spec *serviceInstallSpec, image, fallback string) string {
 		v = fallback
 	}
 	return image + ":" + v
+}
+
+func fillServiceUpdateOptionsFromState(service string, opts serviceUpdateOptions) serviceUpdateOptions {
+	if strings.TrimSpace(opts.FromURL) != "" {
+		return opts
+	}
+	st, err := loadServiceDeploymentState(service)
+	if err != nil {
+		return opts
+	}
+	if strings.TrimSpace(opts.APIURL) == "" {
+		opts.APIURL = st.APIURL
+	}
+	if strings.TrimSpace(opts.DeployID) == "" {
+		opts.DeployID = st.DeployID
+	}
+	if strings.TrimSpace(opts.Token) == "" {
+		opts.Token = st.Token
+	}
+	return opts
+}
+
+func saveServiceDeploymentState(service, apiURL, deployID, token string) error {
+	service = strings.TrimSpace(strings.ToLower(service))
+	if service == "" || apiURL == "" || deployID == "" || token == "" {
+		return nil
+	}
+	path, err := serviceDeploymentStatePath(service)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		return err
+	}
+	state := serviceDeploymentState{
+		Service:   service,
+		APIURL:    strings.TrimRight(apiURL, "/"),
+		DeployID:  deployID,
+		Token:     token,
+		UpdatedAt: time.Now(),
+	}
+	b, err := json.MarshalIndent(state, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(path, b, 0600)
+}
+
+func loadServiceDeploymentState(service string) (*serviceDeploymentState, error) {
+	path, err := serviceDeploymentStatePath(service)
+	if err != nil {
+		return nil, err
+	}
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var state serviceDeploymentState
+	if err := json.Unmarshal(b, &state); err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+func serviceDeploymentStatePath(service string) (string, error) {
+	service = strings.TrimSpace(strings.ToLower(service))
+	if service == "" {
+		return "", fmt.Errorf("service is required")
+	}
+	if os.Geteuid() == 0 {
+		return filepath.Join("/etc/ai-sre/service-deployments", service+".json"), nil
+	}
+	dir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "ai-sre", "service-deployments", service+".json"), nil
 }
 
 func shellQuote(s string) string {

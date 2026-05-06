@@ -31,6 +31,10 @@ export const createServiceDeployment = (data: CreateServiceDeploymentParams): Pr
   return request.post('/api/service-deploy/deployments', data)
 }
 
+export const updateServiceDeployment = (deploymentId: string, data: CreateServiceDeploymentParams): Promise<CreateServiceDeploymentResponse> => {
+  return request.put(`/api/service-deploy/deployments/${deploymentId}`, data)
+}
+
 /**
  * 获取服务列表
  * @param params 查询参数

@@ -24,6 +24,7 @@ type serviceDeploymentCreateRequest struct {
 	InstallMethod string                 `json:"install_method" binding:"required"`
 	Version       string                 `json:"version"`
 	Params        map[string]interface{} `json:"params"`
+	Token         string                 `json:"token"`
 }
 
 type serviceDeploymentEventRequest struct {
@@ -44,24 +45,14 @@ func CreateServiceDeployment(c *gin.Context) {
 		response.BadRequest(c, "无效的服务部署参数")
 		return
 	}
-	req.Service = strings.TrimSpace(strings.ToLower(req.Service))
-	req.InstallMethod = strings.TrimSpace(strings.ToLower(req.InstallMethod))
-	if req.Profile == "" {
-		req.Profile = "default"
-	}
-	if req.Params == nil {
-		req.Params = map[string]interface{}{}
-	}
-	if req.Version != "" {
-		req.Params["version"] = req.Version
-	}
+	normalizeServiceDeploymentRequest(&req)
 
 	token, err := randomToken()
 	if err != nil {
 		response.ServerError(c, "生成部署 token 失败")
 		return
 	}
-	exp := time.Now().Add(24 * time.Hour)
+	exp := time.Now().Add(90 * 24 * time.Hour)
 	dep := models.ServiceDeployment{
 		Service:       req.Service,
 		Profile:       req.Profile,
@@ -82,12 +73,75 @@ func CreateServiceDeployment(c *gin.Context) {
 	id := dep.ID.String()
 	curlCmd := fmt.Sprintf("curl -fsSL '%s/api/service-deploy/deployments/%s/bootstrap.sh?token=%s' | sudo bash", base, id, token)
 	aiSreCmd := fmt.Sprintf("sudo ai-sre service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(id), quoteShellSingleLine(token))
+	aiSreUpdateCmd := serviceDeploymentUpdateCommand(req.Service)
 	response.OK(c, gin.H{
-		"deploymentId": id,
-		"token":        token,
-		"curlCommand":  curlCmd,
-		"aiSreCommand": aiSreCmd,
-		"status":       dep.Status,
+		"deploymentId":       id,
+		"token":              token,
+		"curlCommand":        curlCmd,
+		"aiSreCommand":       aiSreCmd,
+		"aiSreUpdateCommand": aiSreUpdateCmd,
+		"status":             dep.Status,
+	})
+}
+
+// UpdateServiceDeployment refreshes an existing server-side spec for later ai-sre update.
+func UpdateServiceDeployment(c *gin.Context) {
+	var req serviceDeploymentCreateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效的服务部署参数")
+		return
+	}
+	normalizeServiceDeploymentRequest(&req)
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "无效的部署 ID")
+		return
+	}
+	var dep models.ServiceDeployment
+	if err := database.DB.Where("id = ?", id).First(&dep).Error; err != nil {
+		response.NotFound(c, "部署任务不存在")
+		return
+	}
+	if dep.Service != req.Service {
+		response.BadRequest(c, "部署任务服务类型不匹配")
+		return
+	}
+	exp := time.Now().Add(90 * 24 * time.Hour)
+	updates := map[string]interface{}{
+		"profile":        req.Profile,
+		"install_method": req.InstallMethod,
+		"version":        req.Version,
+		"params":         models.NewJSONBFromMap(req.Params),
+		"status":         "pending_update",
+		"current_step":   "spec-update",
+		"last_error":     "",
+		"finished_at":    nil,
+		"expires_at":     &exp,
+	}
+	if err := database.DB.Model(&dep).Updates(updates).Error; err != nil {
+		response.ServerError(c, "更新部署规格失败")
+		return
+	}
+	_ = database.DB.Create(&models.ServiceDeploymentEvent{
+		DeploymentID: dep.ID,
+		Step:         "spec-update",
+		Status:       "success",
+		Message:      "deployment spec updated from console",
+	}).Error
+	base := publicAPIBaseFromRequest(c)
+	curlCmd := ""
+	aiSreCmd := ""
+	if req.Token != "" {
+		curlCmd = fmt.Sprintf("curl -fsSL '%s/api/service-deploy/deployments/%s/bootstrap.sh?token=%s' | sudo bash", base, dep.ID.String(), req.Token)
+		aiSreCmd = fmt.Sprintf("sudo ai-sre service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(dep.ID.String()), quoteShellSingleLine(req.Token))
+	}
+	response.OK(c, gin.H{
+		"deploymentId":       dep.ID.String(),
+		"token":              req.Token,
+		"curlCommand":        curlCmd,
+		"aiSreCommand":       aiSreCmd,
+		"aiSreUpdateCommand": serviceDeploymentUpdateCommand(req.Service),
+		"status":             "pending_update",
 	})
 }
 
@@ -199,6 +253,27 @@ func FinishServiceDeployment(c *gin.Context) {
 		return
 	}
 	response.OK(c, gin.H{"ok": true})
+}
+
+func normalizeServiceDeploymentRequest(req *serviceDeploymentCreateRequest) {
+	req.Service = strings.TrimSpace(strings.ToLower(req.Service))
+	req.InstallMethod = strings.TrimSpace(strings.ToLower(req.InstallMethod))
+	if req.Profile == "" {
+		req.Profile = "default"
+	}
+	if req.Params == nil {
+		req.Params = map[string]interface{}{}
+	}
+	if req.Version != "" {
+		req.Params["version"] = req.Version
+	}
+}
+
+func serviceDeploymentUpdateCommand(service string) string {
+	if service == "nginx" {
+		return "sudo ai-sre nginx update"
+	}
+	return ""
 }
 
 func loadServiceDeploymentByToken(c *gin.Context) (models.ServiceDeployment, string, bool) {
