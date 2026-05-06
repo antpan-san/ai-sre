@@ -76,14 +76,14 @@
               </div>
             </template>
             <el-form label-position="top">
-              <div v-if="isNginxBasicSection(sec)" class="nginx-basic-grid">
-                <div class="nginx-basic-normal">
+              <div class="section-field-grid">
+                <div class="section-normal-fields">
                   <el-row :gutter="16">
                     <el-col
-                      v-for="field in nginxBasicNormalFields(sec.fields)"
+                      v-for="field in normalFields(sec.fields)"
                       :key="field.key"
                       :xs="24"
-                      :md="8"
+                      :md="sectionNormalColMd(field)"
                     >
                       <el-form-item :label="field.label">
                         <el-input-number
@@ -127,9 +127,12 @@
                     </el-col>
                   </el-row>
                 </div>
-                <div class="nginx-basic-switches">
+                <div
+                  v-if="switchFields(sec.fields).length"
+                  class="section-switch-fields"
+                >
                   <div
-                    v-for="field in nginxBasicSwitchFields(sec.fields)"
+                    v-for="field in switchFields(sec.fields)"
                     :key="field.key"
                     class="switch-row switch-row--compact"
                   >
@@ -148,68 +151,6 @@
                   </div>
                 </div>
               </div>
-              <el-row v-else :gutter="16">
-                <el-col
-                  v-for="field in visibleFields(sec.fields)"
-                  :key="field.key"
-                  :xs="24"
-                  :md="colMd(field)"
-                >
-                  <div v-if="field.type === 'switch'" class="switch-row">
-                    <span class="switch-row-label">
-                      {{ field.label }}
-                      <el-tooltip v-if="field.tip" :content="field.tip" placement="top">
-                        <el-icon class="switch-row-tip"><InfoFilled /></el-icon>
-                      </el-tooltip>
-                    </span>
-                    <el-switch
-                      v-model="form.params[field.key]"
-                      inline-prompt
-                      active-text="开"
-                      inactive-text="关"
-                    />
-                  </div>
-                  <el-form-item v-else :label="field.label">
-                    <el-input-number
-                      v-if="field.type === 'number'"
-                      v-model="form.params[field.key]"
-                      :min="field.min ?? 1"
-                      :max="field.max ?? 65535"
-                      style="width: 100%"
-                    />
-                    <el-select
-                      v-else-if="field.type === 'select'"
-                      v-model="form.params[field.key]"
-                      style="width: 100%"
-                    >
-                      <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
-                    </el-select>
-                    <el-select
-                      v-else-if="field.type === 'autocomplete'"
-                      v-model="form.params[field.key]"
-                      filterable
-                      allow-create
-                      default-first-option
-                      :placeholder="field.placeholder || '选择或输入自定义值'"
-                      style="width: 100%"
-                    >
-                      <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
-                    </el-select>
-                    <el-input
-                      v-else-if="field.type === 'textarea'"
-                      v-model="form.params[field.key]"
-                      type="textarea"
-                      :rows="field.rows ?? 3"
-                      :placeholder="field.placeholder || ''"
-                    />
-                    <el-input
-                      v-else
-                      v-model="form.params[field.key]"
-                      :placeholder="field.placeholder || ''"
-                    />
-                  </el-form-item>
-                </el-col>
-              </el-row>
             </el-form>
           </el-card>
 
@@ -627,6 +568,157 @@ const nginxSections: CatalogSection[] = [
   }
 ]
 
+const haproxySections: CatalogSection[] = [
+  {
+    key: 'basic',
+    title: '基础',
+    fields: [
+      { key: 'version', label: 'HAProxy 版本', type: 'autocomplete', default: '2.8', options: ['2.4', '2.6', '2.8', '3.0', 'lts', 'latest'] },
+      { key: 'frontend_port', label: '前端端口', type: 'number', default: 80 },
+      { key: 'mode', label: '代理模式', type: 'select', default: 'http', options: ['http', 'tcp'] },
+      { key: 'maxconn', label: 'global maxconn', type: 'number', default: 4096, min: 1, max: 1048576 },
+      { key: 'stats_enabled', label: '启用 stats 页面', type: 'switch', default: true },
+      { key: 'httpclose', label: 'option httpclose', type: 'switch', default: false, visibleIf: () => form.params.mode === 'http' }
+    ]
+  },
+  {
+    key: 'backend',
+    title: '后端与健康检查',
+    fields: [
+      { key: 'algorithm', label: 'balance', type: 'select', default: 'roundrobin', options: ['roundrobin', 'leastconn', 'source'] },
+      { key: 'backends', label: '后端列表（每行 host:port）', type: 'textarea', default: '10.0.0.1:8080\n10.0.0.2:8080', rows: 4, span: 'full' },
+      { key: 'check_enabled', label: 'server check', type: 'switch', default: true },
+      { key: 'httpchk_enabled', label: 'HTTP 健康检查', type: 'switch', default: false, visibleIf: () => form.params.mode === 'http' },
+      { key: 'httpchk_path', label: 'option httpchk 路径', type: 'text', default: 'GET /health', visibleIf: () => form.params.mode === 'http' && isOn('httpchk_enabled') }
+    ]
+  },
+  {
+    key: 'timeouts',
+    title: '超时',
+    fields: [
+      { key: 'timeout_connect', label: 'timeout connect', type: 'text', default: '5s' },
+      { key: 'timeout_client', label: 'timeout client', type: 'text', default: '30s' },
+      { key: 'timeout_server', label: 'timeout server', type: 'text', default: '30s' },
+      { key: 'stats_port', label: 'stats 端口', type: 'number', default: 8404, visibleIf: () => isOn('stats_enabled') }
+    ]
+  }
+]
+
+const redisSections: CatalogSection[] = [
+  {
+    key: 'basic',
+    title: '基础',
+    fields: [
+      { key: 'version', label: 'Redis 版本', type: 'autocomplete', default: '7.2', options: ['6.0', '6.2', '7.0', '7.2', '7.4', 'latest'] },
+      { key: 'port', label: '端口', type: 'number', default: 6379 },
+      { key: 'bind', label: 'bind 地址', type: 'text', default: '0.0.0.0' },
+      { key: 'databases', label: 'databases', type: 'number', default: 16, min: 1, max: 1024 },
+      { key: 'dir', label: '数据目录 dir', type: 'text', default: '/var/lib/redis' },
+      { key: 'requirepass', label: 'requirepass（可空）', type: 'text', default: '' },
+      { key: 'protected_mode', label: 'protected-mode', type: 'switch', default: true },
+      { key: 'supervised_systemd', label: 'supervised systemd', type: 'switch', default: true }
+    ]
+  },
+  {
+    key: 'memory',
+    title: '内存与连接',
+    fields: [
+      { key: 'maxmemory', label: 'maxmemory', type: 'text', default: '512mb' },
+      { key: 'maxmemory_policy', label: 'maxmemory-policy', type: 'select', default: 'allkeys-lru', options: ['noeviction', 'allkeys-lru', 'volatile-lru', 'allkeys-lfu', 'volatile-ttl'] },
+      { key: 'timeout', label: 'timeout (秒)', type: 'number', default: 0, min: 0, max: 86400 },
+      { key: 'tcp_keepalive', label: 'tcp-keepalive (秒)', type: 'number', default: 300, min: 0, max: 86400 }
+    ]
+  },
+  {
+    key: 'persistence',
+    title: '持久化',
+    fields: [
+      { key: 'rdb_enabled', label: '启用 RDB save', type: 'switch', default: true },
+      { key: 'dbfilename', label: 'dbfilename', type: 'text', default: 'dump.rdb', visibleIf: () => isOn('rdb_enabled') },
+      { key: 'appendonly', label: 'appendonly (AOF)', type: 'switch', default: false },
+      { key: 'appendfsync', label: 'appendfsync', type: 'select', default: 'everysec', options: ['always', 'everysec', 'no'], visibleIf: () => isOn('appendonly') }
+    ]
+  }
+]
+
+const kafkaSections: CatalogSection[] = [
+  {
+    key: 'basic',
+    title: '基础（Docker）',
+    fields: [
+      { key: 'version', label: 'Kafka 版本', type: 'autocomplete', default: '3.6', options: ['3.4', '3.5', '3.6', '3.7', 'latest'] },
+      { key: 'port', label: 'broker 端口', type: 'number', default: 9092 },
+      { key: 'broker_id', label: 'broker.id', type: 'number', default: 1, min: 0, max: 4096 },
+      { key: 'zookeeper', label: 'ZooKeeper 地址', type: 'text', default: 'localhost:2181' },
+      { key: 'auto_create_topics', label: 'auto.create.topics.enable', type: 'switch', default: false }
+    ]
+  },
+  {
+    key: 'topic_defaults',
+    title: 'Topic 默认值与保留策略',
+    fields: [
+      { key: 'num_partitions', label: 'num.partitions', type: 'number', default: 3, min: 1, max: 10000 },
+      { key: 'default_replication_factor', label: 'default.replication.factor', type: 'number', default: 1, min: 1, max: 10 },
+      { key: 'log_retention_hours', label: 'log.retention.hours', type: 'number', default: 168, min: 1, max: 87600 },
+      { key: 'log_segment_bytes', label: 'log.segment.bytes', type: 'number', default: 1073741824, min: 1048576 },
+      { key: 'log_dir', label: 'log.dirs', type: 'text', default: '/var/lib/kafka/logs', span: 'half' }
+    ]
+  }
+]
+
+const mysqlSections: CatalogSection[] = [
+  {
+    key: 'basic',
+    title: '基础',
+    fields: [
+      { key: 'version', label: 'MySQL 版本', type: 'autocomplete', default: '8.0', options: ['5.7', '8.0', '8.4', 'latest'] },
+      { key: 'port', label: '端口', type: 'number', default: 3306 },
+      { key: 'root_password', label: 'root 密码', type: 'text', default: 'changeme' },
+      { key: 'datadir', label: '数据目录', type: 'text', default: '/var/lib/mysql' },
+      { key: 'bind_address', label: 'bind-address', type: 'text', default: '0.0.0.0' },
+      { key: 'skip_name_resolve', label: 'skip-name-resolve', type: 'switch', default: true }
+    ]
+  },
+  {
+    key: 'server',
+    title: '服务参数',
+    fields: [
+      { key: 'charset', label: 'character-set-server', type: 'text', default: 'utf8mb4' },
+      { key: 'collation', label: 'collation-server', type: 'text', default: 'utf8mb4_0900_ai_ci' },
+      { key: 'max_connections', label: 'max_connections', type: 'number', default: 500, min: 1, max: 100000 },
+      { key: 'innodb_buffer_pool_size', label: 'innodb_buffer_pool_size', type: 'text', default: '512M' },
+      { key: 'slow_query_log', label: 'slow_query_log', type: 'switch', default: true },
+      { key: 'long_query_time', label: 'long_query_time (秒)', type: 'number', default: 2, min: 0, max: 3600, visibleIf: () => isOn('slow_query_log') }
+    ]
+  }
+]
+
+const postgresqlSections: CatalogSection[] = [
+  {
+    key: 'basic',
+    title: '基础',
+    fields: [
+      { key: 'version', label: 'PostgreSQL 版本', type: 'autocomplete', default: '16', options: ['13', '14', '15', '16', '17', 'latest'] },
+      { key: 'port', label: '端口', type: 'number', default: 5432 },
+      { key: 'password', label: 'postgres 密码', type: 'text', default: 'changeme' },
+      { key: 'datadir', label: 'PGDATA 目录', type: 'text', default: '/var/lib/postgresql/data' },
+      { key: 'listen_addresses', label: 'listen_addresses', type: 'text', default: '*' },
+      { key: 'trust_local_network', label: '允许网段密码访问', type: 'switch', default: true }
+    ]
+  },
+  {
+    key: 'tuning',
+    title: '连接与内存',
+    fields: [
+      { key: 'max_connections', label: 'max_connections', type: 'number', default: 200, min: 1, max: 100000 },
+      { key: 'shared_buffers', label: 'shared_buffers', type: 'text', default: '512MB' },
+      { key: 'work_mem', label: 'work_mem', type: 'text', default: '8MB' },
+      { key: 'wal_level', label: 'wal_level', type: 'select', default: 'replica', options: ['minimal', 'replica', 'logical'] },
+      { key: 'log_min_duration_statement', label: '慢 SQL 阈值(ms, -1关闭)', type: 'number', default: 1000, min: -1, max: 2147483647 }
+    ]
+  }
+]
+
 const catalog: CatalogItem[] = [
   {
     key: 'nginx',
@@ -642,31 +734,7 @@ const catalog: CatalogItem[] = [
     description: '高可用 4/7 层负载均衡',
     tags: ['gateway', 'lb'],
     installMethods: ['package', 'docker'],
-    fields: [
-      {
-        key: 'version',
-        label: 'HAProxy 版本',
-        type: 'autocomplete',
-        default: '2.8',
-        options: ['2.4', '2.6', '2.8', '3.0', 'lts', 'latest']
-      },
-      { key: 'port', label: '前端端口', type: 'number', default: 80 },
-      {
-        key: 'algorithm',
-        label: '负载策略',
-        type: 'select',
-        default: 'roundrobin',
-        options: ['roundrobin', 'leastconn', 'source']
-      },
-      {
-        key: 'backends',
-        label: '后端列表（每行 host:port）',
-        type: 'textarea',
-        default: '10.0.0.1:8080\n10.0.0.2:8080',
-        span: 'full',
-        placeholder: '10.0.0.1:8080\n10.0.0.2:8080'
-      }
-    ]
+    sections: haproxySections
   },
   {
     key: 'redis',
@@ -674,25 +742,7 @@ const catalog: CatalogItem[] = [
     description: '内存数据库 / 缓存',
     tags: ['cache', 'kv'],
     installMethods: ['package', 'docker'],
-    fields: [
-      {
-        key: 'version',
-        label: 'Redis 版本',
-        type: 'autocomplete',
-        default: '7.2',
-        options: ['6.0', '6.2', '7.0', '7.2', '7.4', 'latest']
-      },
-      { key: 'port', label: '端口', type: 'number', default: 6379 },
-      { key: 'password', label: 'requirepass（可空）', type: 'text', default: '' },
-      { key: 'maxmemory', label: 'maxmemory', type: 'text', default: '512mb' },
-      {
-        key: 'persistence',
-        label: '持久化',
-        type: 'select',
-        default: 'rdb',
-        options: ['none', 'rdb', 'aof', 'both']
-      }
-    ]
+    sections: redisSections
   },
   {
     key: 'kafka',
@@ -700,19 +750,7 @@ const catalog: CatalogItem[] = [
     description: '分布式消息队列',
     tags: ['mq'],
     installMethods: ['docker'],
-    fields: [
-      {
-        key: 'version',
-        label: 'Kafka 版本',
-        type: 'autocomplete',
-        default: '3.6',
-        options: ['3.4', '3.5', '3.6', '3.7', 'latest']
-      },
-      { key: 'port', label: 'broker 端口', type: 'number', default: 9092 },
-      { key: 'broker_id', label: 'broker.id', type: 'number', default: 1, min: 0, max: 4096 },
-      { key: 'zookeeper', label: 'ZooKeeper 地址', type: 'text', default: 'localhost:2181' },
-      { key: 'log_dir', label: 'log.dirs', type: 'text', default: '/var/lib/kafka/logs' }
-    ]
+    sections: kafkaSections
   },
   {
     key: 'mysql',
@@ -720,19 +758,7 @@ const catalog: CatalogItem[] = [
     description: '关系型数据库',
     tags: ['db', 'sql'],
     installMethods: ['package', 'docker'],
-    fields: [
-      {
-        key: 'version',
-        label: 'MySQL 版本',
-        type: 'autocomplete',
-        default: '8.0',
-        options: ['5.7', '8.0', '8.4', 'latest']
-      },
-      { key: 'port', label: '端口', type: 'number', default: 3306 },
-      { key: 'root_password', label: 'root 密码', type: 'text', default: 'changeme' },
-      { key: 'datadir', label: '数据目录', type: 'text', default: '/var/lib/mysql' },
-      { key: 'charset', label: '字符集', type: 'text', default: 'utf8mb4' }
-    ]
+    sections: mysqlSections
   },
   {
     key: 'postgresql',
@@ -740,18 +766,7 @@ const catalog: CatalogItem[] = [
     description: '关系型数据库',
     tags: ['db', 'sql'],
     installMethods: ['package', 'docker'],
-    fields: [
-      {
-        key: 'version',
-        label: 'PostgreSQL 版本',
-        type: 'autocomplete',
-        default: '16',
-        options: ['13', '14', '15', '16', '17', 'latest']
-      },
-      { key: 'port', label: '端口', type: 'number', default: 5432 },
-      { key: 'password', label: 'POSTGRES_PASSWORD', type: 'text', default: 'changeme' },
-      { key: 'datadir', label: 'PGDATA 目录', type: 'text', default: '/var/lib/postgresql/data' }
-    ]
+    sections: postgresqlSections
   }
 ]
 
@@ -793,19 +808,22 @@ const activeCollapseSections = ref<string[]>([])
 const visibleFields = (fields: CatalogField[]) =>
   fields.filter(f => !f.visibleIf || f.visibleIf())
 
-const isNginxBasicSection = (sec: CatalogSection) =>
-  form.service === 'nginx' && sec.key === 'basic'
-
-const nginxBasicNormalFields = (fields: CatalogField[]) =>
+const normalFields = (fields: CatalogField[]) =>
   visibleFields(fields).filter(f => f.type !== 'switch')
 
-const nginxBasicSwitchFields = (fields: CatalogField[]) =>
+const switchFields = (fields: CatalogField[]) =>
   visibleFields(fields).filter(f => f.type === 'switch')
 
 const colMd = (f: CatalogField) => {
   if (f.type === 'textarea' || f.span === 'full') return 24
   if (f.span === 'half') return 12
   if (f.span === 'quarter') return 6
+  return 8
+}
+
+const sectionNormalColMd = (f: CatalogField) => {
+  if (f.type === 'textarea' || f.span === 'full') return 24
+  if (f.span === 'half') return 12
   return 8
 }
 
@@ -1113,50 +1131,89 @@ const buildHAProxy = () => {
     .split('\n')
     .map((s: string) => s.trim())
     .filter(Boolean)
-    .map((s: string, i: number) => `  server srv${i + 1} ${s} check`)
+    .map((s: string, i: number) => `  server srv${i + 1} ${s}${p.check_enabled ? ' check' : ''}`)
     .join('\n')
   const conf = `global
   log /dev/log local0
+  maxconn ${p.maxconn || 4096}
 defaults
   log     global
-  mode    http
-  timeout connect 5s
-  timeout client  30s
-  timeout server  30s
+  mode    ${p.mode || 'http'}
+  option  ${p.mode === 'tcp' ? 'tcplog' : 'httplog'}
+${p.httpclose && p.mode === 'http' ? '  option  httpclose\n' : ''}  timeout connect ${p.timeout_connect || '5s'}
+  timeout client  ${p.timeout_client || '30s'}
+  timeout server  ${p.timeout_server || '30s'}
 frontend web
-  bind *:${p.port}
+  bind *:${p.frontend_port || p.port || 80}
   default_backend app
 backend app
   balance ${p.algorithm}
-${backends}`
+${p.httpchk_enabled && p.mode === 'http' ? `  option httpchk ${p.httpchk_path || 'GET /health'}\n` : ''}${backends}`
+  const stats = p.stats_enabled ? `
+listen stats
+  bind *:${p.stats_port || 8404}
+  mode http
+  stats enable
+  stats uri /stats
+  stats refresh 10s` : ''
+  const fullConf = `${conf}${stats}`
   if (form.installMethod === 'docker') {
     return `sudo mkdir -p /etc/haproxy
 sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<"HAPROXYCFG"
-${conf}
+${fullConf}
 HAPROXYCFG'
-${dockerRun('haproxy', dockerImageTag('haproxy', p.version || 'lts', 'lts'), [`${p.port}:${p.port}`], [], ['/etc/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'])}`
+${dockerRun('haproxy', dockerImageTag('haproxy', p.version || 'lts', 'lts'), [`${p.frontend_port || 80}:${p.frontend_port || 80}`, ...(p.stats_enabled ? [`${p.stats_port || 8404}:${p.stats_port || 8404}`] : [])], [], ['/etc/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'])}`
   }
   return `${pkgInstall(form.osType, ['haproxy'])}
 sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<"HAPROXYCFG"
-${conf}
+${fullConf}
 HAPROXYCFG'
+sudo haproxy -c -f /etc/haproxy/haproxy.cfg
 sudo systemctl enable haproxy
 sudo systemctl restart haproxy
-sudo ss -lntp | grep :${p.port} || true`
+sudo ss -lntp | grep :${p.frontend_port || 80} || true`
 }
 
 const buildRedis = () => {
   const p = form.params
+  const conf = [
+    `bind ${p.bind || '0.0.0.0'}`,
+    `protected-mode ${p.protected_mode ? 'yes' : 'no'}`,
+    `port ${p.port || 6379}`,
+    `databases ${p.databases || 16}`,
+    `dir ${p.dir || '/var/lib/redis'}`,
+    `dbfilename ${p.dbfilename || 'dump.rdb'}`,
+    `maxmemory ${p.maxmemory || '512mb'}`,
+    `maxmemory-policy ${p.maxmemory_policy || 'allkeys-lru'}`,
+    `timeout ${p.timeout ?? 0}`,
+    `tcp-keepalive ${p.tcp_keepalive ?? 300}`,
+    `appendonly ${p.appendonly ? 'yes' : 'no'}`,
+    ...(p.appendonly ? [`appendfsync ${p.appendfsync || 'everysec'}`] : []),
+    ...(p.requirepass ? [`requirepass ${p.requirepass}`] : []),
+    ...(p.rdb_enabled ? ['save 900 1', 'save 300 10', 'save 60 10000'] : ['save ""']),
+    ...(p.supervised_systemd && form.installMethod !== 'docker' ? ['supervised systemd'] : [])
+  ].join('\n')
+
   if (form.installMethod === 'docker') {
-    return dockerRun('redis', dockerImageTag('redis', p.version || '7', '7'), [`${p.port}:${p.port}`], [], []) + '\n# 注：如需自定义配置可改用挂载 redis.conf'
+    return `sudo mkdir -p /etc/redis ${p.dir || '/var/lib/redis'}
+sudo bash -c 'cat >/etc/redis/redis.conf <<"REDISCONF"
+${conf}
+REDISCONF'
+sudo docker rm -f redis 2>/dev/null || true
+sudo docker run -d --name redis --restart=always -p ${p.port || 6379}:${p.port || 6379} \\
+  -v /etc/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro \\
+  -v ${p.dir || '/var/lib/redis'}:${p.dir || '/var/lib/redis'} \\
+  ${dockerImageTag('redis', p.version || '7', '7')} redis-server /usr/local/etc/redis/redis.conf
+sudo ss -lntp | grep :${p.port || 6379} || true`
   }
   return `${pkgInstall(form.osType, ['redis-server'])}
-sudo sed -i 's/^# *requirepass .*/requirepass ${p.password || ''}/' /etc/redis/redis.conf 2>/dev/null || true
-sudo sed -i 's/^port .*/port ${p.port}/' /etc/redis/redis.conf 2>/dev/null || true
-sudo sed -i 's/^# *maxmemory .*/maxmemory ${p.maxmemory}/' /etc/redis/redis.conf 2>/dev/null || true
+sudo mkdir -p ${p.dir || '/var/lib/redis'}
+sudo bash -c 'cat >/etc/redis/redis.conf <<"REDISCONF"
+${conf}
+REDISCONF'
 sudo systemctl enable redis-server || sudo systemctl enable redis
 sudo systemctl restart redis-server || sudo systemctl restart redis
-sudo ss -lntp | grep :${p.port} || true`
+sudo ss -lntp | grep :${p.port || 6379} || true`
 }
 
 const buildKafka = () => {
@@ -1170,7 +1227,13 @@ ${dockerRun(
       `KAFKA_BROKER_ID=${p.broker_id}`,
       `KAFKA_CFG_ZOOKEEPER_CONNECT=${p.zookeeper}`,
       `KAFKA_CFG_LISTENERS=PLAINTEXT://:9092`,
+      `KAFKA_CFG_ADVERTISED_LISTENERS=PLAINTEXT://$(hostname -I | awk '{print $1}'):${p.port || 9092}`,
       `KAFKA_CFG_LOG_DIRS=${p.log_dir}`,
+      `KAFKA_CFG_NUM_PARTITIONS=${p.num_partitions || 3}`,
+      `KAFKA_CFG_DEFAULT_REPLICATION_FACTOR=${p.default_replication_factor || 1}`,
+      `KAFKA_CFG_LOG_RETENTION_HOURS=${p.log_retention_hours || 168}`,
+      `KAFKA_CFG_LOG_SEGMENT_BYTES=${p.log_segment_bytes || 1073741824}`,
+      `KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=${p.auto_create_topics ? 'true' : 'false'}`,
       'ALLOW_PLAINTEXT_LISTENER=yes'
     ],
     ['kafka-data:/bitnami/kafka']
@@ -1180,40 +1243,90 @@ sudo ss -lntp | grep :${p.port} || true`
 
 const buildMySQL = () => {
   const p = form.params
+  const cnf = `[mysqld]
+port=${p.port || 3306}
+bind-address=${p.bind_address || '0.0.0.0'}
+character-set-server=${p.charset || 'utf8mb4'}
+collation-server=${p.collation || 'utf8mb4_0900_ai_ci'}
+max_connections=${p.max_connections || 500}
+innodb_buffer_pool_size=${p.innodb_buffer_pool_size || '512M'}
+${p.skip_name_resolve ? 'skip-name-resolve\n' : ''}${p.slow_query_log ? `slow_query_log=ON
+long_query_time=${p.long_query_time ?? 2}
+slow_query_log_file=/var/log/mysql/mysql-slow.log
+` : ''}`
   if (form.installMethod === 'docker') {
-    return `${dockerRun(
-      'mysql',
-      dockerImageTag('mysql', p.version || '8.0', '8.0'),
-      [`${p.port}:3306`],
-      [`MYSQL_ROOT_PASSWORD=${p.root_password}`, 'MYSQL_DATABASE=app'],
-      [`${p.datadir}:/var/lib/mysql`]
-    )}
-sudo ss -lntp | grep :${p.port} || true`
+    return `sudo mkdir -p /etc/mysql/conf.d ${p.datadir || '/var/lib/mysql'}
+sudo bash -c 'cat >/etc/mysql/conf.d/99-ai-sre.cnf <<"MYSQLCONF"
+${cnf}
+MYSQLCONF'
+sudo docker rm -f mysql 2>/dev/null || true
+sudo docker run -d --name mysql --restart=always -p ${p.port || 3306}:3306 \\
+  -e MYSQL_ROOT_PASSWORD='${p.root_password || 'changeme'}' \\
+  -e MYSQL_DATABASE=app \\
+  -v ${p.datadir || '/var/lib/mysql'}:/var/lib/mysql \\
+  -v /etc/mysql/conf.d/99-ai-sre.cnf:/etc/mysql/conf.d/99-ai-sre.cnf:ro \\
+  ${dockerImageTag('mysql', p.version || '8.0', '8.0')}
+sudo ss -lntp | grep :${p.port || 3306} || true`
   }
   return `${pkgInstall(form.osType, ['mysql-server'])}
+sudo mkdir -p /etc/mysql/mysql.conf.d /var/log/mysql
+sudo bash -c 'cat >/etc/mysql/mysql.conf.d/99-ai-sre.cnf <<"MYSQLCONF"
+${cnf}
+MYSQLCONF'
 sudo systemctl enable mysql || sudo systemctl enable mysqld
 sudo systemctl restart mysql || sudo systemctl restart mysqld
 sudo mysql -uroot -e "ALTER USER 'root'@'localhost' IDENTIFIED BY '${p.root_password}'; FLUSH PRIVILEGES;" || true
-sudo ss -lntp | grep :${p.port} || true`
+sudo ss -lntp | grep :${p.port || 3306} || true`
 }
 
 const buildPostgres = () => {
   const p = form.params
+  const postgresConf = `listen_addresses = '${p.listen_addresses || '*'}'
+port = ${p.port || 5432}
+max_connections = ${p.max_connections || 200}
+shared_buffers = '${p.shared_buffers || '512MB'}'
+work_mem = '${p.work_mem || '8MB'}'
+wal_level = ${p.wal_level || 'replica'}
+log_min_duration_statement = ${p.log_min_duration_statement ?? 1000}`
+  const hbaLine = p.trust_local_network ? 'host all all 0.0.0.0/0 scram-sha-256' : 'host all all 127.0.0.1/32 scram-sha-256'
   if (form.installMethod === 'docker') {
-    return `${dockerRun(
-      'postgres',
-      dockerImageTag('postgres', p.version || '16', '16'),
-      [`${p.port}:5432`],
-      [`POSTGRES_PASSWORD=${p.password}`, `PGDATA=${p.datadir}`],
-      [`${p.datadir}:${p.datadir}`]
-    )}
-sudo ss -lntp | grep :${p.port} || true`
+    return `sudo mkdir -p /etc/postgresql ${p.datadir || '/var/lib/postgresql/data'}
+sudo bash -c 'cat >/etc/postgresql/postgresql.conf <<"PGCONF"
+${postgresConf}
+PGCONF'
+sudo bash -c 'cat >/etc/postgresql/pg_hba.conf <<"PGHBA"
+local all all trust
+host all all 127.0.0.1/32 scram-sha-256
+${hbaLine}
+PGHBA'
+sudo docker rm -f postgres 2>/dev/null || true
+sudo docker run -d --name postgres --restart=always -p ${p.port || 5432}:5432 \\
+  -e POSTGRES_PASSWORD='${p.password || 'changeme'}' \\
+  -e PGDATA=${p.datadir || '/var/lib/postgresql/data'} \\
+  -v ${p.datadir || '/var/lib/postgresql/data'}:${p.datadir || '/var/lib/postgresql/data'} \\
+  -v /etc/postgresql/postgresql.conf:/etc/postgresql/postgresql.conf:ro \\
+  -v /etc/postgresql/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro \\
+  ${dockerImageTag('postgres', p.version || '16', '16')} -c config_file=/etc/postgresql/postgresql.conf -c hba_file=/etc/postgresql/pg_hba.conf
+sudo ss -lntp | grep :${p.port || 5432} || true`
   }
   return `${pkgInstall(form.osType, ['postgresql', 'postgresql-contrib'])}
+PG_CONF_DIR="$(sudo -u postgres psql -tAc 'show config_file' 2>/dev/null | xargs dirname || true)"
+if [ -z "$PG_CONF_DIR" ]; then PG_CONF_DIR="/etc/postgresql"; fi
+sudo mkdir -p "${PG_CONF_DIR}/conf.d" 2>/dev/null || true
+if [ -d "${PG_CONF_DIR}/conf.d" ]; then
+  sudo tee "${PG_CONF_DIR}/conf.d/99-ai-sre.conf" >/dev/null <<"PGCONF"
+${postgresConf}
+PGCONF
+else
+  sudo tee -a "${PG_CONF_DIR}/postgresql.conf" >/dev/null <<"PGCONF"
+${postgresConf}
+PGCONF
+fi
+echo "${hbaLine}" | sudo tee -a "${PG_CONF_DIR}/pg_hba.conf" >/dev/null || true
 sudo systemctl enable postgresql
 sudo systemctl restart postgresql
 sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '${p.password}';" || true
-sudo ss -lntp | grep :${p.port} || true`
+sudo ss -lntp | grep :${p.port || 5432} || true`
 }
 
 const bashScript = computed(() => {
@@ -1411,19 +1524,19 @@ const download = (text: string, filename: string) => {
   font-size: 12px;
 }
 
-.nginx-basic-grid {
+.section-field-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   column-gap: 16px;
   align-items: start;
 }
 
-.nginx-basic-normal {
+.section-normal-fields {
   grid-column: 1 / span 3;
   min-width: 0;
 }
 
-.nginx-basic-switches {
+.section-switch-fields {
   grid-column: 4 / span 1;
   min-width: 0;
   display: flex;
@@ -1467,12 +1580,12 @@ const download = (text: string, filename: string) => {
 }
 
 @media (max-width: 1200px) {
-  .nginx-basic-grid {
+  .section-field-grid {
     grid-template-columns: 1fr;
   }
 
-  .nginx-basic-normal,
-  .nginx-basic-switches {
+  .section-normal-fields,
+  .section-switch-fields {
     grid-column: 1;
   }
 }
