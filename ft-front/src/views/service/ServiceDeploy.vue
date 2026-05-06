@@ -5,102 +5,117 @@
       <p>选择服务 → 配置参数 → 一键生成 bash 与 ai-sre 安装脚本，目标机直接执行</p>
     </div>
 
-    <el-card class="catalog-card">
-      <template #header>
-        <span>选择基础服务</span>
-      </template>
-      <div class="catalog">
-        <div
-          v-for="item in catalog"
-          :key="item.key"
-          :class="['catalog-item', { selected: form.service === item.key }]"
-          @click="selectService(item.key)"
-        >
-          <div class="catalog-name">{{ item.name }}</div>
-          <div class="catalog-desc">{{ item.description }}</div>
-          <div class="catalog-tags">
-            <el-tag v-for="t in item.tags" :key="t" size="small" type="info" effect="plain">{{ t }}</el-tag>
+    <div class="split-layout">
+      <el-card class="catalog-card">
+        <template #header>
+          <span>基础服务</span>
+        </template>
+        <div class="catalog-list">
+          <div
+            v-for="item in catalog"
+            :key="item.key"
+            :class="['catalog-item', { selected: form.service === item.key }]"
+            @click="selectService(item.key)"
+          >
+            <div class="catalog-item-head">
+              <span class="catalog-name">{{ item.name }}</span>
+              <el-icon v-if="form.service === item.key" class="catalog-check"><Check /></el-icon>
+            </div>
+            <div class="catalog-desc">{{ item.description }}</div>
+            <div class="catalog-tags">
+              <el-tag v-for="t in item.tags" :key="t" size="small" type="info" effect="plain">{{ t }}</el-tag>
+            </div>
           </div>
         </div>
+      </el-card>
+
+      <div class="config-pane">
+        <el-empty
+          v-if="!selected"
+          description="左侧选择一个基础服务后，在此配置参数并生成部署脚本"
+          class="empty-pane"
+        />
+
+        <template v-else>
+          <el-card class="config-card">
+            <template #header>
+              <span>{{ selected.name }} · 参数配置</span>
+            </template>
+            <el-form label-position="top">
+              <el-row :gutter="16">
+                <el-col v-for="field in selected.fields" :key="field.key" :xs="24" :md="12">
+                  <el-form-item :label="field.label">
+                    <el-input-number
+                      v-if="field.type === 'number'"
+                      v-model="form.params[field.key]"
+                      :min="field.min ?? 1"
+                      :max="field.max ?? 65535"
+                      style="width: 100%"
+                    />
+                    <el-select
+                      v-else-if="field.type === 'select'"
+                      v-model="form.params[field.key]"
+                      style="width: 100%"
+                    >
+                      <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                    </el-select>
+                    <el-switch
+                      v-else-if="field.type === 'switch'"
+                      v-model="form.params[field.key]"
+                    />
+                    <el-input
+                      v-else-if="field.type === 'textarea'"
+                      v-model="form.params[field.key]"
+                      type="textarea"
+                      :rows="3"
+                      :placeholder="field.placeholder || ''"
+                    />
+                    <el-input
+                      v-else
+                      v-model="form.params[field.key]"
+                      :placeholder="field.placeholder || ''"
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-form>
+          </el-card>
+
+          <el-card class="install-card">
+            <template #header>
+              <span>系统与安装方式</span>
+            </template>
+            <el-form label-position="top">
+              <el-row :gutter="16">
+                <el-col :xs="24" :md="12">
+                  <el-form-item label="目标系统类型">
+                    <el-select v-model="form.osType" style="width: 100%">
+                      <el-option v-for="os in osTypeOptions" :key="os.value" :label="os.label" :value="os.value" />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="12">
+                  <el-form-item label="安装方式">
+                    <el-select v-model="form.installMethod" style="width: 100%">
+                      <el-option
+                        v-for="method in availableInstallMethods"
+                        :key="method.value"
+                        :label="method.label"
+                        :value="method.value"
+                      />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-form>
+          </el-card>
+
+          <div class="actions">
+            <el-button type="primary" :icon="Upload" @click="onGenerate">生成部署脚本</el-button>
+            <el-button :icon="RefreshRight" @click="onReset">重置</el-button>
+          </div>
+        </template>
       </div>
-    </el-card>
-
-    <el-card v-if="selected" class="config-card">
-      <template #header>
-        <span>{{ selected.name }} · 参数配置</span>
-      </template>
-      <el-form label-position="top">
-        <el-row :gutter="16">
-          <el-col v-for="field in selected.fields" :key="field.key" :xs="24" :md="12">
-            <el-form-item :label="field.label">
-              <el-input-number
-                v-if="field.type === 'number'"
-                v-model="form.params[field.key]"
-                :min="field.min ?? 1"
-                :max="field.max ?? 65535"
-                style="width: 100%"
-              />
-              <el-select
-                v-else-if="field.type === 'select'"
-                v-model="form.params[field.key]"
-                style="width: 100%"
-              >
-                <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
-              </el-select>
-              <el-switch
-                v-else-if="field.type === 'switch'"
-                v-model="form.params[field.key]"
-              />
-              <el-input
-                v-else-if="field.type === 'textarea'"
-                v-model="form.params[field.key]"
-                type="textarea"
-                :rows="3"
-                :placeholder="field.placeholder || ''"
-              />
-              <el-input
-                v-else
-                v-model="form.params[field.key]"
-                :placeholder="field.placeholder || ''"
-              />
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-    </el-card>
-
-    <el-card v-if="selected" class="install-card">
-      <template #header>
-        <span>系统与安装方式</span>
-      </template>
-      <el-form label-position="top">
-        <el-row :gutter="16">
-          <el-col :xs="24" :md="12">
-            <el-form-item label="目标系统类型">
-              <el-select v-model="form.osType" style="width: 100%">
-                <el-option v-for="os in osTypeOptions" :key="os.value" :label="os.label" :value="os.value" />
-              </el-select>
-            </el-form-item>
-          </el-col>
-          <el-col :xs="24" :md="12">
-            <el-form-item label="安装方式">
-              <el-select v-model="form.installMethod" style="width: 100%">
-                <el-option
-                  v-for="method in availableInstallMethods"
-                  :key="method.value"
-                  :label="method.label"
-                  :value="method.value"
-                />
-              </el-select>
-            </el-form-item>
-          </el-col>
-        </el-row>
-      </el-form>
-    </el-card>
-
-    <div v-if="selected" class="actions">
-      <el-button type="primary" :icon="Upload" @click="onGenerate">生成部署脚本</el-button>
-      <el-button :icon="RefreshRight" @click="onReset">重置</el-button>
     </div>
 
     <el-dialog
@@ -153,7 +168,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { DocumentCopy, Download, Upload, RefreshRight } from '@element-plus/icons-vue'
+import { DocumentCopy, Download, Upload, RefreshRight, Check } from '@element-plus/icons-vue'
 
 interface CatalogField {
   key: string
@@ -568,22 +583,40 @@ const download = (text: string, filename: string) => {
   color: #6b7280;
 }
 
-.catalog {
+.split-layout {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: 280px 1fr;
   gap: 12px;
+  align-items: start;
+}
+
+@media (max-width: 960px) {
+  .split-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.catalog-card {
+  position: sticky;
+  top: 0;
+}
+
+.catalog-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 .catalog-item {
   border: 1px solid var(--el-border-color);
   border-radius: 8px;
-  padding: 12px 14px;
+  padding: 10px 12px;
   cursor: pointer;
   background: var(--el-bg-color);
-  transition: border-color .15s, box-shadow .15s;
+  transition: border-color .15s, box-shadow .15s, background .15s;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .catalog-item:hover {
@@ -593,7 +626,19 @@ const download = (text: string, filename: string) => {
 
 .catalog-item.selected {
   border-color: var(--el-color-primary);
-  background: rgba(64,158,255,.06);
+  background: rgba(64,158,255,.08);
+}
+
+.catalog-item-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.catalog-check {
+  color: var(--el-color-primary);
+  font-size: 16px;
 }
 
 .catalog-name {
@@ -606,10 +651,24 @@ const download = (text: string, filename: string) => {
 }
 
 .catalog-tags {
-  margin-top: 4px;
+  margin-top: 2px;
   display: flex;
   gap: 4px;
   flex-wrap: wrap;
+}
+
+.config-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.empty-pane {
+  background: var(--el-bg-color);
+  border: 1px dashed var(--el-border-color);
+  border-radius: 8px;
+  padding: 32px 0;
 }
 
 .actions {
