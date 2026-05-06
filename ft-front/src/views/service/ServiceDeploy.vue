@@ -76,7 +76,79 @@
               </div>
             </template>
             <el-form label-position="top">
-              <el-row :gutter="16">
+              <div v-if="isNginxBasicSection(sec)" class="nginx-basic-grid">
+                <div class="nginx-basic-normal">
+                  <el-row :gutter="16">
+                    <el-col
+                      v-for="field in nginxBasicNormalFields(sec.fields)"
+                      :key="field.key"
+                      :xs="24"
+                      :md="8"
+                    >
+                      <el-form-item :label="field.label">
+                        <el-input-number
+                          v-if="field.type === 'number'"
+                          v-model="form.params[field.key]"
+                          :min="field.min ?? 1"
+                          :max="field.max ?? 65535"
+                          style="width: 100%"
+                        />
+                        <el-select
+                          v-else-if="field.type === 'select'"
+                          v-model="form.params[field.key]"
+                          style="width: 100%"
+                        >
+                          <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                        </el-select>
+                        <el-select
+                          v-else-if="field.type === 'autocomplete'"
+                          v-model="form.params[field.key]"
+                          filterable
+                          allow-create
+                          default-first-option
+                          :placeholder="field.placeholder || '选择或输入自定义值'"
+                          style="width: 100%"
+                        >
+                          <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                        </el-select>
+                        <el-input
+                          v-else-if="field.type === 'textarea'"
+                          v-model="form.params[field.key]"
+                          type="textarea"
+                          :rows="field.rows ?? 3"
+                          :placeholder="field.placeholder || ''"
+                        />
+                        <el-input
+                          v-else
+                          v-model="form.params[field.key]"
+                          :placeholder="field.placeholder || ''"
+                        />
+                      </el-form-item>
+                    </el-col>
+                  </el-row>
+                </div>
+                <div class="nginx-basic-switches">
+                  <div
+                    v-for="field in nginxBasicSwitchFields(sec.fields)"
+                    :key="field.key"
+                    class="switch-row switch-row--compact"
+                  >
+                    <span class="switch-row-label">
+                      {{ field.label }}
+                      <el-tooltip v-if="field.tip" :content="field.tip" placement="top">
+                        <el-icon class="switch-row-tip"><InfoFilled /></el-icon>
+                      </el-tooltip>
+                    </span>
+                    <el-switch
+                      v-model="form.params[field.key]"
+                      inline-prompt
+                      active-text="开"
+                      inactive-text="关"
+                    />
+                  </div>
+                </div>
+              </div>
+              <el-row v-else :gutter="16">
                 <el-col
                   v-for="field in visibleFields(sec.fields)"
                   :key="field.key"
@@ -721,6 +793,15 @@ const activeCollapseSections = ref<string[]>([])
 const visibleFields = (fields: CatalogField[]) =>
   fields.filter(f => !f.visibleIf || f.visibleIf())
 
+const isNginxBasicSection = (sec: CatalogSection) =>
+  form.service === 'nginx' && sec.key === 'basic'
+
+const nginxBasicNormalFields = (fields: CatalogField[]) =>
+  visibleFields(fields).filter(f => f.type !== 'switch')
+
+const nginxBasicSwitchFields = (fields: CatalogField[]) =>
+  visibleFields(fields).filter(f => f.type === 'switch')
+
 const colMd = (f: CatalogField) => {
   if (f.type === 'textarea' || f.span === 'full') return 24
   if (f.span === 'half') return 12
@@ -1330,6 +1411,25 @@ const download = (text: string, filename: string) => {
   font-size: 12px;
 }
 
+.nginx-basic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  column-gap: 16px;
+  align-items: start;
+}
+
+.nginx-basic-normal {
+  grid-column: 1 / span 3;
+  min-width: 0;
+}
+
+.nginx-basic-switches {
+  grid-column: 4 / span 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 .switch-row {
   display: flex;
   align-items: center;
@@ -1341,6 +1441,10 @@ const download = (text: string, filename: string) => {
   border-radius: 6px;
   border: 1px dashed var(--el-border-color);
   background: var(--el-fill-color-lighter);
+}
+
+.switch-row--compact {
+  margin-top: 0;
 }
 
 .switch-row-label {
@@ -1360,6 +1464,17 @@ const download = (text: string, filename: string) => {
   color: #94a3b8;
   font-size: 14px;
   cursor: help;
+}
+
+@media (max-width: 1200px) {
+  .nginx-basic-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .nginx-basic-normal,
+  .nginx-basic-switches {
+    grid-column: 1;
+  }
 }
 
 .advanced-collapse {
