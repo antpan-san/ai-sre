@@ -296,7 +296,15 @@ func serviceStatusScript(spec *serviceInstallSpec) string {
 
 func servicePortScript(spec *serviceInstallSpec) string {
 	port := intParam(spec, portKey(spec.Service), defaultPort(spec.Service))
-	return fmt.Sprintf("ss -lntp | grep -E ':%d\\\\b'", port)
+	return fmt.Sprintf(`PORT=%d
+if command -v ss >/dev/null 2>&1; then
+  ss -lntpn | awk '{print $4}' | grep -E '(^|:)'$PORT'$' >/dev/null
+elif command -v netstat >/dev/null 2>&1; then
+  netstat -lntp 2>/dev/null | awk '{print $4}' | grep -E '(^|:)'$PORT'$' >/dev/null
+else
+  echo "neither ss nor netstat is available for port check" >&2
+  exit 1
+fi`, port)
 }
 
 func serviceHealthScript(spec *serviceInstallSpec) string {
@@ -352,7 +360,7 @@ func defaultPort(service string) int {
 func renderNginxServiceScript(spec *serviceInstallSpec) string {
 	port := intParam(spec, "http_port", 80)
 	root := strParam(spec, "docroot", "/var/www/html")
-	conf := fmt.Sprintf(`worker_processes auto;
+	mainConf := fmt.Sprintf(`worker_processes auto;
 events { worker_connections %d; }
 http {
   include mime.types;
@@ -367,19 +375,26 @@ http {
     location / { try_files $uri $uri/ =404; }
   }
 }`, intParam(spec, "worker_connections", 1024), port, strParam(spec, "server_name", "_"), root)
+	siteConf := fmt.Sprintf(`server {
+  listen %d;
+  server_name %s;
+  root %s;
+  index index.html index.htm;
+  location / { try_files $uri $uri/ =404; }
+}`, port, strParam(spec, "server_name", "_"), root)
 	if strParam(spec, "install_method", spec.InstallMethod) == "docker" {
 		return fmt.Sprintf(`mkdir -p /etc/nginx %s
 cat >/etc/nginx/nginx.conf <<'EOF'
 %s
 EOF
 docker rm -f nginx 2>/dev/null || true
-docker run -d --name nginx --restart=always -p %d:%d -v /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro -v %s:%s:ro %s`, root, conf, port, port, root, root, dockerImage(spec, "nginx", "stable"))
+docker run -d --name nginx --restart=always -p %d:%d -v /etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro -v %s:%s:ro %s`, root, mainConf, port, port, root, root, dockerImage(spec, "nginx", "stable"))
 	}
-	return fmt.Sprintf(`mkdir -p %s
-cat >/etc/nginx/nginx.conf <<'EOF'
+	return fmt.Sprintf(`mkdir -p %s /etc/nginx/conf.d
+cat >/etc/nginx/conf.d/ai-sre-service.conf <<'EOF'
 %s
 EOF
-nginx -t`, root, conf)
+nginx -t`, root, siteConf)
 }
 
 func renderHAProxyServiceScript(spec *serviceInstallSpec) string {
