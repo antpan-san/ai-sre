@@ -57,6 +57,7 @@ func nginxUninstallCmd() *cobra.Command {
 		},
 	}
 	cmd.Flags().BoolVar(&opts.PurgePackage, "purge-package", false, "同时卸载系统 nginx 包；默认仅移除 ai-sre 管理配置并停止/重启服务")
+	cmd.Flags().BoolVarP(&opts.Force, "force", "f", false, "强制清理本机所有 Nginx 相关进程、包、容器、配置、日志和缓存；不要求 ai-sre 安装状态")
 	return cmd
 }
 

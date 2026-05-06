@@ -45,6 +45,7 @@ type serviceDeploymentState struct {
 
 type nginxUninstallOptions struct {
 	PurgePackage bool
+	Force        bool
 }
 
 func serviceCmd() *cobra.Command {
@@ -133,6 +134,21 @@ func runServiceUpdate(cmd *cobra.Command, service string, opts serviceUpdateOpti
 func runNginxUninstall(cmd *cobra.Command, opts nginxUninstallOptions) error {
 	if os.Geteuid() != 0 {
 		return fmt.Errorf("卸载 Nginx 需 root 权限，请使用: sudo %s nginx uninstall", progName)
+	}
+	if opts.Force {
+		state, _ := loadServiceDeploymentState("nginx")
+		fmt.Fprintln(cmd.OutOrStdout(), "[uninstall] force running: start")
+		if err := runBash(nginxForceUninstallScript()); err != nil {
+			return fmt.Errorf("nginx force uninstall failed: %w", err)
+		}
+		if err := removeServiceDeploymentState("nginx"); err != nil {
+			fmt.Fprintf(cmd.ErrOrStderr(), "[state] warning: remove local deployment state failed: %v\n", err)
+		}
+		if state != nil && state.Service == "nginx" && state.APIURL != "" && state.DeployID != "" && state.Token != "" {
+			_ = postServiceFinish(state.APIURL, state.DeployID, state.Token, "uninstalled", "nginx force uninstalled")
+		}
+		fmt.Fprintln(cmd.OutOrStdout(), "[uninstall] force success: ok")
+		return nil
 	}
 	state, err := loadServiceDeploymentState("nginx")
 	if err != nil {
@@ -486,6 +502,41 @@ if command -v nginx >/dev/null 2>&1; then
     exit 1
   fi
 fi`
+}
+
+func nginxForceUninstallScript() string {
+	return `set +e
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl disable --now nginx nginx.service 2>/dev/null || true
+fi
+if command -v docker >/dev/null 2>&1; then
+  docker ps -aq --filter name='^/nginx$' | xargs -r docker rm -f
+  docker images --format '{{.Repository}}:{{.Tag}} {{.ID}}' | awk '$1 ~ /(^|\/)nginx:/ {print $2}' | xargs -r docker rmi -f
+fi
+pkill -f 'nginx: master process' 2>/dev/null || true
+pkill -f 'nginx: worker process' 2>/dev/null || true
+pkill -x nginx 2>/dev/null || true
+if command -v apt-get >/dev/null 2>&1; then
+  DEBIAN_FRONTEND=noninteractive apt-get purge -y nginx nginx-common nginx-core nginx-full nginx-light nginx-extras libnginx-mod-* 2>/dev/null || true
+  DEBIAN_FRONTEND=noninteractive apt-get autoremove -y 2>/dev/null || true
+elif command -v dnf >/dev/null 2>&1; then
+  dnf remove -y nginx 'nginx-*' 2>/dev/null || true
+elif command -v yum >/dev/null 2>&1; then
+  yum remove -y nginx 'nginx-*' 2>/dev/null || true
+elif command -v zypper >/dev/null 2>&1; then
+  zypper --non-interactive remove nginx 2>/dev/null || true
+fi
+rm -rf /etc/nginx /var/log/nginx /var/cache/nginx /var/lib/nginx /run/nginx /run/nginx.pid
+rm -rf /usr/local/nginx /opt/nginx /usr/share/nginx
+rm -f /etc/systemd/system/nginx.service /lib/systemd/system/nginx.service /usr/lib/systemd/system/nginx.service
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload 2>/dev/null || true
+fi
+if command -v nginx >/dev/null 2>&1; then
+  echo "nginx command still exists after cleanup: $(command -v nginx)" >&2
+  exit 1
+fi
+exit 0`
 }
 
 func portKey(service string) string {
