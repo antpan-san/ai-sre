@@ -35,50 +35,6 @@
         />
 
         <template v-else>
-          <el-card class="config-card">
-            <template #header>
-              <span>{{ selected.name }} · 参数配置</span>
-            </template>
-            <el-form label-position="top">
-              <el-row :gutter="16">
-                <el-col v-for="field in selected.fields" :key="field.key" :xs="24" :md="12">
-                  <el-form-item :label="field.label">
-                    <el-input-number
-                      v-if="field.type === 'number'"
-                      v-model="form.params[field.key]"
-                      :min="field.min ?? 1"
-                      :max="field.max ?? 65535"
-                      style="width: 100%"
-                    />
-                    <el-select
-                      v-else-if="field.type === 'select'"
-                      v-model="form.params[field.key]"
-                      style="width: 100%"
-                    >
-                      <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
-                    </el-select>
-                    <el-switch
-                      v-else-if="field.type === 'switch'"
-                      v-model="form.params[field.key]"
-                    />
-                    <el-input
-                      v-else-if="field.type === 'textarea'"
-                      v-model="form.params[field.key]"
-                      type="textarea"
-                      :rows="3"
-                      :placeholder="field.placeholder || ''"
-                    />
-                    <el-input
-                      v-else
-                      v-model="form.params[field.key]"
-                      :placeholder="field.placeholder || ''"
-                    />
-                  </el-form-item>
-                </el-col>
-              </el-row>
-            </el-form>
-          </el-card>
-
           <el-card class="install-card">
             <template #header>
               <span>系统与安装方式</span>
@@ -107,6 +63,136 @@
               </el-row>
             </el-form>
           </el-card>
+
+          <el-card
+            v-for="sec in regularSections"
+            :key="sec.key"
+            class="config-card"
+          >
+            <template #header>
+              <div class="section-header">
+                <span>{{ selected.name }} · {{ sec.title }}</span>
+                <span v-if="sec.hint" class="section-hint">{{ sec.hint }}</span>
+              </div>
+            </template>
+            <el-form label-position="top">
+              <el-row :gutter="16">
+                <el-col
+                  v-for="field in visibleFields(sec.fields)"
+                  :key="field.key"
+                  :xs="24"
+                  :md="field.span === 'full' ? 24 : 12"
+                >
+                  <div v-if="field.type === 'switch'" class="switch-row">
+                    <span class="switch-row-label">
+                      {{ field.label }}
+                      <el-tooltip v-if="field.tip" :content="field.tip" placement="top">
+                        <el-icon class="switch-row-tip"><InfoFilled /></el-icon>
+                      </el-tooltip>
+                    </span>
+                    <el-switch
+                      v-model="form.params[field.key]"
+                      inline-prompt
+                      active-text="开"
+                      inactive-text="关"
+                    />
+                  </div>
+                  <el-form-item v-else :label="field.label">
+                    <el-input-number
+                      v-if="field.type === 'number'"
+                      v-model="form.params[field.key]"
+                      :min="field.min ?? 1"
+                      :max="field.max ?? 65535"
+                      style="width: 100%"
+                    />
+                    <el-select
+                      v-else-if="field.type === 'select'"
+                      v-model="form.params[field.key]"
+                      style="width: 100%"
+                    >
+                      <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                    </el-select>
+                    <el-input
+                      v-else-if="field.type === 'textarea'"
+                      v-model="form.params[field.key]"
+                      type="textarea"
+                      :rows="field.rows ?? 3"
+                      :placeholder="field.placeholder || ''"
+                    />
+                    <el-input
+                      v-else
+                      v-model="form.params[field.key]"
+                      :placeholder="field.placeholder || ''"
+                    />
+                  </el-form-item>
+                </el-col>
+              </el-row>
+            </el-form>
+          </el-card>
+
+          <el-collapse
+            v-if="collapsibleSections.length"
+            v-model="activeCollapseSections"
+            class="advanced-collapse"
+          >
+            <el-collapse-item
+              v-for="sec in collapsibleSections"
+              :key="sec.key"
+              :name="sec.key"
+              :title="`${selected.name} · ${sec.title}${sec.hint ? '（' + sec.hint + '）' : ''}`"
+            >
+              <el-form v-if="sec.fields.length" label-position="top">
+                <el-row :gutter="16">
+                  <el-col
+                    v-for="field in visibleFields(sec.fields)"
+                    :key="field.key"
+                    :xs="24"
+                    :md="field.span === 'full' ? 24 : 12"
+                  >
+                    <el-form-item :label="field.label">
+                      <el-input-number
+                        v-if="field.type === 'number'"
+                        v-model="form.params[field.key]"
+                        :min="field.min ?? 1"
+                        :max="field.max ?? 65535"
+                        style="width: 100%"
+                      />
+                      <el-select
+                        v-else-if="field.type === 'select'"
+                        v-model="form.params[field.key]"
+                        style="width: 100%"
+                      >
+                        <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                      </el-select>
+                      <el-switch
+                        v-else-if="field.type === 'switch'"
+                        v-model="form.params[field.key]"
+                        inline-prompt
+                        active-text="开"
+                        inactive-text="关"
+                      />
+                      <el-input
+                        v-else-if="field.type === 'textarea'"
+                        v-model="form.params[field.key]"
+                        type="textarea"
+                        :rows="field.rows ?? 3"
+                        :placeholder="field.placeholder || ''"
+                      />
+                      <el-input
+                        v-else
+                        v-model="form.params[field.key]"
+                        :placeholder="field.placeholder || ''"
+                      />
+                    </el-form-item>
+                  </el-col>
+                </el-row>
+              </el-form>
+              <pre
+                v-if="sec.preview === 'config'"
+                class="code-block code-block--inline"
+              >{{ confPreview }}</pre>
+            </el-collapse-item>
+          </el-collapse>
 
           <div class="actions">
             <el-button type="primary" :icon="Upload" @click="onGenerate">生成部署脚本</el-button>
@@ -166,7 +252,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
-import { DocumentCopy, Download, Upload, RefreshRight, Check } from '@element-plus/icons-vue'
+import { DocumentCopy, Download, Upload, RefreshRight, Check, InfoFilled } from '@element-plus/icons-vue'
 
 interface CatalogField {
   key: string
@@ -176,7 +262,22 @@ interface CatalogField {
   options?: string[]
   min?: number
   max?: number
+  rows?: number
+  span?: 'half' | 'full'
   placeholder?: string
+  tip?: string
+  visibleIf?: () => boolean
+}
+
+interface CatalogSection {
+  key: string
+  title: string
+  hint?: string
+  collapsible?: boolean
+  defaultOpen?: boolean
+  visibleIf?: () => boolean
+  fields: CatalogField[]
+  preview?: 'config'
 }
 
 interface CatalogItem {
@@ -184,9 +285,224 @@ interface CatalogItem {
   name: string
   description: string
   tags: string[]
-  fields: CatalogField[]
   installMethods: string[]
+  fields?: CatalogField[]
+  sections?: CatalogSection[]
 }
+
+const form = reactive({
+  service: '',
+  osType: 'ubuntu-debian',
+  installMethod: 'package',
+  params: {} as Record<string, any>
+})
+
+const isMethod = (m: string) => form.installMethod === m
+const isOn = (k: string) => form.params[k] === true
+
+const nginxSections: CatalogSection[] = [
+  {
+    key: 'basic',
+    title: '基础',
+    fields: [
+      { key: 'http_port', label: 'HTTP 监听端口', type: 'number', default: 80 },
+      { key: 'server_name', label: 'server_name', type: 'text', default: '_', placeholder: '_ 或 example.com' },
+      { key: 'worker_processes', label: 'worker_processes', type: 'text', default: 'auto', placeholder: 'auto / 数字' },
+      { key: 'worker_connections', label: 'worker_connections', type: 'number', default: 1024, min: 32, max: 65535 },
+      { key: 'ipv6', label: '同时监听 IPv6 (::)', type: 'switch', default: false },
+      { key: 'server_tokens_hide', label: '隐藏 nginx 版本号 (server_tokens off)', type: 'switch', default: true }
+    ]
+  },
+  {
+    key: 'http',
+    title: 'HTTP 调优',
+    fields: [
+      { key: 'keepalive_timeout', label: 'keepalive_timeout (秒)', type: 'number', default: 65, min: 0, max: 3600 },
+      { key: 'client_max_body_size', label: 'client_max_body_size', type: 'text', default: '100m' },
+      { key: 'sendfile', label: 'sendfile', type: 'switch', default: true },
+      { key: 'tcp_nopush', label: 'tcp_nopush', type: 'switch', default: true },
+      { key: 'tcp_nodelay', label: 'tcp_nodelay', type: 'switch', default: true },
+      { key: 'gzip', label: '启用 gzip 压缩', type: 'switch', default: true },
+      {
+        key: 'gzip_min_length',
+        label: 'gzip_min_length (字节)',
+        type: 'number',
+        default: 1024,
+        min: 0,
+        max: 1048576,
+        visibleIf: () => isOn('gzip')
+      },
+      {
+        key: 'gzip_types',
+        label: 'gzip_types',
+        type: 'text',
+        default: 'text/plain text/css application/json application/javascript text/xml application/xml',
+        span: 'full',
+        visibleIf: () => isOn('gzip')
+      }
+    ]
+  },
+  {
+    key: 'site',
+    title: '站点 / 静态资源',
+    fields: [
+      { key: 'docroot', label: 'root 静态目录', type: 'text', default: '/var/www/html' },
+      { key: 'index_files', label: 'index 文件', type: 'text', default: 'index.html index.htm' },
+      { key: 'access_log', label: 'access_log 路径', type: 'text', default: '/var/log/nginx/access.log' },
+      { key: 'error_log', label: 'error_log 路径', type: 'text', default: '/var/log/nginx/error.log' }
+    ]
+  },
+  {
+    key: 'proxy',
+    title: '反向代理 (upstream)',
+    hint: '关闭则只做静态站点',
+    fields: [
+      { key: 'reverse_proxy', label: '启用反向代理', type: 'switch', default: false },
+      {
+        key: 'lb_algorithm',
+        label: '负载策略',
+        type: 'select',
+        default: 'round_robin',
+        options: ['round_robin', 'least_conn', 'ip_hash'],
+        visibleIf: () => isOn('reverse_proxy')
+      },
+      {
+        key: 'upstreams',
+        label: '后端列表（每行 host:port [weight=N]）',
+        type: 'textarea',
+        default: '10.0.0.1:8080\n10.0.0.2:8080',
+        rows: 3,
+        span: 'full',
+        visibleIf: () => isOn('reverse_proxy')
+      },
+      {
+        key: 'proxy_connect_timeout',
+        label: 'proxy_connect_timeout (秒)',
+        type: 'number',
+        default: 5,
+        visibleIf: () => isOn('reverse_proxy')
+      },
+      {
+        key: 'proxy_read_timeout',
+        label: 'proxy_read_timeout (秒)',
+        type: 'number',
+        default: 60,
+        visibleIf: () => isOn('reverse_proxy')
+      },
+      {
+        key: 'proxy_send_timeout',
+        label: 'proxy_send_timeout (秒)',
+        type: 'number',
+        default: 60,
+        visibleIf: () => isOn('reverse_proxy')
+      }
+    ]
+  },
+  {
+    key: 'ssl',
+    title: 'HTTPS / SSL',
+    hint: '开启后渲染 443 server 块',
+    fields: [
+      { key: 'ssl', label: '启用 HTTPS', type: 'switch', default: false },
+      {
+        key: 'ssl_port',
+        label: 'HTTPS 端口',
+        type: 'number',
+        default: 443,
+        visibleIf: () => isOn('ssl')
+      },
+      {
+        key: 'cert_path',
+        label: 'ssl_certificate 路径',
+        type: 'text',
+        default: '/etc/nginx/ssl/server.crt',
+        visibleIf: () => isOn('ssl')
+      },
+      {
+        key: 'key_path',
+        label: 'ssl_certificate_key 路径',
+        type: 'text',
+        default: '/etc/nginx/ssl/server.key',
+        visibleIf: () => isOn('ssl')
+      },
+      {
+        key: 'ssl_protocols',
+        label: 'ssl_protocols',
+        type: 'text',
+        default: 'TLSv1.2 TLSv1.3',
+        visibleIf: () => isOn('ssl')
+      },
+      {
+        key: 'ssl_ciphers',
+        label: 'ssl_ciphers',
+        type: 'text',
+        default: 'HIGH:!aNULL:!MD5',
+        visibleIf: () => isOn('ssl')
+      },
+      {
+        key: 'force_https_redirect',
+        label: 'HTTP 强制跳转 HTTPS',
+        type: 'switch',
+        default: true,
+        visibleIf: () => isOn('ssl')
+      }
+    ]
+  },
+  {
+    key: 'install_path',
+    title: '安装路径（仅二进制）',
+    visibleIf: () => isMethod('binary'),
+    fields: [
+      { key: 'install_prefix', label: '--prefix 安装目录', type: 'text', default: '/usr/local/nginx' },
+      { key: 'binary_url', label: '源码下载 URL', type: 'text', default: 'https://nginx.org/download/nginx-1.24.0.tar.gz', span: 'full' },
+      { key: 'make_jobs', label: 'make 并发数 (-jN)', type: 'number', default: 4, min: 1, max: 64 },
+      {
+        key: 'configure_args',
+        label: 'configure 额外参数',
+        type: 'textarea',
+        rows: 3,
+        span: 'full',
+        default: '--with-http_ssl_module --with-http_v2_module --with-http_realip_module --with-http_stub_status_module --with-http_gzip_static_module'
+      }
+    ]
+  },
+  {
+    key: 'advanced',
+    title: '高级 / 自定义',
+    hint: '插入自定义指令到 http {} / server {}',
+    collapsible: true,
+    defaultOpen: false,
+    fields: [
+      {
+        key: 'custom_http',
+        label: '附加到 http {} 内的指令',
+        type: 'textarea',
+        rows: 4,
+        span: 'full',
+        default: '',
+        placeholder: '示例：\nmap $http_upgrade $connection_upgrade { default upgrade; "" close; }'
+      },
+      {
+        key: 'custom_server',
+        label: '附加到 server {} 内的指令',
+        type: 'textarea',
+        rows: 4,
+        span: 'full',
+        default: '',
+        placeholder: '示例：\nlocation /healthz { return 200 "ok"; }'
+      }
+    ]
+  },
+  {
+    key: 'preview',
+    title: '生成的 nginx.conf 预览',
+    hint: '只读 / 由上方参数实时渲染',
+    collapsible: true,
+    defaultOpen: false,
+    preview: 'config',
+    fields: []
+  }
+]
 
 const catalog: CatalogItem[] = [
   {
@@ -194,13 +510,8 @@ const catalog: CatalogItem[] = [
     name: 'Nginx',
     description: 'Web 服务器 / 反向代理',
     tags: ['gateway', 'web'],
-    installMethods: ['package', 'docker'],
-    fields: [
-      { key: 'port', label: '监听端口', type: 'number', default: 80 },
-      { key: 'worker', label: 'worker_processes', type: 'number', default: 4, min: 1, max: 256 },
-      { key: 'ssl', label: '启用 SSL（仅占位）', type: 'switch', default: false },
-      { key: 'docroot', label: '静态资源目录', type: 'text', default: '/var/www/html' }
-    ]
+    installMethods: ['package', 'docker', 'binary'],
+    sections: nginxSections
   },
   {
     key: 'haproxy',
@@ -222,6 +533,7 @@ const catalog: CatalogItem[] = [
         label: '后端列表（每行 host:port）',
         type: 'textarea',
         default: '10.0.0.1:8080\n10.0.0.2:8080',
+        span: 'full',
         placeholder: '10.0.0.1:8080\n10.0.0.2:8080'
       }
     ]
@@ -295,15 +607,8 @@ const osTypeOptions = [
 const installMethodLabels: Record<string, string> = {
   package: '系统包（apt/yum/dnf 自动适配）',
   docker: 'Docker 容器',
-  binary: '二进制（仅部分服务）'
+  binary: '二进制 / 源码编译'
 }
-
-const form = reactive({
-  service: '',
-  osType: 'ubuntu-debian',
-  installMethod: 'package',
-  params: {} as Record<string, any>
-})
 
 const selected = computed<CatalogItem | null>(() => catalog.find(c => c.key === form.service) || null)
 
@@ -312,20 +617,45 @@ const availableInstallMethods = computed(() => {
   return methods.map(m => ({ value: m, label: installMethodLabels[m] || m }))
 })
 
+const allSections = computed<CatalogSection[]>(() => {
+  if (!selected.value) return []
+  if (selected.value.sections) return selected.value.sections
+  return [{ key: 'config', title: '参数配置', fields: selected.value.fields || [] }]
+})
+
+const visibleSections = computed(() =>
+  allSections.value.filter(sec => !sec.visibleIf || sec.visibleIf())
+)
+
+const regularSections = computed(() => visibleSections.value.filter(s => !s.collapsible))
+const collapsibleSections = computed(() => visibleSections.value.filter(s => s.collapsible))
+
+const activeCollapseSections = ref<string[]>([])
+
+const visibleFields = (fields: CatalogField[]) =>
+  fields.filter(f => !f.visibleIf || f.visibleIf())
+
 const previewVisible = ref(false)
 const activeTab = ref<'bash' | 'cli'>('bash')
+
+const seedParams = (item: CatalogItem) => {
+  const out: Record<string, any> = {}
+  const sections = item.sections || (item.fields ? [{ key: 'default', title: '', fields: item.fields }] as CatalogSection[] : [])
+  sections.forEach(sec => sec.fields.forEach(f => { out[f.key] = f.default }))
+  return out
+}
 
 const selectService = (key: string) => {
   form.service = key
   const item = catalog.find(c => c.key === key)
   if (!item) return
-  form.params = item.fields.reduce((acc, f) => {
-    acc[f.key] = f.default
-    return acc
-  }, {} as Record<string, any>)
+  form.params = seedParams(item)
   if (!item.installMethods.includes(form.installMethod)) {
     form.installMethod = item.installMethods[0]
   }
+  activeCollapseSections.value = (item.sections || [])
+    .filter(s => s.collapsible && s.defaultOpen)
+    .map(s => s.key)
 }
 
 const onGenerate = () => {
@@ -339,11 +669,11 @@ const onGenerate = () => {
 
 const onReset = () => {
   if (!selected.value) return
-  form.params = selected.value.fields.reduce((acc, f) => {
-    acc[f.key] = f.default
-    return acc
-  }, {} as Record<string, any>)
+  form.params = seedParams(selected.value)
   form.installMethod = selected.value.installMethods[0]
+  activeCollapseSections.value = (selected.value.sections || [])
+    .filter(s => s.collapsible && s.defaultOpen)
+    .map(s => s.key)
 }
 
 const defaultBashFilename = computed(() => `install-${form.service || 'service'}.sh`)
@@ -368,19 +698,224 @@ const dockerRun = (name: string, image: string, ports: string[], envs: string[] 
   ].join('\n')
 }
 
+const indent = (text: string, pad: string) =>
+  text.split('\n').map(l => l.length ? pad + l : l).join('\n')
+
+const renderNginxConf = () => {
+  const p = form.params
+  const lines: string[] = []
+  lines.push(`worker_processes ${p.worker_processes || 'auto'};`)
+  lines.push(`events {`)
+  lines.push(`    worker_connections ${p.worker_connections || 1024};`)
+  lines.push(`}`)
+  lines.push(``)
+  lines.push(`http {`)
+  lines.push(`    include       mime.types;`)
+  lines.push(`    default_type  application/octet-stream;`)
+  lines.push(``)
+  lines.push(`    access_log ${p.access_log || '/var/log/nginx/access.log'};`)
+  lines.push(`    error_log  ${p.error_log || '/var/log/nginx/error.log'};`)
+  lines.push(``)
+  lines.push(`    sendfile        ${p.sendfile === false ? 'off' : 'on'};`)
+  lines.push(`    tcp_nopush      ${p.tcp_nopush === false ? 'off' : 'on'};`)
+  lines.push(`    tcp_nodelay     ${p.tcp_nodelay === false ? 'off' : 'on'};`)
+  lines.push(`    keepalive_timeout ${p.keepalive_timeout ?? 65};`)
+  lines.push(`    client_max_body_size ${p.client_max_body_size || '100m'};`)
+  lines.push(`    server_tokens   ${p.server_tokens_hide === false ? 'on' : 'off'};`)
+
+  if (p.gzip) {
+    lines.push(``)
+    lines.push(`    gzip on;`)
+    lines.push(`    gzip_min_length ${p.gzip_min_length ?? 1024};`)
+    lines.push(`    gzip_proxied any;`)
+    lines.push(`    gzip_types ${p.gzip_types || 'text/plain text/css application/json application/javascript text/xml application/xml'};`)
+  }
+
+  if (p.custom_http && String(p.custom_http).trim()) {
+    lines.push(``)
+    lines.push(`    # ===== custom_http =====`)
+    lines.push(indent(String(p.custom_http).trim(), '    '))
+  }
+
+  if (p.reverse_proxy) {
+    const ups = String(p.upstreams || '')
+      .split('\n')
+      .map(s => s.trim())
+      .filter(Boolean)
+    if (ups.length) {
+      lines.push(``)
+      lines.push(`    upstream backend_app {`)
+      if (p.lb_algorithm === 'least_conn') lines.push(`        least_conn;`)
+      if (p.lb_algorithm === 'ip_hash') lines.push(`        ip_hash;`)
+      ups.forEach(u => lines.push(`        server ${u};`))
+      lines.push(`    }`)
+    }
+  }
+
+  const httpListen = `${p.http_port || 80}${p.ipv6 ? '' : ''}`
+  lines.push(``)
+  lines.push(`    server {`)
+  lines.push(`        listen ${httpListen};`)
+  if (p.ipv6) lines.push(`        listen [::]:${p.http_port || 80};`)
+  lines.push(`        server_name ${p.server_name || '_'};`)
+
+  if (p.ssl && p.force_https_redirect) {
+    lines.push(`        return 301 https://$host$request_uri;`)
+  } else {
+    lines.push(`        root ${p.docroot || '/var/www/html'};`)
+    lines.push(`        index ${p.index_files || 'index.html index.htm'};`)
+    lines.push(``)
+    if (p.reverse_proxy) {
+      lines.push(`        location / {`)
+      lines.push(`            proxy_pass http://backend_app;`)
+      lines.push(`            proxy_http_version 1.1;`)
+      lines.push(`            proxy_set_header Host $host;`)
+      lines.push(`            proxy_set_header X-Real-IP $remote_addr;`)
+      lines.push(`            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`)
+      lines.push(`            proxy_set_header X-Forwarded-Proto $scheme;`)
+      lines.push(`            proxy_connect_timeout ${p.proxy_connect_timeout ?? 5}s;`)
+      lines.push(`            proxy_send_timeout ${p.proxy_send_timeout ?? 60}s;`)
+      lines.push(`            proxy_read_timeout ${p.proxy_read_timeout ?? 60}s;`)
+      lines.push(`        }`)
+    } else {
+      lines.push(`        location / {`)
+      lines.push(`            try_files $uri $uri/ =404;`)
+      lines.push(`        }`)
+    }
+    if (p.custom_server && String(p.custom_server).trim()) {
+      lines.push(``)
+      lines.push(`        # ===== custom_server =====`)
+      lines.push(indent(String(p.custom_server).trim(), '        '))
+    }
+  }
+  lines.push(`    }`)
+
+  if (p.ssl) {
+    lines.push(``)
+    lines.push(`    server {`)
+    lines.push(`        listen ${p.ssl_port || 443} ssl http2;`)
+    if (p.ipv6) lines.push(`        listen [::]:${p.ssl_port || 443} ssl http2;`)
+    lines.push(`        server_name ${p.server_name || '_'};`)
+    lines.push(`        ssl_certificate     ${p.cert_path || '/etc/nginx/ssl/server.crt'};`)
+    lines.push(`        ssl_certificate_key ${p.key_path || '/etc/nginx/ssl/server.key'};`)
+    lines.push(`        ssl_protocols       ${p.ssl_protocols || 'TLSv1.2 TLSv1.3'};`)
+    lines.push(`        ssl_ciphers         ${p.ssl_ciphers || 'HIGH:!aNULL:!MD5'};`)
+    lines.push(`        ssl_prefer_server_ciphers on;`)
+    lines.push(``)
+    lines.push(`        root ${p.docroot || '/var/www/html'};`)
+    lines.push(`        index ${p.index_files || 'index.html index.htm'};`)
+    if (p.reverse_proxy) {
+      lines.push(``)
+      lines.push(`        location / {`)
+      lines.push(`            proxy_pass http://backend_app;`)
+      lines.push(`            proxy_http_version 1.1;`)
+      lines.push(`            proxy_set_header Host $host;`)
+      lines.push(`            proxy_set_header X-Real-IP $remote_addr;`)
+      lines.push(`            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`)
+      lines.push(`            proxy_set_header X-Forwarded-Proto $scheme;`)
+      lines.push(`            proxy_connect_timeout ${p.proxy_connect_timeout ?? 5}s;`)
+      lines.push(`            proxy_send_timeout ${p.proxy_send_timeout ?? 60}s;`)
+      lines.push(`            proxy_read_timeout ${p.proxy_read_timeout ?? 60}s;`)
+      lines.push(`        }`)
+    } else {
+      lines.push(``)
+      lines.push(`        location / {`)
+      lines.push(`            try_files $uri $uri/ =404;`)
+      lines.push(`        }`)
+    }
+    if (p.custom_server && String(p.custom_server).trim()) {
+      lines.push(``)
+      lines.push(`        # ===== custom_server (https) =====`)
+      lines.push(indent(String(p.custom_server).trim(), '        '))
+    }
+    lines.push(`    }`)
+  }
+
+  lines.push(`}`)
+  return lines.join('\n')
+}
+
+const confPreview = computed(() => {
+  if (form.service === 'nginx') return renderNginxConf()
+  return ''
+})
+
 const buildNginx = () => {
   const p = form.params
+  const conf = renderNginxConf()
+  const writeConf = (path: string) => `sudo install -m 0755 -d "$(dirname ${path})"
+sudo bash -c 'cat >${path} <<"NGINXCONF"
+${conf}
+NGINXCONF'`
+
+  const docroot = p.docroot || '/var/www/html'
+  const ports = [`${p.http_port || 80}:${p.http_port || 80}`]
+  if (p.ssl) ports.push(`${p.ssl_port || 443}:${p.ssl_port || 443}`)
+
   if (form.installMethod === 'docker') {
-    return dockerRun('nginx', 'nginx:stable', [`${p.port}:80`], [], [`${p.docroot}:/usr/share/nginx/html:ro`])
+    return `${writeConf('/etc/nginx/nginx.conf')}
+sudo install -m 0755 -d ${docroot}
+${dockerRun(
+      'nginx',
+      'nginx:stable',
+      ports,
+      [],
+      ['/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro', `${docroot}:${docroot}:ro`]
+    )}
+sudo ss -lntp | grep -E ":${p.http_port || 80}\\b" || true`
   }
-  return `${pkgInstall(form.osType, ['nginx'])}
-sudo sed -i 's/^worker_processes.*/worker_processes ${p.worker};/' /etc/nginx/nginx.conf || true
-if [ -f /etc/nginx/sites-available/default ]; then
-  sudo sed -i 's/listen .* default_server.*/listen ${p.port} default_server;/' /etc/nginx/sites-available/default || true
-fi
+
+  if (form.installMethod === 'binary') {
+    const prefix = p.install_prefix || '/usr/local/nginx'
+    const url = p.binary_url || 'https://nginx.org/download/nginx-1.24.0.tar.gz'
+    const extra = (p.configure_args || '').replace(/\n+/g, ' ').trim()
+    return `${pkgInstall(form.osType, ['build-essential', 'libpcre2-dev', 'zlib1g-dev', 'libssl-dev', 'wget', 'tar'])}
+sudo install -m 0755 -d /tmp/nginx-build
+cd /tmp/nginx-build
+sudo wget -O nginx.tar.gz '${url}'
+sudo tar -xf nginx.tar.gz --strip-components=1
+sudo ./configure --prefix=${prefix} \\
+  --conf-path=${prefix}/conf/nginx.conf \\
+  --sbin-path=${prefix}/sbin/nginx \\
+  --pid-path=${prefix}/logs/nginx.pid \\
+  --error-log-path=${prefix}/logs/error.log \\
+  --http-log-path=${prefix}/logs/access.log \\
+  ${extra}
+sudo make -j${p.make_jobs || 4}
+sudo make install
+${writeConf(`${prefix}/conf/nginx.conf`)}
+sudo install -m 0755 -d ${docroot}
+sudo bash -c 'cat >/etc/systemd/system/nginx.service <<"UNITEND"
+[Unit]
+Description=nginx (binary install at ${prefix})
+After=network.target
+
+[Service]
+Type=forking
+PIDFile=${prefix}/logs/nginx.pid
+ExecStartPre=${prefix}/sbin/nginx -t
+ExecStart=${prefix}/sbin/nginx
+ExecReload=/bin/kill -s HUP $MAINPID
+ExecStop=/bin/kill -s QUIT $MAINPID
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
+UNITEND'
+sudo systemctl daemon-reload
+sudo ${prefix}/sbin/nginx -t
 sudo systemctl enable nginx
 sudo systemctl restart nginx
-sudo ss -lntp | grep :${p.port} || true`
+sudo ss -lntp | grep -E ":${p.http_port || 80}\\b" || true`
+  }
+
+  return `${pkgInstall(form.osType, ['nginx'])}
+${writeConf('/etc/nginx/nginx.conf')}
+sudo install -m 0755 -d ${docroot}
+sudo nginx -t
+sudo systemctl enable nginx
+sudo systemctl restart nginx
+sudo ss -lntp | grep -E ":${p.http_port || 80}\\b" || true`
 }
 
 const buildHAProxy = () => {
@@ -407,15 +942,15 @@ backend app
 ${backends}`
   if (form.installMethod === 'docker') {
     return `sudo mkdir -p /etc/haproxy
-sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<EOF
+sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<"HAPROXYCFG"
 ${conf}
-EOF'
+HAPROXYCFG'
 ${dockerRun('haproxy', 'haproxy:lts', [`${p.port}:${p.port}`], [], ['/etc/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'])}`
   }
   return `${pkgInstall(form.osType, ['haproxy'])}
-sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<EOF
+sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<"HAPROXYCFG"
 ${conf}
-EOF'
+HAPROXYCFG'
 sudo systemctl enable haproxy
 sudo systemctl restart haproxy
 sudo ss -lntp | grep :${p.port} || true`
@@ -424,10 +959,6 @@ sudo ss -lntp | grep :${p.port} || true`
 const buildRedis = () => {
   const p = form.params
   if (form.installMethod === 'docker') {
-    const cmd = ['redis-server', '--port', String(p.port), '--maxmemory', String(p.maxmemory)]
-    if (p.password) cmd.push('--requirepass', String(p.password))
-    if (p.persistence === 'aof') cmd.push('--appendonly', 'yes')
-    if (p.persistence === 'both') cmd.push('--appendonly', 'yes')
     return dockerRun('redis', 'redis:7', [`${p.port}:${p.port}`], [], []) + '\n# 注：如需自定义配置可改用挂载 redis.conf'
   }
   return `${pkgInstall(form.osType, ['redis-server'])}
@@ -465,10 +996,7 @@ const buildMySQL = () => {
       'mysql',
       'mysql:8.0',
       [`${p.port}:3306`],
-      [
-        `MYSQL_ROOT_PASSWORD=${p.root_password}`,
-        `MYSQL_DATABASE=app`
-      ],
+      [`MYSQL_ROOT_PASSWORD=${p.root_password}`, 'MYSQL_DATABASE=app'],
       [`${p.datadir}:/var/lib/mysql`]
     )}
 sudo ss -lntp | grep :${p.port} || true`
@@ -519,16 +1047,15 @@ echo "[ai-sre] service=${form.service} os=${form.osType} method=${form.installMe
 const aiSreCommand = computed(() => {
   if (!selected.value) return ''
   const params = Object.entries(form.params)
-    .filter(([_, v]) => v !== undefined && v !== '' && v !== null)
-    .map(([k, v]) => `--${k}=${typeof v === 'string' ? `'${v}'` : v}`)
+    .filter(([_, v]) => v !== undefined && v !== '' && v !== null && typeof v !== 'object')
+    .map(([k, v]) => `--${k}=${typeof v === 'string' ? `'${String(v).replace(/'/g, "'\\''")}'` : v}`)
     .join(' ')
-  const installCmd = `# 规划中（ai-sre 0.5+）
+  return `# 规划中（ai-sre 0.5+）
 ai-sre install ${form.service} --os=${form.osType} --method=${form.installMethod} ${params}
 
 # 当前可用：让 ai-sre 给出可执行步骤（基于本机 LLM/服务端 AI）
 ai-sre runbook "在 ${osTypeOptions.find(x => x.value === form.osType)?.label} 上以 ${installMethodLabels[form.installMethod]} 安装并配置 ${selected.value?.name}：${params}"
 `
-  return installCmd
 })
 
 const copy = async (text: string) => {
@@ -683,6 +1210,57 @@ const download = (text: string, filename: string) => {
   padding: 32px 0;
 }
 
+.section-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.section-hint {
+  color: #94a3b8;
+  font-size: 12px;
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 32px;
+  padding: 0 4px;
+  margin: 4px 0 18px;
+  border-radius: 6px;
+  border: 1px dashed var(--el-border-color);
+  background: var(--el-fill-color-lighter);
+}
+
+.switch-row-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+
+.switch-row-tip {
+  color: #94a3b8;
+  font-size: 14px;
+  cursor: help;
+}
+
+.advanced-collapse {
+  border-radius: 12px;
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color);
+  padding: 0 12px;
+}
+
+.advanced-collapse :deep(.el-collapse-item__header) {
+  font-weight: 600;
+  font-size: 14px;
+}
+
 .actions {
   margin: 12px 0 24px;
   display: flex;
@@ -706,6 +1284,11 @@ const download = (text: string, filename: string) => {
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-all;
+}
+
+.code-block--inline {
+  margin-top: 4px;
+  max-height: 360px;
 }
 
 .dialog-tabs {
