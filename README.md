@@ -33,6 +33,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre upgrade` | 与 OpsFleet 对比版本后覆盖本机 `ai-sre` 二进制（需能访问上表基址） |
 | `ai-sre uninstall k8s` | 在控制机 `root` 下用 Ansible `pre_cleanup` 全量清集群；**优先**本机 `/var/lib/opsfleet-k8s/last-bundle`（`install.sh` 预检后同步），无则再试拉 `ofpk8s1` 或 `--workdir` / `--force`（见 `ai-sre uninstall k8s --help`） |
 
+`analyze` 新行为（自动编排）：优先本地技能诊断；若本地无凭据或覆盖不足，会自动回退到 OpsFleet 服务端 `POST /api/ai/diagnose`（由服务端 DeepSeek 执行），并可返回技能草案用于自动沉淀。
+
 别名：`ops-ai`（与 `ai-sre` 等价）。
 
 ---
@@ -71,6 +73,16 @@ model: "deepseek-chat"
 # max_llm_calls_per_day: 20   # 每日 LLM 调用上限；0 或不写表示不限制。计数文件在 ~/.cache/ai-sre/llm_usage.json
 # 可选，供自升级/默认与控制台通信（同 OPSFLEET_API_URL 语义，含 /ft-api）
 # opsfleet_api_url: "http://<host>:9080/ft-api"
+
+# --- 自动技能迭代（可选）---
+# 在 ~/.config/ai-sre/evolution.yaml 中设置：
+# mode: full_pipeline
+# target_branch: main
+# max_auto_commits: 1
+# pre_push_test_cmd: "go test ./..."
+# auto_commit_msg: "chore(skills): auto-evolve generated skill"
+# fail_fast_streak: 3
+# enable_generated: true
 ```
 
 若仅使用 **`api_key` 纯文件** 存密钥，仍可在同目录增加 **`config.yaml`**（可只含 `tier` / `max_llm_calls_per_day`，不含 `api_key`），程序会自动合并限额配置。
@@ -166,6 +178,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 - **OpsFleet 后端仅使用** `ft-backend/conf/config.yaml`（由 `deploy/config.production.example.yaml` 复制编辑）；仓库内**不得**再保留根路径 `ft-backend/config.yaml` 等重复配置，以免误用。
 - **勿提交**：本机编译产物（`ai-sre`、`bin/`、`dist/`、`ft-backend/opsfleet-backend`）、`node_modules`、vim `*.swp`（见根目录 `.gitignore`）。
 - **CLI 凭据**：仅用 `~/.config/ai-sre/`，与 OpsFleet 的 PostgreSQL/JWT 配置无关。
+- **服务端 AI 回退**：若要启用无本地 key 的 `analyze` 自动回退，请在 OpsFleet 后端环境配置 `OPSFLEET_AI_API_KEY`（可选 `OPSFLEET_AI_BASE_URL`、`OPSFLEET_AI_MODEL`）。
 
 ---
 

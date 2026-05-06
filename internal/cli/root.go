@@ -157,18 +157,17 @@ k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashL
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := buildContextMap()
-			eng, err := bootstrap()
-			if err != nil {
-				return err
-			}
 			topic := args[0]
-			t0 := time.Now()
-			res, err := eng.Analyze(context.Background(), topic, ctx, !noRAG)
+			diag, err := runAnalyzeWithOrchestrator(context.Background(), topic, ctx)
 			if err != nil {
 				return err
 			}
-			ms := time.Since(t0).Milliseconds()
-			p := output.BuildPayload("analyze", topic, "", "", ctx, !noRAG, ms, res)
+			res := &engine.RunResult{
+				Answer:       diag.Answer,
+				SkillName:    diag.SkillName,
+				SkillDisplay: diag.SkillDisplay,
+			}
+			p := output.BuildPayload("analyze", topic, "", "", ctx, !noRAG, 0, res)
 			return output.Print(outputFormat, p)
 		},
 	}
@@ -303,9 +302,12 @@ func bootstrap() (*engine.Engine, error) {
 		}
 		sDir, kDir = "", ""
 	}
+	genSkillsDir, genKnowledgeDir := loader.DefaultGeneratedDirs()
 	skills, kb, err := loader.LoadSkillsAndKnowledge(loader.Options{
-		SkillsExtraDir:    sDir,
-		KnowledgeExtraDir: kDir,
+		SkillsExtraDir:        sDir,
+		KnowledgeExtraDir:     kDir,
+		GeneratedSkillsDir:    genSkillsDir,
+		GeneratedKnowledgeDir: genKnowledgeDir,
 	})
 	if err != nil {
 		return nil, err

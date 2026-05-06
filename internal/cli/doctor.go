@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"runtime"
 
 	"github.com/spf13/cobra"
@@ -55,6 +58,20 @@ func doctorCmd() *cobra.Command {
 			} else {
 				fmt.Printf("skills_loaded: %d\n", len(reg.Packs))
 				fmt.Printf("knowledge_chunks: %d\n", len(kb.Chunks))
+			}
+			metricsPath := filepath.Join(cfgDir, "evolution_metrics.json")
+			if b, err := os.ReadFile(metricsPath); err == nil {
+				var m struct {
+					UpdatedAt string         `json:"updated_at"`
+					Counters  map[string]int `json:"counters"`
+				}
+				if json.Unmarshal(b, &m) == nil && len(m.Counters) > 0 {
+					fmt.Printf("evolution_metrics_updated_at: %s\n", m.UpdatedAt)
+					fmt.Printf("evolution_local_hit: %d\n", m.Counters["local_hit"])
+					fmt.Printf("evolution_server_fallback: %d\n", m.Counters["server_fallback"])
+					fmt.Printf("evolution_generated_skill: %d\n", m.Counters["generated_skill"])
+					fmt.Printf("evolution_autopipeline_success: %d\n", m.Counters["autopipeline_success"])
+				}
 			}
 
 			fmt.Printf("hint: LLM 联通性请用: %s ask \"ping\" 或 SHORT=1 bash scripts/remote-e2e.sh\n", progName)

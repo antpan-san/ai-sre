@@ -2,16 +2,20 @@ package loader
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/panshuai/ai-sre/internal/assets"
+	"github.com/panshuai/ai-sre/internal/config"
 	"github.com/panshuai/ai-sre/internal/rag"
 	"github.com/panshuai/ai-sre/internal/skill"
 )
 
 // Options configures optional on-disk skill packs and knowledge (merged with embedded defaults).
 type Options struct {
-	SkillsExtraDir    string
-	KnowledgeExtraDir string
+	SkillsExtraDir        string
+	KnowledgeExtraDir     string
+	GeneratedSkillsDir    string
+	GeneratedKnowledgeDir string
 }
 
 // LoadSkillsAndKnowledge loads embedded assets plus optional directories. Custom skills override same `name`.
@@ -39,5 +43,26 @@ func LoadSkillsAndKnowledge(opts Options) (*skill.Registry, *rag.Index, error) {
 		}
 		kb = rag.Merge(kb, extra)
 	}
+	if opts.GeneratedSkillsDir != "" {
+		extra, err := skill.LoadDirFromPath(opts.GeneratedSkillsDir)
+		if err == nil {
+			sk = skill.MergeRegistries(sk, extra)
+		}
+	}
+	if opts.GeneratedKnowledgeDir != "" {
+		extra, err := rag.LoadDir(opts.GeneratedKnowledgeDir)
+		if err == nil {
+			kb = rag.Merge(kb, extra)
+		}
+	}
 	return sk, kb, nil
+}
+
+// DefaultGeneratedDirs returns default generated skill/knowledge directories under ~/.config/ai-sre.
+func DefaultGeneratedDirs() (string, string) {
+	cfgDir, err := config.ResolveDir()
+	if err != nil {
+		return "", ""
+	}
+	return filepath.Join(cfgDir, "generated-skills"), filepath.Join(cfgDir, "generated-knowledge")
 }
