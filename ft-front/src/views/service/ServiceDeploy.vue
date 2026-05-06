@@ -12,6 +12,7 @@
         :rules="deployRules"
         label-position="top"
       >
+        <el-divider>基础信息</el-divider>
         <el-row :gutter="16">
           <el-col :xs="24" :md="12">
             <el-form-item label="部署名称" prop="name">
@@ -19,38 +20,25 @@
             </el-form-item>
           </el-col>
           <el-col :xs="24" :md="12">
-            <el-form-item label="服务类型">
-              <el-select v-model="deployForm.type" style="width: 100%">
-                <el-option label="Docker" value="docker" />
-                <el-option label="Kubernetes" value="k8s" />
-                <el-option label="Linux Service" value="linux" />
-              </el-select>
+            <el-form-item label="描述">
+              <el-input v-model="deployForm.description" placeholder="服务用途、依赖说明（可选）" clearable />
             </el-form-item>
           </el-col>
         </el-row>
-
         <el-row :gutter="16">
-          <el-col :xs="24" :md="16">
-            <el-form-item label="镜像地址" prop="image">
-              <el-input v-model="deployForm.image" placeholder="registry.example.com/team/app:tag" clearable />
-            </el-form-item>
-          </el-col>
           <el-col :xs="24" :md="8">
             <el-form-item label="服务端口" prop="port">
               <el-input-number v-model="deployForm.port" :min="1" :max="65535" style="width: 100%" />
             </el-form-item>
           </el-col>
-        </el-row>
-
-        <el-row :gutter="16">
           <el-col :xs="24" :md="8">
             <el-form-item label="副本数量" prop="replicas">
               <el-input-number v-model="deployForm.replicas" :min="1" :max="100" style="width: 100%" />
             </el-form-item>
           </el-col>
-          <el-col :xs="24" :md="16">
-            <el-form-item label="描述">
-              <el-input v-model="deployForm.description" placeholder="服务用途、依赖说明（可选）" clearable />
+          <el-col :xs="24" :md="8">
+            <el-form-item label="推断服务类型">
+              <el-input :model-value="derivedServiceTypeLabel" disabled />
             </el-form-item>
           </el-col>
         </el-row>
@@ -87,6 +75,11 @@
         </el-row>
 
         <el-row v-if="isMethod('container') || isMethod('docker-run')" :gutter="16">
+          <el-col :xs="24" :md="12">
+            <el-form-item label="镜像地址" prop="image">
+              <el-input v-model="deployForm.image" placeholder="registry.example.com/team/app:tag" clearable />
+            </el-form-item>
+          </el-col>
           <el-col :xs="24" :md="12">
             <el-form-item label="镜像拉取策略">
               <el-select v-model="deployForm.installConfig.imagePullPolicy" style="width: 100%">
@@ -233,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Upload, Delete, Plus, RefreshRight } from '@element-plus/icons-vue'
 import { useServiceStore } from '../../stores/service'
@@ -268,7 +261,6 @@ const installMethodOptions = [
 
 const deployForm = reactive({
   name: '',
-  type: 'docker' as 'docker' | 'k8s' | 'linux',
   osType: 'ubuntu-debian',
   installMethod: 'binary',
   description: '',
@@ -311,7 +303,17 @@ const deployRules = reactive({
     { min: 2, max: 50, message: '部署名称长度在 2 到 50 个字符', trigger: 'blur' }
   ],
   image: [
-    { required: true, message: '请输入Docker镜像地址', trigger: 'blur' }
+    {
+      validator: (_rule: any, value: string, callback: (err?: Error) => void) => {
+        const requireImage = deployForm.installMethod === 'container' || deployForm.installMethod === 'docker-run'
+        if (requireImage && !String(value || '').trim()) {
+          callback(new Error('容器安装方式需要填写镜像地址'))
+          return
+        }
+        callback()
+      },
+      trigger: 'blur'
+    }
   ],
   replicas: [
     { required: true, message: '请输入副本数量', trigger: 'blur' },
@@ -326,6 +328,11 @@ const deployRules = reactive({
 const deployFormRef = ref()
 const loading = ref(false)
 const isMethod = (method: string) => deployForm.installMethod === method
+const derivedServiceType = () => {
+  if (deployForm.installMethod === 'helm' || deployForm.installMethod === 'manifest') return 'k8s'
+  return 'linux'
+}
+const derivedServiceTypeLabel = computed(() => (derivedServiceType() === 'k8s' ? 'Kubernetes' : 'Linux Service'))
 
 const addEnvVar = () => {
   deployForm.envVars.push({ key: '', value: '' })
@@ -387,7 +394,7 @@ const handleDeploy = async () => {
 
     const deployData: DeployServiceParams = {
       name: deployForm.name,
-      type: deployForm.type,
+      type: derivedServiceType() as 'k8s' | 'linux',
       description: deployForm.description,
       image: deployForm.image,
       replicas: deployForm.replicas,
@@ -414,7 +421,6 @@ const handleDeploy = async () => {
 const handleReset = () => {
   Object.assign(deployForm, {
     name: '',
-    type: 'docker',
     osType: 'ubuntu-debian',
     installMethod: 'binary',
     description: '',
