@@ -19,8 +19,9 @@ export interface DeployServiceParams {
   image: string
   replicas: number
   port: number
-  env: Record<string, string>
-  volume: Volume[]
+  description?: string
+  type?: 'docker' | 'k8s' | 'linux'
+  config?: Record<string, any>
 }
 
 // 服务部署响应
