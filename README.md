@@ -26,6 +26,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre version` | 打印版本号 |
 | `ai-sre help` | 帮助 |
 | `ai-sre kafka diagnose <bootstrap-server>` | Kafka 极简快诊：优先用内置 Go 客户端直连采集（支持 `--config` 的 SASL/TLS）；失败再尝试 Kafka CLI，最后才回退 AI |
+| `ai-sre redis diagnose <host:port>` | Redis 极简快诊：只读采集 INFO，定位连接拒绝、淘汰和连接压力 |
+| `ai-sre mysql diagnose <dsn>` | MySQL 极简快诊：只读采集连接、慢查询、线程与只读状态 |
 | `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` / `diagnose` 等（见 `ai-sre k8s --help`） |
 | `ai-sre node tune time-sync …` | 与控制台「初始化工具 → 时间同步」等价的 CLI；本机构建 inventory + chrony / timesyncd playbook 并调用 `ansible-playbook`；缺失 ansible 时按 apt/dnf/yum 自动安装；未填 `--clients` 仅对 localhost 执行 |
 | `ai-sre node tune sys-param …` | 与「系统参数优化」等价：sysctl + br_netfilter/overlay 内核模块 + ulimit + 关闭 swap；可用 `--sysctl key=value`（多次）扩展或 `--extra-only` 只用显式提供的项 |
@@ -109,6 +111,8 @@ go build -o ai-sre .
 ./ai-sre analyze kafka --lag 100000
 ./ai-sre kafka diagnose 10.0.0.1:9092
 ./ai-sre kafka diagnose 'b1:9092,b2:9092,b3:9092'
+./ai-sre redis diagnose 10.0.0.2:6379
+./ai-sre mysql diagnose 'user:pass@tcp(10.0.0.3:3306)/mysql?timeout=5s'
 ./ai-sre analyze k8s --pod pending
 ./ai-sre ask "kafka lag 高怎么办"
 ./ai-sre runbook "pod频繁重启"
