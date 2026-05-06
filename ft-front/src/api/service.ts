@@ -13,7 +13,9 @@ import type {
   GetLinuxServiceListParams,
   GetLinuxServiceListResponse,
   LinuxServiceOperationParams,
-  LinuxServiceOperationResponse
+  LinuxServiceOperationResponse,
+  CreateServiceDeploymentParams,
+  CreateServiceDeploymentResponse
 } from '../types/service'
 
 /**
@@ -23,6 +25,10 @@ import type {
  */
 export const deployService = (data: DeployServiceParams): Promise<DeployServiceResponse> => {
   return request.post('/api/service/deploy', data)
+}
+
+export const createServiceDeployment = (data: CreateServiceDeploymentParams): Promise<CreateServiceDeploymentResponse> => {
+  return request.post('/api/service-deploy/deployments', data)
 }
 
 /**

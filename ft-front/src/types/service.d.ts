@@ -34,6 +34,22 @@ export interface DeployServiceResponse {
   msg: string
 }
 
+export interface CreateServiceDeploymentParams {
+  service: string
+  profile: string
+  install_method: string
+  version?: string
+  params: Record<string, any>
+}
+
+export interface CreateServiceDeploymentResponse {
+  deploymentId: string
+  token: string
+  curlCommand: string
+  aiSreCommand: string
+  status: string
+}
+
 // 服务列表请求参数
 export interface GetServiceListParams {
   page?: number

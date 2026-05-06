@@ -44,6 +44,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/k8s/deploy/install-ai-sre.sh", handlers.ServeAiSreInstallScript)
 		public.GET("/k8s/deploy/cli/ai-sre/version", handlers.GetAiSreCLIVersion)
 		public.GET("/k8s/deploy/cli/ai-sre", handlers.DownloadAiSreCLI)
+		public.GET("/service-deploy/deployments/:id/bootstrap.sh", handlers.ServeServiceDeploymentBootstrap)
+		public.GET("/service-deploy/deployments/:id/spec", handlers.GetServiceDeploymentSpec)
+		public.POST("/service-deploy/deployments/:id/events", handlers.PostServiceDeploymentEvent)
+		public.POST("/service-deploy/deployments/:id/finish", handlers.FinishServiceDeployment)
 		public.POST("/execution-records/report/start", handlers.StartExecutionRecord)
 		public.POST("/execution-records/report/event", handlers.PostExecutionEvent)
 		public.POST("/execution-records/report/finish", handlers.FinishExecutionRecord)
@@ -125,6 +129,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.POST("/service/batch-delete", handlers.BatchDeleteService)
 		protected.GET("/service/linux/list", handlers.GetLinuxServiceList)
 		protected.POST("/service/linux/operate", handlers.OperateLinuxService)
+		protected.POST("/service-deploy/deployments", handlers.CreateServiceDeployment)
 
 		// ---- K8s Deployment ----
 		protected.GET("/k8s/deploy/versions", handlers.GetK8sVersions)

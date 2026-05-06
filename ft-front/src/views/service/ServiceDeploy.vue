@@ -41,14 +41,14 @@
             </template>
             <el-form label-position="top">
               <el-row :gutter="16">
-                <el-col :xs="24" :md="12">
+                <el-col :xs="24" :md="8">
                   <el-form-item label="目标系统类型">
                     <el-select v-model="form.osType" style="width: 100%">
                       <el-option v-for="os in osTypeOptions" :key="os.value" :label="os.label" :value="os.value" />
                     </el-select>
                   </el-form-item>
                 </el-col>
-                <el-col :xs="24" :md="12">
+                <el-col :xs="24" :md="8">
                   <el-form-item label="安装方式">
                     <el-select v-model="form.installMethod" style="width: 100%">
                       <el-option
@@ -57,6 +57,13 @@
                         :label="method.label"
                         :value="method.value"
                       />
+                    </el-select>
+                  </el-form-item>
+                </el-col>
+                <el-col :xs="24" :md="8">
+                  <el-form-item label="部署场景">
+                    <el-select v-model="form.profile" style="width: 100%">
+                      <el-option v-for="profile in profileOptions" :key="profile.value" :label="profile.label" :value="profile.value" />
                     </el-select>
                   </el-form-item>
                 </el-col>
@@ -230,9 +237,18 @@
           </el-collapse>
 
           <div class="actions">
-            <el-button type="primary" :icon="Upload" @click="onGenerate">生成部署脚本</el-button>
+            <el-button type="primary" :icon="Upload" :loading="generating" @click="onGenerate">生成部署脚本</el-button>
             <el-button :icon="RefreshRight" @click="onReset">重置</el-button>
           </div>
+          <el-alert
+            v-if="generatedDeployment"
+            class="deploy-status"
+            type="success"
+            :closable="false"
+            show-icon
+            :title="`部署任务已保存：${generatedDeployment.deploymentId}`"
+            :description="`状态：${generatedDeployment.status}。目标机执行 curl 命令后，ai-sre 会从服务端拉取参数并回传步骤状态。`"
+          />
         </template>
       </div>
     </div>
@@ -251,33 +267,31 @@
       >
         <template #default>
           <div>
-            「bash 脚本」可直接在目标节点执行 <code>sudo bash 文件</code>，立即可用；
-            「ai-sre CLI」展示控制台等价命令，<code>ai-sre install &lt;service&gt;</code> 子命令在规划中，
-            当前可用 <code>ai-sre runbook</code> 让 AI 给出详细步骤。
+            页面只保存服务端部署规格，目标机执行 <code>curl | sudo bash</code> 后会安装/升级 ai-sre，
+            再由 <code>ai-sre service install</code> 从服务端拉取完整参数并回传执行状态。
           </div>
         </template>
       </el-alert>
 
       <el-tabs v-model="activeTab" class="dialog-tabs">
-        <el-tab-pane label="bash 脚本（立即可用）" name="bash">
+        <el-tab-pane label="curl + bash（推荐）" name="bash">
           <div class="tab-actions">
-            <el-tag size="small" type="success">目标机执行：sudo bash {{ defaultBashFilename }}</el-tag>
-            <el-button size="small" :icon="DocumentCopy" @click="copy(bashScript)">复制</el-button>
-            <el-button size="small" :icon="Download" @click="download(bashScript, defaultBashFilename)">下载 .sh</el-button>
+            <el-tag size="small" type="success">目标机执行：复制后直接运行</el-tag>
+            <el-button size="small" :icon="DocumentCopy" :disabled="!generatedDeployment" @click="copy(curlCommand)">复制</el-button>
           </div>
-          <pre class="code-block">{{ bashScript }}</pre>
+          <pre class="code-block">{{ curlCommand }}</pre>
         </el-tab-pane>
         <el-tab-pane label="ai-sre CLI" name="cli">
           <el-alert
-            type="warning"
+            type="success"
             :closable="false"
             show-icon
-            title="`ai-sre install <service>` 即将提供（0.5+）；当前推荐用 ai-sre runbook 让 AI 给详细步骤"
+            title="参数来自服务端，不需要在命令里携带大量安装参数"
           />
           <div class="tab-actions">
-            <el-button size="small" :icon="DocumentCopy" @click="copy(aiSreCommand)">复制命令</el-button>
+            <el-button size="small" :icon="DocumentCopy" :disabled="!generatedDeployment" @click="copy(aiSreInstallCommand)">复制命令</el-button>
           </div>
-          <pre class="code-block">{{ aiSreCommand }}</pre>
+          <pre class="code-block">{{ aiSreInstallCommand }}</pre>
         </el-tab-pane>
       </el-tabs>
     </el-dialog>
@@ -288,6 +302,8 @@
 import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Download, Upload, RefreshRight, Check, InfoFilled } from '@element-plus/icons-vue'
+import { createServiceDeployment } from '../../api/service'
+import type { CreateServiceDeploymentResponse } from '../../types/service'
 
 interface CatalogField {
   key: string
@@ -329,6 +345,7 @@ const form = reactive({
   service: '',
   osType: 'ubuntu-debian',
   installMethod: 'package',
+  profile: 'default',
   params: {} as Record<string, any>
 })
 
@@ -783,12 +800,32 @@ const installMethodLabels: Record<string, string> = {
   binary: '二进制 / 源码编译'
 }
 
+const profileCatalog: Record<string, Array<{ label: string; value: string }>> = {
+  nginx: [
+    { label: '静态站点', value: 'static' },
+    { label: '反向代理', value: 'reverse_proxy' },
+    { label: 'HTTPS 站点', value: 'https' }
+  ],
+  haproxy: [{ label: '负载均衡', value: 'load_balancer' }],
+  redis: [
+    { label: '单机缓存', value: 'standalone_cache' },
+    { label: '持久化单机', value: 'standalone_persistent' }
+  ],
+  kafka: [{ label: '单 Broker 测试环境', value: 'single_broker' }],
+  mysql: [{ label: '单机数据库', value: 'standalone_db' }],
+  postgresql: [{ label: '单机数据库', value: 'standalone_db' }]
+}
+
 const selected = computed<CatalogItem | null>(() => catalog.find(c => c.key === form.service) || null)
 
 const availableInstallMethods = computed(() => {
   const methods = selected.value?.installMethods || ['package']
   return methods.map(m => ({ value: m, label: installMethodLabels[m] || m }))
 })
+
+const profileOptions = computed(() => profileCatalog[form.service] || [{ label: '默认', value: 'default' }])
+
+const selectedProfile = computed(() => form.profile || profileOptions.value[0]?.value || 'default')
 
 const allSections = computed<CatalogSection[]>(() => {
   if (!selected.value) return []
@@ -800,8 +837,8 @@ const visibleSections = computed(() =>
   allSections.value.filter(sec => !sec.visibleIf || sec.visibleIf())
 )
 
-const regularSections = computed(() => visibleSections.value.filter(s => !s.collapsible))
-const collapsibleSections = computed(() => visibleSections.value.filter(s => s.collapsible))
+const regularSections = computed(() => visibleSections.value.filter(s => !s.collapsible && s.key === 'basic'))
+const collapsibleSections = computed(() => visibleSections.value.filter(s => s.collapsible || s.key !== 'basic'))
 
 const activeCollapseSections = ref<string[]>([])
 
@@ -829,6 +866,10 @@ const sectionNormalColMd = (f: CatalogField) => {
 
 const previewVisible = ref(false)
 const activeTab = ref<'bash' | 'cli'>('bash')
+const generating = ref(false)
+const generatedDeployment = ref<CreateServiceDeploymentResponse | null>(null)
+const curlCommand = computed(() => generatedDeployment.value?.curlCommand || '')
+const aiSreInstallCommand = computed(() => generatedDeployment.value?.aiSreCommand || '')
 
 const seedParams = (item: CatalogItem) => {
   const out: Record<string, any> = {}
@@ -845,24 +886,41 @@ const selectService = (key: string) => {
   if (!item.installMethods.includes(form.installMethod)) {
     form.installMethod = item.installMethods[0]
   }
+  form.profile = profileOptions.value[0]?.value || 'default'
   activeCollapseSections.value = (item.sections || [])
     .filter(s => s.collapsible && s.defaultOpen)
     .map(s => s.key)
 }
 
-const onGenerate = () => {
+const onGenerate = async () => {
   if (!selected.value) {
     ElMessage.warning('请先选择基础服务')
     return
   }
-  activeTab.value = 'bash'
-  previewVisible.value = true
+  generating.value = true
+  try {
+    generatedDeployment.value = await createServiceDeployment({
+      service: form.service,
+      profile: selectedProfile.value,
+      install_method: form.installMethod,
+      version: String(form.params.version || ''),
+      params: {
+        ...form.params,
+        osType: form.osType
+      }
+    })
+    activeTab.value = 'bash'
+    previewVisible.value = true
+  } finally {
+    generating.value = false
+  }
 }
 
 const onReset = () => {
   if (!selected.value) return
   form.params = seedParams(selected.value)
   form.installMethod = selected.value.installMethods[0]
+  form.profile = profileOptions.value[0]?.value || 'default'
   activeCollapseSections.value = (selected.value.sections || [])
     .filter(s => s.collapsible && s.defaultOpen)
     .map(s => s.key)

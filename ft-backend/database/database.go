@@ -93,6 +93,8 @@ func Migrate() error {
 		&models.MonitoringConfig{},
 		&models.AlertRule{},
 		&models.Service{},
+		&models.ServiceDeployment{},
+		&models.ServiceDeploymentEvent{},
 		&models.ProxyConfig{},
 		// NOTE: Heartbeat is NOT included here – it is a partitioned table
 		// and must be created via the migration_pg.sql script.
