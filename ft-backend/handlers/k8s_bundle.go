@@ -88,7 +88,7 @@ func BuildK8sOfflineZip(req K8sDeployRequest) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	buf, err := buildK8sOfflineZip(req.ClusterName, ansibleDir, inventoryContent, mergedGroupVars, req.PreDeployCleanup)
+	buf, err := buildK8sOfflineZip(req.ClusterName, ansibleDir, inventoryContent, mergedGroupVars, req)
 	if err != nil {
 		return nil, err
 	}
@@ -229,7 +229,7 @@ func generateAnsibleInventoryFromHosts(masters, workers []string) string {
 	return inv
 }
 
-func buildK8sOfflineZip(clusterName, ansibleRoot, inventory, groupVars string, preDeployCleanup bool) (*bytes.Buffer, error) {
+func buildK8sOfflineZip(clusterName, ansibleRoot, inventory, groupVars string, req K8sDeployRequest) (*bytes.Buffer, error) {
 	buf := new(bytes.Buffer)
 	zw := zip.NewWriter(buf)
 
@@ -336,7 +336,7 @@ inventory 已设 ansible_user=root；当前不支持交互式输入 SSH 密码�
 		return nil, err
 	}
 
-	installSh := renderOfflineInstallScript(preDeployCleanup)
+	installSh := renderOfflineInstallScript(req)
 	if err := addString("install.sh", installSh); err != nil {
 		zw.Close()
 		return nil, err
@@ -348,11 +348,16 @@ inventory 已设 ansible_user=root；当前不支持交互式输入 SSH 密码�
 	return buf, nil
 }
 
-func renderOfflineInstallScript(preDeployCleanup bool) string {
+func renderOfflineInstallScript(req K8sDeployRequest) string {
 	// 与 generateK8sDeployScript 步骤一致，但使用包内路径；在控制节点本机执行（与 inventory 中 control 段 localhost 一致时需能 SSH 到各节点）。
 	pc := "0"
-	if preDeployCleanup {
+	if req.PreDeployCleanup {
 		pc = "1"
+	}
+	cpMethod := normalizeControlPlaneDeployMethod(req.ControlPlaneDeployMethod)
+	installRuns := offlineInstallRunBlockBinary()
+	if cpMethod == "static-pod" {
+		installRuns = offlineInstallRunBlockStaticPod()
 	}
 	s := `#!/usr/bin/env bash
 set -euo pipefail
@@ -529,6 +534,18 @@ run() {
   echo "${step}" >> "$STATE_FILE"
 }
 
+__INSTALL_RUN_BLOCK__
+
+echo "=== 完成 ==="
+kubectl get nodes 2>/dev/null || echo "kubectl 检查失败：请确认 admin.conf 与 API Server 正常"
+kubectl get pods -A 2>/dev/null || true
+`
+	s = strings.Replace(s, "__INSTALL_RUN_BLOCK__", installRuns, 1)
+	return strings.Replace(s, "__OPS_PRE_CLEANUP_DEFAULT__", pc, 1)
+}
+
+func offlineInstallRunBlockBinary() string {
+	return `
 run "Step 1/11: init" "playbooks/0-init.yml"
 run "Step 2/11: resources" "playbooks/resources.yml"
 run "Step 3/11: etcd" "playbooks/etcd.yml"
@@ -540,10 +557,23 @@ run "Step 8/11: containerd" "playbooks/containerd.yml"
 run "Step 9/11: kubelet" "playbooks/kubelet.yml"
 run "Step 10/11: kube-proxy" "playbooks/kube_proxy.yml"
 run "Step 11/11: addons (CNI + CoreDNS)" "playbooks/k8s_addons.yml"
-
-echo "=== 完成 ==="
-kubectl get nodes 2>/dev/null || echo "kubectl 检查失败：请确认 admin.conf 与 API Server 正常"
-kubectl get pods -A 2>/dev/null || true
 `
-	return strings.Replace(s, "__OPS_PRE_CLEANUP_DEFAULT__", pc, 1)
+}
+
+func offlineInstallRunBlockStaticPod() string {
+	return `
+run "Step 1/13: init" "playbooks/0-init.yml"
+run "Step 2/13: resources" "playbooks/resources.yml"
+run "Step 3/13: etcd" "playbooks/etcd.yml"
+run "Step 4/13: kube-apiserver" "playbooks/kube_apiserver_install.yml"
+run "Step 5/13: kube-controller-manager" "playbooks/kube_controller_manager_install.yml"
+run "Step 6/13: kube-scheduler" "playbooks/kube_scheduler_install.yml"
+run "Step 7/13: containerd" "playbooks/containerd.yml"
+run "Step 8/13: control plane static Pod manifests" "playbooks/kube_control_plane_manifests.yml"
+run "Step 9/13: kubelet" "playbooks/kubelet.yml"
+run "Step 10/13: wait for kube-apiserver" "playbooks/wait_apiserver.yml"
+run "Step 11/13: kubectl" "playbooks/kubectl.yml"
+run "Step 12/13: kube-proxy" "playbooks/kube_proxy.yml"
+run "Step 13/13: addons (CNI + CoreDNS)" "playbooks/k8s_addons.yml"
+`
 }

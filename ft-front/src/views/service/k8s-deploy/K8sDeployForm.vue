@@ -65,6 +65,38 @@
           </div>
         </el-collapse-item>
 
+        <!-- 部署方式：在填写基础信息前选择控制平面运行形态 -->
+        <el-collapse-item name="deploymethod" class="deploy-config-item">
+          <template #title>
+            <div class="config-item-title">
+              <span class="config-item-icon config-item-icon--method"><el-icon><Switch /></el-icon></span>
+              <span class="config-item-text">
+                <span class="config-item-name">控制平面部署方式</span>
+                <span class="config-item-desc">{{ getSectionDesc('deploymethod', '二进制 + systemd 或 kubelet 静态 Pod') }}</span>
+              </span>
+            </div>
+          </template>
+          <div class="step-section step-section--deploy-method">
+            <p class="deploy-method-lead">
+              请在本页余下配置<strong>之前</strong>确定控制平面（apiserver、controller-manager、scheduler）的交付方式；将写入
+              <code>inventory/group_vars</code> 并决定在线/离线安装脚本的 Ansible 步骤顺序。
+            </p>
+            <el-form label-position="top">
+              <el-form-item label="部署方式" required>
+                <el-radio-group v-model="deployConfig.clusterBasicInfo.controlPlaneDeployMethod" class="deploy-method-radio">
+                  <el-radio-button value="binary">二进制 + systemd</el-radio-button>
+                  <el-radio-button value="static-pod">静态 Pod（kubelet 托管）</el-radio-button>
+                </el-radio-group>
+                <p class="deploy-method-hint">
+                  <strong>二进制 + systemd</strong>：与既有流水线一致，控制平面进程由 systemd 托管。<strong>静态 Pod</strong>：将清单放在
+                  <code>/etc/kubernetes/manifests</code>，由已安装的 kubelet 拉起官方容器镜像（需节点能拉取
+                  <code>kube-apiserver</code> / <code>kube-controller-manager</code> / <code>kube-scheduler</code> 镜像；脚本会先装 containerd、再下发清单并启动 kubelet，然后等待 API Server 就绪再继续）。
+                </p>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-collapse-item>
+
         <!-- ========== 步骤 1: 基础集群信息 ========== -->
         <el-collapse-item name="basic" class="deploy-config-item">
           <template #title>
@@ -640,6 +672,9 @@
             <el-descriptions-item label="版本 / 架构">
               {{ deployConfig.clusterBasicInfo.version || '—' }} · {{ deployConfig.clusterBasicInfo.cpuArch || '—' }}
             </el-descriptions-item>
+            <el-descriptions-item label="控制平面">
+              {{ controlPlaneMethodLabel }}
+            </el-descriptions-item>
             <el-descriptions-item label="模式">
               {{ deployConfig.clusterBasicInfo.deployMode === 'cluster' ? '多节点' : '单节点' }}
             </el-descriptions-item>
@@ -682,6 +717,9 @@
             </el-descriptions-item>
             <el-descriptions-item label="版本">
               {{ deployConfig.clusterBasicInfo.version || '—' }}
+            </el-descriptions-item>
+            <el-descriptions-item label="控制平面">
+              {{ controlPlaneMethodLabel }}
             </el-descriptions-item>
             <el-descriptions-item label="执行节点" :span="2">
               {{ executorConfirmText }}
@@ -756,7 +794,8 @@ import {
   CircleCheck,
   Download,
   Promotion,
-  DocumentCopy
+  DocumentCopy,
+  Switch
 } from '@element-plus/icons-vue'
 import NodeSelect from '@/components/k8s/NodeSelect.vue'
 import LabelGroup from '@/components/k8s/LabelGroup.vue'
@@ -812,7 +851,7 @@ const stepsMeta = [
 const step1FormRef = ref<FormInstance>()
 const step4FormRef = ref<FormInstance>()
 
-type SectionName = 'precheck' | 'basic' | 'nodes' | 'core' | 'network' | 'storage' | 'advanced' | 'confirm'
+type SectionName = 'precheck' | 'deploymethod' | 'basic' | 'nodes' | 'core' | 'network' | 'storage' | 'advanced' | 'confirm'
 
 // ---------- 状态 ----------
 const activeStep = ref(0)
@@ -943,6 +982,7 @@ const deployConfig = reactive<DeployConfig>({
     clusterName: '',
     version: '',
     deployMode: 'cluster',
+    controlPlaneDeployMethod: 'binary',
     cpuArch: 'arm64',
     imageSource: 'aliyun',
     downloadDomain: '',
@@ -1182,6 +1222,12 @@ const enabledComponentsText = computed(() => {
   return items.join('、')
 })
 
+const controlPlaneMethodLabel = computed(() =>
+  deployConfig.clusterBasicInfo.controlPlaneDeployMethod === 'static-pod'
+    ? '静态 Pod'
+    : '二进制 + systemd'
+)
+
 const sectionSummary = computed<Record<SectionName, string>>(() => {
   const basic = deployConfig.clusterBasicInfo
   const node = deployConfig.nodeConfig
@@ -1202,6 +1248,7 @@ const sectionSummary = computed<Record<SectionName, string>>(() => {
 
   return {
     precheck: '已提供免密 SSH 与环境检查清单',
+    deploymethod: controlPlaneMethodLabel.value,
     basic: `${basic.clusterName || '未命名'} · ${basic.version || '未选版本'} · ${basic.cpuArch}`,
     nodes: offlineBundleMode.value
       ? `离线清单：Master ${masters} 台 / Worker ${workers} 台`
@@ -1250,7 +1297,7 @@ const deployRequirementText = computed(() => {
   const L: string[] = [
     `K8s 部署需求（OpsFleet ${now}）`,
     '',
-    `集群「${name}」 ${ver} ${arch} ${mode} · 镜像 ${imageSourceText.value}`,
+    `集群「${name}」 ${ver} ${arch} ${mode} · 控制平面 ${controlPlaneMethodLabel.value} · 镜像 ${imageSourceText.value}`,
     '',
     offlineBundleMode.value
       ? `节点：控制平面 ${masters.length ? masters.join('、') : '（未填）'}；工作 ${workers.length ? workers.join('、') : '无'}`
@@ -1684,6 +1731,37 @@ const submitDeploy = async () => {
 .config-item-icon--precheck {
   background: linear-gradient(135deg, #0f766e, #14b8a6);
   box-shadow: 0 8px 16px rgba(15, 118, 110, 0.16);
+}
+
+.config-item-icon--method {
+  background: linear-gradient(135deg, #4338ca, #6366f1);
+  box-shadow: 0 8px 16px rgba(67, 56, 202, 0.18);
+}
+
+.step-section--deploy-method .deploy-method-lead {
+  margin: 0 0 14px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--el-text-color-regular);
+}
+
+.deploy-method-hint {
+  margin: 10px 0 0;
+  max-width: 920px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--el-text-color-secondary);
+}
+
+.deploy-method-hint code {
+  font-size: 11px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
+}
+
+.deploy-method-radio {
+  flex-wrap: wrap;
 }
 
 .config-item-text {

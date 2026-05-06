@@ -48,16 +48,19 @@
     mode: '0644'
 
 - name: Install kube-controller-manager systemd unit
+  when: control_plane_deploy_method | default('binary') == 'binary'
   template:
     src: kube-controller-manager.service.j2
     dest: /etc/systemd/system/kube-controller-manager.service
     mode: '0644'
 
 - name: Reload systemd
+  when: control_plane_deploy_method | default('binary') == 'binary'
   systemd:
     daemon_reload: true
 
 - name: Enable and start kube-controller-manager
+  when: control_plane_deploy_method | default('binary') == 'binary'
   systemd:
     name: kube-controller-manager
     enabled: true
@@ -68,6 +71,7 @@
 # K8s 1.30+ --controllers 须用 bootstrap-signer-controller / token-cleaner-controller；旧名会导致进程立即退出、10257 拒绝连接。
 # --------------------------------
 - name: Wait for controller-manager /healthz
+  when: control_plane_deploy_method | default('binary') == 'binary'
   block:
     - name: Poll controller-manager /healthz
       ansible.builtin.uri:

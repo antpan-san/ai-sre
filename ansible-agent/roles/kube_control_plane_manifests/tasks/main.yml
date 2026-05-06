@@ -1,0 +1,26 @@
+---
+# 将 kube-apiserver / kube-controller-manager / kube-scheduler 以静态 Pod 形式写入
+# /etc/kubernetes/manifests（由 kubelet 监视）。仅 control_plane_deploy_method=static-pod 时使用。
+- name: Ensure static Pod manifest directory exists
+  ansible.builtin.file:
+    path: /etc/kubernetes/manifests
+    state: directory
+    mode: "0755"
+
+- name: Install kube-apiserver static Pod manifest
+  ansible.builtin.template:
+    src: kube-apiserver-pod.yaml.j2
+    dest: /etc/kubernetes/manifests/kube-apiserver.yaml
+    mode: "0644"
+
+- name: Install kube-controller-manager static Pod manifest
+  ansible.builtin.template:
+    src: kube-controller-manager-pod.yaml.j2
+    dest: /etc/kubernetes/manifests/kube-controller-manager.yaml
+    mode: "0644"
+
+- name: Install kube-scheduler static Pod manifest
+  ansible.builtin.template:
+    src: kube-scheduler-pod.yaml.j2
+    dest: /etc/kubernetes/manifests/kube-scheduler.yaml
+    mode: "0644"

@@ -1,4 +1,6 @@
 # 基础配置
+# 控制平面：binary=二进制+systemd（默认）；static-pod=静态 Pod（依赖 kube_apiserver_image 等镜像变量，由 OpsFleet 合并块写入）
+control_plane_deploy_method: "binary"
 arch_version: "amd64"
 # 内网制品下载：仅此一处为默认主机名/IP，不写死在 Go/前端；部署时可由 OpsFleet 合并块或 UI 覆盖 download_domain / download_protocol。
 # 镜像站目录约定（示例）： kubernetes/<ver>/<arch>/... 、 etcd/<ver>/... 、 cni-plugins/<ver>/... （与下方 URL 模板一致）

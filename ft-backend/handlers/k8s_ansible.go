@@ -83,6 +83,9 @@ type K8sDeployRequest struct {
 	DownloadDomain   string `json:"downloadDomain"`
 	DownloadProtocol string `json:"downloadProtocol"`
 
+	// ControlPlaneDeployMethod 控制平面组件部署方式：binary=二进制+systemd（默认）；static-pod=kubelet 静态 Pod。
+	ControlPlaneDeployMethod string `json:"controlPlaneDeployMethod"`
+
 	// PublicAPIBase 仅用于创建 bundle-invite（生成 CLI 一键安装引用），须为浏览器可达的 API 基址（含 /ft-api 等前缀）。
 	// 写入 inventory 前会被清空，不参与 Ansible。
 	PublicAPIBase string `json:"publicApiBase,omitempty"`
@@ -117,6 +120,27 @@ func normalizeImageSource(s string) string {
 }
 
 // normalizeDownloadProtocol 将 UI/CLI 输入规范为 ansible 使用的前缀（如 http://、https://）。
+// normalizeControlPlaneDeployMethod maps UI/CLI values to ansible group_vars control_plane_deploy_method.
+func normalizeControlPlaneDeployMethod(s string) string {
+	s = strings.TrimSpace(strings.ToLower(s))
+	switch s {
+	case "static-pod", "static_pod", "staticpod":
+		return "static-pod"
+	default:
+		return "binary"
+	}
+}
+
+// k8sControlPlaneImageRepo returns the registry prefix for kube-apiserver/kube-controller-manager/kube-scheduler container images.
+func k8sControlPlaneImageRepo(imageSource string) string {
+	switch normalizeImageSource(imageSource) {
+	case "aliyun":
+		return "registry.aliyuncs.com/google_containers"
+	default:
+		return "registry.k8s.io"
+	}
+}
+
 func normalizeDownloadProtocol(p string) string {
 	p = strings.TrimSpace(p)
 	if p == "" {
@@ -200,6 +224,8 @@ func generateAnsibleGroupVars(req K8sDeployRequest, masterIP string) string {
 		storageProvisioner = "local-path"
 	}
 	cpuArch := normalizeK8sCPUArch(req.ArchVersion)
+	cpMethod := normalizeControlPlaneDeployMethod(req.ControlPlaneDeployMethod)
+	imgRepo := k8sControlPlaneImageRepo(imageSource)
 
 	// Build optional component flags as YAML booleans.
 	boolStr := func(b bool) string {
@@ -244,12 +270,22 @@ image_source: "%s"
 
 # CPU / binary arch (amd64=x86_64, arm64=AArch64/Apple Silicon 虚拟机常见)
 arch_version: "%s"
+
+# Control plane: binary (systemd) vs static-pod (kubelet manifests)；镜像用于 static-pod 路径
+control_plane_deploy_method: "%s"
+kube_apiserver_image: "%s/kube-apiserver:%s"
+kube_controller_manager_image: "%s/kube-controller-manager:%s"
+kube_scheduler_image: "%s/kube-scheduler:%s"
 `,
 		req.Version, req.ClusterName, masterIP,
 		podCIDR, serviceCIDR, dnsServiceIP, clusterDomain,
 		networkPlugin, kubeProxyMode,
 		imageSource,
 		cpuArch,
+		cpMethod,
+		imgRepo, req.Version,
+		imgRepo, req.Version,
+		imgRepo, req.Version,
 	)
 
 	if d := strings.TrimSpace(req.DownloadDomain); d != "" {
@@ -375,13 +411,19 @@ const deployStateFile = "/tmp/ofp-k8s-deploy-state"
 
 // generateK8sDeployScript creates a shell script that runs the Ansible playbooks in order.
 // 每完成一步即写入 DEPLOY_STATE_FILE，便于终止时按步骤做清理。
-func generateK8sDeployScript(inventoryContent, groupVarsContent string, preDeployCleanup bool) string {
+// control_plane_deploy_method 由合并后的 group_vars 与本参数双重约束；脚本 Middle 随 binary / static-pod 分支。
+func generateK8sDeployScript(inventoryContent, groupVarsContent string, preDeployCleanup bool, cpMethod string) string {
 	preBlock := ""
 	if preDeployCleanup {
 		preBlock = `
 echo "=== Step 0: Pre-deploy cleanup (non-interactive) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/pre_cleanup.yml || { echo "FAILED: pre_cleanup"; exit 1; }
 `
+	}
+	cpMethod = normalizeControlPlaneDeployMethod(cpMethod)
+	middle := k8sDeployScriptMiddleBinary()
+	if cpMethod == "static-pod" {
+		middle = k8sDeployScriptMiddleStaticPod()
 	}
 	return fmt.Sprintf(`#!/bin/bash
 set -e
@@ -411,6 +453,16 @@ cp "$TEMP_VARS" "$ANSIBLE_DIR/inventory/group_vars/all.yml"
 
 cd "$ANSIBLE_DIR"
 %s
+%s
+echo "=== K8s Deployment Completed Successfully! ==="
+rm -f "$TEMP_INVENTORY" "$TEMP_VARS"
+kubectl get nodes || echo "WARNING: kubectl check failed"
+kubectl get pods -A || true
+`, deployStateFile, inventoryContent, groupVarsContent, preBlock, middle)
+}
+
+func k8sDeployScriptMiddleBinary() string {
+	return `
 echo "=== Step 1/11: System Initialization ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/0-init.yml || { echo "FAILED: init"; exit 1; }
 echo "init" >> "$STATE_FILE"
@@ -454,12 +506,63 @@ echo "kube_proxy" >> "$STATE_FILE"
 echo "=== Step 11/11: Apply addons (CNI + CoreDNS) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/k8s_addons.yml || { echo "FAILED: k8s_addons"; exit 1; }
 echo "k8s_addons" >> "$STATE_FILE"
+`
+}
 
-echo "=== K8s Deployment Completed Successfully! ==="
-rm -f "$TEMP_INVENTORY" "$TEMP_VARS"
-kubectl get nodes || echo "WARNING: kubectl check failed"
-kubectl get pods -A || true
-`, deployStateFile, inventoryContent, groupVarsContent, preBlock)
+func k8sDeployScriptMiddleStaticPod() string {
+	return `
+echo "=== Step 1/13: System Initialization ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/0-init.yml || { echo "FAILED: init"; exit 1; }
+echo "init" >> "$STATE_FILE"
+
+echo "=== Step 2/13: Download Resources ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/resources.yml || { echo "FAILED: resources"; exit 1; }
+echo "resources" >> "$STATE_FILE"
+
+echo "=== Step 3/13: Deploy etcd Cluster ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/etcd.yml || { echo "FAILED: etcd"; exit 1; }
+echo "etcd" >> "$STATE_FILE"
+
+echo "=== Step 4/13: kube-apiserver (certs & assets, no systemd) ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_apiserver_install.yml || { echo "FAILED: apiserver"; exit 1; }
+echo "apiserver" >> "$STATE_FILE"
+
+echo "=== Step 5/13: kube-controller-manager (assets, no systemd) ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_controller_manager_install.yml || { echo "FAILED: controller-manager"; exit 1; }
+echo "controller_manager" >> "$STATE_FILE"
+
+echo "=== Step 6/13: kube-scheduler (assets, no systemd) ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_scheduler_install.yml || { echo "FAILED: scheduler"; exit 1; }
+echo "scheduler" >> "$STATE_FILE"
+
+echo "=== Step 7/13: Install containerd ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/containerd.yml || { echo "FAILED: containerd"; exit 1; }
+echo "containerd" >> "$STATE_FILE"
+
+echo "=== Step 8/13: Control plane static Pod manifests ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_control_plane_manifests.yml || { echo "FAILED: kube_control_plane_manifests"; exit 1; }
+echo "kube_control_plane_manifests" >> "$STATE_FILE"
+
+echo "=== Step 9/13: Install kubelet ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubelet.yml || { echo "FAILED: kubelet"; exit 1; }
+echo "kubelet" >> "$STATE_FILE"
+
+echo "=== Step 10/13: Wait for kube-apiserver ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/wait_apiserver.yml || { echo "FAILED: wait_apiserver"; exit 1; }
+echo "wait_apiserver" >> "$STATE_FILE"
+
+echo "=== Step 11/13: Install kubectl ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubectl.yml || { echo "FAILED: kubectl"; exit 1; }
+echo "kubectl" >> "$STATE_FILE"
+
+echo "=== Step 12/13: Install kube-proxy ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_proxy.yml || { echo "FAILED: kube-proxy"; exit 1; }
+echo "kube_proxy" >> "$STATE_FILE"
+
+echo "=== Step 13/13: Apply addons (CNI + CoreDNS) ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/k8s_addons.yml || { echo "FAILED: k8s_addons"; exit 1; }
+echo "k8s_addons" >> "$STATE_FILE"
+`
 }
 
 // generateK8sCleanupScript 生成清理脚本：按部署步骤的逆序执行清理，严格恢复到部署前状态。
@@ -479,16 +582,19 @@ cleanup_scheduler() {
   systemctl stop kube-scheduler 2>/dev/null || true
   systemctl disable kube-scheduler 2>/dev/null || true
   rm -f /etc/systemd/system/kube-scheduler.service /etc/kubernetes/kube-scheduler*.kubeconfig 2>/dev/null || true
+  rm -f /etc/kubernetes/manifests/kube-scheduler.yaml 2>/dev/null || true
 }
 cleanup_controller_manager() {
   systemctl stop kube-controller-manager 2>/dev/null || true
   systemctl disable kube-controller-manager 2>/dev/null || true
   rm -f /etc/systemd/system/kube-controller-manager.service /etc/kubernetes/kube-controller-manager*.kubeconfig 2>/dev/null || true
+  rm -f /etc/kubernetes/manifests/kube-controller-manager.yaml 2>/dev/null || true
 }
 cleanup_apiserver() {
   systemctl stop kube-apiserver 2>/dev/null || true
   systemctl disable kube-apiserver 2>/dev/null || true
   rm -f /etc/systemd/system/kube-apiserver.service /etc/kubernetes/kube-apiserver*.kubeconfig /etc/kubernetes/token.csv 2>/dev/null || true
+  rm -f /etc/kubernetes/manifests/kube-apiserver.yaml 2>/dev/null || true
 }
 cleanup_etcd() {
   systemctl stop etcd 2>/dev/null || true
@@ -588,7 +694,7 @@ func SubmitK8sDeployWithAnsible(c *gin.Context) {
 	// Generate Ansible artifacts
 	inventoryContent := generateAnsibleInventory(req, machineMap)
 	groupVarsContent := generateAnsibleGroupVars(req, masterIP)
-	deployScript := generateK8sDeployScript(inventoryContent, groupVarsContent, req.PreDeployCleanup)
+	deployScript := generateK8sDeployScript(inventoryContent, groupVarsContent, req.PreDeployCleanup, req.ControlPlaneDeployMethod)
 
 	// Create K8s cluster record — store the full request config for auditability.
 	workerNodesJSON, _ := json.Marshal(req.WorkerNodes)

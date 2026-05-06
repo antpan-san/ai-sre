@@ -1,0 +1,26 @@
+# static-pod 路径：kubelet 已启动且 manifests 就位后，等待 API Server 就绪（binary 路径在 kube_apiserver role 内等待）
+- hosts: kube_control_plane
+  become: true
+  tasks:
+    - name: Wait for apiserver port 6443
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6443
+        timeout: 180
+
+    - name: Wait for kube-apiserver livez
+      ansible.builtin.uri:
+        url: https://127.0.0.1:6443/livez?verbose
+        method: GET
+        client_cert: "{{ k8s_cert_dir }}/apiserver_kubelet_client.crt"
+        client_key: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+        ca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+        validate_certs: true
+        return_content: true
+        status_code: [200, 500]
+      register: apiserver_livez
+      retries: 36
+      delay: 5
+      until:
+        - apiserver_livez.status == 200
+        - "'livez check passed' in apiserver_livez.content"

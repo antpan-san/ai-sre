@@ -36,10 +36,14 @@ export interface KeyValuePair {
 }
 
 // 基础集群信息
+export type ControlPlaneDeployMethod = 'binary' | 'static-pod';
+
 export interface ClusterBasicInfo {
   clusterName: string;
   version: string;
   deployMode: 'single' | 'cluster';
+  /** 控制平面服务部署方式：binary=二进制+systemd，static-pod=kubelet 静态 Pod */
+  controlPlaneDeployMethod: ControlPlaneDeployMethod;
   /** 目标节点 CPU 架构（与 kubernetes/etcd linux 二进制一致；Fusion ARM 虚机选 arm64） */
   cpuArch: 'amd64' | 'arm64';
   imageSource: 'default' | 'aliyun' | 'tencent' | 'custom';
@@ -146,6 +150,7 @@ export interface K8sDeploySubmitRequest {
   clusterName: string;
   version: string;
   deployMode: string;
+  controlPlaneDeployMethod?: string;
   /** amd64 | arm64 */
   archVersion?: string;
   imageSource: string;

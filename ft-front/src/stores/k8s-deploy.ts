@@ -35,6 +35,9 @@ export const useK8sDeployStore = defineStore('k8s-deploy', () => {
       if (!config.clusterBasicInfo.cpuArch) {
         config.clusterBasicInfo.cpuArch = 'arm64'
       }
+      if (!config.clusterBasicInfo.controlPlaneDeployMethod) {
+        config.clusterBasicInfo.controlPlaneDeployMethod = 'binary'
+      }
     }
     if (savedActiveStep.value != null && savedActiveStep.value >= 0) {
       activeStepRef.value = savedActiveStep.value

@@ -33,23 +33,25 @@ func main() {
 	downloadProtocol := flag.String("downloadProtocol", "", "override download_protocol, e.g. http:// or https://")
 	networkPlugin := flag.String("networkPlugin", "calico", "CNI: calico|flannel (与控制台默认一致，勿留空否则合并包曾回退为 flannel)")
 	pauseImage := flag.String("pauseImage", "", "optional kubelet pause image, e.g. registry.k8s.io/pause:3.10")
+	controlPlaneDeployMethod := flag.String("controlPlaneDeployMethod", "binary", "control plane: binary|static-pod")
 	flag.Parse()
 
 	masters := splitCSV(*master)
 	req := handlers.K8sDeployRequest{
-		ClusterName:         *cluster,
-		Version:             *version,
-		ArchVersion:         *arch,
-		ImageSource:         *imageSource,
-		MasterHosts:         masters,
-		WorkerHosts:         splitCSV(*worker),
-		EnableRBAC:          true,
-		DefaultStorageClass: true,
-		PreDeployCleanup:    *preCleanup,
-		DownloadDomain:      *downloadDomain,
-		DownloadProtocol:    *downloadProtocol,
-		NetworkPlugin:       *networkPlugin,
-		PauseImage:          *pauseImage,
+		ClusterName:              *cluster,
+		Version:                  *version,
+		ArchVersion:              *arch,
+		ImageSource:              *imageSource,
+		ControlPlaneDeployMethod: *controlPlaneDeployMethod,
+		MasterHosts:              masters,
+		WorkerHosts:              splitCSV(*worker),
+		EnableRBAC:               true,
+		DefaultStorageClass:      true,
+		PreDeployCleanup:         *preCleanup,
+		DownloadDomain:           *downloadDomain,
+		DownloadProtocol:         *downloadProtocol,
+		NetworkPlugin:            *networkPlugin,
+		PauseImage:               *pauseImage,
 	}
 	data, err := handlers.BuildK8sOfflineZip(req)
 	if err != nil {

@@ -56,16 +56,19 @@
     mode: '0644'
 
 - name: Install kube-scheduler systemd unit
+  when: control_plane_deploy_method | default('binary') == 'binary'
   template:
     src: kube-scheduler.service.j2
     dest: /etc/systemd/system/kube-scheduler.service
     mode: '0644'
 
 - name: Reload systemd
+  when: control_plane_deploy_method | default('binary') == 'binary'
   systemd:
     daemon_reload: true
 
 - name: Enable and start kube-scheduler
+  when: control_plane_deploy_method | default('binary') == 'binary'
   systemd:
     name: kube-scheduler
     enabled: true
@@ -75,6 +78,7 @@
 # Check Health（与 kube-controller-manager 相同：起服后 10259 可能晚几秒才监听，必须轮询）
 # --------------------------------
 - name: Wait for kube-scheduler /healthz
+  when: control_plane_deploy_method | default('binary') == 'binary'
   block:
     - name: Poll kube-scheduler /healthz (mTLS 与 curl 等效；until 避免刚起服时 10259 未监听)
       ansible.builtin.uri:

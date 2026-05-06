@@ -1,0 +1,5 @@
+# 控制平面静态 Pod 清单（仅 control_plane_deploy_method=static-pod 的流水线会调用）
+- hosts: kube_control_plane
+  become: true
+  roles:
+    - role: ../roles/kube_control_plane_manifests

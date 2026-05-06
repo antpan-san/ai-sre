@@ -54,8 +54,8 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 
 **单一事实来源（改步骤时先改代码再改文档）：**
 
-- 离线：`ft-backend/handlers/k8s_bundle.go` → `renderOfflineInstallScript()` 内 `run "Step …"`。
-- 在线：`ft-backend/handlers/k8s_ansible.go` → `generateK8sDeployScript()` 内 `Step …` 与 `ansible-playbook` 调用。
+- 离线：`ft-backend/handlers/k8s_bundle.go` → `renderOfflineInstallScript()` / `offlineInstallRunBlockBinary` / `offlineInstallRunBlockStaticPod` 内 `run "Step …"`。
+- 在线：`ft-backend/handlers/k8s_ansible.go` → `k8sDeployScriptMiddleBinary()` / `k8sDeployScriptMiddleStaticPod()` 内 `Step …` 与 `ansible-playbook` 调用。
 
 ---
 
@@ -86,6 +86,10 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 
 可选 **Step 0**：`OPSFLEET_OFFLINE_PRE_CLEANUP=1`（或打包时勾选预清理）→ `playbooks/pre_cleanup.yml`。
 
+合并后的 **`inventory/group_vars/all.yml`** 含 **`control_plane_deploy_method`**：`binary`（默认）或 **`static-pod`**。前者为 **11 步**（控制平面 systemd）；后者为 **13 步**（先装 containerd → 下发 **`/etc/kubernetes/manifests`** 静态 Pod → kubelet → **`wait_apiserver`** → kubectl → kube-proxy → addons）。
+
+### `control_plane_deploy_method: binary`（默认）
+
 | Step | 名称 | Playbook |
 |------|------|----------|
 | 1/11 | init | `playbooks/0-init.yml` |
@@ -100,7 +104,25 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 | 10/11 | kube-proxy | `playbooks/kube_proxy.yml` |
 | 11/11 | addons（CNI：Flannel 或 Calico + CoreDNS，受 `network_plugin` 等约束） | `playbooks/k8s_addons.yml` |
 
-**在线部署**（Agent 执行机上的脚本）应与上表 **同序、同 playbook**；若发现漂移，按 **需改代码** 处理。
+### `control_plane_deploy_method: static-pod`
+
+| Step | 名称 | Playbook |
+|------|------|----------|
+| 1/13 | init | `playbooks/0-init.yml` |
+| 2/13 | resources | `playbooks/resources.yml` |
+| 3/13 | etcd | `playbooks/etcd.yml` |
+| 4/13 | kube-apiserver（证书与文件，无 systemd） | `playbooks/kube_apiserver_install.yml` |
+| 5/13 | kube-controller-manager（同上） | `playbooks/kube_controller_manager_install.yml` |
+| 6/13 | kube-scheduler（同上） | `playbooks/kube_scheduler_install.yml` |
+| 7/13 | containerd | `playbooks/containerd.yml` |
+| 8/13 | 控制平面静态 Pod 清单 | `playbooks/kube_control_plane_manifests.yml` |
+| 9/13 | kubelet | `playbooks/kubelet.yml` |
+| 10/13 | 等待 API Server | `playbooks/wait_apiserver.yml` |
+| 11/13 | kubectl | `playbooks/kubectl.yml` |
+| 12/13 | kube-proxy | `playbooks/kube_proxy.yml` |
+| 13/13 | addons | `playbooks/k8s_addons.yml` |
+
+**在线部署**（`generateK8sDeployScript`）与离线 **`install.sh`**（`renderOfflineInstallScript`）在相同 **`control_plane_deploy_method`** 下须 **同序、同 playbook**；若发现漂移，按 **需改代码** 处理。
 
 ---
 
