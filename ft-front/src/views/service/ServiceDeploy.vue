@@ -55,6 +55,86 @@
           </el-col>
         </el-row>
 
+        <el-divider>系统与安装方式</el-divider>
+        <el-row :gutter="16">
+          <el-col :xs="24" :md="12">
+            <el-form-item label="目标系统类型">
+              <el-select v-model="deployForm.osType" style="width: 100%">
+                <el-option v-for="item in osTypeOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="安装方式">
+              <el-select v-model="deployForm.installMethod" style="width: 100%">
+                <el-option v-for="item in installMethodOptions" :key="item.value" :label="item.label" :value="item.value" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row v-if="isMethod('binary') || isMethod('package')" :gutter="16">
+          <el-col :xs="24" :md="16">
+            <el-form-item label="制品地址">
+              <el-input v-model="deployForm.installConfig.artifactUrl" placeholder="https://repo.example.com/app.tar.gz 或 .deb/.rpm" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="8">
+            <el-form-item label="安装目录">
+              <el-input v-model="deployForm.installConfig.installPath" placeholder="/opt/app" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row v-if="isMethod('container') || isMethod('docker-run')" :gutter="16">
+          <el-col :xs="24" :md="12">
+            <el-form-item label="镜像拉取策略">
+              <el-select v-model="deployForm.installConfig.imagePullPolicy" style="width: 100%">
+                <el-option label="IfNotPresent" value="IfNotPresent" />
+                <el-option label="Always" value="Always" />
+              </el-select>
+            </el-form-item>
+          </el-col>
+          <el-col v-if="isMethod('docker-run')" :xs="24" :md="12">
+            <el-form-item label="docker run 参数">
+              <el-input v-model="deployForm.installConfig.dockerRunArgs" placeholder="--restart=always --network=host" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row v-if="isMethod('helm')" :gutter="16">
+          <el-col :xs="24" :md="12">
+            <el-form-item label="Helm Chart">
+              <el-input v-model="deployForm.installConfig.helmChart" placeholder="oci://registry/chart 或 repo/chart" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="Helm Release">
+              <el-input v-model="deployForm.installConfig.helmRelease" placeholder="orders-api" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+        <el-row v-if="isMethod('helm')" :gutter="16">
+          <el-col :xs="24" :md="12">
+            <el-form-item label="K8s Namespace">
+              <el-input v-model="deployForm.installConfig.k8sNamespace" placeholder="default" />
+            </el-form-item>
+          </el-col>
+          <el-col :xs="24" :md="12">
+            <el-form-item label="values 文件/URL">
+              <el-input v-model="deployForm.installConfig.helmValuesRef" placeholder="./values.yaml 或 URL" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
+        <el-row v-if="isMethod('manifest')" :gutter="16">
+          <el-col :xs="24">
+            <el-form-item label="Manifest 来源">
+              <el-input v-model="deployForm.installConfig.manifestRef" placeholder="./manifests/*.yaml、Git URL 或 HTTP URL" />
+            </el-form-item>
+          </el-col>
+        </el-row>
+
         <el-divider>基础组件</el-divider>
         <el-form-item label="通用基础组件（可多选）">
           <el-checkbox-group v-model="deployForm.baseComponents">
@@ -170,9 +250,27 @@ const baseComponentOptions = [
   { label: 'Node Exporter', value: 'node-exporter' }
 ]
 
+const osTypeOptions = [
+  { label: 'Ubuntu / Debian', value: 'ubuntu-debian' },
+  { label: 'CentOS / Rocky / RHEL', value: 'rhel-family' },
+  { label: 'openEuler', value: 'openeuler' },
+  { label: 'Kylin', value: 'kylin' }
+]
+
+const installMethodOptions = [
+  { label: '二进制', value: 'binary' },
+  { label: '安装包（deb/rpm）', value: 'package' },
+  { label: '镜像（容器）', value: 'container' },
+  { label: 'docker run', value: 'docker-run' },
+  { label: 'Helm', value: 'helm' },
+  { label: 'Manifest', value: 'manifest' }
+]
+
 const deployForm = reactive({
   name: '',
   type: 'docker' as 'docker' | 'k8s' | 'linux',
+  osType: 'ubuntu-debian',
+  installMethod: 'binary',
   description: '',
   image: '',
   replicas: 1,
@@ -187,6 +285,17 @@ const deployForm = reactive({
   probe: {
     readinessPath: '/healthz',
     livenessPath: '/livez'
+  },
+  installConfig: {
+    artifactUrl: '',
+    installPath: '/opt/app',
+    imagePullPolicy: 'IfNotPresent',
+    dockerRunArgs: '',
+    helmChart: '',
+    helmRelease: '',
+    k8sNamespace: 'default',
+    helmValuesRef: '',
+    manifestRef: ''
   },
   envVars: [
     { key: '', value: '' }
@@ -216,6 +325,7 @@ const deployRules = reactive({
 
 const deployFormRef = ref()
 const loading = ref(false)
+const isMethod = (method: string) => deployForm.installMethod === method
 
 const addEnvVar = () => {
   deployForm.envVars.push({ key: '', value: '' })
@@ -262,6 +372,9 @@ const handleDeploy = async () => {
       }))
 
     const config = {
+      osType: deployForm.osType,
+      installMethod: deployForm.installMethod,
+      installConfig: deployForm.installConfig,
       components: deployForm.baseComponents,
       env,
       volume,
@@ -302,6 +415,8 @@ const handleReset = () => {
   Object.assign(deployForm, {
     name: '',
     type: 'docker',
+    osType: 'ubuntu-debian',
+    installMethod: 'binary',
     description: '',
     image: '',
     replicas: 1,
@@ -316,6 +431,17 @@ const handleReset = () => {
     probe: {
       readinessPath: '/healthz',
       livenessPath: '/livez'
+    },
+    installConfig: {
+      artifactUrl: '',
+      installPath: '/opt/app',
+      imagePullPolicy: 'IfNotPresent',
+      dockerRunArgs: '',
+      helmChart: '',
+      helmRelease: '',
+      k8sNamespace: 'default',
+      helmValuesRef: '',
+      manifestRef: ''
     },
     envVars: [{ key: '', value: '' }],
     volumes: [{ name: '', mountPath: '', hostPath: '' }]
