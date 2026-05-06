@@ -285,7 +285,7 @@ interface CatalogField {
   min?: number
   max?: number
   rows?: number
-  span?: 'narrow' | 'half' | 'full'
+  span?: 'quarter' | 'narrow' | 'half' | 'full'
   placeholder?: string
   tip?: string
   visibleIf?: () => boolean
@@ -333,16 +333,18 @@ const nginxSections: CatalogSection[] = [
         type: 'autocomplete',
         default: '1.24.0',
         options: ['1.24.0', '1.25.5', '1.26.2', '1.27.1', 'stable', 'mainline', 'latest'],
+        span: 'quarter',
         tip: 'docker 用作镜像 tag；binary 用于拼源码包 URL；package 仅记录'
       },
-      { key: 'http_port', label: 'HTTP 监听端口', type: 'number', default: 80 },
-      { key: 'server_name', label: 'server_name', type: 'text', default: '_', span: 'half', placeholder: '_ 或 example.com' },
+      { key: 'http_port', label: 'HTTP 监听端口', type: 'number', default: 80, span: 'quarter' },
+      { key: 'server_name', label: 'server_name', type: 'text', default: '_', span: 'quarter', placeholder: '_ 或 example.com' },
       {
         key: 'user',
         label: 'nginx 运行用户',
         type: 'autocomplete',
         default: 'www-data',
-        options: ['www-data', 'nginx', 'nobody', 'http']
+        options: ['www-data', 'nginx', 'nobody', 'http'],
+        span: 'quarter'
       },
       { key: 'pid_path', label: 'pid 文件路径', type: 'text', default: '/run/nginx.pid' },
       { key: 'worker_processes', label: 'worker_processes', type: 'autocomplete', default: 'auto', options: ['auto', '1', '2', '4', '8', '16'] },
@@ -722,6 +724,7 @@ const visibleFields = (fields: CatalogField[]) =>
 const colMd = (f: CatalogField) => {
   if (f.type === 'textarea' || f.span === 'full') return 24
   if (f.span === 'half') return 12
+  if (f.span === 'quarter') return 6
   return 8
 }
 
