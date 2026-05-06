@@ -81,7 +81,7 @@
                   v-for="field in visibleFields(sec.fields)"
                   :key="field.key"
                   :xs="24"
-                  :md="field.span === 'full' ? 24 : 12"
+                  :md="colMd(field)"
                 >
                   <div v-if="field.type === 'switch'" class="switch-row">
                     <span class="switch-row-label">
@@ -108,6 +108,17 @@
                     <el-select
                       v-else-if="field.type === 'select'"
                       v-model="form.params[field.key]"
+                      style="width: 100%"
+                    >
+                      <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                    </el-select>
+                    <el-select
+                      v-else-if="field.type === 'autocomplete'"
+                      v-model="form.params[field.key]"
+                      filterable
+                      allow-create
+                      default-first-option
+                      :placeholder="field.placeholder || '选择或输入自定义值'"
                       style="width: 100%"
                     >
                       <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
@@ -147,7 +158,7 @@
                     v-for="field in visibleFields(sec.fields)"
                     :key="field.key"
                     :xs="24"
-                    :md="field.span === 'full' ? 24 : 12"
+                    :md="colMd(field)"
                   >
                     <el-form-item :label="field.label">
                       <el-input-number
@@ -160,6 +171,17 @@
                       <el-select
                         v-else-if="field.type === 'select'"
                         v-model="form.params[field.key]"
+                        style="width: 100%"
+                      >
+                        <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                      </el-select>
+                      <el-select
+                        v-else-if="field.type === 'autocomplete'"
+                        v-model="form.params[field.key]"
+                        filterable
+                        allow-create
+                        default-first-option
+                        :placeholder="field.placeholder || '选择或输入自定义值'"
                         style="width: 100%"
                       >
                         <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
@@ -257,13 +279,13 @@ import { DocumentCopy, Download, Upload, RefreshRight, Check, InfoFilled } from 
 interface CatalogField {
   key: string
   label: string
-  type: 'text' | 'number' | 'select' | 'switch' | 'textarea'
+  type: 'text' | 'number' | 'select' | 'switch' | 'textarea' | 'autocomplete'
   default: any
   options?: string[]
   min?: number
   max?: number
   rows?: number
-  span?: 'half' | 'full'
+  span?: 'narrow' | 'half' | 'full'
   placeholder?: string
   tip?: string
   visibleIf?: () => boolean
@@ -305,11 +327,38 @@ const nginxSections: CatalogSection[] = [
     key: 'basic',
     title: '基础',
     fields: [
+      {
+        key: 'version',
+        label: 'Nginx 版本',
+        type: 'autocomplete',
+        default: '1.24.0',
+        options: ['1.24.0', '1.25.5', '1.26.2', '1.27.1', 'stable', 'mainline', 'latest'],
+        tip: 'docker 用作镜像 tag；binary 用于拼源码包 URL；package 仅记录'
+      },
       { key: 'http_port', label: 'HTTP 监听端口', type: 'number', default: 80 },
-      { key: 'server_name', label: 'server_name', type: 'text', default: '_', placeholder: '_ 或 example.com' },
-      { key: 'worker_processes', label: 'worker_processes', type: 'text', default: 'auto', placeholder: 'auto / 数字' },
-      { key: 'worker_connections', label: 'worker_connections', type: 'number', default: 1024, min: 32, max: 65535 },
+      { key: 'server_name', label: 'server_name', type: 'text', default: '_', span: 'half', placeholder: '_ 或 example.com' },
+      {
+        key: 'user',
+        label: 'nginx 运行用户',
+        type: 'autocomplete',
+        default: 'www-data',
+        options: ['www-data', 'nginx', 'nobody', 'http']
+      },
+      { key: 'pid_path', label: 'pid 文件路径', type: 'text', default: '/run/nginx.pid' },
+      { key: 'worker_processes', label: 'worker_processes', type: 'autocomplete', default: 'auto', options: ['auto', '1', '2', '4', '8', '16'] },
+      { key: 'worker_connections', label: 'worker_connections', type: 'number', default: 1024, min: 32, max: 1048576 },
+      { key: 'worker_rlimit_nofile', label: 'worker_rlimit_nofile', type: 'number', default: 65535, min: 1024, max: 1048576 },
+      {
+        key: 'error_log_level',
+        label: 'error_log 级别',
+        type: 'select',
+        default: 'warn',
+        options: ['debug', 'info', 'notice', 'warn', 'error', 'crit', 'alert', 'emerg']
+      },
+      { key: 'daemon', label: 'daemon (后台运行)', type: 'switch', default: true, tip: 'docker 容器内通常应关闭' },
       { key: 'ipv6', label: '同时监听 IPv6 (::)', type: 'switch', default: false },
+      { key: 'multi_accept', label: 'multi_accept', type: 'switch', default: true, tip: '一次接受所有新连接，提升高并发吞吐' },
+      { key: 'accept_mutex', label: 'accept_mutex', type: 'switch', default: false, tip: 'reuseport 之外的旧惊群保护，关闭可降低延迟' },
       { key: 'server_tokens_hide', label: '隐藏 nginx 版本号 (server_tokens off)', type: 'switch', default: true }
     ]
   },
@@ -520,6 +569,13 @@ const catalog: CatalogItem[] = [
     tags: ['gateway', 'lb'],
     installMethods: ['package', 'docker'],
     fields: [
+      {
+        key: 'version',
+        label: 'HAProxy 版本',
+        type: 'autocomplete',
+        default: '2.8',
+        options: ['2.4', '2.6', '2.8', '3.0', 'lts', 'latest']
+      },
       { key: 'port', label: '前端端口', type: 'number', default: 80 },
       {
         key: 'algorithm',
@@ -545,6 +601,13 @@ const catalog: CatalogItem[] = [
     tags: ['cache', 'kv'],
     installMethods: ['package', 'docker'],
     fields: [
+      {
+        key: 'version',
+        label: 'Redis 版本',
+        type: 'autocomplete',
+        default: '7.2',
+        options: ['6.0', '6.2', '7.0', '7.2', '7.4', 'latest']
+      },
       { key: 'port', label: '端口', type: 'number', default: 6379 },
       { key: 'password', label: 'requirepass（可空）', type: 'text', default: '' },
       { key: 'maxmemory', label: 'maxmemory', type: 'text', default: '512mb' },
@@ -564,6 +627,13 @@ const catalog: CatalogItem[] = [
     tags: ['mq'],
     installMethods: ['docker'],
     fields: [
+      {
+        key: 'version',
+        label: 'Kafka 版本',
+        type: 'autocomplete',
+        default: '3.6',
+        options: ['3.4', '3.5', '3.6', '3.7', 'latest']
+      },
       { key: 'port', label: 'broker 端口', type: 'number', default: 9092 },
       { key: 'broker_id', label: 'broker.id', type: 'number', default: 1, min: 0, max: 4096 },
       { key: 'zookeeper', label: 'ZooKeeper 地址', type: 'text', default: 'localhost:2181' },
@@ -577,6 +647,13 @@ const catalog: CatalogItem[] = [
     tags: ['db', 'sql'],
     installMethods: ['package', 'docker'],
     fields: [
+      {
+        key: 'version',
+        label: 'MySQL 版本',
+        type: 'autocomplete',
+        default: '8.0',
+        options: ['5.7', '8.0', '8.4', 'latest']
+      },
       { key: 'port', label: '端口', type: 'number', default: 3306 },
       { key: 'root_password', label: 'root 密码', type: 'text', default: 'changeme' },
       { key: 'datadir', label: '数据目录', type: 'text', default: '/var/lib/mysql' },
@@ -590,6 +667,13 @@ const catalog: CatalogItem[] = [
     tags: ['db', 'sql'],
     installMethods: ['package', 'docker'],
     fields: [
+      {
+        key: 'version',
+        label: 'PostgreSQL 版本',
+        type: 'autocomplete',
+        default: '16',
+        options: ['13', '14', '15', '16', '17', 'latest']
+      },
       { key: 'port', label: '端口', type: 'number', default: 5432 },
       { key: 'password', label: 'POSTGRES_PASSWORD', type: 'text', default: 'changeme' },
       { key: 'datadir', label: 'PGDATA 目录', type: 'text', default: '/var/lib/postgresql/data' }
@@ -634,6 +718,12 @@ const activeCollapseSections = ref<string[]>([])
 
 const visibleFields = (fields: CatalogField[]) =>
   fields.filter(f => !f.visibleIf || f.visibleIf())
+
+const colMd = (f: CatalogField) => {
+  if (f.type === 'textarea' || f.span === 'full') return 24
+  if (f.span === 'half') return 12
+  return 8
+}
 
 const previewVisible = ref(false)
 const activeTab = ref<'bash' | 'cli'>('bash')
@@ -704,9 +794,15 @@ const indent = (text: string, pad: string) =>
 const renderNginxConf = () => {
   const p = form.params
   const lines: string[] = []
+  if (p.user) lines.push(`user ${p.user};`)
   lines.push(`worker_processes ${p.worker_processes || 'auto'};`)
+  if (p.worker_rlimit_nofile) lines.push(`worker_rlimit_nofile ${p.worker_rlimit_nofile};`)
+  if (p.pid_path) lines.push(`pid ${p.pid_path};`)
+  if (p.daemon === false) lines.push(`daemon off;`)
   lines.push(`events {`)
   lines.push(`    worker_connections ${p.worker_connections || 1024};`)
+  lines.push(`    multi_accept ${p.multi_accept ? 'on' : 'off'};`)
+  lines.push(`    accept_mutex ${p.accept_mutex ? 'on' : 'off'};`)
   lines.push(`}`)
   lines.push(``)
   lines.push(`http {`)
@@ -714,7 +810,7 @@ const renderNginxConf = () => {
   lines.push(`    default_type  application/octet-stream;`)
   lines.push(``)
   lines.push(`    access_log ${p.access_log || '/var/log/nginx/access.log'};`)
-  lines.push(`    error_log  ${p.error_log || '/var/log/nginx/error.log'};`)
+  lines.push(`    error_log  ${p.error_log || '/var/log/nginx/error.log'} ${p.error_log_level || 'warn'};`)
   lines.push(``)
   lines.push(`    sendfile        ${p.sendfile === false ? 'off' : 'on'};`)
   lines.push(`    tcp_nopush      ${p.tcp_nopush === false ? 'off' : 'on'};`)
@@ -840,6 +936,13 @@ const confPreview = computed(() => {
   return ''
 })
 
+const isSemver = (v: string) => /^\d+\.\d+(\.\d+)?$/.test(v)
+
+const dockerImageTag = (image: string, version: string, fallback = 'latest') => {
+  const v = String(version || '').trim()
+  return v ? `${image}:${v}` : `${image}:${fallback}`
+}
+
 const buildNginx = () => {
   const p = form.params
   const conf = renderNginxConf()
@@ -857,7 +960,7 @@ NGINXCONF'`
 sudo install -m 0755 -d ${docroot}
 ${dockerRun(
       'nginx',
-      'nginx:stable',
+      dockerImageTag('nginx', p.version || 'stable', 'stable'),
       ports,
       [],
       ['/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro', `${docroot}:${docroot}:ro`]
@@ -867,7 +970,9 @@ sudo ss -lntp | grep -E ":${p.http_port || 80}\\b" || true`
 
   if (form.installMethod === 'binary') {
     const prefix = p.install_prefix || '/usr/local/nginx'
-    const url = p.binary_url || 'https://nginx.org/download/nginx-1.24.0.tar.gz'
+    const ver = String(p.version || '').trim()
+    const url = (p.binary_url && String(p.binary_url).trim())
+      || (isSemver(ver) ? `https://nginx.org/download/nginx-${ver}.tar.gz` : 'https://nginx.org/download/nginx-1.24.0.tar.gz')
     const extra = (p.configure_args || '').replace(/\n+/g, ' ').trim()
     return `${pkgInstall(form.osType, ['build-essential', 'libpcre2-dev', 'zlib1g-dev', 'libssl-dev', 'wget', 'tar'])}
 sudo install -m 0755 -d /tmp/nginx-build
@@ -945,7 +1050,7 @@ ${backends}`
 sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<"HAPROXYCFG"
 ${conf}
 HAPROXYCFG'
-${dockerRun('haproxy', 'haproxy:lts', [`${p.port}:${p.port}`], [], ['/etc/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'])}`
+${dockerRun('haproxy', dockerImageTag('haproxy', p.version || 'lts', 'lts'), [`${p.port}:${p.port}`], [], ['/etc/haproxy/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro'])}`
   }
   return `${pkgInstall(form.osType, ['haproxy'])}
 sudo bash -c 'cat >/etc/haproxy/haproxy.cfg <<"HAPROXYCFG"
@@ -959,7 +1064,7 @@ sudo ss -lntp | grep :${p.port} || true`
 const buildRedis = () => {
   const p = form.params
   if (form.installMethod === 'docker') {
-    return dockerRun('redis', 'redis:7', [`${p.port}:${p.port}`], [], []) + '\n# 注：如需自定义配置可改用挂载 redis.conf'
+    return dockerRun('redis', dockerImageTag('redis', p.version || '7', '7'), [`${p.port}:${p.port}`], [], []) + '\n# 注：如需自定义配置可改用挂载 redis.conf'
   }
   return `${pkgInstall(form.osType, ['redis-server'])}
 sudo sed -i 's/^# *requirepass .*/requirepass ${p.password || ''}/' /etc/redis/redis.conf 2>/dev/null || true
@@ -975,7 +1080,7 @@ const buildKafka = () => {
   return `# 推荐 Docker 方式快速部署 Kafka
 ${dockerRun(
     'kafka',
-    'bitnami/kafka:3.6',
+    dockerImageTag('bitnami/kafka', p.version || '3.6', '3.6'),
     [`${p.port}:9092`],
     [
       `KAFKA_BROKER_ID=${p.broker_id}`,
@@ -994,7 +1099,7 @@ const buildMySQL = () => {
   if (form.installMethod === 'docker') {
     return `${dockerRun(
       'mysql',
-      'mysql:8.0',
+      dockerImageTag('mysql', p.version || '8.0', '8.0'),
       [`${p.port}:3306`],
       [`MYSQL_ROOT_PASSWORD=${p.root_password}`, 'MYSQL_DATABASE=app'],
       [`${p.datadir}:/var/lib/mysql`]
@@ -1013,7 +1118,7 @@ const buildPostgres = () => {
   if (form.installMethod === 'docker') {
     return `${dockerRun(
       'postgres',
-      'postgres:16',
+      dockerImageTag('postgres', p.version || '16', '16'),
       [`${p.port}:5432`],
       [`POSTGRES_PASSWORD=${p.password}`, `PGDATA=${p.datadir}`],
       [`${p.datadir}:${p.datadir}`]
@@ -1226,9 +1331,9 @@ const download = (text: string, filename: string) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  height: 32px;
-  padding: 0 4px;
+  gap: 8px;
+  min-height: 32px;
+  padding: 4px 8px;
   margin: 4px 0 18px;
   border-radius: 6px;
   border: 1px dashed var(--el-border-color);
@@ -1241,6 +1346,11 @@ const download = (text: string, filename: string) => {
   gap: 4px;
   font-size: 13px;
   color: var(--el-text-color-regular);
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .switch-row-tip {
