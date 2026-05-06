@@ -161,7 +161,28 @@ func kafkaDiagnoseCmd() *cobra.Command {
 func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDiagnoseReport, error) {
 	paths, errs := resolveKafkaCommandPaths(opts.CommandDir)
 	if paths.ConsumerGroups == "" && paths.Topics == "" {
-		return nil, errors.New("未找到 Kafka CLI：请安装 Kafka 客户端，或用 --command-dir 指向 bin 目录")
+		fallbackCtx := map[string]string{
+			"bootstrap_servers": opts.BootstrapServer,
+			"issue":             "kafka_cli_missing",
+			"diagnose_mode":     "fallback_without_cli",
+		}
+		diag, derr := runAnalyzeWithOrchestrator(ctx, "kafka", fallbackCtx)
+		if derr != nil {
+			return nil, errors.New("未找到 Kafka CLI，且服务端回退失败：" + derr.Error())
+		}
+		return &kafkaDiagnoseReport{
+			BootstrapServer: opts.BootstrapServer,
+			Findings: []kafkaFinding{
+				{
+					Priority: 2, Severity: "P2", Title: "未安装 Kafka CLI，已切换 AI 回退诊断",
+					Evidence: "missing kafka-consumer-groups.sh / kafka-topics.sh",
+					Cause:    "当前节点未安装 Kafka 客户端脚本，无法采集实时 group/topic 观测",
+					Verify:   "安装 Kafka CLI，或继续使用当前 AI 回退结论",
+				},
+			},
+			Errors:   append(errs, "未找到 Kafka CLI，已回退到通用诊断链路"),
+			AIAnswer: strings.TrimSpace(diag.Answer),
+		}, nil
 	}
 	snap := kafkaSnapshot{
 		BootstrapServer: opts.BootstrapServer,
