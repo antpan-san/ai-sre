@@ -29,7 +29,7 @@ description: >-
 发布部署检查清单
 - [ ] 0. **不在此清单中要求用户 SSH 到 192.168.56.11**；由代理在本机跑脚本完成远端维护
 - [ ] 1. 用 Read 打开 monorepo-release.mdc，确认无用户豁免
-- [ ] 2. **凡改了 `main.go`、`internal/cli`、根 `go.mod` / `go.sum` 或 ai-sre 可执行逻辑**：**必须**执行 **`./scripts/deploy-opsfleet-remote.sh`**（更新 **`bin/ai-sre`**），不得仅 **`deploy-remote.sh`**；再执行 ai-sre-ship 其余项；并满足项 4a 版本一致。其它触及 OpsFort 路径时仍按 **opsfleetpilot-ship** 全栈
+- [ ] 2. **凡改了 `main.go`、`internal/cli`、根 `go.mod` / `go.sum` 或 ai-sre 可执行逻辑**：发布前先检查 **`internal/cli/version.go`** 是否需要递增（有可见行为变更必须递增）；随后**必须**执行 **`./scripts/deploy-opsfleet-remote.sh`**（更新 **`bin/ai-sre`**），不得仅 **`deploy-remote.sh`**；再执行 ai-sre-ship 其余项；并满足项 4a 版本一致。其它触及 OpsFort 路径时仍按 **opsfleetpilot-ship** 全栈
 - [ ] 3. 用 Read 打开并完整执行 **ai-sre-ship**：`deploy-remote.sh` → `SHORT=1 bash scripts/remote-e2e.sh`（或全量 remote-e2e）**通过**后 → **README 最后核对** → **再** `git push`（顺序见子 skill，**禁止**在冒烟未通过时 push）
 - [ ] 4. OpsFort 全栈（触及 ft-backend/、ft-front/、deploy/、ansible-agent/、**或需更新对外 ai-sre 版本** 时）：`./scripts/deploy-opsfleet-remote.sh` → SSH 执行 `bash scripts/verify-opsfleet-deployment.sh`。**仅** `deploy-remote.sh` **不会**更新 `GET .../cli/ai-sre` 用的 **`bin/ai-sre`**（与 `$REMOTE_DIR/ai-sre` 是两条线；见 opsfleetpilot 说明）
 - [ ] 4a. **ai-sre 版本三门一致（有 OpsFort 时必做；由代理本机 curl / 脚本验证，用户不登 11）**：本仓 **`internal/cli` Version** = 代理通过 SSH 或 verify 输出确认的 **`$OPSFLEET_AISRE_BINARY_PATH` 的 `version`** = **`curl -sS http://192.168.56.11:9080/ft-api/api/k8s/deploy/cli/ai-sre/version`**（或 verify 脚本等价检查）。不一致则**由代理**重跑 **`deploy-opsfleet-remote.sh`**（必要时检查 **`/etc/opsfleet/backend.env`** 中 **`OPSFLEET_AISRE_VERSION`** 是否与二进制一致并 **`systemctl restart opsfleet-backend`**），**不得**把手工登服务器作为留给用户的步骤

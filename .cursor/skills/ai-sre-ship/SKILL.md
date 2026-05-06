@@ -46,7 +46,7 @@ description: >-
 - [ ] **结构化输出**：`-o json` 的用途说明（若有变更须更新）
 - [ ] **远程部署与冒烟**：`./scripts/deploy-remote.sh`、`DEPLOY_REMOTE`、`DEPLOY_REMOTE_DIR`、`scripts/remote-e2e.sh`（含 `go test`、`doctor`）
 - [ ] **免费版 / 配额**：`tier`、`max_llm_calls_per_day`、`doctor`、缓存路径说明是否与 `internal/config`、`internal/quota` 一致
-- [ ] **当前版本号**：与 `internal/cli` 中 `version` 子命令输出一致（或注明以 `./ai-sre version` 为准）
+- [ ] **当前版本号**：与 `internal/cli/version.go` 中 `Version` 一致，并检查本次是否涉及可见行为变更；如涉及功能/接口/体验变化，**必须递增版本号**（如 `0.4.8 -> 0.4.9`）
 
 若本次变更**影响用户可见行为**（新 flag、新子命令、配置路径、脚本行为），**必须**在本次提交中**同步更新 README**。仅内部重构时，至少快速通读 README，修正已过时表述。
 
@@ -77,6 +77,12 @@ description: >-
 ```
 
 脚本行为：确保远程目录存在、`rsync` 同步源码（排除 `.git` 与二进制）、远程 `go mod download`、`go vet ./...`、`go build`、运行 `./ai-sre version`。
+
+**版本递增强制检查（新增）**：
+
+- 在执行发布脚本前，先核对 `internal/cli/version.go` 的 `Version` 是否已按本次变更递增；
+- 若遗漏递增，先补版本号并重新走测试与部署；
+- 发布后必须校验三方版本一致：`internal/cli/version.go` = 远端 `ai-sre version` = `GET /api/k8s/deploy/cli/ai-sre/version`。
 
 若脚本不存在，则等价手动执行（见下文「手动等价命令」）。
 
