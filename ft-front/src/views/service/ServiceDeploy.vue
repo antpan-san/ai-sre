@@ -1,5 +1,5 @@
 <template>
-  <div class="service-deploy page-shell page-shell--crud">
+  <div class="service-deploy page-shell">
     <div class="page-header">
       <h2>快速部署基础服务</h2>
       <p>选择服务 → 配置参数 → 一键生成 bash 与 ai-sre 安装脚本，目标机直接执行</p>
@@ -555,14 +555,21 @@ const download = (text: string, filename: string) => {
 
 <style scoped>
 .service-deploy {
-  padding: 0;
   width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 16px var(--page-padding-x, 24px) 32px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+.service-deploy :deep(.el-card) {
+  border-radius: 12px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
 .page-header {
