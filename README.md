@@ -29,6 +29,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre redis diagnose <host:port>` | Redis 极简快诊：只读采集 INFO，定位连接拒绝、淘汰和连接压力 |
 | `ai-sre mysql diagnose <dsn>` | MySQL 极简快诊：只读采集连接、慢查询、线程与只读状态 |
 | `ai-sre nginx diagnose` | Nginx 日志统计分析：状态码分布、Top 路径、P95 延迟、5xx/4xx 风险识别 |
+| `ai-sre nginx uninstall` | 仅卸载由 `ai-sre service install` 写入本机状态的 Nginx；未发现 ai-sre 安装状态时拒绝执行，避免误删人工安装的 Nginx |
 | `ai-sre service install --deploy-id <id> --token <token> --api-url <base>` | 基础服务安装执行器：从 OpsFleet 服务端拉取 Nginx / HAProxy / Redis / Kafka / MySQL / PostgreSQL 部署规格，执行安装、写配置、启动与健康检测，并回传步骤状态 |
 | `ai-sre nginx update` | 在已通过 OpsFleet 服务部署安装过 Nginx 的目标机上，拉取服务端最新 Nginx 规格，重写配置并重启生效 |
 | `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` / `diagnose` 等（见 `ai-sre k8s --help`） |
@@ -119,6 +120,9 @@ go build -o ai-sre .
 ./ai-sre nginx diagnose --access-log /var/log/nginx/access.log --tail 10000
 ./ai-sre service install --api-url http://192.168.56.11:9080/ft-api --deploy-id <id> --token <token>
 sudo ai-sre nginx update
+sudo ai-sre nginx uninstall
+# 如确认该目标机上的 nginx 包也由 ai-sre 安装且要一并移除:
+sudo ai-sre nginx uninstall --purge-package
 ./ai-sre analyze k8s --pod pending
 ./ai-sre ask "kafka lag 高怎么办"
 ./ai-sre runbook "pod频繁重启"

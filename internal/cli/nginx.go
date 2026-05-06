@@ -43,7 +43,20 @@ func nginxCmd() *cobra.Command {
 		Use:   "nginx",
 		Short: "Nginx 统计分析与快诊",
 	}
-	cmd.AddCommand(nginxDiagnoseCmd(), nginxUpdateCmd())
+	cmd.AddCommand(nginxDiagnoseCmd(), nginxUpdateCmd(), nginxUninstallCmd())
+	return cmd
+}
+
+func nginxUninstallCmd() *cobra.Command {
+	var opts nginxUninstallOptions
+	cmd := &cobra.Command{
+		Use:   "uninstall",
+		Short: "卸载 ai-sre 安装的 Nginx（非 ai-sre 安装会拒绝）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runNginxUninstall(cmd, opts)
+		},
+	}
+	cmd.Flags().BoolVar(&opts.PurgePackage, "purge-package", false, "同时卸载系统 nginx 包；默认仅移除 ai-sre 管理配置并停止/重启服务")
 	return cmd
 }
 

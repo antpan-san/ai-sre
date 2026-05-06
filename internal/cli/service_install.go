@@ -43,6 +43,10 @@ type serviceDeploymentState struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
+type nginxUninstallOptions struct {
+	PurgePackage bool
+}
+
 func serviceCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",
@@ -124,6 +128,40 @@ func runServiceUpdate(cmd *cobra.Command, service string, opts serviceUpdateOpti
 		fmt.Fprintf(cmd.ErrOrStderr(), "[state] warning: save local deployment state failed: %v\n", err)
 	}
 	return postServiceFinish(apiURL, deployID, token, "success", "service update completed")
+}
+
+func runNginxUninstall(cmd *cobra.Command, opts nginxUninstallOptions) error {
+	if os.Geteuid() != 0 {
+		return fmt.Errorf("卸载 Nginx 需 root 权限，请使用: sudo %s nginx uninstall", progName)
+	}
+	state, err := loadServiceDeploymentState("nginx")
+	if err != nil {
+		return fmt.Errorf("未发现 ai-sre 安装的 Nginx 状态，拒绝卸载。只有通过 ai-sre service install 安装并写入本机状态的 Nginx 才允许卸载: %w", err)
+	}
+	if state.Service != "nginx" || state.APIURL == "" || state.DeployID == "" || state.Token == "" {
+		return fmt.Errorf("本机 Nginx 安装状态不完整或服务类型不匹配，拒绝卸载")
+	}
+	spec := &serviceInstallSpec{Service: "nginx", InstallMethod: "package", Params: map[string]interface{}{}}
+	if fetched, fetchErr := fetchServiceSpec(fmt.Sprintf("%s/api/service-deploy/deployments/%s/spec?token=%s", strings.TrimRight(state.APIURL, "/"), url.PathEscape(state.DeployID), url.QueryEscape(state.Token))); fetchErr == nil {
+		spec = fetched
+	} else {
+		fmt.Fprintf(cmd.ErrOrStderr(), "[uninstall] warning: fetch server spec failed, fallback to local protected uninstall: %v\n", fetchErr)
+	}
+	method := strParam(spec, "install_method", spec.InstallMethod)
+	if method == "" {
+		method = "package"
+	}
+	script := nginxUninstallScript(method, opts.PurgePackage)
+	fmt.Fprintln(cmd.OutOrStdout(), "[uninstall] running: start")
+	if err := runBash(script); err != nil {
+		return fmt.Errorf("nginx uninstall failed: %w", err)
+	}
+	if err := removeServiceDeploymentState("nginx"); err != nil {
+		fmt.Fprintf(cmd.ErrOrStderr(), "[state] warning: remove local deployment state failed: %v\n", err)
+	}
+	_ = postServiceFinish(state.APIURL, state.DeployID, state.Token, "uninstalled", "nginx uninstalled from ai-sre managed state")
+	fmt.Fprintln(cmd.OutOrStdout(), "[uninstall] success: ok")
+	return nil
 }
 
 func resolveServiceSpecURL(opts serviceInstallOptions) (specURL, apiURL, deployID, token string, err error) {
@@ -412,6 +450,42 @@ func serviceHealthScript(spec *serviceInstallSpec) string {
 	default:
 		return ""
 	}
+}
+
+func nginxUninstallScript(method string, purgePackage bool) string {
+	if method == "docker" {
+		return `if command -v docker >/dev/null 2>&1; then
+  docker rm -f nginx 2>/dev/null || true
+fi
+rm -f /etc/nginx/nginx.conf.ai-sre`
+	}
+	if purgePackage {
+		return `rm -f /etc/nginx/conf.d/ai-sre-service.conf
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl disable --now nginx 2>/dev/null || true
+fi
+if command -v apt-get >/dev/null 2>&1; then
+  DEBIAN_FRONTEND=noninteractive apt-get purge -y nginx nginx-common || true
+  DEBIAN_FRONTEND=noninteractive apt-get autoremove -y || true
+elif command -v dnf >/dev/null 2>&1; then
+  dnf remove -y nginx || true
+elif command -v yum >/dev/null 2>&1; then
+  yum remove -y nginx || true
+else
+  echo "no supported package manager found; ai-sre config removed but nginx package not purged" >&2
+fi`
+	}
+	return `rm -f /etc/nginx/conf.d/ai-sre-service.conf
+if command -v nginx >/dev/null 2>&1; then
+  if nginx -t; then
+    if command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files nginx.service >/dev/null 2>&1; then
+      systemctl reload nginx 2>/dev/null || systemctl restart nginx 2>/dev/null || true
+    fi
+  else
+    echo "nginx config test failed after removing ai-sre config; please inspect /etc/nginx" >&2
+    exit 1
+  fi
+fi`
 }
 
 func portKey(service string) string {
@@ -744,6 +818,17 @@ func loadServiceDeploymentState(service string) (*serviceDeploymentState, error)
 		return nil, err
 	}
 	return &state, nil
+}
+
+func removeServiceDeploymentState(service string) error {
+	path, err := serviceDeploymentStatePath(service)
+	if err != nil {
+		return err
+	}
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	return nil
 }
 
 func serviceDeploymentStatePath(service string) (string, error) {
