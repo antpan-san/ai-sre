@@ -1,14 +1,12 @@
 <template>
   <div class="service-deploy page-shell">
-    <div class="page-header">
-      <h2>快速部署基础服务</h2>
-      <p>选择服务 → 配置参数 → 一键生成 bash 与 ai-sre 安装脚本，目标机直接执行</p>
-    </div>
-
     <div class="split-layout">
-      <el-card class="catalog-card">
+      <el-card class="catalog-card" shadow="never">
         <template #header>
-          <span>基础服务</span>
+          <div class="catalog-header">
+            <span class="catalog-title">基础服务</span>
+            <span class="catalog-sub">选择 → 配参 → 生成脚本</span>
+          </div>
         </template>
         <div class="catalog-list">
           <div
@@ -558,7 +556,7 @@ const download = (text: string, filename: string) => {
   width: 100%;
   max-width: none;
   margin: 0;
-  padding: 16px var(--page-padding-x, 24px) 32px;
+  padding: 8px var(--page-padding-x, 24px) 24px;
   display: flex;
   flex-direction: column;
   gap: 12px;
@@ -572,22 +570,29 @@ const download = (text: string, filename: string) => {
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
 }
 
-.page-header {
-  margin-bottom: 8px;
-  padding-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
+.service-deploy :deep(.el-card__header) {
+  padding: 10px 16px;
+  font-size: 14px;
 }
 
-.page-header h2 {
-  margin: 0;
-  color: var(--el-color-primary);
-  font-size: 20px;
+.service-deploy :deep(.el-card__body) {
+  padding: 12px 16px;
+}
+
+.catalog-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.catalog-title {
   font-weight: 600;
 }
 
-.page-header p {
-  margin: 6px 0 0;
-  color: #6b7280;
+.catalog-sub {
+  color: #94a3b8;
+  font-size: 12px;
 }
 
 .split-layout {
