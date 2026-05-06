@@ -1,5 +1,5 @@
 name: kafka_lag
-display_name: Kafka 消费堆积 / Lag 过高
+display_name: Kafka 极简快诊 / 消费堆积与集群异常
 topics:
   - kafka
 match_keywords:
@@ -7,22 +7,36 @@ match_keywords:
   - consumer lag
   - 消费延迟
   - rebalance
+  - offline partition
+  - under replicated
+  - isr
+  - producer latency
+  - broker
 input:
   - lag
   - topic
   - consumer_group
+  - snapshot
 analysis_steps:
-  - 确认 lag 指标是消息条数还是时间延迟，是否单分区尖刺
-  - 对比生产速率与消费速率，判断是否消费能力不足
-  - 检查 broker CPU/磁盘/网络与 ISR 状态
-  - 评估分区是否倾斜、并发度是否过低
-  - 排查近期发布、配置变更、重平衡
+  - 先看最高优先级：offline partition / leader=-1，其次 under replicated partition / ISR 收缩，再看 consumer lag 与 active members
+  - 对消费堆积只输出最关键证据：总 lag、最大 lag 分区、该分区占比、active member 数
+  - 对 group 无成员但有 lag，优先判断消费者进程未运行、认证失败、连接失败或部署副本为 0
+  - 对 rebalance 状态，优先检查消费者重启、心跳超时、max.poll.interval.ms 与处理耗时
+  - 避免列出完整排查百科；默认只给 3-5 条最快验证命令
 output_format:
   - root_cause
   - solution
   - verification_commands
 extra_guidance: |
-  若用户给出 lag 数值，请结合常见量级说明紧急程度，并给出扩容/降载/优化并行度的优先级。
+  ai-sre 的 Kafka 诊断目标是“最短路径发现最可能问题”，不是输出 Kafka 教程。
+  回答必须先给一句话结论，然后列出最多 3 个最值得先处理的问题。
+  每个问题只给：证据、可能原因、最快验证命令、一个优先建议。
+  若 context 中包含 snapshot JSON，优先基于 snapshot 内的 findings / raw_summary，不要发散到无关项。
 prompt_template: |
-  【Kafka 专项】请特别关注：consumer 参数 max.poll.records、fetch.min.bytes、session.timeout、
-  max.partition.fetch.bytes，以及是否存在重复消费与位移提交失败。
+  【Kafka 极简快诊格式】
+  结论：一句话说明最值得先处理的问题。
+  1. [P0/P1/P2/P3] 问题标题
+     证据：只写关键指标
+     可能原因：一句话
+     最快验证：一条命令或一个明确动作
+  集群副本状态：offline partition / under replicated partition 的简短状态。
