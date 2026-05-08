@@ -1,0 +1,41 @@
+name: k8s_apiserver_bootstrap
+display_name: Kubernetes 控制平面引导失败（6443 / livez refused）
+topics:
+  - k8s
+  - apiserver
+  - bootstrap
+match_keywords:
+  - "wait_apiserver.yml"
+  - "kube-apiserver livez"
+  - "connection refused"
+  - "127.0.0.1:6443"
+  - "failed at playbooks/wait_apiserver.yml"
+  - "control plane bootstrap failed"
+  - "static pod"
+  - "/etc/kubernetes/manifests/kube-apiserver.yaml"
+input:
+  - node
+  - issue
+analysis_steps:
+  - "确认 kubelet 与 containerd 运行：systemctl is-active kubelet containerd；kubelet 启动参数需包含 --pod-manifest-path=/etc/kubernetes/manifests"
+  - "核对静态 Pod 清单是否下发：ls -l /etc/kubernetes/manifests；重点查看 kube-apiserver.yaml 的 args 是否每个参数独占一行"
+  - "检查 kubelet 日志中的 CrashLoopBackOff 证据：journalctl -u kubelet --no-pager | grep -iE 'kube-apiserver|CrashLoopBackOff|StartContainer'"
+  - "若节点无 crictl，用 ctr/nerdctl 或 kubelet 日志替代容器日志；优先抓取 apiserver 启动错误（参数拼接、证书路径、etcd 连接）"
+  - "重点校验 --etcd-servers 参数渲染：必须是逗号分隔 URL 列表，且不能与下一参数粘连（例如 '--etcd-servers=...:2379 - --etcd-cafile=...'）"
+  - "验证证书与 etcd 依赖：/etc/kubernetes/pki 下 apiserver/etcd 证书齐全；etcd 2379 可连"
+  - "定位为模板渲染问题时，优先修复 ansible 模板并重新分发 manifests，不要只在节点手改临时文件"
+output_format:
+  - root_cause
+  - evidence
+  - fix
+  - verification_commands
+extra_guidance: |
+  常见根因优先级：
+    1. static pod manifest 参数渲染错误（最常见：Jinja 块导致换行丢失，参数粘连）
+    2. apiserver 证书/etcd 证书缺失或路径错误
+    3. etcd 未启动或不可达
+    4. 镜像拉取失败
+  复验命令：
+    - grep -- '--etcd-servers' /etc/kubernetes/manifests/kube-apiserver.yaml
+    - ss -lntp | grep 6443
+    - curl -k https://127.0.0.1:6443/livez?verbose

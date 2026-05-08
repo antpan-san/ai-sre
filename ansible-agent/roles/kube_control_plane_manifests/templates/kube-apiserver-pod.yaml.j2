@@ -20,7 +20,7 @@ spec:
         - --bind-address=0.0.0.0
         - --secure-port=6443
         - --service-cluster-ip-range={{ service_cluster_ip_range }}
-        - --etcd-servers={% for host in groups['etcd'] %}https://{{ hostvars[host]['ansible_host'] }}:2379{% if not loop.last %},{% endif %}{% endfor %}
+        - --etcd-servers={{ groups['etcd'] | map('extract', hostvars, 'ansible_host') | map('regex_replace', '^(.*)$', 'https://\\1:2379') | join(',') }}
         - --etcd-cafile={{ k8s_cert_dir }}/etcd_ca.crt
         - --etcd-certfile={{ k8s_cert_dir }}/etcd_client.crt
         - --etcd-keyfile={{ k8s_cert_dir }}/etcd_client.key
