@@ -1,10 +1,10 @@
 package cli
 
 import (
-	"crypto/sha256"
-	"crypto/tls"
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"crypto/tls"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -163,6 +163,7 @@ func kafkaDiagnoseCmd() *cobra.Command {
 }
 
 func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDiagnoseReport, error) {
+	var nativeErrText string
 	if nativeSnap, nativeErr := collectKafkaSnapshotByGo(ctx, opts); nativeErr == nil {
 		report := buildKafkaReport(nativeSnap)
 		if opts.AI {
@@ -173,14 +174,20 @@ func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDia
 			}
 		}
 		return report, nil
+	} else {
+		nativeErrText = shortKafkaError("native go client", nativeErr)
 	}
 
 	paths, errs := resolveKafkaCommandPaths(opts.CommandDir)
+	if nativeErrText != "" {
+		errs = append([]string{nativeErrText}, errs...)
+	}
 	if paths.ConsumerGroups == "" && paths.Topics == "" {
 		fallbackCtx := map[string]string{
 			"bootstrap_servers": opts.BootstrapServer,
-			"issue":             "kafka_cli_missing",
-			"diagnose_mode":     "fallback_without_cli",
+			"issue":             "kafka_native_collect_failed",
+			"diagnose_mode":     "fallback_without_native_or_cli",
+			"native_error":      nativeErrText,
 		}
 		diag, derr := runAnalyzeWithOrchestrator(ctx, "kafka", fallbackCtx)
 		if derr != nil {
@@ -188,10 +195,10 @@ func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDia
 				BootstrapServer: opts.BootstrapServer,
 				Findings: []kafkaFinding{
 					{
-						Priority: 1, Severity: "P1", Title: "Kafka 采集不可用（原生与回退均失败）",
-						Evidence: "native go client failed; kafka cli missing; orchestrator fallback failed",
-						Cause:    "网络/认证配置异常，或服务端 AI 诊断接口不可用",
-						Verify:   "补充 --config 后重试；或检查服务端 /api/ai/diagnose 可用性",
+						Priority: 1, Severity: "P1", Title: "Kafka 原生采集失败，且服务端回退不可用",
+						Evidence: nativeErrText + "; kafka cli missing; orchestrator fallback failed",
+						Cause:    "网络不可达、Kafka 认证/TLS 配置缺失、ACL 不允许列 topic/group，或服务端 AI 诊断接口不可用",
+						Verify:   "优先补充 --config 后重试；再检查目标机到 broker 的 9092 连通性与服务端 /api/ai/diagnose 可用性",
 					},
 				},
 				Errors: append(errs, "未找到 Kafka CLI，且服务端回退失败："+derr.Error()),
@@ -201,13 +208,13 @@ func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDia
 			BootstrapServer: opts.BootstrapServer,
 			Findings: []kafkaFinding{
 				{
-					Priority: 2, Severity: "P2", Title: "未安装 Kafka CLI，已切换 AI 回退诊断",
-					Evidence: "missing kafka-consumer-groups.sh / kafka-topics.sh",
-					Cause:    "当前节点未安装 Kafka 客户端脚本，无法采集实时 group/topic 观测",
-					Verify:   "安装 Kafka CLI，或继续使用当前 AI 回退结论",
+					Priority: 1, Severity: "P1", Title: "Kafka 原生采集失败，已切换 AI 回退诊断",
+					Evidence: nativeErrText + "; missing kafka-consumer-groups.sh / kafka-topics.sh",
+					Cause:    "网络不可达、Kafka 认证/TLS 配置缺失、ACL 不允许列 topic/group，或 broker 协议握手失败；本机也未安装 Kafka CLI 作为备用采集器",
+					Verify:   "先用 --config 提供 Kafka client.properties 后重试；再验证 nc -vz <broker> 9092 和 Kafka ACL；Kafka CLI 仅作为可选备用采集器",
 				},
 			},
-			Errors:   append(errs, "未找到 Kafka CLI，已回退到通用诊断链路"),
+			Errors:   append(errs, "原生 Kafka 采集失败且未找到 Kafka CLI，已回退到通用诊断链路"),
 			AIAnswer: strings.TrimSpace(diag.Answer),
 		}, nil
 	}

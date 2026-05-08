@@ -115,6 +115,7 @@ go build -o ai-sre .
 ./ai-sre analyze kafka --lag 100000
 ./ai-sre kafka diagnose 10.0.0.1:9092
 ./ai-sre kafka diagnose 'b1:9092,b2:9092,b3:9092'
+./ai-sre kafka diagnose 'b1:9092,b2:9092,b3:9092' --config ./client.properties
 ./ai-sre redis diagnose 10.0.0.2:6379
 ./ai-sre mysql diagnose 'user:pass@tcp(10.0.0.3:3306)/mysql?timeout=5s'
 ./ai-sre nginx diagnose --access-log /var/log/nginx/access.log --tail 10000
