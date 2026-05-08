@@ -222,6 +222,11 @@ kubectl get pods -A
 kubectl -n kube-system get svc kube-dns
 ```
 
+补充（执行机体验）：
+
+- `install.sh` 执行完成后，执行机会生成 `~/.kube/config`，并写入 `/etc/profile.d/opsfleet-kubectl.sh`（默认导出 `KUBECONFIG=/etc/kubernetes/admin.conf`，若文件存在）。
+- 新开 shell 后应可直接执行 `kubectl get nodes`；若当前 shell 未加载 profile，可先手动 `export KUBECONFIG=/etc/kubernetes/admin.conf`。
+
 - **节点 NotReady**：常见为 CNI 未就绪、`network_plugin` 与已下发清单不一致、或镜像拉取失败（标 **非代码** 或 **需改代码** 视日志）。  
 - **CoreDNS Pending**：常为网络插件或 kube-proxy 未就绪。
 
