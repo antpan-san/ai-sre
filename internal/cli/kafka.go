@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -164,8 +165,10 @@ func kafkaDiagnoseCmd() *cobra.Command {
 
 func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDiagnoseReport, error) {
 	var nativeErrText string
+	tcpHints := kafkaTCPPreflight(ctx, opts)
 	if nativeSnap, nativeErr := collectKafkaSnapshotByGo(ctx, opts); nativeErr == nil {
 		report := buildKafkaReport(nativeSnap)
+		report.Errors = append(tcpHints, report.Errors...)
 		if opts.AI {
 			if answer, err := explainKafkaReportWithAI(ctx, report); err == nil {
 				report.AIAnswer = answer
@@ -179,15 +182,20 @@ func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDia
 	}
 
 	paths, errs := resolveKafkaCommandPaths(opts.CommandDir)
+	if len(tcpHints) > 0 {
+		errs = append(tcpHints, errs...)
+	}
 	if nativeErrText != "" {
 		errs = append([]string{nativeErrText}, errs...)
 	}
+	evidence := strings.TrimSpace(nativeErrText + "; " + strings.Join(tcpHints, "; "))
 	if paths.ConsumerGroups == "" && paths.Topics == "" {
 		fallbackCtx := map[string]string{
 			"bootstrap_servers": opts.BootstrapServer,
 			"issue":             "kafka_native_collect_failed",
 			"diagnose_mode":     "fallback_without_native_or_cli",
 			"native_error":      nativeErrText,
+			"tcp_preflight":     strings.Join(tcpHints, "; "),
 		}
 		diag, derr := runAnalyzeWithOrchestrator(ctx, "kafka", fallbackCtx)
 		if derr != nil {
@@ -196,9 +204,9 @@ func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDia
 				Findings: []kafkaFinding{
 					{
 						Priority: 1, Severity: "P1", Title: "Kafka 原生采集失败，且服务端回退不可用",
-						Evidence: nativeErrText + "; kafka cli missing; orchestrator fallback failed",
-						Cause:    "网络不可达、Kafka 认证/TLS 配置缺失、ACL 不允许列 topic/group，或服务端 AI 诊断接口不可用",
-						Verify:   "优先补充 --config 后重试；再检查目标机到 broker 的 9092 连通性与服务端 /api/ai/diagnose 可用性",
+						Evidence: evidence + "; kafka cli missing; orchestrator fallback failed",
+						Cause:    "TCP 可达但 Kafka 协议无响应时，多见于认证/TLS 配置缺失、ACL 不允许列 topic/group、advertised.listeners 返回不可达地址，或服务端 AI 诊断接口不可用",
+						Verify:   "优先补充 --config 后重试；若 TCP 预检失败再检查网络；若 TCP 成功则检查 SASL/TLS、ACL 与 advertised.listeners",
 					},
 				},
 				Errors: append(errs, "未找到 Kafka CLI，且服务端回退失败："+derr.Error()),
@@ -209,9 +217,9 @@ func runKafkaDiagnose(ctx context.Context, opts kafkaDiagnoseOptions) (*kafkaDia
 			Findings: []kafkaFinding{
 				{
 					Priority: 1, Severity: "P1", Title: "Kafka 原生采集失败，已切换 AI 回退诊断",
-					Evidence: nativeErrText + "; missing kafka-consumer-groups.sh / kafka-topics.sh",
-					Cause:    "网络不可达、Kafka 认证/TLS 配置缺失、ACL 不允许列 topic/group，或 broker 协议握手失败；本机也未安装 Kafka CLI 作为备用采集器",
-					Verify:   "先用 --config 提供 Kafka client.properties 后重试；再验证 nc -vz <broker> 9092 和 Kafka ACL；Kafka CLI 仅作为可选备用采集器",
+					Evidence: evidence + "; missing kafka-consumer-groups.sh / kafka-topics.sh",
+					Cause:    "TCP 可达但 Kafka 协议无响应时，多见于认证/TLS 配置缺失、ACL 不允许列 topic/group、advertised.listeners 返回不可达地址，或 broker 协议握手失败；本机也未安装 Kafka CLI 作为备用采集器",
+					Verify:   "先用 --config 提供 Kafka client.properties 后重试；若 TCP 预检失败再检查网络；若 TCP 成功则检查 SASL/TLS、ACL 与 advertised.listeners；Kafka CLI 仅作为可选备用采集器",
 				},
 			},
 			Errors:   append(errs, "原生 Kafka 采集失败且未找到 Kafka CLI，已回退到通用诊断链路"),
@@ -774,6 +782,39 @@ func shortKafkaError(scope string, err error) string {
 		msg = msg[:240] + "..."
 	}
 	return scope + ": " + msg
+}
+
+func kafkaTCPPreflight(ctx context.Context, opts kafkaDiagnoseOptions) []string {
+	brokers := splitKafkaCSV(opts.BootstrapServer)
+	if len(brokers) == 0 {
+		return nil
+	}
+	timeout := opts.Timeout
+	if timeout <= 0 {
+		timeout = 10 * time.Second
+	}
+	if timeout > 3*time.Second {
+		timeout = 3 * time.Second
+	}
+	var out []string
+	dialer := &net.Dialer{Timeout: timeout}
+	for _, broker := range brokers {
+		addr := strings.TrimSpace(broker)
+		if addr == "" {
+			continue
+		}
+		if _, _, err := net.SplitHostPort(addr); err != nil {
+			addr = net.JoinHostPort(addr, "9092")
+		}
+		c, err := dialer.DialContext(ctx, "tcp", addr)
+		if err != nil {
+			out = append(out, "tcp preflight "+addr+": failed: "+err.Error())
+			continue
+		}
+		_ = c.Close()
+		out = append(out, "tcp preflight "+addr+": ok")
+	}
+	return out
 }
 
 type kafkaSCRAMClient struct {
