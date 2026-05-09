@@ -30,8 +30,10 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre mysql diagnose <dsn>` | MySQL 极简快诊：只读采集连接、慢查询、线程与只读状态 |
 | `ai-sre nginx diagnose` | Nginx 日志统计分析：状态码分布、Top 路径、P95 延迟、5xx/4xx 风险识别 |
 | `ai-sre nginx uninstall` | 默认仅卸载由 `ai-sre service install` 写入本机状态的 Nginx；`-f/--force` 会强制检测并清理本机 Nginx 相关进程、包、容器、配置、日志和缓存 |
-| `ai-sre service install --deploy-id <id> --token <token> --api-url <base>` | 基础服务安装执行器：从 OpsFleet 服务端拉取 Nginx / HAProxy / Redis / Kafka / MySQL / PostgreSQL 部署规格，执行安装、写配置、启动与健康检测，并回传步骤状态 |
+| `ai-sre service install --deploy-id <id> --token <token> --api-url <base>` | 基础服务安装执行器：从 OpsFleet 服务端拉取 Nginx / HAProxy / Redis / Kafka / MySQL / PostgreSQL / Elasticsearch 部署规格，执行安装、写配置、启动与健康检测，并回传步骤状态 |
 | `ai-sre nginx update` | 在已通过 OpsFleet 服务部署安装过 Nginx 的目标机上，拉取服务端最新 Nginx 规格，重写配置并重启生效 |
+| `ai-sre elasticsearch update` | 同上，作用于 Elasticsearch；自动复跑 system-tune（vm.max_map_count）、写 `elasticsearch.yml` + `jvm.options.d/heap.options` + systemd drop-in、轮询 `_cluster/health` |
+| `ai-sre elasticsearch uninstall` | 默认仅清理 ai-sre 写入的 ES 配置 / sysctl drop-in 并停服；`--purge-package` 同时移除 elasticsearch 包；`--purge-data` 清理 data/log；`-f/--force` 端到端清理（容器、包、配置、数据、日志、apt/yum 仓库与 GPG 密钥） |
 | `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` / `diagnose` 等（见 `ai-sre k8s --help`） |
 | `ai-sre node tune time-sync …` | 与控制台「初始化工具 → 时间同步」等价的 CLI；本机构建 inventory + chrony / timesyncd playbook 并调用 `ansible-playbook`；缺失 ansible 时按 apt/dnf/yum 自动安装；未填 `--clients` 仅对 localhost 执行 |
 | `ai-sre node tune sys-param …` | 与「系统参数优化」等价：sysctl + br_netfilter/overlay 内核模块 + ulimit + 关闭 swap；可用 `--sysctl key=value`（多次）扩展或 `--extra-only` 只用显式提供的项 |
@@ -126,6 +128,14 @@ sudo ai-sre nginx uninstall
 sudo ai-sre nginx uninstall --purge-package
 # 强制清理本机所有 Nginx 相关环境（不要求 ai-sre 安装状态）:
 sudo ai-sre nginx uninstall -f
+
+# Elasticsearch（OpsFleet 控制台「服务部署」生成 deploy_id/token 后在目标机执行）：
+./ai-sre service install --api-url http://192.168.56.11:9080/ft-api --deploy-id <id> --token <token>
+sudo ai-sre elasticsearch update
+sudo ai-sre elasticsearch uninstall                        # 仅卸载 ai-sre 配置 + 停服，保留数据
+sudo ai-sre elasticsearch uninstall --purge-package        # 一并移除 elasticsearch 包
+sudo ai-sre elasticsearch uninstall --purge-data           # 同时清理 data/log 目录
+sudo ai-sre elasticsearch uninstall -f                     # 强制端到端清理（不要求 ai-sre 安装状态）
 ./ai-sre analyze k8s --pod pending
 ./ai-sre ask "kafka lag 高怎么办"
 ./ai-sre runbook "pod频繁重启"

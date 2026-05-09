@@ -719,6 +719,66 @@ const mysqlSections: CatalogSection[] = [
   }
 ]
 
+const elasticsearchSections: CatalogSection[] = [
+  {
+    key: 'basic',
+    title: '基础（生产已避坑：vm.max_map_count、ulimit、heap、wait-ready）',
+    fields: [
+      { key: 'version', label: 'Elasticsearch 版本', type: 'autocomplete', default: '8.13.4', options: ['7.17.21', '8.11.4', '8.12.2', '8.13.4', '8.14.1', '8.15.0', 'latest'], span: 'quarter' },
+      { key: 'http_port', label: 'HTTP 端口', type: 'number', default: 9200, span: 'quarter' },
+      { key: 'transport_port', label: '集群传输端口', type: 'number', default: 9300, span: 'quarter' },
+      { key: 'cluster_name', label: 'cluster.name', type: 'text', default: 'opsfleet-es', span: 'quarter' },
+      { key: 'node_name', label: 'node.name（留空使用 hostname）', type: 'text', default: '', span: 'half', placeholder: '${HOSTNAME}' },
+      { key: 'network_host', label: 'network.host', type: 'text', default: '0.0.0.0', span: 'quarter' },
+      { key: 'heap_size', label: 'JVM 堆大小（建议 ≤ 物理内存 50% 且 ≤ 30g）', type: 'autocomplete', default: '1g', options: ['512m', '1g', '2g', '4g', '8g', '16g', '30g'], span: 'quarter' },
+      { key: 'path_data', label: 'path.data 目录', type: 'text', default: '/var/lib/elasticsearch', span: 'half' },
+      { key: 'path_logs', label: 'path.logs 目录', type: 'text', default: '/var/log/elasticsearch', span: 'half' },
+      { key: 'vm_max_map_count_setup', label: '自动调高 vm.max_map_count（推荐保持开启）', type: 'switch', default: true, tip: '默认 65530 太小会导致 ES 启动失败，ai-sre 写 sysctl.d 并立即生效' },
+      { key: 'bootstrap_memory_lock', label: 'bootstrap.memory_lock', type: 'switch', default: false, tip: '锁定内存避免 swap；启用前确保系统配 LimitMEMLOCK=infinity（systemd 已自动）' }
+    ]
+  },
+  {
+    key: 'cluster',
+    title: '集群拓扑',
+    hint: '默认 single-node；多节点需填写 seed_hosts 与 initial_master_nodes',
+    fields: [
+      { key: 'discovery_type', label: 'discovery 模式', type: 'select', default: 'single-node', options: ['single-node', 'multi-node'] },
+      {
+        key: 'seed_hosts',
+        label: 'discovery.seed_hosts（逗号或换行分隔 host:port）',
+        type: 'textarea',
+        rows: 2,
+        span: 'full',
+        default: '',
+        placeholder: '示例：10.0.0.11:9300, 10.0.0.12:9300, 10.0.0.13:9300',
+        visibleIf: () => form.params.discovery_type === 'multi-node'
+      },
+      {
+        key: 'initial_master_nodes',
+        label: 'cluster.initial_master_nodes（节点 node.name 列表）',
+        type: 'textarea',
+        rows: 2,
+        span: 'full',
+        default: '',
+        placeholder: '示例：es-1, es-2, es-3',
+        visibleIf: () => form.params.discovery_type === 'multi-node'
+      }
+    ]
+  },
+  {
+    key: 'security',
+    title: '安全（xpack）',
+    hint: '8.x 默认开启证书+密码；PoC 默认关闭，生产再打开',
+    collapsible: true,
+    defaultOpen: false,
+    fields: [
+      { key: 'xpack_security', label: '启用 xpack.security', type: 'switch', default: false, tip: '关闭后 9200 直接 http；开启后 ai-sre 探活会自动改 https + -k' },
+      { key: 'xpack_user', label: 'xpack 用户名（探活用）', type: 'text', default: 'elastic', visibleIf: () => isOn('xpack_security') },
+      { key: 'xpack_password', label: 'xpack 密码（用于 ai-sre 健康检查）', type: 'text', default: '', visibleIf: () => isOn('xpack_security'), placeholder: '留空时探活只 -k 不带凭据' }
+    ]
+  }
+]
+
 const postgresqlSections: CatalogSection[] = [
   {
     key: 'basic',
@@ -793,6 +853,14 @@ const catalog: CatalogItem[] = [
     tags: ['db', 'sql'],
     installMethods: ['package', 'docker'],
     sections: postgresqlSections
+  },
+  {
+    key: 'elasticsearch',
+    name: 'Elasticsearch',
+    description: '分布式搜索 / 分析引擎',
+    tags: ['search', 'analytics'],
+    installMethods: ['package', 'docker'],
+    sections: elasticsearchSections
   }
 ]
 
@@ -822,7 +890,11 @@ const profileCatalog: Record<string, Array<{ label: string; value: string }>> = 
   ],
   kafka: [{ label: '单 Broker 测试环境', value: 'single_broker' }],
   mysql: [{ label: '单机数据库', value: 'standalone_db' }],
-  postgresql: [{ label: '单机数据库', value: 'standalone_db' }]
+  postgresql: [{ label: '单机数据库', value: 'standalone_db' }],
+  elasticsearch: [
+    { label: '单节点（PoC / 开发）', value: 'single_node' },
+    { label: '多节点集群（生产）', value: 'multi_node_cluster' }
+  ]
 }
 
 const selected = computed<CatalogItem | null>(() => catalog.find(c => c.key === form.service) || null)
@@ -881,7 +953,12 @@ const generatedDeployment = ref<CreateServiceDeploymentResponse | null>(null)
 const savedDeploymentSnapshot = ref('')
 const curlCommand = computed(() => generatedDeployment.value?.curlCommand || '')
 const aiSreInstallCommand = computed(() => generatedDeployment.value?.aiSreCommand || '')
-const aiSreUpdateCommand = computed(() => generatedDeployment.value?.aiSreUpdateCommand || 'sudo ai-sre nginx update')
+const updatableServices = new Set(['nginx', 'elasticsearch'])
+const aiSreUpdateCommand = computed(() => {
+  if (generatedDeployment.value?.aiSreUpdateCommand) return generatedDeployment.value.aiSreUpdateCommand
+  if (form.service && updatableServices.has(form.service)) return `sudo ai-sre ${form.service} update`
+  return ''
+})
 
 const buildDeploymentPayload = () => ({
   service: form.service,
@@ -907,14 +984,20 @@ const deploymentDirty = computed(() =>
   !!generatedDeployment.value && savedDeploymentSnapshot.value !== currentDeploymentSnapshot.value
 )
 const canSubmitUpdate = computed(() =>
-  !!generatedDeployment.value && form.service === 'nginx' && deploymentDirty.value && !submittingUpdate.value
+  !!generatedDeployment.value && updatableServices.has(form.service) && deploymentDirty.value && !submittingUpdate.value
 )
 const deploymentStatusDescription = computed(() => {
   if (!generatedDeployment.value) return ''
+  const svc = selected.value?.name || form.service
+  const cmd = aiSreUpdateCommand.value
   if (deploymentDirty.value) {
-    return `页面配置有新修改，点击“提交配置变更”后，目标机执行 ${aiSreUpdateCommand.value} 即可拉取最新配置并重启 nginx 生效。`
+    return cmd
+      ? `页面配置有新修改，点击"提交配置变更"后，目标机执行 ${cmd} 即可拉取最新配置并重启 ${svc} 生效。`
+      : `页面配置有新修改，但当前服务暂不支持 ai-sre 远程更新，请重新生成部署脚本并在目标机执行。`
   }
-  return `状态：${generatedDeployment.value.status}。当前页面配置已保存；后续修改后可提交，并在目标机执行 ${aiSreUpdateCommand.value} 更新 nginx。`
+  return cmd
+    ? `状态：${generatedDeployment.value.status}。当前页面配置已保存；后续修改后可提交，并在目标机执行 ${cmd} 更新 ${svc}。`
+    : `状态：${generatedDeployment.value.status}。当前页面配置已保存。`
 })
 
 const seedParams = (item: CatalogItem) => {
@@ -957,8 +1040,8 @@ const onGenerate = async () => {
 }
 
 const onSubmitUpdate = async () => {
-  if (!generatedDeployment.value || form.service !== 'nginx') {
-    ElMessage.warning('请先生成 Nginx 部署任务')
+  if (!generatedDeployment.value || !updatableServices.has(form.service)) {
+    ElMessage.warning('请先生成支持远程更新的服务部署任务（当前支持：Nginx、Elasticsearch）')
     return
   }
   if (!deploymentDirty.value) {
@@ -1456,6 +1539,19 @@ sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '${p.password}';" ||
 sudo ss -lntp | grep :${p.port || 5432} || true`
 }
 
+const buildElasticsearch = () => {
+  const p = form.params
+  return `# Elasticsearch 部署较为复杂（vm.max_map_count、ulimits、heap、wait-ready），
+# 强烈推荐使用 "curl + bash（推荐）" 标签或 "ai-sre CLI" 命令，
+# 让 ai-sre 在目标机统一处理系统调优、配置、启动与健康等待。
+# 下方仅展示关键步骤摘要：
+echo "[reminder] 目标机 vm.max_map_count 建议 >= 262144；JVM heap=${p.heap_size || '1g'}"
+echo "[reminder] 数据目录：${p.path_data || '/var/lib/elasticsearch'}；日志目录：${p.path_logs || '/var/log/elasticsearch'}"
+echo "[reminder] HTTP 端口：${p.http_port || 9200}；Transport：${p.transport_port || 9300}"
+echo "[reminder] 集群模式：${p.discovery_type || 'single-node'}；xpack.security=${p.xpack_security ? 'true' : 'false'}"
+echo "[reminder] 复制使用上方 ai-sre 命令以触发完整安装流水线"`
+}
+
 const bashScript = computed(() => {
   if (!selected.value) return ''
   const header = `#!/usr/bin/env bash
@@ -1469,6 +1565,7 @@ echo "[ai-sre] service=${form.service} os=${form.osType} method=${form.installMe
     case 'kafka': body = buildKafka(); break
     case 'mysql': body = buildMySQL(); break
     case 'postgresql': body = buildPostgres(); break
+    case 'elasticsearch': body = buildElasticsearch(); break
   }
   return `${header}\n${body}\n`
 })

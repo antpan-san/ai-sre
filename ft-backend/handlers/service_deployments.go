@@ -270,8 +270,11 @@ func normalizeServiceDeploymentRequest(req *serviceDeploymentCreateRequest) {
 }
 
 func serviceDeploymentUpdateCommand(service string) string {
-	if service == "nginx" {
+	switch service {
+	case "nginx":
 		return "sudo ai-sre nginx update"
+	case "elasticsearch":
+		return "sudo ai-sre elasticsearch update"
 	}
 	return ""
 }

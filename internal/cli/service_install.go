@@ -48,6 +48,12 @@ type nginxUninstallOptions struct {
 	Force        bool
 }
 
+type elasticsearchUninstallOptions struct {
+	PurgePackage bool
+	PurgeData    bool
+	Force        bool
+}
+
 func serviceCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "service",
@@ -274,11 +280,16 @@ func postServiceJSON(apiURL, deployID, token, action string, payload map[string]
 	return nil
 }
 
+type templateStep struct {
+	name string
+	body string
+}
+
 func runServiceTemplate(spec *serviceInstallSpec, report func(string, string, string)) error {
-	steps := []struct {
-		name string
-		body string
-	}{
+	if spec.Service == "elasticsearch" {
+		return runStepsReporting(elasticsearchInstallSteps(spec), report)
+	}
+	steps := []templateStep{
 		{"install", serviceInstallScript(spec)},
 		{"write-config", serviceConfigScript(spec)},
 		{"enable-start", serviceStartScript(spec)},
@@ -286,31 +297,24 @@ func runServiceTemplate(spec *serviceInstallSpec, report func(string, string, st
 		{"port-check", servicePortScript(spec)},
 		{"service-check", serviceHealthScript(spec)},
 	}
-	for _, s := range steps {
-		if strings.TrimSpace(s.body) == "" {
-			continue
-		}
-		report(s.name, "running", "start")
-		if err := runBash(s.body); err != nil {
-			report(s.name, "failed", err.Error())
-			return fmt.Errorf("%s failed: %w", s.name, err)
-		}
-		report(s.name, "success", "ok")
-	}
-	return nil
+	return runStepsReporting(steps, report)
 }
 
 func runServiceUpdateTemplate(spec *serviceInstallSpec, report func(string, string, string)) error {
-	steps := []struct {
-		name string
-		body string
-	}{
+	if spec.Service == "elasticsearch" {
+		return runStepsReporting(elasticsearchUpdateSteps(spec), report)
+	}
+	steps := []templateStep{
 		{"write-config", serviceConfigScript(spec)},
 		{"restart", serviceRestartScript(spec)},
 		{"status-check", serviceStatusScript(spec)},
 		{"port-check", servicePortScript(spec)},
 		{"service-check", serviceHealthScript(spec)},
 	}
+	return runStepsReporting(steps, report)
+}
+
+func runStepsReporting(steps []templateStep, report func(string, string, string)) error {
 	for _, s := range steps {
 		if strings.TrimSpace(s.body) == "" {
 			continue
@@ -546,6 +550,9 @@ func portKey(service string) string {
 	if service == "nginx" {
 		return "http_port"
 	}
+	if service == "elasticsearch" {
+		return "http_port"
+	}
 	return "port"
 }
 
@@ -561,6 +568,8 @@ func defaultPort(service string) int {
 		return 5432
 	case "kafka":
 		return 9092
+	case "elasticsearch":
+		return 9200
 	default:
 		return 0
 	}
