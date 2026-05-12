@@ -1644,14 +1644,15 @@ const download = (text: string, filename: string) => {
 .service-deploy {
   width: 100%;
   max-width: none;
+  height: 100%;
+  min-height: 0;
   margin: 0;
-  padding: 8px var(--page-padding-x, 24px) 24px;
+  padding: 8px var(--page-padding-x, 24px) 16px;
   display: flex;
   flex-direction: column;
   gap: 12px;
   box-sizing: border-box;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
 .service-deploy :deep(.el-card) {
@@ -1685,27 +1686,50 @@ const download = (text: string, filename: string) => {
 }
 
 .split-layout {
+  flex: 1;
+  min-height: 0;
   display: grid;
   grid-template-columns: 280px 1fr;
+  grid-template-rows: minmax(0, 1fr);
   gap: 12px;
-  align-items: start;
+  align-items: stretch;
+  overflow: hidden;
 }
 
 @media (max-width: 960px) {
   .split-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(0, min(320px, 40vh)) minmax(0, 1fr);
   }
 }
 
 .catalog-card {
-  position: sticky;
-  top: 0;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.catalog-card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding-top: 10px;
 }
 
 .catalog-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  padding-right: 2px;
 }
 
 .catalog-item {
@@ -1759,10 +1783,16 @@ const download = (text: string, filename: string) => {
 }
 
 .config-pane {
+  min-height: 0;
+  min-width: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-width: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-right: 2px;
 }
 
 .empty-pane {
