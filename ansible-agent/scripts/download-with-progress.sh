@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# OpsFleet：可视化下载帮助脚本，供 ansible `command:` / `shell:` 或 install.sh 调用。
-# 行为对齐 ai-sre Go 侧 progressReader：TTY 下 curl --progress-bar；非 TTY 退化为 -sS 但仍写一行
-# 「[time] 已下载 N / 总 M (avg X/s)」摘要到 stderr，便于在 ansible -v 或日志中追踪。
+# OpsFleet：下载帮助脚本，供 ansible command / install.sh 等调用。
+# 进度条：仅当 stderr 为 TTY 且未设置 OPSFLEET_NO_PROGRESS=1 时使用 curl --progress-bar；否则 curl -sS。
+# Ansible 流水线由 inventory 注入 OPSFLEET_NO_PROGRESS=1（不要求进度条）；仍输出首尾时间与完成摘要到 stderr。
 #
 # 用法：
 #   download-with-progress.sh <url> <dest> [<sha512_hex_or_ref>] [<min_bytes>]

@@ -22,7 +22,7 @@
   delegate_to: localhost
   run_once: true
 
-- name: Show kubernetes server tarball URL (大体积下载，进度由 download-with-progress.sh 输出)
+- name: Show kubernetes server tarball URL (大体积下载；静默 curl + stderr 首尾摘要)
   ansible.builtin.debug:
     msg: "Downloading kubernetes server tarball: {{ k8s_server_tarball_url }} -> {{ k8s_package_tar }} (cache skip if sha512 matches)"
   delegate_to: localhost
@@ -44,9 +44,10 @@
   delegate_to: localhost
   run_once: true
 
-- name: Download kubernetes server tarball via helper (curl --progress-bar; sha512 verified)
+- name: Download kubernetes server tarball via helper (sha512 verified; Ansible 无进度条)
   ansible.builtin.command:
     cmd: "bash {{ opsfleet_download_helper }} {{ k8s_server_tarball_url }} {{ k8s_package_tar }} {{ k8s_dl_checksum_ref }}"
+  environment: "{{ opsfleet_download_env | default({'OPSFLEET_NO_PROGRESS': '1'}, true) }}"
   register: k8s_dl
   changed_when: "'下载完成' in (k8s_dl.stderr | default(''))"
   failed_when: k8s_dl.rc not in [0]

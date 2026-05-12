@@ -64,11 +64,11 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 **部署机 kubectl 与 kubeconfig（0.5.2）**：执行 `sudo bash install.sh` 的那台机上，在 **`playbooks/kubectl.yml`** 成功后 **`roles/kubectl/tasks/control_host_cli.yml`** 会安装与离线包 **`kubernetes-server` 同版本的** `/usr/local/bin/kubectl`，并把第一份控制面的 admin kubeconfig 下发到 **`$HOME/.kube/config`**（通常为 root：`/root/.kube/config`）。`/etc/profile.d/opsfleet-kubectl.sh` 在未导出 `KUBECONFIG` 时优先使用该文件。**建议始终用 root 跑 install**，与 inventory 默认 `ansible_user=root` 一致；若以普通用户手工跑 `ansible-playbook`，请自行把 **`/root/.kube/config`** 拷到当前用户或使用 `sudo kubectl ... --kubeconfig /root/.kube/config`。
 
-**下载进度条（0.5.0 新）**：客户端涉及下载二进制 / 离线包的所有路径均输出**进度条 + 已下/总量 + 速度 + ETA**：
+**下载进度条（0.5.0 新）**：在 **TTY 交互终端** 下，客户端涉及下载二进制 / 离线包的路径可输出**进度条 + 已下/总量 + 速度 + ETA**（非 TTY 自动退化为摘要）：
 - Go 侧：`ai-sre upgrade`、`ai-sre k8s install`、`ai-sre k8s download-bundle` 等使用统一的 `progressReader`（TTY 下绘 `[====-----] 42.3% 120MiB/284MiB 25.3MiB/s eta 7s`，非 TTY 自动退化为每秒一行可解析的摘要）。
 - 服务端动态生成的 `install-ai-sre.sh`、`bootstrap.sh`：TTY 下 `curl --progress-bar` / Python 内置流式进度；非 TTY 退化为静默 + 完成后摘要。
-- Ansible：`ansible-agent/scripts/download-with-progress.sh` 包装 Kubernetes server tarball、etcd tarball 等大体积下载，stderr 输出 `[time] 开始下载 ...` / `[time] 下载完成 size, T s, avg X/s`；任务结束后 `debug:` 任务把 stderr 摘要打回控制台。
-- 关闭：`OPSFLEET_NO_PROGRESS=1`（在 CI 等场景静音）。
+- **Ansible（`ansible-agent`）**：**不要求** curl 进度条；`download-with-progress.sh` 在 playbook 中通过 `OPSFLEET_NO_PROGRESS=1` 静默下载，stderr 仅保留 `[time] 开始下载 …` / `[time] 下载完成 …` 摘要，任务后 `debug` 可回显。
+- 关闭（非 Ansible 路径）：`OPSFLEET_NO_PROGRESS=1`（CI 等场景静音）。
 
 **服务端自迭代技能注册表**：服务端为每个 topic（k8s/kafka/redis/mysql/nginx/elasticsearch）内嵌一份 YAML 技能包（`ft-backend/skills/builtin/*.yaml`）。每次 `analyze` 请求由 `services.SkillRegistry` 匹配 topic 后将 **analysis_steps / output_format / extra_guidance 注入 prompt**；诊断完成后服务端**异步追加一份脱敏样本** 到 `OPSFLEET_AI_SKILL_DATA_DIR/samples/<topic>.jsonl`，并允许 CLI 通过 `POST /api/ai/skills/feedback` 提交「这条结论是否帮到我」的反馈。任意时刻可调 `POST /api/ai/skills/refine`（CLI 入口：`ai-sre skills refine --topic <t> --hint "…"`），服务端读取最近样本 + 反馈 + 当前技能包，调用 LLM 产出新版本，校验后写入 `generated/<topic>.yaml`（原版本归档到 `generated/<topic>.history/<ts>.yaml`）。下次 `analyze` 将自动优先使用 generated 版本。运维需要时检查/回滚：在 OpsFort 上 `ls /var/lib/opsfleet/ai-skills/generated/`、把不理想的 generated yaml 删除即可回退到 builtin。环境变量：`OPSFLEET_AI_SKILL_DATA_DIR`（默认尝试 `/var/lib/opsfleet/ai-skills`，否则 `./data/ai-skills`）。
 

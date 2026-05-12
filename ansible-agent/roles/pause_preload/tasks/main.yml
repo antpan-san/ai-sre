@@ -47,6 +47,7 @@
       {{ pause_image_tar_local }}
       ""
       {{ pause_image_min_bytes }}
+  environment: "{{ opsfleet_download_env | default({'OPSFLEET_NO_PROGRESS': '1'}, true) }}"
   delegate_to: localhost
   connection: local
   run_once: true
