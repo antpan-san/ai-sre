@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -163,7 +164,18 @@ func callServerDiagnose(ctx context.Context, req diagnoseRequest) (*diagnoseResp
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode >= 300 {
-		return nil, fmt.Errorf("server diagnose status=%d", resp.StatusCode)
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+		msg := strings.TrimSpace(string(body))
+		var api struct {
+			Msg string `json:"msg"`
+		}
+		if json.Unmarshal(body, &api) == nil && strings.TrimSpace(api.Msg) != "" {
+			msg = strings.TrimSpace(api.Msg)
+		}
+		if msg == "" {
+			msg = fmt.Sprintf("empty body (HTTP %d)", resp.StatusCode)
+		}
+		return nil, fmt.Errorf("server diagnose status=%d: %s", resp.StatusCode, msg)
 	}
 	var out diagnoseResponse
 	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
