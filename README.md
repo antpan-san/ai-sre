@@ -19,8 +19,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | 命令 | 说明 |
 |------|------|
 | `ai-sre analyze [topic]` | 故障诊断，`topic`：`kafka` \| `k8s` \| `nginx` \| `redis` \| `elasticsearch` |
-| `ai-sre ask [question]` | 知识问答（可选 RAG） |
-| `ai-sre runbook [scenario]` | 生成 Runbook |
+| `ai-sre ask [question]` | 知识问答：默认经 OpsFleet `POST /api/ai/ask`（无需本机 api_key）；服务端失败且本机有凭据时回退本地 LLM+RAG |
+| `ai-sre runbook [scenario]` | 生成 Runbook：默认经 `POST /api/ai/runbook`；回退逻辑同 `ask` |
 | `ai-sre skills list` | 列出内置 + `--skills-dir` 合并后的技能包 |
 | `ai-sre doctor` | 自检（凭据、tier、配额计数、技能/知识加载；**不调用 LLM**） |
 | `ai-sre version` | 打印版本号 |
