@@ -1,0 +1,65 @@
+---
+# 在每个 k8s 节点上：预导入 registry.k8s.io/pause:3.10。
+# 不做这一步，OpsFleet 「静态 Pod」模式会因 containerd 默认 sandbox_image 指向上游 (registry.k8s.io)
+# 而触发 europe-west*-docker.pkg.dev 解析超时（i/o timeout 74.125.135.82:443），
+# 表现：kube-apiserver / scheduler / controller-manager 持续 CreatePodSandbox 失败、
+# 6443 永不监听、playbooks/wait_apiserver.yml 必然 timeout。
+# 错误码：OPSFLEET_K8S_E_PAUSE_MISSING（详见 docs/error-codes.yaml）。
+- name: Ensure cache dir for pause image tar
+  ansible.builtin.file:
+    path: "{{ pause_image_tar_local | dirname }}"
+    state: directory
+    mode: "0755"
+
+- name: Stat existing pause image tar
+  ansible.builtin.stat:
+    path: "{{ pause_image_tar_local }}"
+  register: pause_tar_stat
+
+- name: Download pause image tar via OpsFleet helper (内网 mirror，带进度条)
+  ansible.builtin.command:
+    cmd: >-
+      {{ opsfleet_download_helper }}
+      {{ pause_image_tar_url }}
+      {{ pause_image_tar_local }}
+      ""
+      {{ pause_image_min_bytes }}
+  when: not pause_tar_stat.stat.exists or pause_tar_stat.stat.size | int < pause_image_min_bytes | int
+  register: pause_dl
+  changed_when: pause_dl.rc == 0
+  failed_when: pause_dl.rc != 0
+
+- name: Show pause download summary (stderr from helper)
+  ansible.builtin.debug:
+    msg: "{{ pause_dl.stderr_lines | default([]) }}"
+  when: pause_dl is defined and pause_dl.stderr_lines is defined
+
+- name: Probe whether pause tag already present in containerd k8s.io namespace
+  ansible.builtin.command: ctr -n k8s.io images ls -q
+  register: ctr_imgs_before
+  changed_when: false
+  failed_when: false
+
+- name: Import pause image into containerd (k8s.io namespace)
+  ansible.builtin.command:
+    cmd: "ctr -n k8s.io images import {{ pause_image_tar_local }}"
+  when: pause_image_tag not in (ctr_imgs_before.stdout | default(''))
+  register: ctr_import
+  changed_when: ctr_import.rc == 0
+  failed_when: ctr_import.rc != 0
+
+- name: Verify pause image is now resolvable by containerd
+  ansible.builtin.command: ctr -n k8s.io images ls -q
+  register: ctr_imgs_after
+  changed_when: false
+
+- name: Fail with structured error code if pause image still missing
+  ansible.builtin.fail:
+    msg: |
+      [ERROR-CODE] OPSFLEET_K8S_E_PAUSE_MISSING ctr -n k8s.io images ls 未列出 {{ pause_image_tag }}。
+      根因：sandbox(pause) 镜像未在节点 containerd 中可用，静态 Pod 模式下 kube-apiserver
+      将永远 CreatePodSandbox 失败、6443 永不监听。
+      自检：在该节点执行
+        ctr -n k8s.io images ls | grep pause
+      并确认 {{ pause_image_tar_url }} 在 control 节点可达（curl -I）。
+  when: pause_image_tag not in ctr_imgs_after.stdout

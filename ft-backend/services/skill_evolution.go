@@ -8,15 +8,28 @@ import (
 )
 
 type SkillPack struct {
-	Name           string   `json:"name" yaml:"name"`
-	DisplayName    string   `json:"display_name" yaml:"display_name"`
-	Topics         []string `json:"topics" yaml:"topics"`
-	MatchKeywords  []string `json:"match_keywords" yaml:"match_keywords"`
-	Input          []string `json:"input" yaml:"input"`
-	AnalysisSteps  []string `json:"analysis_steps" yaml:"analysis_steps"`
-	OutputFormat   []string `json:"output_format" yaml:"output_format"`
-	ExtraGuidance  string   `json:"extra_guidance,omitempty" yaml:"extra_guidance,omitempty"`
-	PromptTemplate string   `json:"prompt_template,omitempty" yaml:"prompt_template,omitempty"`
+	Name           string           `json:"name" yaml:"name"`
+	DisplayName    string           `json:"display_name" yaml:"display_name"`
+	Topics         []string         `json:"topics" yaml:"topics"`
+	MatchKeywords  []string         `json:"match_keywords" yaml:"match_keywords"`
+	Input          []string         `json:"input" yaml:"input"`
+	AnalysisSteps  []string         `json:"analysis_steps" yaml:"analysis_steps"`
+	OutputFormat   []string         `json:"output_format" yaml:"output_format"`
+	ExtraGuidance  string           `json:"extra_guidance,omitempty" yaml:"extra_guidance,omitempty"`
+	PromptTemplate string           `json:"prompt_template,omitempty" yaml:"prompt_template,omitempty"`
+	ErrorCodes     []SkillErrorCode `json:"error_codes,omitempty" yaml:"error_codes,omitempty"`
+}
+
+// SkillErrorCode binds a structured deploy/runtime failure code to a root-cause card
+// shared by the OpsFleet console and the `ai-sre analyze code` CLI.
+type SkillErrorCode struct {
+	Code             string   `json:"code" yaml:"code"`
+	Summary          string   `json:"summary" yaml:"summary"`
+	RootCause        string   `json:"root_cause" yaml:"root_cause"`
+	TypicalEvidence  []string `json:"typical_evidence,omitempty" yaml:"typical_evidence,omitempty"`
+	RecoveryOneLiner string   `json:"recovery_one_liner,omitempty" yaml:"recovery_one_liner,omitempty"`
+	PlatformFollowup string   `json:"platform_followup,omitempty" yaml:"platform_followup,omitempty"`
+	RelatedCodes     []string `json:"related_codes,omitempty" yaml:"related_codes,omitempty"`
 }
 
 // BuildSkillDraft builds a minimal valid draft for automatic skill iteration.

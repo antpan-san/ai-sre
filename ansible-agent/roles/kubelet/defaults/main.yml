@@ -1,4 +1,5 @@
 ---
 kubelet_bin_src: "{{ k8s_extract_dir }}/server/bin/kubelet"
 cni_plugins_local_tar: "{{ local_cache_dir }}/cni-plugins-linux-{{ arch_version }}-{{ cni_plugins_version }}.tgz"
-pause_image: "registry.k8s.io/pause:3.10"
+# Backwards-compat 入口：旧 group_vars 没有 pause_image_tag 时仍能起来；新版统一以 pause_image_tag 为准。
+pause_image: "{{ pause_image_tag | default('registry.k8s.io/pause:3.10') }}"

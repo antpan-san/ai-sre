@@ -60,6 +60,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/ai/skills", handlers.AISkillsList)
 		public.POST("/ai/skills/refine", handlers.AISkillsRefine)
 		public.POST("/ai/skills/feedback", handlers.AISkillsFeedback)
+		// 错误码 → 根因 卡片（控制台「部署错误码诊断」+ ai-sre analyze code 共用，纯只读）
+		public.GET("/ai/error-codes", handlers.ErrorCodesList)
+		public.POST("/ai/error-codes/analyze", handlers.ErrorCodeAnalyze)
 
 		// Client Agent endpoints (authenticated by client_id, not JWT)
 		public.POST("/v1/heartbeats", iotservice.HeartbeatCheck)

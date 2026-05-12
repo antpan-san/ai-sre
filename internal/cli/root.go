@@ -205,7 +205,11 @@ k8s 场景 --pod 可填：
   %s analyze k8s --pod pending
   %s analyze k8s --pod kube-controller-manager-k8s-master-0 -n kube-system
   %s analyze elasticsearch -d base_url=http://127.0.0.1:9200
-  %s -o json analyze kafka --lag 1`, progName, progName, progName, progName, progName)
+  %s -o json analyze kafka --lag 1
+  %s analyze code OPSFLEET_K8S_E_PAUSE_MISSING
+  %s analyze code OPSFLEET_K8S_E_APISERVER_TIMEOUT --detail "$(journalctl -u kubelet -n 30)"`,
+		progName, progName, progName, progName, progName, progName, progName)
+	cmd.AddCommand(analyzeCodeCmd())
 	return cmd
 }
 

@@ -54,6 +54,15 @@ containerd_package_name: "containerd-{{ containerd_version }}-linux-{{ arch_vers
 runc_version: "v1.4.0"
 cni_plugins_version: "v1.9.0"
 
+# Sandbox(pause) 镜像离线预导入（修复 OPSFLEET_K8S_E_PAUSE_MISSING）：
+# 默认指向 OpsFort/内网镜像站约定路径 registry-images/registry.k8s.io/pause/3.10/。
+# 控制台「镜像源」选择切换时仅需覆盖 pause_image_tar_url；pause_image_tag 必须与
+# containerd /etc/containerd/config.toml 中 sandbox 字段保持一致（ctr import 后即匹配）。
+pause_image_tag: "registry.k8s.io/pause:3.10"
+pause_image_tar_remote_path: "registry-images/registry.k8s.io/pause/3.10/pause-3.10-linux-{{ arch_version }}.tar"
+pause_image_tar_url: "{{ download_protocol }}{{ download_domain }}/{{ pause_image_tar_remote_path }}"
+pause_image_tar_local: "{{ local_cache_dir }}/registry-images/pause-3.10-linux-{{ arch_version }}.tar"
+
 # Kubernetes 插件配置
 calico_version: "v3.31.5"
 coredns_version: "v1.13.1"

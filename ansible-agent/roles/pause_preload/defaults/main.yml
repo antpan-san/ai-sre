@@ -1,0 +1,11 @@
+---
+# pause 镜像：kubelet 静态 Pod 与 containerd CRI sandbox 共用，default 走内网 mirror。
+# OpsFleet UI 合并块可只覆盖 pause_image_tar_url（指向局域网/离线包路径），
+# pause_image_tag 仍保持 "registry.k8s.io/pause:3.10"——这是 ctr import 入库后的实际 tag，
+# 也是 containerd `[plugins.'io.containerd.cri.v1.images'.pinned_images].sandbox` 默认值，
+# 一旦本地有同名 image，containerd 启动不会再尝试外网拉。
+pause_image_tag: "registry.k8s.io/pause:3.10"
+pause_image_tar_remote_path: "registry-images/registry.k8s.io/pause/3.10/pause-3.10-linux-{{ arch_version }}.tar"
+pause_image_tar_url: "{{ download_protocol }}{{ download_domain }}/{{ pause_image_tar_remote_path }}"
+pause_image_tar_local: "{{ local_cache_dir }}/registry-images/pause-3.10-linux-{{ arch_version }}.tar"
+pause_image_min_bytes: 100000

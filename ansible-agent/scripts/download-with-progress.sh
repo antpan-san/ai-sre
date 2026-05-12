@@ -9,14 +9,24 @@
 # 退出码：
 #   0   下载成功且（如提供 checksum）校验通过；或目标文件已存在且 checksum 一致
 #   2   参数错误
-#   3   下载失败（curl 非 0）
-#   4   校验失败（sha512 不匹配 或 文件大小小于 min_bytes）
+#   3   下载失败（curl 非 0）        -> emit [ERROR-CODE] OPSFLEET_DL_E_NETWORK
+#   4   校验失败（sha512 / min_bytes）-> emit [ERROR-CODE] OPSFLEET_DL_E_CHECKSUM
+#
+# 失败时除中文摘要外，会向 stderr 写一行机器可读的错误码：
+#   [ERROR-CODE] <code> url=<url> dest=<dest> detail=<short>
+# 供 install.sh / ai-sre analyze code 抓取，匹配 docs/error-codes.yaml。
 set -euo pipefail
 
 URL="${1:-}"
 DEST="${2:-}"
 WANT_SHA="${3:-}"
 MIN_BYTES="${4:-0}"
+
+emit_code() {
+  local code="$1"; shift
+  local detail="${*:-}"
+  echo "[ERROR-CODE] $code url=$URL dest=$DEST detail=$detail" >&2
+}
 
 if [[ -z "$URL" || -z "$DEST" ]]; then
   echo "用法: download-with-progress.sh <url> <dest> [<sha512_hex>] [<min_bytes>]" >&2
@@ -51,11 +61,13 @@ CURL_OPTS=("--fail" "--location" "--connect-timeout" "30" "--retry" "3" "--retry
 if [ -t 2 ] && [ "${OPSFLEET_NO_PROGRESS:-}" != "1" ]; then
   if ! curl "${CURL_OPTS[@]}" --progress-bar -o "$DEST" "$URL"; then
     echo "[$(date '+%H:%M:%S')] 下载失败: $URL" >&2
+    emit_code "OPSFLEET_DL_E_NETWORK" "curl exited non-zero"
     exit 3
   fi
 else
   if ! curl "${CURL_OPTS[@]}" -sS -o "$DEST" "$URL"; then
     echo "[$(date '+%H:%M:%S')] 下载失败: $URL" >&2
+    emit_code "OPSFLEET_DL_E_NETWORK" "curl exited non-zero"
     exit 3
   fi
 fi
@@ -68,6 +80,7 @@ echo "[$(date '+%H:%M:%S')] 下载完成 $DEST ($(hr "$size"), ${elapsed}s, avg 
 
 if [[ "$MIN_BYTES" -gt 0 && "$size" -lt "$MIN_BYTES" ]]; then
   echo "[$(date '+%H:%M:%S')] 校验失败：文件大小 $size < min_bytes $MIN_BYTES（疑似服务器返回错误页）" >&2
+  emit_code "OPSFLEET_DL_E_CHECKSUM" "size=$size < min_bytes=$MIN_BYTES"
   exit 4
 fi
 if [[ -n "$WANT_SHA" ]]; then
@@ -76,6 +89,7 @@ if [[ -n "$WANT_SHA" ]]; then
       echo "[$(date '+%H:%M:%S')] 校验失败：sha512 mismatch" >&2
       echo "  expected: $WANT_SHA" >&2
       echo "  got     : $got" >&2
+      emit_code "OPSFLEET_DL_E_CHECKSUM" "sha512 mismatch"
       exit 4
     fi
     echo "[$(date '+%H:%M:%S')] sha512 校验通过" >&2

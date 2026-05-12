@@ -35,7 +35,8 @@ for p in sorted(root.rglob("*")):
     if n.endswith(".sha512"):
         continue
     suf = n.lower()
-    if not (suf.endswith(".tar.gz") or suf.endswith(".tgz")):
+    # 同步范围：通用压缩包 + 镜像 tar（pause 等 registry-images/*.tar，supports `ctr import`）。
+    if not (suf.endswith(".tar.gz") or suf.endswith(".tgz") or suf.endswith(".tar")):
         continue
     rel = p.relative_to(root).as_posix()
     h = hashlib.sha512()

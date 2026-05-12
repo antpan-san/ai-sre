@@ -1,12 +1,45 @@
 # static-pod 路径：kubelet 已启动且 manifests 就位后，等待 API Server 就绪（binary 路径在 kube_apiserver role 内等待）
 - hosts: kube_control_plane
   become: true
+  pre_tasks:
+    - name: Load OpsFleet K8s bundle group_vars (alongside inventory/hosts.ini)
+      ansible.builtin.include_vars:
+        file: "{{ inventory_dir }}/group_vars/all.yml"
+    # 预检 #1：sandbox 镜像 (pause) 必须已被 containerd 解析。任何丢失都直接 emit
+    # 结构化错误码，避免再让 wait_for 空转 180s + 让排错者陷入"为什么 6443 不起来"的迷雾。
+    - name: Pre-flight - containerd k8s.io has pause image
+      ansible.builtin.shell: |
+        set -e
+        out="$(ctr -n k8s.io images ls -q 2>&1 || true)"
+        echo "$out" | grep -q "{{ pause_image_tag | default('registry.k8s.io/pause:3.10') }}" || {
+          echo "[ERROR-CODE] OPSFLEET_K8S_E_PAUSE_MISSING ctr 未列出 pause 镜像 ${out:0:200}"
+          exit 21
+        }
+        echo "[OK] pause image present"
+      args:
+        executable: /bin/bash
+      register: pause_check
+      changed_when: false
+      failed_when: pause_check.rc != 0
   tasks:
     - name: Wait for apiserver port 6443
       ansible.builtin.wait_for:
         host: 127.0.0.1
         port: 6443
         timeout: 180
+      register: apiserver_port_wait
+      failed_when: false
+
+    - name: Emit structured error code if apiserver port 6443 still down after timeout
+      ansible.builtin.fail:
+        msg: |
+          [ERROR-CODE] OPSFLEET_K8S_E_APISERVER_TIMEOUT 127.0.0.1:6443 在 {{ apiserver_port_wait.elapsed | default(180) }}s 内未监听。
+          常见根因（按出现概率从高到低）：
+            1) OPSFLEET_K8S_E_PAUSE_MISSING — containerd 缺 pause 镜像，CreatePodSandbox 一直 i/o timeout；
+            2) OPSFLEET_K8S_E_APISERVER_IMAGE_PULL — kube-apiserver 静态 Pod 镜像不在内网，可在 `journalctl -u kubelet` 看 "failed to pull image"；
+            3) OPSFLEET_K8S_E_APISERVER_CERT — apiserver 证书 SAN/CA 不匹配，可在容器日志 `crictl logs <id>` 看 "x509"。
+          请使用 `ai-sre analyze code OPSFLEET_K8S_E_APISERVER_TIMEOUT --detail "<paste of last kubelet log line>"` 进一步定位根因。
+      when: apiserver_port_wait.failed | default(false) or (apiserver_port_wait.state | default('') != 'started')
 
     - name: Wait for kube-apiserver livez
       ansible.builtin.uri:

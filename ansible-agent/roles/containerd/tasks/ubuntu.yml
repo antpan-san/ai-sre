@@ -28,6 +28,22 @@
     replace: "SystemdCgroup = true"
   notify: Restart containerd
 
+# 兼容 containerd v1（sandbox_image = "...")  与 v2（[...pinned_images].sandbox = '...'）两套 schema
+# 都把 pause 标签对齐成 pause_image_tag——确保 ctr import 的镜像和 CRI 实际请求的 tag 一致。
+- name: Align containerd CRI sandbox image with pause_image_tag (v1 schema)
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'sandbox_image\s*=\s*"[^"]*"'
+    replace: 'sandbox_image = "{{ pause_image_tag }}"'
+  notify: Restart containerd
+
+- name: Align containerd CRI sandbox image with pause_image_tag (v2 schema pinned_images.sandbox)
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: "sandbox\\s*=\\s*'[^']*'"
+    replace: "sandbox = '{{ pause_image_tag }}'"
+  notify: Restart containerd
+
 - name: Enable and start containerd
   ansible.builtin.systemd_service:
     name: containerd

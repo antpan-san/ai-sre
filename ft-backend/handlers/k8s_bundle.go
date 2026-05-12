@@ -478,6 +478,13 @@ fi
 mkdir -p /var/cache/opsfleet-k8s
 chmod 0755 /var/cache/opsfleet-k8s
 
+# 修复 [Errno 13] Permission denied —— unzip 默认解出 644，shell 脚本失去执行位。
+# 直接在 install.sh 入口处一次性 chmod，对 download-with-progress.sh 等 ansible 调用脚本必备。
+if [[ -d "$ROOT/ansible-agent/scripts" ]]; then
+  chmod -R a+rX "$ROOT/ansible-agent/scripts" || true
+  chmod a+x "$ROOT/ansible-agent/scripts/"*.sh 2>/dev/null || true
+fi
+
 cd "$ANSIBLE_DIR"
 
 # 内网 mirror 模式（image_source != aliyun）下，k8s_server_tarball_checksum 由 manifest.json 动态解析。
@@ -530,7 +537,15 @@ run() {
   local step="$1"
   local pb="$2"
   echo "=== ${step} ==="
-  ansible-playbook -i "$INV" "$pb" || { echo "FAILED at ${pb}"; exit 1; }
+  if ! ansible-playbook -i "$INV" "$pb"; then
+    # 把 playbook 文件名转成机器可识别的 OPSFLEET_K8S_E_PLAYBOOK_* 形式，
+    # 配合 ai-sre analyze code 立刻给到根因；同时打印一行可粘贴的诊断命令。
+    code="OPSFLEET_K8S_E_PLAYBOOK_$(basename "${pb}" .yml | tr 'a-z' 'A-Z' | tr '_' '_')"
+    echo "[ERROR-CODE] ${code} step=${step} pb=${pb}"
+    echo "FAILED at ${pb}"
+    echo "→ 立即诊断: ai-sre analyze code ${code}  (或粘贴 [ERROR-CODE] 行内具体 OPSFLEET_* 子码)"
+    exit 1
+  fi
   echo "${step}" >> "$STATE_FILE"
 }
 

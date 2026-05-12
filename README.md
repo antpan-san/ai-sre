@@ -19,6 +19,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | 命令 | 说明 |
 |------|------|
 | `ai-sre analyze [topic]` | 故障诊断，`topic`：`kafka` \| `k8s` \| `nginx` \| `redis` \| `elasticsearch`。**k8s**：本机有 `kubectl` 且可连集群时，先自动只读采集再调服务端 AI（默认两轮精炼）。`--pod` 可为 `pending`/`crashloop` 等场景名，或**具体 Pod 名**（将额外采集该 Pod 的 describe/events/logs 并优先参与结论）；可配 `--namespace` |
+| `ai-sre analyze code <CODE>` | **错误码 → 根因卡片（0.5.1 新）**：把 `OPSFLEET_K8S_E_PAUSE_MISSING` / `OPSFLEET_DL_E_NETWORK` / `OPSFLEET_K8S_E_APISERVER_TIMEOUT` 等部署/运行错误码翻译成「根因 / 立即恢复一行 / 平台改进 + 文件路径」三段式输出，**不给排查清单**；`--list` 列出全部，`--detail "<paste of last log>"` 把现场原文带给服务端 |
 | `ai-sre ask [question]` | 知识问答：默认经 OpsFleet `POST /api/ai/ask`（无需本机 api_key）；服务端失败且本机有凭据时回退本地 LLM+RAG |
 | `ai-sre runbook [scenario]` | 生成 Runbook：默认经 `POST /api/ai/runbook`；回退逻辑同 `ask` |
 | `ai-sre skills list` | 列出内置 + `--skills-dir` 合并后的技能包 |
@@ -49,6 +50,14 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 `analyze` / `ask` / `runbook`：在默认内建 OpsFleet 基址（或 `OPSFLEET_API_URL`）可用时，**优先调用控制台公开接口** `POST /ft-api/api/ai/diagnose`、`/api/ai/ask`、`/api/ai/runbook`，**不要求本机配置 DeepSeek api_key**；仅当服务端不可用且本机已配置凭据时才回退到本地 LLM。回退若出现 HTTP 500，多为控制台未配置 **`OPSFLEET_AI_API_KEY`** 或无法访问 DeepSeek；在 **`/etc/opsfleet/backend.env`**（或 systemd 环境）补齐并 **`systemctl restart opsfleet-backend`**，或在运行 `ai-sre` 的机器配置 **`~/.config/ai-sre/config.yaml`** 的 **`api_key`** 作为回退。`analyze k8s` 在能执行 `kubectl` 时会把采集结果一并 POST 给服务端；自 **0.5.0** 起，**所有 topic** 都走「证据驱动」管道——`analyze kafka/redis/mysql/nginx/elasticsearch` 在用户传入 `-d bootstrap=…`、`-d target=host:port`、`-d dsn=…`、`-d access_log=…`、`-d base_url=…` 等参数时，会**就近调用本地** `ai-sre <topic> diagnose --json` 子命令采集指标，作为 `kafka_diagnose_json` / `redis_diagnose_json` / `mysql_diagnose_json` / `nginx_diagnose_json` / `es_diagnose_json` 一并 POST 给服务端，再由服务端提示词约束为「根因 + 证据摘录 + 修复要点」，减少泛泛命令清单；`--pod` 为**具体 Pod 名**时会额外附带该 Pod 的 describe/events/logs（含 previous）并优先参与推理。
 
 **诊断结束后的反馈闭环**：TTY 下 `analyze` 答完会追加一行 `本次诊断是否帮你定位了根因？输入 y / n / 自由备注；空行跳过。`；按需写一行后将通过 `POST /api/ai/skills/feedback` 落到服务端 `feedback/<topic>.jsonl`，参与下次 `ai-sre skills refine`。非 TTY、`-o json` 或显式 `--no-feedback` 会自动跳过。
+
+**部署错误码 → 根因卡片（0.5.1 新）**：所有 K8s 部署/下载失败的 ansible / install.sh / bootstrap.sh 都会在 stderr 输出一行机器可读 `[ERROR-CODE] OPSFLEET_* …`：
+- `OPSFLEET_K8S_E_PAUSE_MISSING` — containerd 节点缺 `registry.k8s.io/pause:3.10`，静态 Pod sandbox 拉不起来 → 已通过 `ansible-agent/roles/pause_preload` 在所有节点离线 `ctr import` 修复；
+- `OPSFLEET_K8S_E_APISERVER_TIMEOUT` — `wait_apiserver.yml` 180s 没等到 6443，pre_tasks 会先 emit 上述细分子码，避免裸 timeout 让运维迷路；
+- `OPSFLEET_DL_E_NETWORK` / `OPSFLEET_DL_E_CHECKSUM` — `download-with-progress.sh` 抓 mirror 失败；
+- `OPSFLEET_K8S_E_PLAYBOOK_*` — install.sh `run` wrapper 在每个 playbook 失败时按 yml 名生成，可直接 `ai-sre analyze code <CODE>` 让服务端给根因。
+
+控制台对应的目录在 `GET /ft-api/api/ai/error-codes`，单条根因卡 `POST /ft-api/api/ai/error-codes/analyze {code,detail}`；客户端等价命令是 `ai-sre analyze code <CODE> [--detail "…"]`，输出三段式：根因 / 立即恢复一行 / 平台改进+文件路径（不给排查清单）。
 
 **下载进度条（0.5.0 新）**：客户端涉及下载二进制 / 离线包的所有路径均输出**进度条 + 已下/总量 + 速度 + ETA**：
 - Go 侧：`ai-sre upgrade`、`ai-sre k8s install`、`ai-sre k8s download-bundle` 等使用统一的 `progressReader`（TTY 下绘 `[====-----] 42.3% 120MiB/284MiB 25.3MiB/s eta 7s`，非 TTY 自动退化为每秒一行可解析的摘要）。

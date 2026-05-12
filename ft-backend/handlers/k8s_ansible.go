@@ -374,7 +374,19 @@ cni_plugins_download_url: "https://github.com/containernetworking/plugins/releas
 	}
 	vars += fmt.Sprintf("flannel_backend: %q\n", flannelBackend)
 	if p := strings.TrimSpace(req.PauseImage); p != "" {
+		// 与 ansible-agent/inventory/group_vars/all.yml 中 pause_image_tag 对齐。
+		// kubelet（sandboxImage）、containerd（sandbox_image / pinned_images.sandbox）、
+		// pause_preload role（ctr import tag 校验）共用同一个值——任意一处不一致都会让
+		// containerd 找不到本地 image 再次去外网拉 -> OPSFLEET_K8S_E_PAUSE_MISSING.
 		vars += fmt.Sprintf("pause_image: %q\n", p)
+		vars += fmt.Sprintf("pause_image_tag: %q\n", p)
+	}
+	// 阿里云模式：pause tar 仍然走内网 mirror（与 default 一致）；若内网 mirror 没有 pause tar，
+	// 控制台运维须执行 deploy/k8s-mirror/k8s-mirror-sync.sh，否则 wait_apiserver 会以
+	// 错误码 OPSFLEET_K8S_E_PAUSE_MISSING 失败。pause_image_tag 保持 registry.k8s.io/pause:3.10
+	// 是为了与上游 containerd 默认 sandbox 字段一致——ctr import 后 containerd 不会再走外网。
+	if imageSource == "aliyun" {
+		vars += "\n# Aliyun 模式 pause tar 路径仍取自内网 mirror（download_domain）；如需切公网请显式覆盖 pause_image_tar_url。\n"
 	}
 	calicoVXLAN := true
 	calicoMTU := 0

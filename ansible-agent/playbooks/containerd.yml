@@ -1,5 +1,8 @@
 ---
-# 在所有集群节点安装 containerd（CRI），供 kubelet 使用。
+# 在所有集群节点安装 containerd（CRI）+ 预导入 pause 镜像。
+# pause_preload 必须紧跟 containerd 之后、kubelet 启动之前（否则静态 Pod 模式下
+# 会因 containerd 默认 sandbox 镜像走外网而陷入 CreatePodSandbox 超时循环，
+# 对应错误码 OPSFLEET_K8S_E_PAUSE_MISSING）。
 - hosts: k8s_cluster
   become: true
   pre_tasks:
@@ -8,3 +11,4 @@
         file: "{{ inventory_dir }}/group_vars/all.yml"
   roles:
     - role: ../roles/containerd
+    - role: ../roles/pause_preload

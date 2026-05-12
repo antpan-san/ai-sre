@@ -32,6 +32,13 @@ K8S_UPSTREAM="${K8S_UPSTREAM:-https://dl.k8s.io}"
 ETCD_UPSTREAM="${ETCD_UPSTREAM:-https://github.com/etcd-io/etcd/releases/download}"
 CNI_UPSTREAM="${CNI_UPSTREAM:-https://github.com/containernetworking/plugins/releases/download}"
 
+# pause(sandbox) 镜像 —— 静态 Pod 模式必备。registry.k8s.io 在多数客户环境不可达，
+# 默认通过国内可达 mirror 拉取后以 `docker save` 的 tar 形式落到 mirror。
+PAUSE_VERSION="${PAUSE_VERSION:-3.10}"
+PAUSE_ARCHS="${PAUSE_ARCHS:-amd64 arm64}"
+PAUSE_SRC_IMAGE="${PAUSE_SRC_IMAGE:-registry.aliyuncs.com/google_containers/pause}"
+PAUSE_TARGET_TAG="${PAUSE_TARGET_TAG:-registry.k8s.io/pause:${PAUSE_VERSION}}"
+
 # 解析要同步的 K8s 版本列表
 k8s_versions=()
 if [[ -n "${KUBERNETES_VERSIONS:-}" ]]; then
@@ -109,5 +116,37 @@ for arch in $CNI_ARCHS; do
   url="${CNI_UPSTREAM}/${CNI_PLUGINS_VERSION}/${pkg}"
   dl "$url" "$dest"
 done
+
+# --- pause(sandbox) 镜像 tar（per-arch）---
+# 与 ansible-agent/roles/pause_preload/defaults/main.yml 的 pause_image_tar_remote_path 对齐：
+#   registry-images/registry.k8s.io/pause/3.10/pause-3.10-linux-<arch>.tar
+# docker 可用时通过 `docker pull --platform=linux/<arch>` + `docker save` 生成；缺 docker 时
+# 跳过并打印警告（OPSFLEET_K8S_E_PAUSE_MISSING 错误码会在 ansible 侧明确告诉运维需要补这步）。
+echo "--- pause images (sandbox) ${PAUSE_VERSION} ---"
+if command -v docker >/dev/null 2>&1; then
+  for arch in $PAUSE_ARCHS; do
+    rel="registry-images/registry.k8s.io/pause/${PAUSE_VERSION}/pause-${PAUSE_VERSION}-linux-${arch}.tar"
+    dest="${MIRROR_ROOT}/${rel}"
+    if [[ -f "$dest" ]]; then
+      echo "  exists skip: $dest"
+      continue
+    fi
+    mkdir -p "$(dirname "$dest")"
+    src="${PAUSE_SRC_IMAGE}:${PAUSE_VERSION}"
+    echo "  docker pull --platform=linux/${arch} ${src}"
+    docker rmi "${PAUSE_TARGET_TAG}" "${src}" >/dev/null 2>&1 || true
+    if ! docker pull --platform "linux/${arch}" "${src}" >/dev/null; then
+      echo "  WARN: pull ${src} 失败（arch=${arch}），mirror 缺少 pause 会触发 OPSFLEET_K8S_E_PAUSE_MISSING" >&2
+      continue
+    fi
+    docker tag "${src}" "${PAUSE_TARGET_TAG}"
+    docker save -o "$dest" "${PAUSE_TARGET_TAG}"
+    chmod a+r "$dest"
+    echo "  saved $dest ($(stat -c%s "$dest" 2>/dev/null || stat -f%z "$dest" 2>/dev/null) bytes)"
+    docker rmi "${PAUSE_TARGET_TAG}" "${src}" >/dev/null 2>&1 || true
+  done
+else
+  echo "  WARN: docker 不可用，跳过 pause 镜像同步。若客户环境无外网，必须手动放置 ${MIRROR_ROOT}/registry-images/registry.k8s.io/pause/${PAUSE_VERSION}/pause-${PAUSE_VERSION}-linux-<arch>.tar 否则 wait_apiserver 必失败 (OPSFLEET_K8S_E_PAUSE_MISSING)." >&2
+fi
 
 echo "=== sync 完成: $MIRROR_ROOT (K8s 版本数: ${#k8s_versions[@]}) ==="

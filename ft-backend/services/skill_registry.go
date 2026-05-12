@@ -235,6 +235,54 @@ func (r *SkillRegistry) LookupByName(name string) *RegisteredSkill {
 	return r.byName[name]
 }
 
+// LookupErrorCode resolves a structured deploy/runtime error code to its root-cause card,
+// searching across all registered skills (generated overrides builtin via byName).
+// Returns the matched code entry and the skill that owns it.
+func (r *SkillRegistry) LookupErrorCode(code string) (*SkillErrorCode, *RegisteredSkill) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return nil, nil
+	}
+	upper := strings.ToUpper(code)
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, rs := range r.byName {
+		for i := range rs.Pack.ErrorCodes {
+			ec := &rs.Pack.ErrorCodes[i]
+			if strings.ToUpper(strings.TrimSpace(ec.Code)) == upper {
+				return ec, rs
+			}
+		}
+	}
+	return nil, nil
+}
+
+// ListErrorCodes returns all structured error code entries across all registered skills.
+// Sorted by code; later entries with the same code (from generated) win.
+func (r *SkillRegistry) ListErrorCodes() []SkillErrorCode {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	seen := map[string]SkillErrorCode{}
+	// builtin first
+	for _, rs := range r.builtin {
+		for _, ec := range rs.Pack.ErrorCodes {
+			seen[strings.ToUpper(strings.TrimSpace(ec.Code))] = ec
+		}
+	}
+	// then generated overrides (later wins)
+	for _, rs := range r.generated {
+		for _, ec := range rs.Pack.ErrorCodes {
+			seen[strings.ToUpper(strings.TrimSpace(ec.Code))] = ec
+		}
+	}
+	out := make([]SkillErrorCode, 0, len(seen))
+	for _, v := range seen {
+		out = append(out, v)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Code < out[j].Code })
+	return out
+}
+
 // List returns sorted summaries of all registered skills.
 func (r *SkillRegistry) List() []SkillSummary {
 	r.mu.RLock()
