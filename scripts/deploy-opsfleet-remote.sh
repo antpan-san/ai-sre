@@ -117,7 +117,9 @@ fi
 # 同时写入版本号，供 GET .../cli/ai-sre/version 免 exec（可选，失败则后端仍会 probe）
 ENV_FILE=/etc/opsfleet/backend.env
 tmp_be=$(mktemp)
-grep -v '^OPSFLEET_AISRE_BINARY_PATH=' "$ENV_FILE" | grep -v '^OPSFLEET_AISRE_VERSION=' > "$tmp_be" && cat "$tmp_be" > "$ENV_FILE"
+grep -v '^OPSFLEET_AISRE_BINARY_PATH=' "$ENV_FILE" \
+  | grep -v '^OPSFLEET_AISRE_VERSION=' \
+  | grep -v '^OPSFLEET_AI_SKILL_DATA_DIR=' > "$tmp_be" && cat "$tmp_be" > "$ENV_FILE"
 rm -f "$tmp_be"
 echo "OPSFLEET_AISRE_BINARY_PATH=${R}/bin/ai-sre" >> "$ENV_FILE"
 if [[ -x "${R}/bin/ai-sre" ]]; then
@@ -127,6 +129,10 @@ if [[ -x "${R}/bin/ai-sre" ]]; then
     echo "opsfleet: OPSFLEET_AISRE_VERSION=${V}"
   fi
 fi
+SKILL_DIR=/var/lib/opsfleet/ai-skills
+install -d -m 0755 "$SKILL_DIR"/{samples,feedback,generated}
+echo "OPSFLEET_AI_SKILL_DATA_DIR=${SKILL_DIR}" >> "$ENV_FILE"
+echo "opsfleet: OPSFLEET_AI_SKILL_DATA_DIR=${SKILL_DIR}"
 chmod 600 "$ENV_FILE"
 echo "opsfleet: OPSFLEET_AISRE_BINARY_PATH=${R}/bin/ai-sre"
 

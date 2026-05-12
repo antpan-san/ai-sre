@@ -62,31 +62,69 @@ func AIDiagnose(c *gin.Context) {
 		response.BadRequest(c, "topic 不能为空")
 		return
 	}
-	answer, err := runServerDeepSeek(c.Request.Context(), buildServerDiagnosePrompt(topic, req.Context))
+	reg := services.DefaultSkillRegistry()
+	matched := reg.Match(topic, req.Context)
+
+	prompt := buildServerDiagnosePromptWithSkill(topic, req.Context, matched)
+	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
 	if err != nil {
 		logger.Error("AIDiagnose deepseek failed: %v", err)
 		response.ServerError(c, "服务端 AI 诊断失败: "+err.Error())
 		return
 	}
+
 	draft := buildSkillDraftFromContext(topic, kvForSkillDraft(req.Context))
 	if !isSkillDraftValid(draft) {
 		draft = nil
 	}
+	skillName := ""
+	skillDisplay := ""
+	skillSource := ""
+	if matched != nil {
+		skillName = matched.Pack.Name
+		skillDisplay = matched.Pack.DisplayName
+		skillSource = string(matched.Source)
+	} else {
+		skillName = skillNameForTopic(topic)
+		skillDisplay = "Auto evolved " + strings.ToUpper(topic) + " skill"
+	}
+	reqID := requestIDOrNow(req.RequestID)
 	meta := map[string]interface{}{
-		"request_id": requestIDOrNow(req.RequestID),
-		"topic":      topic,
-		"fallback":   "server_deepseek",
+		"request_id":   reqID,
+		"topic":        topic,
+		"fallback":     "server_deepseek",
+		"skill_source": skillSource,
 	}
 	if req.Context != nil {
 		if s := strings.TrimSpace(req.Context["diagnosis_style"]); s != "" {
 			meta["diagnosis_style"] = s
 		}
 	}
+
+	// Fire-and-forget sample logging for self-iteration. Never block the response.
+	go func(topic, name, requestID, answer string, ctxKV map[string]string) {
+		defer func() { _ = recover() }()
+		sample := services.DiagnoseSample{
+			Topic:       topic,
+			SkillName:   name,
+			Style:       strings.TrimSpace(ctxKV["diagnosis_style"]),
+			UserContext: stripBulkEvidenceForSample(ctxKV),
+			EvidenceKey: evidenceKeyList(ctxKV),
+			AnswerLen:   len(answer),
+			AnswerHead:  headSample(answer, 600),
+			AnswerTail:  tailSample(answer, 400),
+			RequestID:   requestID,
+		}
+		if err := services.DefaultSkillRegistry().AppendSample(sample); err != nil {
+			logger.Error("AppendSample topic=%s failed: %v", topic, err)
+		}
+	}(topic, skillName, reqID, answer, req.Context)
+
 	response.OK(c, aiDiagnoseResponse{
 		Source:       "server-ai",
 		Answer:       answer,
-		SkillName:    skillNameForTopic(topic),
-		SkillDisplay: "Auto evolved " + strings.ToUpper(topic) + " skill",
+		SkillName:    skillName,
+		SkillDisplay: skillDisplay,
 		Metadata:     meta,
 		SkillDraft:   draft,
 	})
@@ -250,26 +288,32 @@ func sortedEvidenceKeysForPrompt(evidence map[string]string) []string {
 	return out
 }
 
+// buildServerDiagnosePrompt is kept for backwards compatibility (tests use it).
 func buildServerDiagnosePrompt(topic string, kv map[string]string) string {
+	return buildServerDiagnosePromptWithSkill(topic, kv, nil)
+}
+
+func buildServerDiagnosePromptWithSkill(topic string, kv map[string]string, matched *services.RegisteredSkill) string {
 	style := ""
 	if kv != nil {
 		style = strings.TrimSpace(kv["diagnosis_style"])
 	}
 	switch style {
 	case "evidence_root_cause":
-		return buildEvidenceRootCausePrompt(topic, kv, false)
+		return buildEvidenceRootCausePromptWithSkill(topic, kv, false, matched)
 	case "evidence_root_cause_refine":
-		return buildEvidenceRootCausePrompt(topic, kv, true)
+		return buildEvidenceRootCausePromptWithSkill(topic, kv, true, matched)
 	default:
-		return buildDefaultServerDiagnosePrompt(topic, kv)
+		return buildDefaultServerDiagnosePromptWithSkill(topic, kv, matched)
 	}
 }
 
-func buildDefaultServerDiagnosePrompt(topic string, kv map[string]string) string {
+func buildDefaultServerDiagnosePromptWithSkill(topic string, kv map[string]string, matched *services.RegisteredSkill) string {
 	var b strings.Builder
 	b.WriteString("你是资深SRE，请输出可执行的中文诊断。\n")
 	b.WriteString("要求：1) 先结论 2) 最可能原因排序 3) 最快验证命令 4) 临时缓解与根治建议。\n")
 	b.WriteString("topic=" + topic + "\n")
+	writeSkillSection(&b, matched)
 	if len(kv) > 0 {
 		for _, k := range sortedStringKeys(kv) {
 			b.WriteString(fmt.Sprintf("- %s=%s\n", k, kv[k]))
@@ -278,7 +322,47 @@ func buildDefaultServerDiagnosePrompt(topic string, kv map[string]string) string
 	return b.String()
 }
 
+func writeSkillSection(b *strings.Builder, matched *services.RegisteredSkill) {
+	if matched == nil {
+		return
+	}
+	pack := matched.Pack
+	b.WriteString("\n【适用技能包】 ")
+	b.WriteString(pack.Name)
+	if pack.DisplayName != "" {
+		b.WriteString(" — ")
+		b.WriteString(pack.DisplayName)
+	}
+	b.WriteString(" (source=")
+	b.WriteString(string(matched.Source))
+	b.WriteString(")\n")
+	if len(pack.AnalysisSteps) > 0 {
+		b.WriteString("分析步骤（必须按顺序覆盖）：\n")
+		for i, s := range pack.AnalysisSteps {
+			b.WriteString(fmt.Sprintf("  %d. %s\n", i+1, s))
+		}
+	}
+	if len(pack.OutputFormat) > 0 {
+		b.WriteString("输出结构（必须使用以下小节标题作为 Markdown H2）：\n")
+		for _, s := range pack.OutputFormat {
+			b.WriteString("  - ## ")
+			b.WriteString(s)
+			b.WriteString("\n")
+		}
+	}
+	if strings.TrimSpace(pack.ExtraGuidance) != "" {
+		b.WriteString("额外约束：\n")
+		b.WriteString(pack.ExtraGuidance)
+		b.WriteString("\n")
+	}
+}
+
+// buildEvidenceRootCausePrompt is kept for backwards compatibility (tests use it).
 func buildEvidenceRootCausePrompt(topic string, kv map[string]string, refine bool) string {
+	return buildEvidenceRootCausePromptWithSkill(topic, kv, refine, nil)
+}
+
+func buildEvidenceRootCausePromptWithSkill(topic string, kv map[string]string, refine bool, matched *services.RegisteredSkill) string {
 	var b strings.Builder
 	prior := ""
 	user := map[string]string{}
@@ -322,6 +406,10 @@ func buildEvidenceRootCausePrompt(topic string, kv map[string]string, refine boo
 	b.WriteString("4) 若采集输出不足以定论，在「根因」中明确写「信息不足：缺少 xxx」，不要编造。\n")
 	if hasFocusEvidence {
 		b.WriteString("5) 若存在以 `kubectl_focus_` 开头的小节，表示用户指定了**待深挖的 Pod**；根因与证据必须**优先**结合该 Pod 的 describe、events、logs（含 previous）与相关控制器/静态清单进行归因，再结合集群全景采集。\n")
+	}
+	if matched != nil {
+		b.WriteString("\n")
+		writeSkillSection(&b, matched)
 	}
 	b.WriteString("\ntopic=" + topic + "\n\n")
 	if len(user) > 0 {
@@ -389,4 +477,55 @@ func requestIDOrNow(id string) string {
 		return id
 	}
 	return fmt.Sprintf("req-%d", time.Now().UnixNano())
+}
+
+// stripBulkEvidenceForSample keeps only small user-supplied flags out of bulk evidence.
+func stripBulkEvidenceForSample(kv map[string]string) map[string]string {
+	if kv == nil {
+		return nil
+	}
+	out := make(map[string]string, len(kv))
+	for k, v := range kv {
+		if strings.HasPrefix(k, "kubectl_") || strings.HasPrefix(k, "host_") {
+			continue
+		}
+		if k == "prior_answer_round1" {
+			continue
+		}
+		if len(v) > 256 {
+			v = v[:256] + "...(truncated)"
+		}
+		out[k] = v
+	}
+	return out
+}
+
+func evidenceKeyList(kv map[string]string) []string {
+	if kv == nil {
+		return nil
+	}
+	out := make([]string, 0, 8)
+	for k := range kv {
+		if strings.HasPrefix(k, "kubectl_") || strings.HasPrefix(k, "host_") {
+			out = append(out, k)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func headSample(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[:n]
+}
+
+func tailSample(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if len(s) <= n {
+		return s
+	}
+	return s[len(s)-n:]
 }

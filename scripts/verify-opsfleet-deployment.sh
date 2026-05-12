@@ -71,4 +71,24 @@ else
   echo "-- ai-sre 分发：未设置 OPSFLEET_AISRE_BINARY_PATH 或文件不存在（请执行 deploy-opsfleet-remote.sh 刷新 build-all + backend.env）--"
 fi
 
+echo "-- AI 技能注册表 /api/ai/skills --"
+skills_code=$(curl -sS -o /tmp/.opsfleet-skills.json -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/ai/skills" 2>/dev/null || echo "000")
+if [[ "$skills_code" == "200" ]]; then
+  skills_count=$(python3 -c "import json,sys; d=json.load(open('/tmp/.opsfleet-skills.json')); s=d.get('data') or d; print(len((s.get('skills') if isinstance(s,dict) else s) or []))" 2>/dev/null || echo "?")
+  echo "GET /ft-api/api/ai/skills HTTP 200 OK (skills=${skills_count})"
+  data_dir="${OPSFLEET_AI_SKILL_DATA_DIR:-}"
+  if [[ -n "$data_dir" ]]; then
+    if [[ -d "$data_dir" && -w "$data_dir" ]]; then
+      echo "Skill data dir ${data_dir} OK (writable)"
+    else
+      echo "WARN: OPSFLEET_AI_SKILL_DATA_DIR=$data_dir 不可写；refine/feedback 将无法持久化"
+    fi
+  else
+    echo "(OPSFLEET_AI_SKILL_DATA_DIR 未在 backend.env 配置；将退回默认尝试 /var/lib/opsfleet/ai-skills 或 ./data/ai-skills)"
+  fi
+else
+  echo "WARN: GET .../api/ai/skills 返回 HTTP $skills_code（预期 200；检查 opsfleet-backend 路由）"
+fi
+rm -f /tmp/.opsfleet-skills.json
+
 echo "=== 若浏览器仍无法打开，请检查：云安全组/防火墙是否放行 TCP ${UI_PORT}；访问 URL 是否为 http://<服务器IP>:${UI_PORT}/ ==="

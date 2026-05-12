@@ -1,0 +1,47 @@
+name: k8s_root_cause_v1
+display_name: "Kubernetes 证据驱动根因分析"
+topics:
+  - k8s
+  - kubernetes
+match_keywords:
+  - kubectl
+  - pod
+  - node
+  - namespace
+  - calico
+  - coredns
+  - scheduler
+  - kubelet
+  - apiserver
+  - cni
+  - pending
+  - crashloop
+input:
+  - pod
+  - namespace
+  - issue
+  - kubectl_focus_describe
+  - kubectl_focus_events
+  - kubectl_focus_logs_current
+  - kubectl_focus_logs_previous
+  - kubectl_nodes
+  - kubectl_pods_all
+  - kubectl_pending_json
+  - kubectl_events_recent
+analysis_steps:
+  - 识别 Pod 当前状态语义（Pending / CrashLoopBackOff / Running 但功能异常）
+  - 分析 NodeStatus 与 Conditions（Ready、MemoryPressure、PIDPressure、NetworkReady）以及 Taints / Tolerations
+  - 串联 Pod describe.Events 与 namespace events，找出最早一次 FailedScheduling / FailedMount / BackOff 等关键事件
+  - 比对当前 logs 与 previous logs，定位首个 Error / Panic / 拒绝连接，并对照证书、配置、网络可达性
+  - 评估控制面（apiserver / scheduler / controller-manager / etcd）TLS、kubeconfig、front-proxy CA 与时钟同步
+  - 若集群级故障，按「CNI 未就绪 → 节点 NotReady → DaemonSet 无法 init → 应用 Pod 不可调度」的链路逐段验证
+output_format:
+  - 根因（一句话）
+  - 关键证据（逐条用代码块或引号摘录采集原文中的关键行）
+  - 修复要点（面向组件 / 期望状态，避免给客户拷贝命令清单）
+  - 进一步排查（必要时点明仍需要在客户机器跑哪些只读命令并 set -d 回传 ai-sre）
+extra_guidance: |
+  - 优先使用 kubectl_focus_* 段；focus 缺失再用 kubectl_pending_* 与全景。
+  - 禁止在结论里引入采集输出中未出现的节点、Pod、CIDR 或错误码。
+  - 必须区分「容器历史 previous 日志中的错误」与「当前是否仍在发生」，避免把历史短暂错误误判为当前持续故障。
+  - 涉及证书/聚合 API/前置 CA（如 extension-apiserver-authentication）时，列明应核对哪些静态 Pod、ConfigMap、PKI 文件。

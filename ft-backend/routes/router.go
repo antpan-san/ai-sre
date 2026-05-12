@@ -56,6 +56,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/ai/ask", handlers.AIAsk)
 		public.POST("/ai/runbook", handlers.AIRunbook)
 		public.POST("/ai/skills/evolve", handlers.AISkillsEvolve)
+		// Self-iterating skill registry
+		public.GET("/ai/skills", handlers.AISkillsList)
+		public.POST("/ai/skills/refine", handlers.AISkillsRefine)
+		public.POST("/ai/skills/feedback", handlers.AISkillsFeedback)
 
 		// Client Agent endpoints (authenticated by client_id, not JWT)
 		public.POST("/v1/heartbeats", iotservice.HeartbeatCheck)
