@@ -777,6 +777,34 @@ const elasticsearchSections: CatalogSection[] = [
       { key: 'xpack_user', label: 'xpack 用户名（探活用）', type: 'text', default: 'elastic', visibleIf: () => isOn('xpack_security') },
       { key: 'xpack_password', label: 'xpack 密码（用于 ai-sre 健康检查）', type: 'text', default: '', visibleIf: () => isOn('xpack_security'), placeholder: '留空时探活只 -k 不带凭据' }
     ]
+  },
+  {
+    key: 'binary_install',
+    title: '二进制包安装',
+    hint: '官方 Linux tarball；解压到 prefix，ES_PATH_CONF=prefix/config，一键后 wait-ready 直至集群可用',
+    visibleIf: () => isMethod('binary'),
+    collapsible: true,
+    defaultOpen: true,
+    fields: [
+      {
+        key: 'install_prefix',
+        label: '安装目录（解压根路径）',
+        type: 'text',
+        default: '/opt/elasticsearch',
+        span: 'full',
+        tip: '与包安装隔离：使用独立目录与自管 systemd 单元，避免与 apt 包混用同一实例'
+      },
+      {
+        key: 'binary_url',
+        label: 'tarball 完整下载 URL（可选）',
+        type: 'textarea',
+        rows: 2,
+        span: 'full',
+        default: '',
+        placeholder:
+          '留空则按「版本」与本机 CPU 架构自动选择 https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-<ver>-linux-{x86_64|aarch64}.tar.gz'
+      }
+    ]
   }
 ]
 
@@ -860,7 +888,7 @@ const catalog: CatalogItem[] = [
     name: 'Elasticsearch',
     description: '分布式搜索 / 分析引擎',
     tags: ['search', 'analytics'],
-    installMethods: ['package', 'docker'],
+    installMethods: ['package', 'docker', 'binary'],
     sections: elasticsearchSections
   }
 ]
@@ -875,7 +903,7 @@ const osTypeOptions = [
 const installMethodLabels: Record<string, string> = {
   package: '系统包（apt/yum/dnf 自动适配）',
   docker: 'Docker 容器',
-  binary: '二进制 / 源码编译'
+  binary: '官方二进制包（tarball + systemd）'
 }
 
 const profileCatalog: Record<string, Array<{ label: string; value: string }>> = {
@@ -1542,14 +1570,17 @@ sudo ss -lntp | grep :${p.port || 5432} || true`
 
 const buildElasticsearch = () => {
   const p = form.params
+  const method = form.installMethod
+  const prefix = p.install_prefix || '/opt/elasticsearch'
   return `# Elasticsearch 部署较为复杂（vm.max_map_count、ulimits、heap、wait-ready），
 # 强烈推荐使用 "curl + bash（推荐）" 标签或 "ai-sre CLI" 命令，
 # 让 ai-sre 在目标机统一处理系统调优、配置、启动与健康等待。
 # 下方仅展示关键步骤摘要：
-echo "[reminder] 目标机 vm.max_map_count 建议 >= 262144；JVM heap=${p.heap_size || '1g'}"
+echo "[reminder] 安装方式=${method}；目标机 vm.max_map_count 建议 >= 262144；JVM heap=${p.heap_size || '1g'}"
 echo "[reminder] 数据目录：${p.path_data || '/var/lib/elasticsearch'}；日志目录：${p.path_logs || '/var/log/elasticsearch'}"
 echo "[reminder] HTTP 端口：${p.http_port || 9200}；Transport：${p.transport_port || 9300}"
 echo "[reminder] 集群模式：${p.discovery_type || 'single-node'}；xpack.security=${p.xpack_security ? 'true' : 'false'}"
+${method === 'binary' ? `echo "[reminder] 二进制安装目录：${prefix}；配置目录：${prefix}/config（ES_PATH_CONF）"` : ''}
 echo "[reminder] 复制使用上方 ai-sre 命令以触发完整安装流水线"`
 }
 

@@ -32,8 +32,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre nginx uninstall` | 默认仅卸载由 `ai-sre service install` 写入本机状态的 Nginx；`-f/--force` 会强制检测并清理本机 Nginx 相关进程、包、容器、配置、日志和缓存 |
 | `ai-sre service install --deploy-id <id> --token <token> --api-url <base>` | 基础服务安装执行器：从 OpsFleet 服务端拉取 Nginx / HAProxy / Redis / Kafka / MySQL / PostgreSQL / Elasticsearch 部署规格，执行安装、写配置、启动与健康检测，并回传步骤状态 |
 | `ai-sre nginx update` | 在已通过 OpsFleet 服务部署安装过 Nginx 的目标机上，拉取服务端最新 Nginx 规格，重写配置并重启生效 |
-| `ai-sre elasticsearch update` | 同上，作用于 Elasticsearch；自动复跑 system-tune（vm.max_map_count）、写 `elasticsearch.yml` + `jvm.options.d/heap.options` + systemd drop-in、轮询 `_cluster/health` |
-| `ai-sre elasticsearch uninstall` | 默认仅清理 ai-sre 写入的 ES 配置 / sysctl drop-in 并停服；`--purge-package` 同时移除 elasticsearch 包；`--purge-data` 清理 data/log；`-f/--force` 端到端清理（容器、包、配置、数据、日志、apt/yum 仓库与 GPG 密钥） |
+| `ai-sre elasticsearch update` | 同上，作用于 Elasticsearch；自动复跑 system-tune（vm.max_map_count）、写 `elasticsearch.yml` + `jvm.options.d/heap.options`（包安装时另加 systemd drop-in；**binary** 方式则配置在 `install_prefix/config` 且 `ES_PATH_CONF` 指向该目录）、轮询 `_cluster/health` |
+| `ai-sre elasticsearch uninstall` | 默认停服并移除 ai-sre 管理的 systemd/配置痕迹；`--purge-package` 在 **package** 下卸载发行版包，在 **binary** 下删除 `install_prefix` 目录；`--purge-data` 清理 data/log；`-f/--force` 端到端清理（容器、包、二进制目录、配置、数据、日志、apt/yum 仓库与 GPG 密钥） |
 | `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` / `diagnose` 等（见 `ai-sre k8s --help`） |
 | `ai-sre node tune time-sync …` | 与控制台「初始化工具 → 时间同步」等价的 CLI；本机构建 inventory + chrony / timesyncd playbook 并调用 `ansible-playbook`；缺失 ansible 时按 apt/dnf/yum 自动安装；未填 `--clients` 仅对 localhost 执行 |
 | `ai-sre node tune sys-param …` | 与「系统参数优化」等价：sysctl + br_netfilter/overlay 内核模块 + ulimit + 关闭 swap；可用 `--sysctl key=value`（多次）扩展或 `--extra-only` 只用显式提供的项 |
@@ -129,11 +129,12 @@ sudo ai-sre nginx uninstall --purge-package
 # 强制清理本机所有 Nginx 相关环境（不要求 ai-sre 安装状态）:
 sudo ai-sre nginx uninstall -f
 
-# Elasticsearch（OpsFleet 控制台「服务部署」生成 deploy_id/token 后在目标机执行）：
+# Elasticsearch（OpsFleet 控制台「服务部署」选 package / docker / binary，生成 deploy_id/token 后在目标机一键执行）：
+# binary：官方 Linux tarball 解压到 install_prefix（默认 /opt/elasticsearch），systemd 拉起，装完即可 curl 本机 http 端口。
 ./ai-sre service install --api-url http://192.168.56.11:9080/ft-api --deploy-id <id> --token <token>
 sudo ai-sre elasticsearch update
-sudo ai-sre elasticsearch uninstall                        # 仅卸载 ai-sre 配置 + 停服，保留数据
-sudo ai-sre elasticsearch uninstall --purge-package        # 一并移除 elasticsearch 包
+sudo ai-sre elasticsearch uninstall                        # 停服并清理 ai-sre 单元/配置痕迹，保留数据与安装目录
+sudo ai-sre elasticsearch uninstall --purge-package        # 另移除 apt/yum 包，或 binary 时删除 install_prefix
 sudo ai-sre elasticsearch uninstall --purge-data           # 同时清理 data/log 目录
 sudo ai-sre elasticsearch uninstall -f                     # 强制端到端清理（不要求 ai-sre 安装状态）
 ./ai-sre analyze k8s --pod pending

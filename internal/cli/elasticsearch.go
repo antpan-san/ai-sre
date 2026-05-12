@@ -17,6 +17,11 @@ import (
 //  3. JVM heap 通过 jvm.options.d/heap.options 写入，可重复幂等
 //  4. 启动慢：在 enable-start 之后插入 wait-ready 步骤，轮询 _cluster/health
 //  5. 卸载残留 data/log，提供 --purge-data；--force 端到端清理
+//
+// 安装方式：
+//   - package：apt/yum 官方仓库
+//   - docker：官方镜像 + ulimit
+//   - binary：官方 Linux tarball 解压到 install_prefix，ES_PATH_CONF=prefix/config，自管 systemd
 func elasticsearchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "elasticsearch",
@@ -51,7 +56,7 @@ func elasticsearchUninstallCmd() *cobra.Command {
 			return runElasticsearchUninstall(cmd, opts)
 		},
 	}
-	cmd.Flags().BoolVar(&opts.PurgePackage, "purge-package", false, "同时卸载 elasticsearch 包")
+	cmd.Flags().BoolVar(&opts.PurgePackage, "purge-package", false, "同时卸载 elasticsearch 包或删除二进制安装目录")
 	cmd.Flags().BoolVar(&opts.PurgeData, "purge-data", false, "同时清理数据/日志/keystore（默认保留以防误删）")
 	cmd.Flags().BoolVarP(&opts.Force, "force", "f", false, "强制清理本机所有 Elasticsearch 进程/包/容器/配置/数据，绕过 ai-sre 状态校验")
 	return cmd
@@ -93,7 +98,8 @@ func runElasticsearchUninstall(cmd *cobra.Command, opts elasticsearchUninstallOp
 	}
 	dataDir := strParam(spec, "path_data", "/var/lib/elasticsearch")
 	logDir := strParam(spec, "path_logs", "/var/log/elasticsearch")
-	script := elasticsearchUninstallScript(method, opts.PurgePackage, opts.PurgeData, dataDir, logDir)
+	installPrefix := strParam(spec, "install_prefix", "/opt/elasticsearch")
+	script := elasticsearchUninstallScript(method, opts.PurgePackage, opts.PurgeData, dataDir, logDir, installPrefix)
 	fmt.Fprintln(cmd.OutOrStdout(), "[uninstall] running: start")
 	if err := runBash(script); err != nil {
 		return fmt.Errorf("elasticsearch uninstall failed: %w", err)
@@ -129,6 +135,78 @@ func elasticsearchUpdateSteps(spec *serviceInstallSpec) []templateStep {
 	}
 }
 
+// ---------- YAML（package / docker / binary 共用） ----------
+
+func elasticsearchVersionForURL(spec *serviceInstallSpec) string {
+	v := strings.TrimSpace(spec.Version)
+	if v == "" {
+		v = strParam(spec, "version", "8.13.4")
+	}
+	if strings.EqualFold(v, "latest") {
+		return "8.13.4"
+	}
+	return v
+}
+
+func elasticsearchElasticsearchYAML(spec *serviceInstallSpec) string {
+	httpPort := intParam(spec, "http_port", 9200)
+	transportPort := intParam(spec, "transport_port", 9300)
+	clusterName := strParam(spec, "cluster_name", "opsfleet-es")
+	nodeName := strParam(spec, "node_name", "")
+	networkHost := strParam(spec, "network_host", "0.0.0.0")
+	dataDir := strParam(spec, "path_data", "/var/lib/elasticsearch")
+	logDir := strParam(spec, "path_logs", "/var/log/elasticsearch")
+	discovery := strParam(spec, "discovery_type", "single-node")
+	seedHosts := strings.TrimSpace(strParam(spec, "seed_hosts", ""))
+	initialMasters := strings.TrimSpace(strParam(spec, "initial_master_nodes", ""))
+	xpackOn := boolParam(spec, "xpack_security", false)
+	memlock := boolParam(spec, "bootstrap_memory_lock", false)
+
+	yml := []string{
+		fmt.Sprintf("cluster.name: %s", clusterName),
+		fmt.Sprintf("network.host: %s", networkHost),
+		fmt.Sprintf("http.port: %d", httpPort),
+		fmt.Sprintf("transport.port: %d", transportPort),
+		fmt.Sprintf("path.data: %s", dataDir),
+		fmt.Sprintf("path.logs: %s", logDir),
+	}
+	if nodeName != "" {
+		yml = append(yml, fmt.Sprintf("node.name: %s", nodeName))
+	}
+	if memlock {
+		yml = append(yml, "bootstrap.memory_lock: true")
+	}
+	if discovery == "single-node" {
+		yml = append(yml, "discovery.type: single-node")
+	} else {
+		if seedHosts != "" {
+			yml = append(yml, fmt.Sprintf("discovery.seed_hosts: [%s]", csvList(seedHosts)))
+		}
+		if initialMasters != "" {
+			yml = append(yml, fmt.Sprintf("cluster.initial_master_nodes: [%s]", csvList(initialMasters)))
+		}
+	}
+	if xpackOn {
+		yml = append(yml,
+			"xpack.security.enabled: true",
+			"xpack.security.http.ssl.enabled: false",
+			"xpack.security.transport.ssl.enabled: false",
+		)
+	} else {
+		yml = append(yml,
+			"xpack.security.enabled: false",
+			"xpack.security.http.ssl.enabled: false",
+			"xpack.security.transport.ssl.enabled: false",
+		)
+	}
+	return strings.Join(yml, "\n") + "\n"
+}
+
+func elasticsearchHeapOptions(spec *serviceInstallSpec) string {
+	heap := strParam(spec, "heap_size", "1g")
+	return fmt.Sprintf("-Xms%s\n-Xmx%s\n", heap, heap)
+}
+
 // ---------- 脚本生成 ----------
 
 func elasticsearchSystemTuneScript(spec *serviceInstallSpec) string {
@@ -151,6 +229,9 @@ func elasticsearchInstallScript(spec *serviceInstallSpec) string {
 	method := strParam(spec, "install_method", spec.InstallMethod)
 	if method == "docker" {
 		return `command -v docker >/dev/null 2>&1 || { echo "docker is required for elasticsearch docker install" >&2; exit 1; }`
+	}
+	if method == "binary" {
+		return elasticsearchBinaryInstallScript(spec)
 	}
 	major := elasticsearchMajor(strParam(spec, "version", "8"))
 	if major == "" {
@@ -188,63 +269,106 @@ else
 fi`, major)
 }
 
-func elasticsearchConfigScript(spec *serviceInstallSpec) string {
-	method := strParam(spec, "install_method", spec.InstallMethod)
-	httpPort := intParam(spec, "http_port", 9200)
-	transportPort := intParam(spec, "transport_port", 9300)
-	clusterName := strParam(spec, "cluster_name", "opsfleet-es")
-	nodeName := strParam(spec, "node_name", "")
-	networkHost := strParam(spec, "network_host", "0.0.0.0")
+func elasticsearchBinaryInstallScript(spec *serviceInstallSpec) string {
+	prefix := strParam(spec, "install_prefix", "/opt/elasticsearch")
+	ver := elasticsearchVersionForURL(spec)
+	customURL := strings.TrimSpace(strParam(spec, "binary_url", ""))
 	dataDir := strParam(spec, "path_data", "/var/lib/elasticsearch")
 	logDir := strParam(spec, "path_logs", "/var/log/elasticsearch")
-	heap := strParam(spec, "heap_size", "1g")
-	discovery := strParam(spec, "discovery_type", "single-node")
-	seedHosts := strings.TrimSpace(strParam(spec, "seed_hosts", ""))
-	initialMasters := strings.TrimSpace(strParam(spec, "initial_master_nodes", ""))
-	xpackOn := boolParam(spec, "xpack_security", false)
-	memlock := boolParam(spec, "bootstrap_memory_lock", false)
 
-	yml := []string{
-		fmt.Sprintf("cluster.name: %s", clusterName),
-		fmt.Sprintf("network.host: %s", networkHost),
-		fmt.Sprintf("http.port: %d", httpPort),
-		fmt.Sprintf("transport.port: %d", transportPort),
-		fmt.Sprintf("path.data: %s", dataDir),
-		fmt.Sprintf("path.logs: %s", logDir),
-	}
-	if nodeName != "" {
-		yml = append(yml, fmt.Sprintf("node.name: %s", nodeName))
-	} else {
-		yml = append(yml, `node.name: "${HOSTNAME}"`)
-	}
-	if memlock {
-		yml = append(yml, "bootstrap.memory_lock: true")
-	}
-	if discovery == "single-node" {
-		yml = append(yml, "discovery.type: single-node")
-	} else {
-		if seedHosts != "" {
-			yml = append(yml, fmt.Sprintf("discovery.seed_hosts: [%s]", csvList(seedHosts)))
-		}
-		if initialMasters != "" {
-			yml = append(yml, fmt.Sprintf("cluster.initial_master_nodes: [%s]", csvList(initialMasters)))
-		}
-	}
-	if xpackOn {
-		yml = append(yml,
-			"xpack.security.enabled: true",
-			"xpack.security.http.ssl.enabled: false",
-			"xpack.security.transport.ssl.enabled: false",
-		)
-	} else {
-		yml = append(yml,
-			"xpack.security.enabled: false",
-			"xpack.security.http.ssl.enabled: false",
-			"xpack.security.transport.ssl.enabled: false",
-		)
-	}
-	body := strings.Join(yml, "\n") + "\n"
-	heapBody := fmt.Sprintf("-Xms%s\n-Xmx%s\n", heap, heap)
+	// shell 内根据 CUSTOM_URL / 架构拼 URL；PREFIX 由 ai-sre 注入已转义路径
+	return fmt.Sprintf(`set -euo pipefail
+PREFIX=%s
+VER=%s
+CUSTOM_URL=%s
+DATA_DIR=%s
+LOG_DIR=%s
+
+if command -v apt-get >/dev/null 2>&1; then
+  DEBIAN_FRONTEND=noninteractive apt-get update -y
+  DEBIAN_FRONTEND=noninteractive apt-get install -y curl ca-certificates tar gzip
+elif command -v dnf >/dev/null 2>&1; then
+  dnf install -y curl tar gzip ca-certificates || true
+elif command -v yum >/dev/null 2>&1; then
+  yum install -y curl tar gzip ca-certificates || true
+else
+  echo "binary install requires curl+tar (apt/dnf/yum)" >&2
+  exit 1
+fi
+
+id elasticsearch >/dev/null 2>&1 || useradd --system --no-create-home --shell /bin/false -c "Elasticsearch" elasticsearch
+
+systemctl disable --now elasticsearch 2>/dev/null || true
+rm -rf "$PREFIX"
+mkdir -p "$(dirname "$PREFIX")"
+install -d -m 0755 /var/lib/ai-sre
+echo binary >/var/lib/ai-sre/elasticsearch-install-method
+
+TMP=$(mktemp -d)
+trap 'rm -rf "$TMP"' EXIT
+
+case "$(uname -m)" in
+  x86_64|amd64) TARCH=x86_64 ;;
+  aarch64|arm64) TARCH=aarch64 ;;
+  *) echo "unsupported arch: $(uname -m)" >&2; exit 1 ;;
+esac
+
+if [ -n "$CUSTOM_URL" ]; then
+  URL="$CUSTOM_URL"
+else
+  URL="https://artifacts.elastic.co/downloads/elasticsearch/elasticsearch-${VER}-linux-${TARCH}.tar.gz"
+fi
+
+echo "[install] downloading $URL"
+curl -fsSL "$URL" | tar xz -C "$TMP"
+TOP=$(find "$TMP" -mindepth 1 -maxdepth 1 -type d | head -1)
+test -n "$TOP"
+mv "$TOP" "$PREFIX"
+
+mkdir -p "$PREFIX/config/jvm.options.d"
+mkdir -p "$DATA_DIR" "$LOG_DIR"
+chown -R elasticsearch:elasticsearch "$PREFIX" "$DATA_DIR" "$LOG_DIR"
+
+cat >/etc/systemd/system/elasticsearch.service <<UNITEND
+[Unit]
+Description=Elasticsearch (ai-sre binary tarball)
+Documentation=https://www.elastic.co
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=elasticsearch
+Group=elasticsearch
+Environment=ES_PATH_CONF=${PREFIX}/config
+ExecStart=${PREFIX}/bin/elasticsearch
+Restart=on-failure
+RestartSec=10
+LimitNOFILE=65535
+LimitMEMLOCK=infinity
+LimitNPROC=4096
+TimeoutStartSec=180
+
+[Install]
+WantedBy=multi-user.target
+UNITEND
+
+systemctl daemon-reload
+echo "[install] binary elasticsearch installed under $PREFIX"`,
+		shellQuote(prefix),
+		shellQuote(ver),
+		shellQuote(customURL),
+		shellQuote(dataDir),
+		shellQuote(logDir),
+	)
+}
+
+func elasticsearchConfigScript(spec *serviceInstallSpec) string {
+	method := strParam(spec, "install_method", spec.InstallMethod)
+	body := elasticsearchElasticsearchYAML(spec)
+	heapBody := elasticsearchHeapOptions(spec)
+	dataDir := strParam(spec, "path_data", "/var/lib/elasticsearch")
+	logDir := strParam(spec, "path_logs", "/var/log/elasticsearch")
 
 	if method == "docker" {
 		return fmt.Sprintf(`mkdir -p /etc/elasticsearch/conf.d %s %s
@@ -254,6 +378,26 @@ cat >/etc/elasticsearch/jvm.options.d/heap.options 2>/dev/null <<'EOF' || true
 %sEOF
 chmod 0644 /etc/elasticsearch/elasticsearch.yml
 echo "[write-config] /etc/elasticsearch/elasticsearch.yml OK"`, dataDir, logDir, body, heapBody)
+	}
+
+	if method == "binary" {
+		prefix := strParam(spec, "install_prefix", "/opt/elasticsearch")
+		return fmt.Sprintf(`mkdir -p %s/config/jvm.options.d %s %s
+cat >%s/config/elasticsearch.yml <<'EOF'
+%sEOF
+cat >%s/config/jvm.options.d/heap.options <<'EOF'
+%sEOF
+chown -R elasticsearch:elasticsearch %s %s %s 2>/dev/null || true
+chmod 0640 %s/config/elasticsearch.yml %s/config/jvm.options.d/heap.options 2>/dev/null || true
+systemctl daemon-reload
+echo "[write-config] binary config under %s/config"`,
+			shellQuote(prefix), shellQuote(dataDir), shellQuote(logDir),
+			shellQuote(prefix), body,
+			shellQuote(prefix), heapBody,
+			shellQuote(prefix), shellQuote(dataDir), shellQuote(logDir),
+			shellQuote(prefix), shellQuote(prefix),
+			shellQuote(prefix),
+		)
 	}
 
 	dropIn := `[Service]
@@ -369,6 +513,9 @@ func elasticsearchDockerImage(spec *serviceInstallSpec) string {
 	if v == "" {
 		v = strParam(spec, "version", "8.13.4")
 	}
+	if strings.EqualFold(v, "latest") {
+		v = "8.13.4"
+	}
 	if v == "" {
 		v = "8.13.4"
 	}
@@ -378,6 +525,9 @@ func elasticsearchDockerImage(spec *serviceInstallSpec) string {
 func elasticsearchMajor(version string) string {
 	v := strings.TrimSpace(version)
 	if v == "" {
+		return "8"
+	}
+	if strings.EqualFold(v, "latest") {
 		return "8"
 	}
 	if i := strings.Index(v, "."); i > 0 {
@@ -401,12 +551,15 @@ func csvList(raw string) string {
 	return strings.Join(out, ", ")
 }
 
-func elasticsearchUninstallScript(method string, purgePackage, purgeData bool, dataDir, logDir string) string {
+func elasticsearchUninstallScript(method string, purgePackage, purgeData bool, dataDir, logDir, installPrefix string) string {
 	if dataDir == "" {
 		dataDir = "/var/lib/elasticsearch"
 	}
 	if logDir == "" {
 		logDir = "/var/log/elasticsearch"
+	}
+	if installPrefix == "" {
+		installPrefix = "/opt/elasticsearch"
 	}
 	dataPurge := ""
 	if purgeData {
@@ -420,6 +573,26 @@ fi
 rm -f /etc/elasticsearch/elasticsearch.yml /etc/elasticsearch/jvm.options.d/heap.options
 %sexit 0`, dataPurge)
 	}
+
+	if method == "binary" {
+		rmPrefix := ""
+		if purgePackage {
+			rmPrefix = fmt.Sprintf(`rm -rf %s
+`, shellQuote(installPrefix))
+		}
+		return fmt.Sprintf(`if command -v systemctl >/dev/null 2>&1; then
+  systemctl disable --now elasticsearch 2>/dev/null || true
+fi
+rm -f /etc/systemd/system/elasticsearch.service
+rm -f /var/lib/ai-sre/elasticsearch-install-method
+%s%srm -f /etc/sysctl.d/99-elasticsearch.conf
+sysctl --system >/dev/null 2>&1 || true
+if command -v systemctl >/dev/null 2>&1; then
+  systemctl daemon-reload 2>/dev/null || true
+fi
+exit 0`, rmPrefix, dataPurge)
+	}
+
 	pkgPurge := ""
 	if purgePackage {
 		pkgPurge = `if command -v apt-get >/dev/null 2>&1; then
@@ -465,12 +638,13 @@ elif command -v yum >/dev/null 2>&1; then
   yum remove -y elasticsearch 'elasticsearch-*' 2>/dev/null || true
 fi
 rm -rf /etc/elasticsearch /var/lib/elasticsearch /var/log/elasticsearch /var/cache/elasticsearch
-rm -rf /usr/share/elasticsearch
-rm -f /etc/systemd/system/elasticsearch.service.d/limits.conf
+rm -rf /usr/share/elasticsearch /opt/elasticsearch
+rm -f /etc/systemd/system/elasticsearch.service /etc/systemd/system/elasticsearch.service.d/limits.conf
 rm -f /etc/sysctl.d/99-elasticsearch.conf
 rm -f /usr/share/keyrings/elasticsearch-keyring.gpg
 rm -f /etc/apt/sources.list.d/elastic-*.list
 rm -f /etc/yum.repos.d/elasticsearch.repo
+rm -f /var/lib/ai-sre/elasticsearch-install-method
 sysctl --system >/dev/null 2>&1 || true
 if command -v systemctl >/dev/null 2>&1; then
   systemctl daemon-reload 2>/dev/null || true
