@@ -308,8 +308,9 @@ kubectl -n kube-system get svc kube-dns
 
 ## Known issues
 
-- **仅内网**：镜像选「默认」并配 `download_domain`；不要用公网专用链。  
-- **group_vars 加载**：多数 play 使用 `inventory_dir` + `include_vars` 或 inventory 与 `group_vars` 同目录；**禁止**在未合并包上依赖 ansible-agent 内置默认值。  
+- **仅内网**：镜像选「默认」并配 `download_domain`；不要用公网专用链。
+- **pause_preload**：`download-with-progress.sh` 仅存在于解压目录；多节点时必须在 **delegate localhost** 上分阶段拉取，再 **`copy` 到远端**；不得在 worker 上直接使用 `playbook_dir/../scripts` 路径（否则会 `No such file or directory`）。
+- **group_vars 加载**：多数 play 使用 `inventory_dir` + `include_vars` 或 inventory 与 `group_vars` 同目录；**禁止**在未合并包上依赖 ansible-agent 内置默认值。
 - **与人手不一的常见根因**：只跑 ansible-agent、未用 zip 内 **合并后的** `group_vars`。  
 - **kube-controller-manager**：已对 `10257/healthz` 做轮询重试。  
 - **CNI 与 `network_plugin`**：当前自动 addons 以 **Flannel + CoreDNS** 为主；非 flannel 需自行安装对应 CNI 或扩展 playbook。

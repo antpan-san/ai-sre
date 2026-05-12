@@ -5,34 +5,74 @@
 # 表现：kube-apiserver / scheduler / controller-manager 持续 CreatePodSandbox 失败、
 # 6443 永不监听、playbooks/wait_apiserver.yml 必然 timeout。
 # 错误码：OPSFLEET_K8S_E_PAUSE_MISSING（详见 docs/error-codes.yaml）。
-- name: Ensure cache dir for pause image tar
+#
+# download-with-progress.sh 只在运行 ansible-playbook 的那台主机（控制器）解压目录里，
+# playbook_dir/../scripts 在远端 worker 上不存在，不能对每个节点就地调脚本。
+# 做法：先在 controllers 上使用与 etcd/resources 一致的 local_cache_dir 路径拉 tarball，
+# 再用 copy 将已下载的文件推到仍缺镜像 tar 的节点。
+
+- name: Ensure cache dir for pause image tar on this node
   ansible.builtin.file:
     path: "{{ pause_image_tar_local | dirname }}"
     state: directory
     mode: "0755"
 
-- name: Stat existing pause image tar
+- name: Stat existing pause image tar on this node
   ansible.builtin.stat:
     path: "{{ pause_image_tar_local }}"
   register: pause_tar_stat
 
-- name: Download pause image tar via OpsFleet helper (内网 mirror，带进度条)
+- name: Ensure pause tarball cache dir exists on Ansible controller (staging)
+  ansible.builtin.file:
+    path: "{{ pause_image_tar_local | dirname }}"
+    state: directory
+    mode: "0755"
+  delegate_to: localhost
+  connection: local
+  run_once: true
+
+- name: Stat pause tarball on Ansible controller (staging path = same as pause_image_tar_local locally)
+  ansible.builtin.stat:
+    path: "{{ pause_image_tar_local }}"
+  delegate_to: localhost
+  connection: local
+  run_once: true
+  register: pause_tar_stage_stat
+
+- name: Download pause image tar on controller via OpsFleet helper into shared cache path
   ansible.builtin.command:
     cmd: >-
-      {{ opsfleet_download_helper }}
+      bash {{ playbook_dir }}/../scripts/download-with-progress.sh
       {{ pause_image_tar_url }}
       {{ pause_image_tar_local }}
       ""
       {{ pause_image_min_bytes }}
-  when: not pause_tar_stat.stat.exists or pause_tar_stat.stat.size | int < pause_image_min_bytes | int
+  delegate_to: localhost
+  connection: local
+  run_once: true
   register: pause_dl
-  changed_when: pause_dl.rc == 0
+  changed_when: "'下载完成' in (pause_dl.stderr | default(''))"
   failed_when: pause_dl.rc != 0
+  when: >-
+    (not pause_tar_stage_stat.stat.exists | default(false))
+    or ((pause_tar_stage_stat.stat.size | default(0)) | int < (pause_image_min_bytes | int))
 
-- name: Show pause download summary (stderr from helper)
+- name: Show pause staging download summary (stderr from helper)
   ansible.builtin.debug:
     msg: "{{ pause_dl.stderr_lines | default([]) }}"
+  delegate_to: localhost
+  connection: local
+  run_once: true
   when: pause_dl is defined and pause_dl.stderr_lines is defined
+
+- name: Copy pause tarball from controller staging to node when missing or undersized
+  ansible.builtin.copy:
+    src: "{{ pause_image_tar_local }}"
+    dest: "{{ pause_image_tar_local }}"
+    mode: "0644"
+  when: >-
+    (not pause_tar_stat.stat.exists | default(false))
+    or ((pause_tar_stat.stat.size | default(0)) | int < (pause_image_min_bytes | int))
 
 - name: Probe whether pause tag already present in containerd k8s.io namespace
   ansible.builtin.command: ctr -n k8s.io images ls -q
