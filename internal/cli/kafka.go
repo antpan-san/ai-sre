@@ -754,22 +754,18 @@ func formatKafkaDiagnoseText(r *kafkaDiagnoseReport) string {
 }
 
 func explainKafkaReportWithAI(ctx context.Context, report *kafkaDiagnoseReport) (string, error) {
-	eng, err := bootstrap()
-	if err != nil {
-		return "", err
-	}
 	b, _ := json.Marshal(report)
-	res, err := eng.Analyze(ctx, "kafka", map[string]string{
+	d, err := runAnalyzeWithOrchestrator(ctx, "kafka", map[string]string{
 		"issue":    "diagnose",
 		"snapshot": string(b),
-	}, !noRAG)
+	})
 	if err != nil {
 		return "", err
 	}
-	if res == nil {
+	if d == nil {
 		return "", nil
 	}
-	return res.Answer, nil
+	return d.Answer, nil
 }
 
 func shortKafkaError(scope string, err error) string {

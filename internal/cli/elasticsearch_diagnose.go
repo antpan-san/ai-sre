@@ -525,21 +525,17 @@ func formatElasticsearchDiagnoseText(r *elasticsearchDiagnoseReport) string {
 }
 
 func explainElasticsearchReportWithAI(ctx context.Context, report *elasticsearchDiagnoseReport) (string, error) {
-	eng, err := bootstrap()
-	if err != nil {
-		return "", err
-	}
 	b, _ := json.Marshal(report)
-	res, err := eng.Analyze(ctx, "elasticsearch", map[string]string{
+	d, err := runAnalyzeWithOrchestrator(ctx, "elasticsearch", map[string]string{
 		"issue":    "diagnose",
 		"snapshot": string(b),
 		"base_url": report.BaseURL,
-	}, !noRAG)
+	})
 	if err != nil {
 		return "", err
 	}
-	if res == nil {
+	if d == nil {
 		return "", nil
 	}
-	return res.Answer, nil
+	return d.Answer, nil
 }

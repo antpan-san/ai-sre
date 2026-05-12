@@ -75,6 +75,22 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 	if err != nil {
 		return nil, err
 	}
+
+	base := strings.TrimSpace(resolveOpsfleetAPIBase())
+	if base != "" {
+		resp, err := callServerDiagnose(ctx, diagnoseRequest{
+			Topic:   topic,
+			Context: kv,
+			Command: strings.Join(os.Args, " "),
+		})
+		if err == nil && resp != nil && strings.TrimSpace(resp.Answer) != "" {
+			recordDiagnoseMetric("server_hit")
+			applyDiagnoseSkillDraft(resp, ev)
+			return resp, nil
+		}
+		recordDiagnoseMetric("server_miss")
+	}
+
 	pack := skills.MatchAnalyze(topic, kv)
 	if pack != nil && isSkillCoverageSufficient(pack, kv) {
 		eng, err := bootstrap()
@@ -95,29 +111,28 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 			}
 		}
 	}
-	recordDiagnoseMetric("server_fallback")
-	resp, err := callServerDiagnose(ctx, diagnoseRequest{
-		Topic:   topic,
-		Context: kv,
-		Command: strings.Join(os.Args, " "),
-	})
-	if err != nil {
-		return nil, err
+
+	if base != "" {
+		return nil, fmt.Errorf("服务端 AI 不可用（请检查控制台 OPSFLEET_AI_API_KEY 与出网），且本机未配置有效 LLM 凭据；可选在 ~/.config/ai-sre/config.yaml 设置 api_key 作为回退")
 	}
-	if resp.SkillDraft != nil && resp.SkillDraft.Name != "" {
-		if p, e := writeGeneratedSkill(resp.SkillDraft); e == nil {
-			resp.Metadata = ensureMap(resp.Metadata)
-			resp.Metadata["generated_skill_path"] = p
-			recordDiagnoseMetric("generated_skill")
-			if err := maybeAutoPipeline(ev, p); err != nil {
-				resp.Metadata["autopipeline_error"] = err.Error()
-				recordDiagnoseMetric("autopipeline_error")
-			} else if ev.Mode == "full_pipeline" {
-				recordDiagnoseMetric("autopipeline_success")
-			}
+	return nil, fmt.Errorf("未配置 OpsFleet API 基址且本机无 LLM 凭据")
+}
+
+func applyDiagnoseSkillDraft(resp *diagnoseResponse, ev evolutionConfig) {
+	if resp == nil || resp.SkillDraft == nil || resp.SkillDraft.Name == "" {
+		return
+	}
+	if p, e := writeGeneratedSkill(resp.SkillDraft); e == nil {
+		resp.Metadata = ensureMap(resp.Metadata)
+		resp.Metadata["generated_skill_path"] = p
+		recordDiagnoseMetric("generated_skill")
+		if err := maybeAutoPipeline(ev, p); err != nil {
+			resp.Metadata["autopipeline_error"] = err.Error()
+			recordDiagnoseMetric("autopipeline_error")
+		} else if ev.Mode == "full_pipeline" {
+			recordDiagnoseMetric("autopipeline_success")
 		}
 	}
-	return resp, nil
 }
 
 func ensureMap(m map[string]interface{}) map[string]interface{} {
@@ -163,28 +178,22 @@ func callServerDiagnose(ctx context.Context, req diagnoseRequest) (*diagnoseResp
 		return nil, fmt.Errorf("call server diagnose: %w", err)
 	}
 	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
 	if resp.StatusCode >= 300 {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
-		msg := strings.TrimSpace(string(body))
-		var api struct {
-			Msg string `json:"msg"`
-		}
-		if json.Unmarshal(body, &api) == nil && strings.TrimSpace(api.Msg) != "" {
-			msg = strings.TrimSpace(api.Msg)
-		}
-		if msg == "" {
-			msg = fmt.Sprintf("empty body (HTTP %d)", resp.StatusCode)
-		}
+		msg := parseOpsfleetErrMsg(raw)
 		return nil, fmt.Errorf("server diagnose status=%d: %s", resp.StatusCode, msg)
 	}
-	var out diagnoseResponse
-	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
-		return nil, err
+	out, err := decodeDiagnoseResponseFromBody(raw)
+	if err != nil {
+		return nil, fmt.Errorf("decode diagnose response: %w", err)
 	}
 	if strings.TrimSpace(out.Answer) == "" {
 		return nil, errors.New("empty diagnose answer from server")
 	}
-	return &out, nil
+	return out, nil
 }
 
 func loadEvolutionConfig() evolutionConfig {

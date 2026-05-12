@@ -42,7 +42,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre upgrade` | 与 OpsFleet 对比版本后覆盖本机 `ai-sre` 二进制（需能访问上表基址） |
 | `ai-sre uninstall k8s` | 在控制机 `root` 下用 Ansible `pre_cleanup` 全量清集群；**优先**本机 `/var/lib/opsfleet-k8s/last-bundle`（`install.sh` 预检后同步），无则再试拉 `ofpk8s1` 或 `--workdir` / `--force`（见 `ai-sre uninstall k8s --help`） |
 
-`analyze` 新行为（自动编排）：优先本地技能诊断；若本地无凭据或覆盖不足，会自动回退到 OpsFleet 服务端 `POST /api/ai/diagnose`（由服务端 DeepSeek 执行），并可返回技能草案用于自动沉淀。**回退若出现 HTTP 500**，多为控制台未配置 **`OPSFLEET_AI_API_KEY`** 或无法访问 DeepSeek；在 **`/etc/opsfleet/backend.env`**（或 systemd 环境）补齐并 **`systemctl restart opsfleet-backend`**，或在运行 `ai-sre` 的机器配置 **`~/.config/ai-sre/config.yaml`** 的 **`api_key`** 以走本地 LLM。
+`analyze` / `ask` / `runbook`：在默认内建 OpsFleet 基址（或 `OPSFLEET_API_URL`）可用时，**优先调用控制台公开接口** `POST /ft-api/api/ai/diagnose`、`/api/ai/ask`、`/api/ai/runbook`，**不要求本机配置 DeepSeek api_key**；仅当服务端不可用且本机已配置凭据时才回退到本地 LLM。回退若出现 HTTP 500，多为控制台未配置 **`OPSFLEET_AI_API_KEY`** 或无法访问 DeepSeek；在 **`/etc/opsfleet/backend.env`**（或 systemd 环境）补齐并 **`systemctl restart opsfleet-backend`**，或在运行 `ai-sre` 的机器配置 **`~/.config/ai-sre/config.yaml`** 的 **`api_key`** 作为回退。
 
 别名：`ops-ai`（与 `ai-sre` 等价）。
 

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -195,14 +196,34 @@ func askCmd() *cobra.Command {
 		Short: "知识库问答（结合轻量 RAG）",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			eng, err := bootstrap()
-			if err != nil {
-				return err
-			}
 			q := strings.Join(args, " ")
 			t0 := time.Now()
+			var serverErr error
+			if strings.TrimSpace(resolveOpsfleetAPIBase()) != "" {
+				ans, err := callServerAsk(cmd.Context(), q, noRAG)
+				if err == nil && strings.TrimSpace(ans) != "" {
+					ms := time.Since(t0).Milliseconds()
+					p := output.BuildPayload("ask", "", q, "", nil, !noRAG, ms, serverAIResult(ans))
+					return output.Print(outputFormat, p)
+				}
+				if err != nil {
+					serverErr = err
+				} else {
+					serverErr = errors.New("服务端返回空回答")
+				}
+			}
+			eng, err := bootstrap()
+			if err != nil {
+				if serverErr != nil {
+					return fmt.Errorf("服务端 ask 失败: %v; 本机无 LLM 凭据: %w", serverErr, err)
+				}
+				return err
+			}
 			res, err := eng.Ask(context.Background(), q, !noRAG)
 			if err != nil {
+				if serverErr != nil {
+					return fmt.Errorf("服务端 ask 失败: %v; 本机 ask 失败: %w", serverErr, err)
+				}
 				return err
 			}
 			ms := time.Since(t0).Milliseconds()
@@ -218,10 +239,6 @@ func runbookCmd() *cobra.Command {
 		Short: "生成 Runbook 文档",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			eng, err := bootstrap()
-			if err != nil {
-				return err
-			}
 			scenario := strings.Join(args, " ")
 			ctx := map[string]string{}
 			if len(setKV) > 0 {
@@ -230,8 +247,32 @@ func runbookCmd() *cobra.Command {
 				}
 			}
 			t0 := time.Now()
+			var serverErr error
+			if strings.TrimSpace(resolveOpsfleetAPIBase()) != "" {
+				ans, err := callServerRunbook(cmd.Context(), scenario, ctx)
+				if err == nil && strings.TrimSpace(ans) != "" {
+					ms := time.Since(t0).Milliseconds()
+					p := output.BuildPayload("runbook", "", "", scenario, ctx, !noRAG, ms, serverAIResult(ans))
+					return output.Print(outputFormat, p)
+				}
+				if err != nil {
+					serverErr = err
+				} else {
+					serverErr = errors.New("服务端返回空回答")
+				}
+			}
+			eng, err := bootstrap()
+			if err != nil {
+				if serverErr != nil {
+					return fmt.Errorf("服务端 runbook 失败: %v; 本机无 LLM 凭据: %w", serverErr, err)
+				}
+				return err
+			}
 			res, err := eng.Runbook(context.Background(), scenario, ctx, !noRAG)
 			if err != nil {
+				if serverErr != nil {
+					return fmt.Errorf("服务端 runbook 失败: %v; 本机 runbook 失败: %w", serverErr, err)
+				}
 				return err
 			}
 			ms := time.Since(t0).Milliseconds()

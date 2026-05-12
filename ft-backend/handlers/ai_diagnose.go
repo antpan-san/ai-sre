@@ -113,6 +113,90 @@ func AISkillsEvolve(c *gin.Context) {
 	})
 }
 
+type aiAskRequest struct {
+	Question string `json:"question" binding:"required"`
+	NoRAG    bool   `json:"no_rag"`
+}
+
+type aiRunbookRequest struct {
+	Scenario string            `json:"scenario" binding:"required"`
+	Context  map[string]string `json:"context"`
+}
+
+// AIAsk runs server-side Q&A for ai-sre `ask` when the client has no local LLM key.
+func AIAsk(c *gin.Context) {
+	var req aiAskRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效参数: "+err.Error())
+		return
+	}
+	prompt := buildServerAskPrompt(req.Question, req.NoRAG)
+	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
+	if err != nil {
+		logger.Error("AIAsk deepseek failed: %v", err)
+		response.ServerError(c, "服务端 AI 失败: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{
+		"answer": answer,
+		"source": "server-ai",
+	})
+}
+
+// AIRunbook runs server-side runbook generation for ai-sre `runbook`.
+func AIRunbook(c *gin.Context) {
+	var req aiRunbookRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效参数: "+err.Error())
+		return
+	}
+	prompt := buildServerRunbookPrompt(req.Scenario, req.Context)
+	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
+	if err != nil {
+		logger.Error("AIRunbook deepseek failed: %v", err)
+		response.ServerError(c, "服务端 AI 失败: "+err.Error())
+		return
+	}
+	response.OK(c, gin.H{
+		"answer": answer,
+		"source": "server-ai",
+	})
+}
+
+func buildServerAskPrompt(question string, noRAG bool) string {
+	var b strings.Builder
+	b.WriteString("你是资深 SRE 顾问，用中文回答用户问题。\n")
+	b.WriteString("要求：结论先行；给出可执行、可验证的步骤；不要编造具体集群输出。\n")
+	if noRAG {
+		b.WriteString("（本请求关闭了知识库扩展，仅基于通用经验回答。）\n")
+	}
+	b.WriteString("\n用户问题：\n")
+	b.WriteString(strings.TrimSpace(question))
+	b.WriteString("\n")
+	return b.String()
+}
+
+func buildServerRunbookPrompt(scenario string, kv map[string]string) string {
+	var b strings.Builder
+	b.WriteString("你是资深 SRE，请用中文输出一份可执行的 Runbook（Markdown 小节结构）。\n")
+	b.WriteString("要求：现象确认 → 影响评估 → 应急止血 → 根因排查 → 根治与预防；每步附验证命令占位。\n\n")
+	b.WriteString("场景：\n")
+	b.WriteString(strings.TrimSpace(scenario))
+	b.WriteString("\n")
+	if len(kv) > 0 {
+		keys := make([]string, 0, len(kv))
+		for k := range kv {
+			keys = append(keys, k)
+		}
+		sort.Strings(keys)
+		b.WriteString("\n附加上下文：\n")
+		for _, k := range keys {
+			b.WriteString(fmt.Sprintf("- %s=%s\n", k, kv[k]))
+		}
+	}
+	return b.String()
+}
+
 func buildServerDiagnosePrompt(topic string, kv map[string]string) string {
 	var b strings.Builder
 	b.WriteString("你是资深SRE，请输出可执行的中文诊断。\n")

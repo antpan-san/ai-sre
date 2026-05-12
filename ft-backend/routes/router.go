@@ -53,6 +53,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/execution-records/report/finish", handlers.FinishExecutionRecord)
 		// AI diagnosis/evolution public endpoints for ai-sre runtime fallback
 		public.POST("/ai/diagnose", handlers.AIDiagnose)
+		public.POST("/ai/ask", handlers.AIAsk)
+		public.POST("/ai/runbook", handlers.AIRunbook)
 		public.POST("/ai/skills/evolve", handlers.AISkillsEvolve)
 
 		// Client Agent endpoints (authenticated by client_id, not JWT)
