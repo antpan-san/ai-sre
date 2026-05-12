@@ -3,6 +3,7 @@ display_name: OpsFleet 部署错误码根因库
 topics: [errorcode, deploy, install]
 match_keywords:
   - OPSFLEET_
+  - OPSFLEET_K8S_E_EXECUTOR
   - "[ERROR-CODE]"
   - "FAILED at"
   - "Timeout when waiting for"
@@ -124,3 +125,19 @@ error_codes:
     platform_followup: |
       deploy/k8s-mirror/k8s-mirror-generate-manifest.sh 已生成 sha512，OpsFort 重跑该脚本即可对齐。
     related_codes: [OPSFLEET_DL_E_NETWORK]
+
+  - code: OPSFLEET_K8S_E_EXECUTOR_KUBECTL_BIN_MISSING
+    summary: 部署机（跑 install.sh / ansible-playbook 的机器）缓存里缺 kubectl 二进制
+    root_cause: |
+      kubernetes-server tarball 未在控制机 /var/cache/opsfleet-k8s 下解压出 server/bin/kubectl，
+      或跳过了 resources / kubectl 相关步骤就执行了仅含 kubeconfig 的任务。
+      kubectl 角色最后一步需要把与集群同版本的客户端装到部署机 /usr/local/bin/kubectl。
+    typical_evidence:
+      - "[ERROR-CODE] OPSFLEET_K8S_E_EXECUTOR_KUBECTL_BIN_MISSING"
+      - "部署机缓存中缺少 .../kubernetes/server/bin/kubectl"
+    recovery_one_liner: |
+      在解压后的离线包根目录执行: sudo ansible-playbook -i inventory ansible-agent/playbooks/resources.yml ansible-agent/playbooks/kubectl.yml
+    platform_followup: |
+      ansible-agent/roles/kubectl/tasks/control_host_cli.yml 在 kubectl playbook 成功路径下
+      自动 install 同版本 kubectl；若仍失败请先跑 playbooks/resources.yml 解压 server tarball。
+    related_codes: [OPSFLEET_DL_E_CHECKSUM, OPSFLEET_DL_E_NETWORK]

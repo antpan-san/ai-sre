@@ -56,8 +56,13 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 - `OPSFLEET_K8S_E_APISERVER_TIMEOUT` — `wait_apiserver.yml` 180s 没等到 6443，pre_tasks 会先 emit 上述细分子码，避免裸 timeout 让运维迷路；
 - `OPSFLEET_DL_E_NETWORK` / `OPSFLEET_DL_E_CHECKSUM` — `download-with-progress.sh` 抓 mirror 失败；
 - `OPSFLEET_K8S_E_PLAYBOOK_*` — install.sh `run` wrapper 在每个 playbook 失败时按 yml 名生成，可直接 `ai-sre analyze code <CODE>` 让服务端给根因。
+- `OPSFLEET_K8S_E_EXECUTOR_KUBECTL_BIN_MISSING` — 部署机缓存里尚无解压出的 `server/bin/kubectl`（多半是尚未跑完 resources，或 playbook 顺序被截断）。
 
 控制台对应的目录在 `GET /ft-api/api/ai/error-codes`，单条根因卡 `POST /ft-api/api/ai/error-codes/analyze {code,detail}`；客户端等价命令是 `ai-sre analyze code <CODE> [--detail "…"]`，输出三段式：根因 / 立即恢复一行 / 平台改进+文件路径（不给排查清单）。
+
+**错误码扩展（开发门控）**：在 Cursor 中为代理准备 **`.cursor/skills/error-code-development-gate/SKILL.md`**——凡改离线安装/ansible/镜像站等易失败路径时，须同步 **emit `[ERROR-CODE]`**、`ft-backend/skills/builtin/error_codes.yaml` 根因条目与（如适用）`README`/`API`/`analyze code` 自检，保证能力覆盖面随迭代扩大。
+
+**部署机 kubectl 与 kubeconfig（0.5.2）**：执行 `sudo bash install.sh` 的那台机上，在 **`playbooks/kubectl.yml`** 成功后 **`roles/kubectl/tasks/control_host_cli.yml`** 会安装与离线包 **`kubernetes-server` 同版本的** `/usr/local/bin/kubectl`，并把第一份控制面的 admin kubeconfig 下发到 **`$HOME/.kube/config`**（通常为 root：`/root/.kube/config`）。`/etc/profile.d/opsfleet-kubectl.sh` 在未导出 `KUBECONFIG` 时优先使用该文件。**建议始终用 root 跑 install**，与 inventory 默认 `ansible_user=root` 一致；若以普通用户手工跑 `ansible-playbook`，请自行把 **`/root/.kube/config`** 拷到当前用户或使用 `sudo kubectl ... --kubeconfig /root/.kube/config`。
 
 **下载进度条（0.5.0 新）**：客户端涉及下载二进制 / 离线包的所有路径均输出**进度条 + 已下/总量 + 速度 + ETA**：
 - Go 侧：`ai-sre upgrade`、`ai-sre k8s install`、`ai-sre k8s download-bundle` 等使用统一的 `progressReader`（TTY 下绘 `[====-----] 42.3% 120MiB/284MiB 25.3MiB/s eta 7s`，非 TTY 自动退化为每秒一行可解析的摘要）。

@@ -57,7 +57,7 @@ description: >-
 当发布流程有**新步骤、新脚本、新环境变量或新故障模式**时，代理应**同时**更新：
 
 1. **本文件** — 检查清单或表格中增加一条可执行项；
-2. **对应子 skill** — 具体命令与失败处理（`ai-sre-ship`、`opsfleetpilot-ship`、`k8s-offline-deploy-test`）；
+2. **对应子 skill** — 具体命令与失败处理（`ai-sre-ship`、`opsfleetpilot-ship`、`k8s-offline-deploy-test`、`error-code-development-gate`）；
 3. **`README.md`** — 若影响用户或运维操作，必须在同一批变更中更新；
 4. **`monorepo-release.mdc`** — 仅当触发条件或顺序变化时精简同步。
 

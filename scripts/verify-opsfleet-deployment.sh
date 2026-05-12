@@ -91,4 +91,14 @@ else
 fi
 rm -f /tmp/.opsfleet-skills.json
 
+echo "-- 错误码目录 GET /ft-api/api/ai/error-codes --"
+ec_codes=$(curl -sS -o /tmp/.opsfleet-error-codes.json -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/ai/error-codes" 2>/dev/null || echo "000")
+if [[ "$ec_codes" == "200" ]]; then
+  ec_cnt=$(python3 -c "import json,sys; d=json.load(open('/tmp/.opsfleet-error-codes.json')); z=d.get('data') or d; print(z.get('count', len(z.get('codes') or [])))" 2>/dev/null || echo "?")
+  echo "GET /ft-api/api/ai/error-codes HTTP 200 OK (count=${ec_cnt})"
+else
+  echo "WARN: GET .../api/ai/error-codes 返回 HTTP $ec_codes（预期 200）"
+fi
+rm -f /tmp/.opsfleet-error-codes.json
+
 echo "=== 若浏览器仍无法打开，请检查：云安全组/防火墙是否放行 TCP ${UI_PORT}；访问 URL 是否为 http://<服务器IP>:${UI_PORT}/ ==="

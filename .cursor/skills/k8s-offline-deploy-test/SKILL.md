@@ -15,6 +15,7 @@ description: >-
 - **总入口**：**`.cursor/skills/release-deploy/SKILL.md`**。
 - **`.cursor/rules/monorepo-release.mdc`**（`alwaysApply: true`）要求：凡改动命中 **ansible-agent K8s、`k8s_bundle`、`k8s_ansible`、K8s 部署前端、`gen-k8s-bundle`** 等，在 **`git push` 之前**须完成本 Skill 中与本次变更匹配的步骤（至少 **构建 + 打 zip**；有 SSH 则完整装测）。
 - 与 **`.cursor/skills/ai-sre-ship/SKILL.md`**、**`opsfleetpilot-ship`** 叠加时，顺序见 `monorepo-release.mdc`。
+- 若在流水线中引入**新的可预见失败**，须同时对照 **`.cursor/skills/error-code-development-gate/SKILL.md`**：补 **`[ERROR-CODE]`、`error_codes.yaml` 根因卡**、`ai-sre analyze code`，避免仅写日志而无稳定码。
 
 ---
 

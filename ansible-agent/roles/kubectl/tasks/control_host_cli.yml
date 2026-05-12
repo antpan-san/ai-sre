@@ -1,0 +1,47 @@
+---
+# 在「执行 ansible-playbook / install.sh」的机器（Ansible delegate localhost）安装与离线包一致的 kubectl，
+# 并保证 KUBECONFIG 指向已为执行用户写入的 ~/.kube/config。
+# inventory 已由 OpsFleet 生成 [control] localhost ansible_connection=local；本文件由 kubectl 角色在 run_once + delegate_to 下执行，
+# 不依赖是否在 inventory 中为 control 主机单独挂 role。
+#
+# 前置：roles/kubectl/tasks/init.yml 已将 kubernetes-server tarball 解到 controller 侧的 local_cache_dir。
+
+- name: Stat kubectl binary extracted on controller-side cache (deployment host path)
+  ansible.builtin.stat:
+    path: "{{ local_cache_dir }}/kubernetes/server/bin/kubectl"
+  register: kubectl_cache_stat
+  delegate_to: localhost
+  run_once: true
+
+- name: Fail with error code when kubectl binary missing on deployment host cache
+  ansible.builtin.fail:
+    msg: |
+      [ERROR-CODE] OPSFLEET_K8S_E_EXECUTOR_KUBECTL_BIN_MISSING
+      部署机缓存中缺少 {{ local_cache_dir }}/kubernetes/server/bin/kubectl
+      （resources/kubectl 解压步骤未在该环境完成或路径不匹配）。
+      请确认已执行 Step resources 并完成 kubernetes-server 下载与解压后再跑 kubectl playbook。
+  when: not kubectl_cache_stat.stat.exists | default(false)
+
+- name: Install matching kubectl CLI on deployment / Ansible controller host
+  ansible.builtin.copy:
+    src: "{{ local_cache_dir }}/kubernetes/server/bin/kubectl"
+    dest: "/usr/local/bin/kubectl"
+    mode: '0755'
+    force: true
+  become: true
+  delegate_to: localhost
+  run_once: true
+
+- name: Verify kubectl client binary on deployment host
+  ansible.builtin.command: /usr/local/bin/kubectl version --client=true --output=yaml
+  register: kubectl_client_ver
+  changed_when: false
+  delegate_to: localhost
+  become: false
+  run_once: true
+
+- name: Show kubectl client version snippet (deployment host)
+  ansible.builtin.debug:
+    msg: "{{ kubectl_client_ver.stdout_lines | default([]) | first }}"
+  delegate_to: localhost
+  run_once: true
