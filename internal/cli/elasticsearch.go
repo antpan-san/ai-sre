@@ -25,9 +25,9 @@ import (
 func elasticsearchCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "elasticsearch",
-		Short: "Elasticsearch 维护（更新 / 卸载，由 ai-sre 服务端规格驱动）",
+		Short: "Elasticsearch 快诊、维护（diagnose / update / uninstall）",
 	}
-	cmd.AddCommand(elasticsearchUpdateCmd(), elasticsearchUninstallCmd())
+	cmd.AddCommand(elasticsearchDiagnoseCmd(), elasticsearchUpdateCmd(), elasticsearchUninstallCmd())
 	return cmd
 }
 

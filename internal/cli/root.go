@@ -103,20 +103,22 @@ func newRoot(programName string) *cobra.Command {
 示例:
   %s analyze kafka --lag 100000
   %s analyze k8s --pod pending
+  %s elasticsearch diagnose 127.0.0.1:9200
   %s ask "kafka lag 高怎么办"
   %s runbook "pod频繁重启"
   %s skills list
-  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName)
+  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName, programName)
 	} else {
 		short = "AI SRE Copilot — 故障诊断、Runbook、知识问答"
 		long = fmt.Sprintf(`CLI 工具：技能包（Skill Pack）+ Prompt + 可选轻量 RAG + DeepSeek LLM；并支持通过 OpsFleet API 拉取 K8s 离线包与安装/卸载（见 k8s 子命令）。
 示例:
   %s analyze kafka --lag 100000
   %s analyze k8s --pod pending
+  %s elasticsearch diagnose 127.0.0.1:9200
   %s ask "kafka lag 高怎么办"
   %s runbook "pod频繁重启"
   %s skills list
-  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName)
+  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName, programName)
 	}
 	root := &cobra.Command{
 		Use:          programName,
@@ -150,7 +152,7 @@ func analyzeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "analyze [topic]",
 		Short: "故障诊断（核心能力）",
-		Long: `topic 取值: kafka | k8s | nginx | redis
+		Long: `topic 取值: kafka | k8s | nginx | redis | elasticsearch
 
 k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashLoopBackOff）。
 也可用 --issue pending|crashloop。`,
@@ -182,7 +184,8 @@ k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashL
 	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
 	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
   %s analyze k8s --pod pending
-  %s -o json analyze kafka --lag 1`, progName, progName, progName)
+  %s analyze elasticsearch -d base_url=http://127.0.0.1:9200
+  %s -o json analyze kafka --lag 1`, progName, progName, progName, progName)
 	return cmd
 }
 

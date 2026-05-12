@@ -18,7 +18,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 | 命令 | 说明 |
 |------|------|
-| `ai-sre analyze [topic]` | 故障诊断，`topic`：`kafka` \| `k8s` \| `nginx` \| `redis` |
+| `ai-sre analyze [topic]` | 故障诊断，`topic`：`kafka` \| `k8s` \| `nginx` \| `redis` \| `elasticsearch` |
 | `ai-sre ask [question]` | 知识问答（可选 RAG） |
 | `ai-sre runbook [scenario]` | 生成 Runbook |
 | `ai-sre skills list` | 列出内置 + `--skills-dir` 合并后的技能包 |
@@ -27,6 +27,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre help` | 帮助 |
 | `ai-sre kafka diagnose <bootstrap-server>` | Kafka 极简快诊：优先用内置 Go 客户端直连采集（支持 `--config` 的 SASL/TLS）；失败再尝试 Kafka CLI，最后才回退 AI |
 | `ai-sre redis diagnose <host:port>` | Redis 极简快诊：只读采集 INFO，定位连接拒绝、淘汰和连接压力 |
+| `ai-sre elasticsearch diagnose <http-url-or-host:port>` | Elasticsearch 极简快诊：HTTP 只读 `_cluster/health` + `_cat/nodes`，区分单机/多节点与黄绿红风险；`--json` / `--ai` 与 `kafka diagnose` 语义一致；HTTPS 可用 `--insecure` |
 | `ai-sre mysql diagnose <dsn>` | MySQL 极简快诊：只读采集连接、慢查询、线程与只读状态 |
 | `ai-sre nginx diagnose` | Nginx 日志统计分析：状态码分布、Top 路径、P95 延迟、5xx/4xx 风险识别 |
 | `ai-sre nginx uninstall` | 默认仅卸载由 `ai-sre service install` 写入本机状态的 Nginx；`-f/--force` 会强制检测并清理本机 Nginx 相关进程、包、容器、配置、日志和缓存 |
@@ -119,6 +120,9 @@ go build -o ai-sre .
 ./ai-sre kafka diagnose 'b1:9092,b2:9092,b3:9092'
 ./ai-sre kafka diagnose 'b1:9092,b2:9092,b3:9092' --config ./client.properties
 ./ai-sre redis diagnose 10.0.0.2:6379
+./ai-sre elasticsearch diagnose 127.0.0.1:9200
+./ai-sre elasticsearch diagnose https://es:9200 --insecure --user elastic --password '***'
+./ai-sre analyze elasticsearch -d base_url=http://127.0.0.1:9200
 ./ai-sre mysql diagnose 'user:pass@tcp(10.0.0.3:3306)/mysql?timeout=5s'
 ./ai-sre nginx diagnose --access-log /var/log/nginx/access.log --tail 10000
 ./ai-sre service install --api-url http://192.168.56.11:9080/ft-api --deploy-id <id> --token <token>

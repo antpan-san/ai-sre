@@ -138,6 +138,11 @@ func (r *Registry) MatchAnalyze(topic string, ctx map[string]string) *Pack {
 			}
 		}
 	}
+	if t == "elasticsearch" {
+		if p := r.ByName("elasticsearch_health"); p != nil {
+			return p
+		}
+	}
 	return r.MatchTopic(topic)
 }
 
