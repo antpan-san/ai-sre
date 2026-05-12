@@ -40,6 +40,22 @@ func TestBuildServerDiagnosePromptEvidenceRefine(t *testing.T) {
 	}
 }
 
+func TestBuildEvidenceRootCausePromptFocusOrderingAndRule(t *testing.T) {
+	p := buildEvidenceRootCausePrompt("k8s", map[string]string{
+		"diagnosis_style":        "evidence_root_cause",
+		"kubectl_nodes":          "NODES",
+		"kubectl_focus_describe": "DESCRIBE",
+	}, false)
+	iF := strings.Index(p, "### kubectl_focus_describe")
+	iN := strings.Index(p, "### kubectl_nodes")
+	if iF < 0 || iN < 0 || iF >= iN {
+		t.Fatalf("kubectl_focus_* block must precede other evidence: focus=%d nodes=%d", iF, iN)
+	}
+	if !strings.Contains(p, "待深挖的 Pod") {
+		t.Fatalf("expected focus-pod rule in prompt")
+	}
+}
+
 func TestKvForSkillDraftStripsBulkEvidence(t *testing.T) {
 	in := map[string]string{
 		"pod":             "pending",

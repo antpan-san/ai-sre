@@ -229,6 +229,27 @@ func sortedStringKeys(m map[string]string) []string {
 	return keys
 }
 
+// sortedEvidenceKeysForPrompt lists kubectl_* / host_* keys with kubectl_focus_* first.
+func sortedEvidenceKeysForPrompt(evidence map[string]string) []string {
+	if len(evidence) == 0 {
+		return nil
+	}
+	var focus, rest []string
+	for k := range evidence {
+		if strings.HasPrefix(k, "kubectl_focus_") {
+			focus = append(focus, k)
+		} else {
+			rest = append(rest, k)
+		}
+	}
+	sort.Strings(focus)
+	sort.Strings(rest)
+	out := make([]string, 0, len(evidence))
+	out = append(out, focus...)
+	out = append(out, rest...)
+	return out
+}
+
 func buildServerDiagnosePrompt(topic string, kv map[string]string) string {
 	style := ""
 	if kv != nil {
@@ -277,6 +298,13 @@ func buildEvidenceRootCausePrompt(topic string, kv map[string]string, refine boo
 			}
 		}
 	}
+	hasFocusEvidence := false
+	for k := range evidence {
+		if strings.HasPrefix(k, "kubectl_focus_") {
+			hasFocusEvidence = true
+			break
+		}
+	}
 	b.WriteString("你是资深 Kubernetes SRE。下方「集群采集输出」来自 ai-sre 在客户环境本机自动执行的只读 kubectl 结果，是**真实集群状态**。\n\n")
 	if refine {
 		b.WriteString("【第二轮：精炼】下面给出第一轮模型回答。你必须自检：若第一轮未引用「集群采集输出」中的**原文字句**作为证据，则完全重写结论；若已充分引用，则把根因写得更具体，并删除泛泛的排查教程。\n\n")
@@ -291,8 +319,11 @@ func buildEvidenceRootCausePrompt(topic string, kv map[string]string, refine boo
 	b.WriteString("## 根因（一句话）\n")
 	b.WriteString("## 关键证据（逐条用代码块或引号摘录采集原文中的关键行）\n")
 	b.WriteString("## 修复要点（面向结果与组件，避免命令堆砌）\n")
-	b.WriteString("4) 若采集输出不足以定论，在「根因」中明确写「信息不足：缺少 xxx」，不要编造。\n\n")
-	b.WriteString("topic=" + topic + "\n\n")
+	b.WriteString("4) 若采集输出不足以定论，在「根因」中明确写「信息不足：缺少 xxx」，不要编造。\n")
+	if hasFocusEvidence {
+		b.WriteString("5) 若存在以 `kubectl_focus_` 开头的小节，表示用户指定了**待深挖的 Pod**；根因与证据必须**优先**结合该 Pod 的 describe、events、logs（含 previous）与相关控制器/静态清单进行归因，再结合集群全景采集。\n")
+	}
+	b.WriteString("\ntopic=" + topic + "\n\n")
 	if len(user) > 0 {
 		b.WriteString("用户通过 ai-sre 传入的标志上下文：\n")
 		for _, k := range sortedStringKeys(user) {
@@ -305,7 +336,7 @@ func buildEvidenceRootCausePrompt(topic string, kv map[string]string, refine boo
 		return b.String()
 	}
 	b.WriteString("## 集群采集输出（原文）\n")
-	for _, k := range sortedStringKeys(evidence) {
+	for _, k := range sortedEvidenceKeysForPrompt(evidence) {
 		b.WriteString(fmt.Sprintf("\n### %s\n```text\n%s\n```\n", k, evidence[k]))
 	}
 	return b.String()

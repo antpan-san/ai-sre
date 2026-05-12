@@ -155,10 +155,11 @@ func analyzeCmd() *cobra.Command {
 		Short: "故障诊断（核心能力）",
 		Long: `topic 取值: kafka | k8s | nginx | redis | elasticsearch
 
-k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashLoopBackOff）。
-也可用 --issue pending|crashloop。
+k8s 场景 --pod 可填：
+  · 问题类型：pending、crashloop、instability（与 --issue 一致）
+  · 具体 Pod 名称：如 kube-controller-manager-k8s-master-0（可配合 --namespace；省略时在集群内按 metadata.name 解析命名空间）
 
-当 topic 为 k8s 且本机存在可执行的 kubectl、当前上下文可连集群时，会在调用服务端诊断前自动执行只读 kubectl 采集节点、全量 Pod、Pending Pod、describe 与近期事件，并默认触发服务端两轮推理（第二轮精炼根因）；模型输出应引用采集原文，而非泛泛命令教程。`,
+当 topic 为 k8s 且本机存在可执行的 kubectl、当前上下文可连集群时，会在调用服务端诊断前自动执行只读 kubectl 采集；若指定了具体 Pod，会额外抓取该 Pod 的 describe、events、logs（含 --previous）并优先送入模型。默认仍会采集节点与 Pending 等全景，并触发两轮服务端推理。`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := buildContextMap()
@@ -186,7 +187,7 @@ k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashL
 	}
 	cmd.Flags().StringVar(&lag, "lag", "", "Kafka consumer lag 等指标")
 	cmd.Flags().StringVar(&topicFlag, "topic", "", "Kafka topic 名称")
-	cmd.Flags().StringVar(&pod, "pod", "", "K8s: pod 名或问题类型（如 pending / crashloop）")
+	cmd.Flags().StringVar(&pod, "pod", "", "K8s: 问题类型 pending/crashloop/instability，或具体 Pod 名称（可配 --namespace）")
 	cmd.Flags().StringVar(&namespace, "namespace", "", "Kubernetes namespace")
 	cmd.Flags().StringVar(&issue, "issue", "", "K8s: pending | crashloop")
 	cmd.Flags().StringVar(&code, "code", "", "HTTP 状态码，如 502")
@@ -195,8 +196,9 @@ k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashL
 	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
 	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
   %s analyze k8s --pod pending
+  %s analyze k8s --pod kube-controller-manager-k8s-master-0 -n kube-system
   %s analyze elasticsearch -d base_url=http://127.0.0.1:9200
-  %s -o json analyze kafka --lag 1`, progName, progName, progName, progName)
+  %s -o json analyze kafka --lag 1`, progName, progName, progName, progName, progName)
 	return cmd
 }
 
