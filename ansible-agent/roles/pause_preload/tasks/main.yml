@@ -22,7 +22,7 @@
     path: "{{ pause_image_tar_local }}"
   register: pause_tar_stat
 
-- name: Ensure pause tarball cache dir exists on Ansible controller (staging)
+- name: Ensure pause tarball cache directory on control host
   ansible.builtin.file:
     path: "{{ pause_image_tar_local | dirname }}"
     state: directory
@@ -31,7 +31,7 @@
   connection: local
   run_once: true
 
-- name: Stat pause tarball on Ansible controller (staging path = same as pause_image_tar_local locally)
+- name: Stat pause tarball on control host
   ansible.builtin.stat:
     path: "{{ pause_image_tar_local }}"
   delegate_to: localhost
@@ -39,7 +39,7 @@
   run_once: true
   register: pause_tar_stage_stat
 
-- name: Download pause image tar on controller via OpsFleet helper into shared cache path
+- name: Download pause image tar on control host
   ansible.builtin.command:
     cmd: >-
       bash {{ playbook_dir }}/../scripts/download-with-progress.sh
@@ -58,7 +58,7 @@
     (not pause_tar_stage_stat.stat.exists | default(false))
     or ((pause_tar_stage_stat.stat.size | default(0)) | int < (pause_image_min_bytes | int))
 
-- name: Show pause staging download summary (stderr from helper)
+- name: Show pause image download log
   ansible.builtin.debug:
     msg: "{{ pause_dl.stderr_lines | default([]) }}"
   delegate_to: localhost
@@ -66,7 +66,7 @@
   run_once: true
   when: pause_dl is defined and pause_dl.stderr_lines is defined
 
-- name: Copy pause tarball from controller staging to node when missing or undersized
+- name: Copy pause tarball to node if missing or undersized
   ansible.builtin.copy:
     src: "{{ pause_image_tar_local }}"
     dest: "{{ pause_image_tar_local }}"

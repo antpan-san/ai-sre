@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
-# OpsFleet：下载帮助脚本，供 ansible command / install.sh 等调用。
-# 进度条：仅当 stderr 为 TTY 且未设置 OPSFLEET_NO_PROGRESS=1 时使用 curl --progress-bar；否则 curl -sS。
-# Ansible 流水线由 inventory 注入 OPSFLEET_NO_PROGRESS=1（不要求进度条）；仍输出首尾时间与完成摘要到 stderr。
+# OpsFleet：下载帮助脚本（ansible / install.sh 等）。
+# stderr 为 TTY 且未设置 OPSFLEET_NO_PROGRESS=1 时 curl 可用 --progress-bar，否则 -sS；stderr 始终打开始/完成摘要。
 #
 # 用法：
 #   download-with-progress.sh <url> <dest> [<sha512_hex_or_ref>] [<min_bytes>]

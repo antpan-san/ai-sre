@@ -67,8 +67,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 **下载进度条（0.5.0 新）**：在 **TTY 交互终端** 下，客户端涉及下载二进制 / 离线包的路径可输出**进度条 + 已下/总量 + 速度 + ETA**（非 TTY 自动退化为摘要）：
 - Go 侧：`ai-sre upgrade`、`ai-sre k8s install`、`ai-sre k8s download-bundle` 等使用统一的 `progressReader`（TTY 下绘 `[====-----] 42.3% 120MiB/284MiB 25.3MiB/s eta 7s`，非 TTY 自动退化为每秒一行可解析的摘要）。
 - 服务端动态生成的 `install-ai-sre.sh`、`bootstrap.sh`：TTY 下 `curl --progress-bar` / Python 内置流式进度；非 TTY 退化为静默 + 完成后摘要。
-- **Ansible（`ansible-agent`）**：**不要求** curl 进度条；`download-with-progress.sh` 在 playbook 中通过 `OPSFLEET_NO_PROGRESS=1` 静默下载，stderr 仅保留 `[time] 开始下载 …` / `[time] 下载完成 …` 摘要，任务后 `debug` 可回显。
-- 关闭（非 Ansible 路径）：`OPSFLEET_NO_PROGRESS=1`（CI 等场景静音）。
+- `ansible-agent`：`group_vars` 为 `download-with-progress.sh` 传入 `OPSFLEET_NO_PROGRESS=1`（`curl -sS`），stderr 仍为起止时间与完成一行摘要。
+- 其它路径静音：`OPSFLEET_NO_PROGRESS=1`（如 CI）。
 
 **服务端自迭代技能注册表**：服务端为每个 topic（k8s/kafka/redis/mysql/nginx/elasticsearch）内嵌一份 YAML 技能包（`ft-backend/skills/builtin/*.yaml`）。每次 `analyze` 请求由 `services.SkillRegistry` 匹配 topic 后将 **analysis_steps / output_format / extra_guidance 注入 prompt**；诊断完成后服务端**异步追加一份脱敏样本** 到 `OPSFLEET_AI_SKILL_DATA_DIR/samples/<topic>.jsonl`，并允许 CLI 通过 `POST /api/ai/skills/feedback` 提交「这条结论是否帮到我」的反馈。任意时刻可调 `POST /api/ai/skills/refine`（CLI 入口：`ai-sre skills refine --topic <t> --hint "…"`），服务端读取最近样本 + 反馈 + 当前技能包，调用 LLM 产出新版本，校验后写入 `generated/<topic>.yaml`（原版本归档到 `generated/<topic>.history/<ts>.yaml`）。下次 `analyze` 将自动优先使用 generated 版本。运维需要时检查/回滚：在 OpsFort 上 `ls /var/lib/opsfleet/ai-skills/generated/`、把不理想的 generated yaml 删除即可回退到 builtin。环境变量：`OPSFLEET_AI_SKILL_DATA_DIR`（默认尝试 `/var/lib/opsfleet/ai-skills`，否则 `./data/ai-skills`）。
 
