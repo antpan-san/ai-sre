@@ -11,6 +11,9 @@ import (
 const EmbeddedOpsfleetAPIBase = "http://192.168.56.11:9080/ft-api"
 
 func resolveOpsfleetAPIBase() string {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("OPSFLEET_SKIP_REMOTE")), "1") {
+		return ""
+	}
 	if v := strings.TrimSpace(os.Getenv("OPSFLEET_API_URL")); v != "" {
 		return strings.TrimRight(v, "/")
 	}

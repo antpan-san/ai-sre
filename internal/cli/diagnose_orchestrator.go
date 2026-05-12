@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"os"
 	"os/exec"
@@ -84,6 +85,20 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 			Command: strings.Join(os.Args, " "),
 		})
 		if err == nil && resp != nil && strings.TrimSpace(resp.Answer) != "" {
+			if strings.EqualFold(topic, "k8s") && hasKubectlEvidence(kv) {
+				kv2 := maps.Clone(kv)
+				kv2["prior_answer_round1"] = truncateBytes(resp.Answer, 12000)
+				kv2["diagnosis_style"] = "evidence_root_cause_refine"
+				if r2, e2 := callServerDiagnose(ctx, diagnoseRequest{
+					Topic:   topic,
+					Context: kv2,
+					Command: strings.Join(os.Args, " "),
+				}); e2 == nil && r2 != nil && strings.TrimSpace(r2.Answer) != "" {
+					resp = r2
+					resp.Metadata = ensureMap(resp.Metadata)
+					resp.Metadata["k8s_server_refine_round"] = 2
+				}
+			}
 			recordDiagnoseMetric("server_hit")
 			applyDiagnoseSkillDraft(resp, ev)
 			return resp, nil
@@ -172,7 +187,7 @@ func callServerDiagnose(ctx context.Context, req diagnoseRequest) (*diagnoseResp
 		return nil, err
 	}
 	hreq.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(hreq)
 	if err != nil {
 		return nil, fmt.Errorf("call server diagnose: %w", err)

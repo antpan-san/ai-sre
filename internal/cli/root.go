@@ -156,11 +156,21 @@ func analyzeCmd() *cobra.Command {
 		Long: `topic 取值: kafka | k8s | nginx | redis | elasticsearch
 
 k8s 场景可用 --pod 区分: pending（调度/Pending）或 crashloop（CrashLoopBackOff）。
-也可用 --issue pending|crashloop。`,
+也可用 --issue pending|crashloop。
+
+当 topic 为 k8s 且本机存在可执行的 kubectl、当前上下文可连集群时，会在调用服务端诊断前自动执行只读 kubectl 采集节点、全量 Pod、Pending Pod、describe 与近期事件，并默认触发服务端两轮推理（第二轮精炼根因）；模型输出应引用采集原文，而非泛泛命令教程。`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := buildContextMap()
 			topic := args[0]
+			if strings.EqualFold(topic, "k8s") {
+				for k, v := range gatherK8sDiagnoseEvidence(cmd.Context(), ctx) {
+					ctx[k] = v
+				}
+				if hasKubectlEvidence(ctx) {
+					ctx["diagnosis_style"] = "evidence_root_cause"
+				}
+			}
 			diag, err := runAnalyzeWithOrchestrator(context.Background(), topic, ctx)
 			if err != nil {
 				return err

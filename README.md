@@ -18,7 +18,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 | 命令 | 说明 |
 |------|------|
-| `ai-sre analyze [topic]` | 故障诊断，`topic`：`kafka` \| `k8s` \| `nginx` \| `redis` \| `elasticsearch` |
+| `ai-sre analyze [topic]` | 故障诊断，`topic`：`kafka` \| `k8s` \| `nginx` \| `redis` \| `elasticsearch`。**k8s**：本机有 `kubectl` 且可连集群时，先自动只读采集节点/Pending/事件等再调服务端 AI（默认两轮精炼），结论需贴合采集原文 |
 | `ai-sre ask [question]` | 知识问答：默认经 OpsFleet `POST /api/ai/ask`（无需本机 api_key）；服务端失败且本机有凭据时回退本地 LLM+RAG |
 | `ai-sre runbook [scenario]` | 生成 Runbook：默认经 `POST /api/ai/runbook`；回退逻辑同 `ask` |
 | `ai-sre skills list` | 列出内置 + `--skills-dir` 合并后的技能包 |
@@ -42,7 +42,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre upgrade` | 与 OpsFleet 对比版本后覆盖本机 `ai-sre` 二进制（需能访问上表基址） |
 | `ai-sre uninstall k8s` | 在控制机 `root` 下用 Ansible `pre_cleanup` 全量清集群；**优先**本机 `/var/lib/opsfleet-k8s/last-bundle`（`install.sh` 预检后同步），无则再试拉 `ofpk8s1` 或 `--workdir` / `--force`（见 `ai-sre uninstall k8s --help`） |
 
-`analyze` / `ask` / `runbook`：在默认内建 OpsFleet 基址（或 `OPSFLEET_API_URL`）可用时，**优先调用控制台公开接口** `POST /ft-api/api/ai/diagnose`、`/api/ai/ask`、`/api/ai/runbook`，**不要求本机配置 DeepSeek api_key**；仅当服务端不可用且本机已配置凭据时才回退到本地 LLM。回退若出现 HTTP 500，多为控制台未配置 **`OPSFLEET_AI_API_KEY`** 或无法访问 DeepSeek；在 **`/etc/opsfleet/backend.env`**（或 systemd 环境）补齐并 **`systemctl restart opsfleet-backend`**，或在运行 `ai-sre` 的机器配置 **`~/.config/ai-sre/config.yaml`** 的 **`api_key`** 作为回退。
+`analyze` / `ask` / `runbook`：在默认内建 OpsFleet 基址（或 `OPSFLEET_API_URL`）可用时，**优先调用控制台公开接口** `POST /ft-api/api/ai/diagnose`、`/api/ai/ask`、`/api/ai/runbook`，**不要求本机配置 DeepSeek api_key**；仅当服务端不可用且本机已配置凭据时才回退到本地 LLM。回退若出现 HTTP 500，多为控制台未配置 **`OPSFLEET_AI_API_KEY`** 或无法访问 DeepSeek；在 **`/etc/opsfleet/backend.env`**（或 systemd 环境）补齐并 **`systemctl restart opsfleet-backend`**，或在运行 `ai-sre` 的机器配置 **`~/.config/ai-sre/config.yaml`** 的 **`api_key`** 作为回退。`analyze k8s` 在能执行 `kubectl` 时会把采集结果一并 POST 给服务端，并由服务端提示词约束为「根因 + 证据摘录 + 修复要点」，减少泛泛命令清单。
 
 别名：`ops-ai`（与 `ai-sre` 等价）。
 
@@ -192,6 +192,7 @@ CI 或发布前建议：`go test ./... && go vet ./...`（`scripts/remote-e2e.sh
 
 - `DEPLOY_REMOTE`：例如 `root@其它IP`
 - `DEPLOY_REMOTE_DIR`：远程目录，默认 `/root/sre`
+- `OPSFLEET_SKIP_REMOTE=1`：不把 OpsFleet 当作 API 基址（不调服务端 `analyze`/`ask`/`runbook`、也不用内建基址做自升级比对）。**仅推荐** `scripts/remote-e2e.sh` 无凭证负例或离线单测；生产环境勿随意开启。
 
 远程需已安装 Go；目标机密钥仍放在 `~/.config/ai-sre/`（root 用户即为 `/root/.config/ai-sre/`）。
 

@@ -13,7 +13,7 @@ echo "==> version / doctor / skills"
 echo "==> negative: no creds"
 t="$(mktemp -d)"
 set +o pipefail
-HOME="$t" ./ai-sre ask x 2>&1 | grep -q "credentials not found" || { rm -rf "$t"; echo FAIL; exit 1; }
+HOME="$t" OPSFLEET_SKIP_REMOTE=1 ./ai-sre ask x 2>&1 | grep -q "credentials not found" || { rm -rf "$t"; echo FAIL; exit 1; }
 set -o pipefail
 rm -rf "$t"
 echo OK
