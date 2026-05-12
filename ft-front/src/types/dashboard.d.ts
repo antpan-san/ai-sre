@@ -2,56 +2,112 @@
 
 // 资源使用情况统计
 export interface ResourceUsage {
-  cpu: number; // CPU使用率百分比
-  memory: number; // 内存使用率百分比
-  disk: number; // 磁盘使用率百分比
+  cpu: number
+  memory: number
+  disk: number
   network: {
-    in: number; // 网络入流量 (MB)
-    out: number; // 网络出流量 (MB)
-  };
+    in: number
+    out: number
+  }
 }
 
-// Kubernetes 资源概览
+// 兼容字段：原为「集群内」计数；现映射为控制台内可查询的台账数据。
 export interface KubernetesOverview {
-  nodes: number; // 节点数量
-  pods: number; // Pod总数
-  runningPods: number; // 运行中的Pod数量
-  services: number; // 服务数量
-  deployments: number; // 部署数量
-  replicasets: number; // ReplicaSet数量
+  nodes: number
+  pods: number
+  runningPods: number
+  services: number
+  deployments: number
+  replicasets: number
 }
 
-// 服务状态统计
+// 服务状态统计（Linux / Docker 等业务服务）
 export interface ServiceStatusStats {
-  running: number; // 运行中服务数量
-  stopped: number; // 已停止服务数量
-  error: number; // 错误服务数量
-  total: number; // 总服务数量
+  running: number
+  stopped: number
+  error: number
+  total: number
 }
 
-// 最近部署的服务
+// 最近部署的服务（台账）
 export interface RecentDeployment {
-  id: string;
-  name: string;
-  image: string;
-  replicas: number;
-  status: 'running' | 'stopped' | 'error';
-  createTime: string;
-  updateTime: string;
+  id: string
+  name: string
+  image: string
+  replicas: number
+  status: 'running' | 'stopped' | 'error' | 'deploying' | string
+  createTime: string
+  updateTime: string
+}
+
+export interface PlatformSummary {
+  machines: {
+    total: number
+    online: number
+    offline: number
+    masters: number
+    workers: number
+  }
+  k8sClusters: {
+    total: number
+    running: number
+    pending: number
+    failed: number
+  }
+  tasksActive: number
+  executionsLast24h: number
+  usersTotal: number
+  operationLogsTotal: number
+}
+
+export interface RecentK8sClusterRow {
+  id: string
+  clusterName: string
+  status: string
+  version?: string
+  masterNode?: string
+  updatedAt: string
+}
+
+export interface RecentServiceInstallRow {
+  id: string
+  service: string
+  profile?: string
+  status: string
+  currentStep?: string
+  installMethod?: string
+  updatedAt: string
+}
+
+export interface RecentExecutionRow {
+  id: string
+  name: string
+  status: string
+  category?: string
+  source?: string
+  targetHost?: string
+  resourceName?: string
+  finishedAt?: string
+  durationMs?: number
 }
 
 // 仪表盘数据
 export interface DashboardData {
-  resourceUsage: ResourceUsage;
-  kubernetesOverview: KubernetesOverview;
-  serviceStatusStats: ServiceStatusStats;
-  recentDeployments: RecentDeployment[];
-  activeAlerts?: number; // 活跃告警数量
+  resourceUsage: ResourceUsage
+  kubernetesOverview: KubernetesOverview
+  serviceStatusStats: ServiceStatusStats
+  recentDeployments: RecentDeployment[]
+  /** 租户内汇总快照 */
+  platformSummary?: PlatformSummary
+  recentK8sClusters?: RecentK8sClusterRow[]
+  recentServiceInstalls?: RecentServiceInstallRow[]
+  recentExecutions?: RecentExecutionRow[]
+  activeAlerts?: number
 }
 
-// 获取仪表盘数据响应
+/** 网关包装；axios 拦截器通常只返回内层 data（见 dashboard store）。 */
 export interface GetDashboardDataResponse {
-  code: number;
-  data: DashboardData;
-  msg: string;
+  code: number
+  data: DashboardData
+  msg: string
 }
