@@ -65,7 +65,12 @@ dl() {
     return 0
   fi
   echo "  GET $url -> $dest"
-  curl -fsSL --connect-timeout 30 --retry 3 -o "$dest" "$url"
+  # TTY 下用 --progress-bar 让用户看到下载进度；非 TTY 退化为 -sS（CI/日志友好）。
+  if [ -t 2 ] && [ "${OPSFLEET_NO_PROGRESS:-}" != "1" ]; then
+    curl --fail --location --connect-timeout 30 --retry 3 --progress-bar -o "$dest" "$url"
+  else
+    curl --fail --location --connect-timeout 30 --retry 3 -sS -o "$dest" "$url"
+  fi
 }
 
 # --- Kubernetes server tarballs（每个 listed 版本 × arch）---
@@ -80,7 +85,7 @@ for KUBERNETES_VERSION in "${k8s_versions[@]}"; do
     url="${K8S_UPSTREAM}/${KUBERNETES_VERSION}/${pkg}"
     dl "$url" "$dest"
     if ! [[ -f "${dest}.sha512" ]]; then
-      curl -fsSL --connect-timeout 30 --retry 3 -o "${dest}.sha512" "${url}.sha512" || true
+      curl --fail --location --connect-timeout 30 --retry 3 -sS -o "${dest}.sha512" "${url}.sha512" || true
     fi
   done
 done

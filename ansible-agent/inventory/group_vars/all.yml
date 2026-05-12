@@ -8,6 +8,10 @@ download_protocol: "http://"
 download_domain: "192.168.56.11"
 # 持久缓存：跨多次 install.sh / 测试复用已下载 tarball（get_url 与 checksum 一致则跳过）
 local_cache_dir: "/var/cache/opsfleet-k8s"
+# 大体积制品（kubernetes-server / etcd 等）使用 download-with-progress.sh 包装 curl，
+# 让 ansible 任务结束时打印 [time] 开始 / [time] 完成 (N bytes, T s, avg X/s) 摘要。
+# 已存在且 sha512 匹配则跳过。TTY 下还会显示 curl --progress-bar。
+opsfleet_download_helper: "{{ playbook_dir }}/../scripts/download-with-progress.sh"
 remote_dest: "/usr/local"
 k8s_base_dir: "/etc/kubernetes"
 

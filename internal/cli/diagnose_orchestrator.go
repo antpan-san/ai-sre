@@ -36,6 +36,19 @@ type diagnoseResponse struct {
 	SkillDraft   *skill.Pack            `json:"skill_draft,omitempty"`
 }
 
+// RequestID extracts the request_id surfaced in metadata, used for feedback correlation.
+func (d *diagnoseResponse) RequestID() string {
+	if d == nil || d.Metadata == nil {
+		return ""
+	}
+	if v, ok := d.Metadata["request_id"]; ok {
+		if s, ok := v.(string); ok {
+			return s
+		}
+	}
+	return ""
+}
+
 type evolutionConfig struct {
 	Mode            string `yaml:"mode"`
 	TargetBranch    string `yaml:"target_branch"`

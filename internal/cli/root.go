@@ -37,6 +37,7 @@ var (
 	upstream          string
 	latency           string
 	setKV             map[string]string
+	noFeedback        bool
 )
 
 // Execute runs the Cobra root (entry from main) as ai-sre.
@@ -164,13 +165,11 @@ k8s 场景 --pod 可填：
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := buildContextMap()
 			topic := args[0]
-			if strings.EqualFold(topic, "k8s") {
-				for k, v := range gatherK8sDiagnoseEvidence(cmd.Context(), ctx) {
-					ctx[k] = v
-				}
-				if hasKubectlEvidence(ctx) {
-					ctx["diagnosis_style"] = "evidence_root_cause"
-				}
+			for k, v := range gatherTopicEvidence(cmd.Context(), topic, ctx) {
+				ctx[k] = v
+			}
+			if hasTopicEvidence(ctx) {
+				ctx["diagnosis_style"] = "evidence_root_cause"
 			}
 			diag, err := runAnalyzeWithOrchestrator(context.Background(), topic, ctx)
 			if err != nil {
@@ -182,7 +181,14 @@ k8s 场景 --pod 可填：
 				SkillDisplay: diag.SkillDisplay,
 			}
 			p := output.BuildPayload("analyze", topic, "", "", ctx, !noRAG, 0, res)
-			return output.Print(outputFormat, p)
+			if err := output.Print(outputFormat, p); err != nil {
+				return err
+			}
+			// Optional in-flow feedback: prompts the user "本次结果是否帮你定位了根因 (y/N/note)?"
+			// Skipped automatically when stdin/stderr isn't a TTY, when --no-feedback is set,
+			// when -o json is requested, or when running with verbose noise.
+			maybePromptFeedback(cmd.Context(), topic, diag)
+			return nil
 		},
 	}
 	cmd.Flags().StringVar(&lag, "lag", "", "Kafka consumer lag 等指标")
@@ -194,6 +200,7 @@ k8s 场景 --pod 可填：
 	cmd.Flags().StringVar(&upstream, "upstream", "", "Nginx upstream 名称或服务名")
 	cmd.Flags().StringVar(&latency, "latency", "", "延迟描述，如 50ms、p99=20ms")
 	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
+	cmd.Flags().BoolVar(&noFeedback, "no-feedback", false, "禁用诊断后的「是否帮到我」反馈提示（非 TTY、-o json 也会自动跳过）")
 	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
   %s analyze k8s --pod pending
   %s analyze k8s --pod kube-controller-manager-k8s-master-0 -n kube-system

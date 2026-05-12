@@ -397,10 +397,13 @@ func downloadInviteZipFile(apiBase, inviteID, token, destPath string) error {
 	if err != nil {
 		return err
 	}
-	if _, err := io.Copy(out, resp.Body); err != nil {
+	pr := newProgressReader(resp.Body, resp.ContentLength, fmt.Sprintf("下载 K8s 离线包 (id=%s)", inviteID))
+	if _, err := io.Copy(out, pr); err != nil {
+		_ = pr.Close()
 		out.Close()
 		return err
 	}
+	_ = pr.Close()
 	return out.Close()
 }
 
@@ -809,9 +812,12 @@ func downloadK8sBundle(base, token string, jsonBody []byte, outPath string) erro
 		return err
 	}
 	defer out.Close()
-	if _, err := io.Copy(out, resp.Body); err != nil {
+	pr := newProgressReader(resp.Body, resp.ContentLength, "下载 K8s 离线包（控制台 API）")
+	if _, err := io.Copy(out, pr); err != nil {
+		_ = pr.Close()
 		return err
 	}
+	_ = pr.Close()
 	return nil
 }
 

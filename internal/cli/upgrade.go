@@ -375,10 +375,13 @@ func downloadAndReplaceAIsre(ctx context.Context, apiBase, arch string) error {
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
-	if _, err := io.Copy(tmp, resp.Body); err != nil {
+	pr := newProgressReader(resp.Body, resp.ContentLength, fmt.Sprintf("下载 ai-sre 二进制 (arch=%s)", arch))
+	if _, err := io.Copy(tmp, pr); err != nil {
+		_ = pr.Close()
 		tmp.Close()
 		return err
 	}
+	_ = pr.Close()
 	if err := tmp.Close(); err != nil {
 		return err
 	}

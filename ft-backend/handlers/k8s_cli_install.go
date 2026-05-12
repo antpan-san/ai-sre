@@ -60,10 +60,17 @@ else
 fi
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
-if ! curl -fsSL "$API_BASE/api/k8s/deploy/cli/ai-sre?arch=$UARCH" -o "$TMP"; then
-  echo "下载 ai-sre 失败。请在 OpsFleet 服务器 ft-backend/conf/config.yaml 中配置 opsfleet.ai_sre_binary_path（指向已构建的 Linux 可执行文件）。" >&2
-  exit 1
+# 显示下载进度：TTY 下 --progress-bar 输出可视化进度条到 stderr；非 TTY（如管道至文件）退化为 -sS
+DL_URL="$API_BASE/api/k8s/deploy/cli/ai-sre?arch=$UARCH"
+DL_OPTS=("--fail" "--location" "--retry" "3" "--retry-delay" "2" "--connect-timeout" "10")
+if [ -t 2 ] && [ "${OPSFLEET_NO_PROGRESS:-}" != "1" ]; then
+  echo "下载地址: $DL_URL" >&2
+  curl "${DL_OPTS[@]}" --progress-bar -o "$TMP" "$DL_URL" || { echo "下载 ai-sre 失败。请在 OpsFleet 服务器 ft-backend/conf/config.yaml 中配置 opsfleet.ai_sre_binary_path（指向已构建的 Linux 可执行文件）。" >&2; exit 1; }
+else
+  curl "${DL_OPTS[@]}" -sS -o "$TMP" "$DL_URL" || { echo "下载 ai-sre 失败。请在 OpsFleet 服务器 ft-backend/conf/config.yaml 中配置 opsfleet.ai_sre_binary_path（指向已构建的 Linux 可执行文件）。" >&2; exit 1; }
 fi
+SIZE_BYTES=$(stat -c %%s "$TMP" 2>/dev/null || stat -f %%z "$TMP" 2>/dev/null || echo "?")
+echo "已下载: ${SIZE_BYTES} bytes" >&2
 install -m 0755 "$TMP" /usr/local/bin/ai-sre
 if [ -n "${SUDO_USER:-}" ]; then
   UHOME=$(eval echo "~$SUDO_USER")

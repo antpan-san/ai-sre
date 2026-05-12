@@ -22,15 +22,27 @@
   delegate_to: localhost
   run_once: true
 
-- name: Download Official kubernetes binnary zip
-  ansible.builtin.get_url:
-    url: "{{ k8s_server_tarball_url }}"
-    dest: "{{ k8s_package_tar }}"
-    mode: '0644'
-    checksum: "{{ k8s_server_tarball_checksum }}"
-    timeout: 3600
+- name: Show kubernetes server tarball URL (大体积下载，进度由 download-with-progress.sh 输出)
+  ansible.builtin.debug:
+    msg: "Downloading kubernetes server tarball: {{ k8s_server_tarball_url }} -> {{ k8s_package_tar }} (cache skip if sha512 matches)"
   delegate_to: localhost
   run_once: true
+
+- name: Download kubernetes server tarball via helper (curl --progress-bar; sha512 verified)
+  ansible.builtin.command:
+    cmd: "bash {{ opsfleet_download_helper }} {{ k8s_server_tarball_url }} {{ k8s_package_tar }} {{ k8s_checksum }}"
+  register: k8s_dl
+  changed_when: "'下载完成' in (k8s_dl.stderr | default(''))"
+  failed_when: k8s_dl.rc not in [0]
+  delegate_to: localhost
+  run_once: true
+
+- name: Show kubernetes tarball download summary
+  ansible.builtin.debug:
+    msg: "{{ k8s_dl.stderr_lines | default([]) }}"
+  delegate_to: localhost
+  run_once: true
+  when: k8s_dl.stderr_lines is defined and (k8s_dl.stderr_lines | length) > 0
 
 
 - name: Extract tarball on control node

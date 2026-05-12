@@ -39,6 +39,95 @@ def die(msg):
     sys.exit(1)
 
 
+def human_bytes(n):
+    if n is None or n < 0:
+        return "?"
+    units = ["B", "KiB", "MiB", "GiB", "TiB"]
+    f = float(n)
+    for u in units:
+        if f < 1024.0:
+            return ("%d%s" % (int(f), u)) if u == "B" else ("%.1f%s" % (f, u))
+        f /= 1024.0
+    return "%.1f%s" % (f, "PiB")
+
+
+def stream_download(req, dest_path, label="下载", chunk=64 * 1024, interval=0.2):
+    """Stream an HTTP request to disk with a TTY-aware progress bar to stderr.
+
+    Mirrors the Go-side progressReader semantics so users see consistent UX
+    whether bootstrap is invoked via curl|bash or via `ai-sre k8s install`.
+    """
+    import time
+
+    tty = sys.stderr.isatty() and os.environ.get("OPSFLEET_NO_PROGRESS") != "1"
+    print("%s ..." % label, file=sys.stderr)
+    with urllib.request.urlopen(req, timeout=1800) as resp:
+        if resp.status != 200:
+            die("下载离线包失败: HTTP %s" % resp.status)
+        total = None
+        try:
+            total = int(resp.headers.get("Content-Length", "0")) or None
+        except Exception:
+            total = None
+        start = time.time()
+        last = 0.0
+        done = 0
+        with open(dest_path, "wb") as f:
+            while True:
+                buf = resp.read(chunk)
+                if not buf:
+                    break
+                f.write(buf)
+                done += len(buf)
+                now = time.time()
+                if (now - last) >= interval or not buf:
+                    last = now
+                    elapsed = max(now - start, 1e-3)
+                    speed = done / elapsed
+                    if total:
+                        pct = 100.0 * done / total
+                        if speed > 0 and done < total:
+                            eta = (total - done) / speed
+                            eta_str = " eta %ds" % int(eta)
+                        else:
+                            eta_str = ""
+                    else:
+                        pct = None
+                        eta_str = ""
+                    bar_w = 24
+                    if total:
+                        fill = int(bar_w * done / total)
+                        bar = "[" + "=" * fill + "-" * (bar_w - fill) + "]"
+                    else:
+                        bar = "[" + "." * bar_w + "]"
+                    pct_str = ("%5.1f%%" % pct) if pct is not None else "  ?  "
+                    line = "  %s %s %s/%s %s/s%s" % (
+                        bar,
+                        pct_str,
+                        human_bytes(done),
+                        human_bytes(total),
+                        human_bytes(int(speed)),
+                        eta_str,
+                    )
+                    if tty:
+                        sys.stderr.write("\r" + line)
+                        sys.stderr.flush()
+                    else:
+                        sys.stderr.write(line + "\n")
+        if tty:
+            sys.stderr.write("\n")
+            sys.stderr.flush()
+        print(
+            "下载完成: %s (%s, 平均 %s/s)"
+            % (
+                dest_path,
+                human_bytes(done),
+                human_bytes(int(done / max(time.time() - start, 1e-3))),
+            ),
+            file=sys.stderr,
+        )
+
+
 def report(api_base, invite_id, token, path, payload):
     try:
         payload = dict(payload)
@@ -103,18 +192,12 @@ def main():
 
     tdir = tempfile.mkdtemp(prefix="opsfleet-k8s-bootstrap-")
     try:
+        zip_path = os.path.join(tdir, "bundle.zip")
         try:
-            with urllib.request.urlopen(req, timeout=900) as resp:
-                if resp.status != 200:
-                    die("下载离线包失败: HTTP %s" % resp.status)
-                body = resp.read()
+            stream_download(req, zip_path, label="下载 K8s 离线包")
         except urllib.error.HTTPError as e:
             err = e.read().decode("utf-8", "replace")[:2048]
             die("下载离线包失败: HTTP %s %s" % (e.code, err))
-
-        zip_path = os.path.join(tdir, "bundle.zip")
-        with open(zip_path, "wb") as f:
-            f.write(body)
 
         import zipfile
 
