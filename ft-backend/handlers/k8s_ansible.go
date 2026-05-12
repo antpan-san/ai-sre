@@ -475,47 +475,51 @@ kubectl get pods -A || true
 
 func k8sDeployScriptMiddleBinary() string {
 	return `
-echo "=== Step 1/11: System Initialization ==="
+echo "=== Step 1/12: System Initialization ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/0-init.yml || { echo "FAILED: init"; exit 1; }
 echo "init" >> "$STATE_FILE"
 
-echo "=== Step 2/11: Download Resources ==="
+echo "=== Step 2/12: Download Resources ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/resources.yml || { echo "FAILED: resources"; exit 1; }
 echo "resources" >> "$STATE_FILE"
 
-echo "=== Step 3/11: Deploy etcd Cluster ==="
+echo "=== Step 3/12: Deploy etcd Cluster ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/etcd.yml || { echo "FAILED: etcd"; exit 1; }
 echo "etcd" >> "$STATE_FILE"
 
-echo "=== Step 4/11: Deploy kube-apiserver ==="
+echo "=== Step 4/12: Deploy kube-apiserver ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_apiserver_install.yml || { echo "FAILED: apiserver"; exit 1; }
 echo "apiserver" >> "$STATE_FILE"
 
-echo "=== Step 5/11: Deploy kube-controller-manager ==="
+echo "=== Step 5/12: extension-apiserver-authentication ConfigMap ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/extension_apiserver_authentication.yml || { echo "FAILED: extension_apiserver_authentication"; exit 1; }
+echo "extension_apiserver_authentication" >> "$STATE_FILE"
+
+echo "=== Step 6/12: Deploy kube-controller-manager ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_controller_manager_install.yml || { echo "FAILED: controller-manager"; exit 1; }
 echo "controller_manager" >> "$STATE_FILE"
 
-echo "=== Step 6/11: Deploy kube-scheduler ==="
+echo "=== Step 7/12: Deploy kube-scheduler ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_scheduler_install.yml || { echo "FAILED: scheduler"; exit 1; }
 echo "scheduler" >> "$STATE_FILE"
 
-echo "=== Step 7/11: Install kubectl ==="
+echo "=== Step 8/12: Install kubectl ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubectl.yml || { echo "FAILED: kubectl"; exit 1; }
 echo "kubectl" >> "$STATE_FILE"
 
-echo "=== Step 8/11: Install containerd ==="
+echo "=== Step 9/12: Install containerd ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/containerd.yml || { echo "FAILED: containerd"; exit 1; }
 echo "containerd" >> "$STATE_FILE"
 
-echo "=== Step 9/11: Install kubelet ==="
+echo "=== Step 10/12: Install kubelet ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubelet.yml || { echo "FAILED: kubelet"; exit 1; }
 echo "kubelet" >> "$STATE_FILE"
 
-echo "=== Step 10/11: Install kube-proxy ==="
+echo "=== Step 11/12: Install kube-proxy ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_proxy.yml || { echo "FAILED: kube-proxy"; exit 1; }
 echo "kube_proxy" >> "$STATE_FILE"
 
-echo "=== Step 11/11: Apply addons (CNI + CoreDNS) ==="
+echo "=== Step 12/12: Apply addons (CNI + CoreDNS) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/k8s_addons.yml || { echo "FAILED: k8s_addons"; exit 1; }
 echo "k8s_addons" >> "$STATE_FILE"
 `
@@ -523,55 +527,59 @@ echo "k8s_addons" >> "$STATE_FILE"
 
 func k8sDeployScriptMiddleStaticPod() string {
 	return `
-echo "=== Step 1/13: System Initialization ==="
+echo "=== Step 1/14: System Initialization ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/0-init.yml || { echo "FAILED: init"; exit 1; }
 echo "init" >> "$STATE_FILE"
 
-echo "=== Step 2/13: Download Resources ==="
+echo "=== Step 2/14: Download Resources ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/resources.yml || { echo "FAILED: resources"; exit 1; }
 echo "resources" >> "$STATE_FILE"
 
-echo "=== Step 3/13: Deploy etcd Cluster ==="
+echo "=== Step 3/14: Deploy etcd Cluster ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/etcd.yml || { echo "FAILED: etcd"; exit 1; }
 echo "etcd" >> "$STATE_FILE"
 
-echo "=== Step 4/13: kube-apiserver (certs & assets, no systemd) ==="
+echo "=== Step 4/14: kube-apiserver (certs & assets, no systemd) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_apiserver_install.yml || { echo "FAILED: apiserver"; exit 1; }
 echo "apiserver" >> "$STATE_FILE"
 
-echo "=== Step 5/13: kube-controller-manager (assets, no systemd) ==="
+echo "=== Step 5/14: kube-controller-manager (assets, no systemd) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_controller_manager_install.yml || { echo "FAILED: controller-manager"; exit 1; }
 echo "controller_manager" >> "$STATE_FILE"
 
-echo "=== Step 6/13: kube-scheduler (assets, no systemd) ==="
+echo "=== Step 6/14: kube-scheduler (assets, no systemd) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_scheduler_install.yml || { echo "FAILED: scheduler"; exit 1; }
 echo "scheduler" >> "$STATE_FILE"
 
-echo "=== Step 7/13: Install containerd ==="
+echo "=== Step 7/14: Install containerd ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/containerd.yml || { echo "FAILED: containerd"; exit 1; }
 echo "containerd" >> "$STATE_FILE"
 
-echo "=== Step 8/13: Control plane static Pod manifests ==="
+echo "=== Step 8/14: Control plane static Pod manifests ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_control_plane_manifests.yml || { echo "FAILED: kube_control_plane_manifests"; exit 1; }
 echo "kube_control_plane_manifests" >> "$STATE_FILE"
 
-echo "=== Step 9/13: Install kubelet ==="
+echo "=== Step 9/14: Install kubelet ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubelet.yml || { echo "FAILED: kubelet"; exit 1; }
 echo "kubelet" >> "$STATE_FILE"
 
-echo "=== Step 10/13: Wait for kube-apiserver ==="
+echo "=== Step 10/14: Wait for kube-apiserver ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/wait_apiserver.yml || { echo "FAILED: wait_apiserver"; exit 1; }
 echo "wait_apiserver" >> "$STATE_FILE"
 
-echo "=== Step 11/13: Install kubectl ==="
+echo "=== Step 11/14: extension-apiserver-authentication ConfigMap ==="
+ansible-playbook -i "$TEMP_INVENTORY" playbooks/extension_apiserver_authentication.yml || { echo "FAILED: extension_apiserver_authentication"; exit 1; }
+echo "extension_apiserver_authentication" >> "$STATE_FILE"
+
+echo "=== Step 12/14: Install kubectl ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kubectl.yml || { echo "FAILED: kubectl"; exit 1; }
 echo "kubectl" >> "$STATE_FILE"
 
-echo "=== Step 12/13: Install kube-proxy ==="
+echo "=== Step 13/14: Install kube-proxy ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/kube_proxy.yml || { echo "FAILED: kube-proxy"; exit 1; }
 echo "kube_proxy" >> "$STATE_FILE"
 
-echo "=== Step 13/13: Apply addons (CNI + CoreDNS) ==="
+echo "=== Step 14/14: Apply addons (CNI + CoreDNS) ==="
 ansible-playbook -i "$TEMP_INVENTORY" playbooks/k8s_addons.yml || { echo "FAILED: k8s_addons"; exit 1; }
 echo "k8s_addons" >> "$STATE_FILE"
 `

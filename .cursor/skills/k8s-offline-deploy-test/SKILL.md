@@ -79,7 +79,7 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 | 声称通过但未核对 **zip 内** `inventory/group_vars/all.yml` 与所选镜像源/架构 | 无法用内网源却用公网打出 PASS |
 | 忽略用户网络：在 **有公网的 Agent 环境** 测通，却代表 **仅内网** 用户 | 须在反馈中标明 **网络假设** |
 | 用陈旧分支打的包却对比最新代码行为 | git SHA 与产物必须一致 |
-| 步骤数仍写「1–7」而代码已是 **11 步** | 与 `install.sh` 不一致，结论无效 |
+| 步骤数仍写「1–7」而代码已是 **12/14 步** | 与 `install.sh` 不一致，结论无效 |
 
 ---
 
@@ -87,41 +87,43 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 
 可选 **Step 0**：`OPSFLEET_OFFLINE_PRE_CLEANUP=1`（或打包时勾选预清理）→ `playbooks/pre_cleanup.yml`。
 
-合并后的 **`inventory/group_vars/all.yml`** 含 **`control_plane_deploy_method`**：`binary`（默认）或 **`static-pod`**。前者为 **11 步**（控制平面 systemd）；后者为 **13 步**（先装 containerd → 下发 **`/etc/kubernetes/manifests`** 静态 Pod → kubelet → **`wait_apiserver`** → kubectl → kube-proxy → addons）。
+合并后的 **`inventory/group_vars/all.yml`** 含 **`control_plane_deploy_method`**：`binary`（默认）或 **`static-pod`**。前者为 **12 步**（控制平面 systemd）；后者为 **14 步**（先装 containerd → 下发 **`/etc/kubernetes/manifests`** 静态 Pod → kubelet → **`wait_apiserver`** → 补 **`extension-apiserver-authentication`** ConfigMap → kubectl → kube-proxy → addons）。
 
 ### `control_plane_deploy_method: binary`（默认）
 
 | Step | 名称 | Playbook |
 |------|------|----------|
-| 1/11 | init | `playbooks/0-init.yml` |
-| 2/11 | resources | `playbooks/resources.yml` |
-| 3/11 | etcd | `playbooks/etcd.yml` |
-| 4/11 | kube-apiserver | `playbooks/kube_apiserver_install.yml` |
-| 5/11 | kube-controller-manager | `playbooks/kube_controller_manager_install.yml` |
-| 6/11 | kube-scheduler | `playbooks/kube_scheduler_install.yml` |
-| 7/11 | kubectl | `playbooks/kubectl.yml` |
-| 8/11 | containerd | `playbooks/containerd.yml` |
-| 9/11 | kubelet | `playbooks/kubelet.yml` |
-| 10/11 | kube-proxy | `playbooks/kube_proxy.yml` |
-| 11/11 | addons（CNI：Flannel 或 Calico + CoreDNS，受 `network_plugin` 等约束） | `playbooks/k8s_addons.yml` |
+| 1/12 | init | `playbooks/0-init.yml` |
+| 2/12 | resources | `playbooks/resources.yml` |
+| 3/12 | etcd | `playbooks/etcd.yml` |
+| 4/12 | kube-apiserver | `playbooks/kube_apiserver_install.yml` |
+| 5/12 | extension-apiserver-authentication | `playbooks/extension_apiserver_authentication.yml` |
+| 6/12 | kube-controller-manager | `playbooks/kube_controller_manager_install.yml` |
+| 7/12 | kube-scheduler | `playbooks/kube_scheduler_install.yml` |
+| 8/12 | kubectl | `playbooks/kubectl.yml` |
+| 9/12 | containerd | `playbooks/containerd.yml` |
+| 10/12 | kubelet | `playbooks/kubelet.yml` |
+| 11/12 | kube-proxy | `playbooks/kube_proxy.yml` |
+| 12/12 | addons（CNI：Flannel 或 Calico + CoreDNS，受 `network_plugin` 等约束） | `playbooks/k8s_addons.yml` |
 
 ### `control_plane_deploy_method: static-pod`
 
 | Step | 名称 | Playbook |
 |------|------|----------|
-| 1/13 | init | `playbooks/0-init.yml` |
-| 2/13 | resources | `playbooks/resources.yml` |
-| 3/13 | etcd | `playbooks/etcd.yml` |
-| 4/13 | kube-apiserver（证书与文件，无 systemd） | `playbooks/kube_apiserver_install.yml` |
-| 5/13 | kube-controller-manager（同上） | `playbooks/kube_controller_manager_install.yml` |
-| 6/13 | kube-scheduler（同上） | `playbooks/kube_scheduler_install.yml` |
-| 7/13 | containerd | `playbooks/containerd.yml` |
-| 8/13 | 控制平面静态 Pod 清单 | `playbooks/kube_control_plane_manifests.yml` |
-| 9/13 | kubelet | `playbooks/kubelet.yml` |
-| 10/13 | 等待 API Server | `playbooks/wait_apiserver.yml` |
-| 11/13 | kubectl | `playbooks/kubectl.yml` |
-| 12/13 | kube-proxy | `playbooks/kube_proxy.yml` |
-| 13/13 | addons | `playbooks/k8s_addons.yml` |
+| 1/14 | init | `playbooks/0-init.yml` |
+| 2/14 | resources | `playbooks/resources.yml` |
+| 3/14 | etcd | `playbooks/etcd.yml` |
+| 4/14 | kube-apiserver（证书与文件，无 systemd） | `playbooks/kube_apiserver_install.yml` |
+| 5/14 | kube-controller-manager（同上） | `playbooks/kube_controller_manager_install.yml` |
+| 6/14 | kube-scheduler（同上） | `playbooks/kube_scheduler_install.yml` |
+| 7/14 | containerd | `playbooks/containerd.yml` |
+| 8/14 | 控制平面静态 Pod 清单 | `playbooks/kube_control_plane_manifests.yml` |
+| 9/14 | kubelet | `playbooks/kubelet.yml` |
+| 10/14 | 等待 API Server | `playbooks/wait_apiserver.yml` |
+| 11/14 | extension-apiserver-authentication | `playbooks/extension_apiserver_authentication.yml` |
+| 12/14 | kubectl | `playbooks/kubectl.yml` |
+| 13/14 | kube-proxy | `playbooks/kube_proxy.yml` |
+| 14/14 | addons | `playbooks/k8s_addons.yml` |
 
 **在线部署**（`generateK8sDeployScript`）与离线 **`install.sh`**（`renderOfflineInstallScript`）在相同 **`control_plane_deploy_method`** 下须 **同序、同 playbook**；若发现漂移，按 **需改代码** 处理。
 
@@ -206,7 +208,7 @@ grep -E "local_cache_dir|image_source|arch_version|k8s_server_tarball_url|downlo
 | **C.1** | 打开 `inventory/group_vars/all.yml` 看镜像与缓存 | **强制检查点**（上一节命令） |
 | D | `sudo bash install.sh \| tee log` | 同左；保存完整日志 |
 | E | 复测时一般不删 `/var/cache/opsfleet-k8s` | 同左 |
-| F | 写测试反馈与问题分类 | 使用下方 **测试结果模板**（含 Step 1–11） |
+| F | 写测试反馈与问题分类 | 使用下方 **测试结果模板**（含 Step 1–12 / 1–14） |
 | G | 停服务、删解压目录、按需删缓存 | `scripts/k8s-offline-test-cleanup.sh` |
 | H | 回流 issue/文档 | 同左；若改了流水线则更新 **本 Skill** |
 
@@ -295,6 +297,7 @@ kubectl -n kube-system get svc kube-dns
 | containerd / kubelet 启动失败 | 需查 journal | cgroup、CRI socket、`/opt/cni/bin` |
 | Flannel / CoreDNS 镜像拉取失败 | 多为 **非代码** | 内网需镜像仓库或预拉取 |
 | 选用 Calico 仍装 Flannel | **流程/CLI** | 合并包须含 `network_plugin: calico`；`gen-k8s-bundle` 默认已为 **calico** 且支持 `-networkPlugin` |
+| controller-manager 日志 `extension-apiserver-authentication` / `requestheader-client-ca-file` | **需代码（已修）** | `playbooks/extension_apiserver_authentication.yml` 在 apiserver 就绪后写入 CA；存量集群可补 ConfigMap 或重打 zip |
 | 「阿里云/dl.k8s」下 `kubernetes-server` `sha512 mismatch`（版本/arch 与 zip 内置 `k8s_checksum` 不一致） | **代码已对齐** | 合并块里 `k8s_server_tarball_checksum: sha512:https://.../.tar.gz.sha512` 时，`roles/resources` 须用远端 `.sha512` 而非离线包默认 `k8s_checksum`；见 `download-with-progress.sh` |
 
 ---

@@ -64,6 +64,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 **部署机 kubectl 与 kubeconfig（0.5.2）**：执行 `sudo bash install.sh` 的那台机上，在 **`playbooks/kubectl.yml`** 成功后 **`roles/kubectl/tasks/control_host_cli.yml`** 会安装与离线包 **`kubernetes-server` 同版本的** `/usr/local/bin/kubectl`，并把第一份控制面的 admin kubeconfig 下发到 **`$HOME/.kube/config`**（通常为 root：`/root/.kube/config`）。`/etc/profile.d/opsfleet-kubectl.sh` 在未导出 `KUBECONFIG` 时优先使用该文件。**建议始终用 root 跑 install**，与 inventory 默认 `ansible_user=root` 一致；若以普通用户手工跑 `ansible-playbook`，请自行把 **`/root/.kube/config`** 拷到当前用户或使用 `sudo kubectl ... --kubeconfig /root/.kube/config`。
 
+**extension-apiserver-authentication（0.5.3）**：在 **`kube-apiserver` 就绪后、`kube-controller-manager` 安装前**，`install.sh` 会跑 **`playbooks/extension_apiserver_authentication.yml`**，确保 **`kube-system/extension-apiserver-authentication`** 的 **`client-ca-file`** 与 **`requestheader-client-ca-file`** 含有效 PEM（与集群 CA 一致），避免 controller-manager 日志里 **`missing content for CA bundle ... requestheader-client-ca-file`** 并反复重启。已装集群若仍见该错误，可对照该 ConfigMap 是否缺键或为空，必要时用 **`/etc/kubernetes/pki/k8s_ca.crt`**（或你环境中的集群 CA 路径）补全后让 kubelet 重建 controller-manager Pod。
+
 **下载进度条（0.5.0 新）**：在 **TTY 交互终端** 下，客户端涉及下载二进制 / 离线包的路径可输出**进度条 + 已下/总量 + 速度 + ETA**（非 TTY 自动退化为摘要）：
 - Go 侧：`ai-sre upgrade`、`ai-sre k8s install`、`ai-sre k8s download-bundle` 等使用统一的 `progressReader`（TTY 下绘 `[====-----] 42.3% 120MiB/284MiB 25.3MiB/s eta 7s`，非 TTY 自动退化为每秒一行可解析的摘要）。
 - 服务端动态生成的 `install-ai-sre.sh`、`bootstrap.sh`：TTY 下 `curl --progress-bar` / Python 内置流式进度；非 TTY 退化为静默 + 完成后摘要。

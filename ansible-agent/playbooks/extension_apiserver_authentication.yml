@@ -1,0 +1,80 @@
+# 创建 / 修补 kube-system/extension-apiserver-authentication（client-ca-file、requestheader-client-ca-file）。
+# 无此 ConfigMap 或 PEM 为空时，kube-controller-manager 会报
+# "missing content for CA bundle ... requestheader-client-ca-file" 并可能反复重启。
+# 须在 6443 已监听后执行；使用 apiserver_kubelet_client（system:masters）证书访问 API。
+---
+- hosts: kube_control_plane
+  become: true
+  gather_facts: false
+  pre_tasks:
+    - name: Load OpsFleet K8s bundle group_vars
+      ansible.builtin.include_vars:
+        file: "{{ inventory_dir }}/group_vars/all.yml"
+  tasks:
+    - name: Wait for kube-apiserver port 6443
+      ansible.builtin.wait_for:
+        host: 127.0.0.1
+        port: 6443
+        timeout: 120
+
+    - name: Read cluster CA PEM
+      ansible.builtin.slurp:
+        src: "{{ k8s_cert_dir }}/k8s_ca.crt"
+      register: slurp_cluster_ca
+
+    - name: Set cluster CA PEM fact
+      ansible.builtin.set_fact:
+        ext_auth_ca_pem: "{{ slurp_cluster_ca.content | b64decode }}"
+
+    - name: Fetch extension-apiserver-authentication ConfigMap
+      ansible.builtin.uri:
+        url: https://127.0.0.1:6443/api/v1/namespaces/kube-system/configmaps/extension-apiserver-authentication
+        method: GET
+        client_cert: "{{ k8s_cert_dir }}/apiserver_kubelet_client.crt"
+        client_key: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+        ca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+        return_content: true
+        status_code: [200, 404]
+      register: ext_auth_cm_get
+
+    - name: Create extension-apiserver-authentication ConfigMap
+      ansible.builtin.uri:
+        url: https://127.0.0.1:6443/api/v1/namespaces/kube-system/configmaps
+        method: POST
+        body_format: json
+        body:
+          apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: extension-apiserver-authentication
+            namespace: kube-system
+          data:
+            client-ca-file: "{{ ext_auth_ca_pem }}"
+            requestheader-client-ca-file: "{{ ext_auth_ca_pem }}"
+        client_cert: "{{ k8s_cert_dir }}/apiserver_kubelet_client.crt"
+        client_key: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+        ca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+        status_code: [201]
+      when: ext_auth_cm_get.status == 404
+
+    - name: Patch extension-apiserver-authentication CA keys when missing or empty
+      ansible.builtin.uri:
+        url: https://127.0.0.1:6443/api/v1/namespaces/kube-system/configmaps/extension-apiserver-authentication
+        method: PATCH
+        headers:
+          Content-Type: application/merge-patch+json
+        body_format: json
+        body:
+          data:
+            client-ca-file: "{{ ext_auth_ca_pem }}"
+            requestheader-client-ca-file: "{{ ext_auth_ca_pem }}"
+        client_cert: "{{ k8s_cert_dir }}/apiserver_kubelet_client.crt"
+        client_key: "{{ k8s_cert_dir }}/apiserver_kubelet_client.key"
+        ca_path: "{{ k8s_cert_dir }}/k8s_ca.crt"
+        status_code: [200]
+      when:
+        - ext_auth_cm_get.status == 200
+        - >-
+          (ext_auth_cm_get.json.data | default({}, true) | length) == 0
+          or ((ext_auth_cm_get.json.data | default({}, true))['requestheader-client-ca-file'] | default('') | trim | length) < 64
+          or ((ext_auth_cm_get.json.data | default({}, true))['client-ca-file'] | default('') | trim | length) < 64
