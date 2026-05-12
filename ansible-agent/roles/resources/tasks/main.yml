@@ -28,9 +28,25 @@
   delegate_to: localhost
   run_once: true
 
+# 离线包：仅用十六进制 k8s_checksum。「阿里云/dl.k8s」合并块会写入
+# k8s_server_tarball_checksum: sha512:https://.../.tar.gz.sha512 — 必须由下载脚本拉取远端摘要，
+# 不可再使用 zip 自带的 k8s_checksum（易与控制台选的版本/arch 错位）。
+- name: Choose kubernetes server tarball checksum/ref for download helper
+  ansible.builtin.set_fact:
+    k8s_dl_checksum_ref: >-
+      {{
+        k8s_server_tarball_checksum | regex_replace('^sha512:', '')
+        if (
+             (k8s_server_tarball_checksum | default('') ).startswith('sha512:http')
+          or (k8s_server_tarball_checksum | default('') ).startswith('sha512:https')
+           )
+          else k8s_checksum }}
+  delegate_to: localhost
+  run_once: true
+
 - name: Download kubernetes server tarball via helper (curl --progress-bar; sha512 verified)
   ansible.builtin.command:
-    cmd: "bash {{ opsfleet_download_helper }} {{ k8s_server_tarball_url }} {{ k8s_package_tar }} {{ k8s_checksum }}"
+    cmd: "bash {{ opsfleet_download_helper }} {{ k8s_server_tarball_url }} {{ k8s_package_tar }} {{ k8s_dl_checksum_ref }}"
   register: k8s_dl
   changed_when: "'下载完成' in (k8s_dl.stderr | default(''))"
   failed_when: k8s_dl.rc not in [0]

@@ -4,7 +4,11 @@
 # 「[time] 已下载 N / 总 M (avg X/s)」摘要到 stderr，便于在 ansible -v 或日志中追踪。
 #
 # 用法：
-#   download-with-progress.sh <url> <dest> [<sha512_hex>] [<min_bytes>]
+#   download-with-progress.sh <url> <dest> [<sha512_hex_or_ref>] [<min_bytes>]
+#
+# 第三参数可为：
+#   - 128 位十六进制 sha512；
+#   - 或 sha512:<url> / 直接的 https://... 指向远端 .sha512 文本（取首列），与 Ansible get_url 的 sha512:url 对齐。
 #
 # 退出码：
 #   0   下载成功且（如提供 checksum）校验通过；或目标文件已存在且 checksum 一致
@@ -19,7 +23,7 @@ set -euo pipefail
 
 URL="${1:-}"
 DEST="${2:-}"
-WANT_SHA="${3:-}"
+WANT_RAW="${3:-}"
 MIN_BYTES="${4:-0}"
 
 emit_code() {
@@ -29,8 +33,38 @@ emit_code() {
 }
 
 if [[ -z "$URL" || -z "$DEST" ]]; then
-  echo "用法: download-with-progress.sh <url> <dest> [<sha512_hex>] [<min_bytes>]" >&2
+  echo "用法: download-with-progress.sh <url> <dest> [<sha512_hex_or_ref>] [<min_bytes>]" >&2
   exit 2
+fi
+
+resolve_expected_sha512() {
+  local raw="$1"
+  [[ -z "$raw" ]] && { echo ""; return 0; }
+  if [[ "$raw" =~ ^sha512:(https?://.+) ]]; then
+    raw="${BASH_REMATCH[1]}"
+  fi
+  if [[ "$raw" =~ ^https?:// ]]; then
+    local fetched
+    if ! fetched="$(curl -sS --fail --location --connect-timeout 20 --retry 3 --retry-delay 2 "$raw" | awk '{print $1}')"; then
+      echo "[$(date '+%H:%M:%S')] 无法拉取远端 sha512: $raw" >&2
+      return 2
+    fi
+    fetched="${fetched//$'\r'/}"
+    if [[ ${#fetched} -lt 120 ]]; then
+      echo "[$(date '+%H:%M:%S')] 远端 sha512 无效（过短），url=$raw len=${#fetched}" >&2
+      return 2
+    fi
+    echo "$fetched"
+    return 0
+  fi
+  echo "$raw"
+  return 0
+}
+
+WANT_SHA=""
+if ! WANT_SHA="$(resolve_expected_sha512 "$WANT_RAW")"; then
+  emit_code "OPSFLEET_DL_E_NETWORK" "fetch sha512 ref failed ($WANT_RAW)"
+  exit 3
 fi
 
 mkdir -p "$(dirname "$DEST")"

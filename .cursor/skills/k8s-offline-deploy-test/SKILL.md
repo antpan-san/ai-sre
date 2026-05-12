@@ -295,6 +295,7 @@ kubectl -n kube-system get svc kube-dns
 | containerd / kubelet 启动失败 | 需查 journal | cgroup、CRI socket、`/opt/cni/bin` |
 | Flannel / CoreDNS 镜像拉取失败 | 多为 **非代码** | 内网需镜像仓库或预拉取 |
 | 选用 Calico 仍装 Flannel | **流程/CLI** | 合并包须含 `network_plugin: calico`；`gen-k8s-bundle` 默认已为 **calico** 且支持 `-networkPlugin` |
+| 「阿里云/dl.k8s」下 `kubernetes-server` `sha512 mismatch`（版本/arch 与 zip 内置 `k8s_checksum` 不一致） | **代码已对齐** | 合并块里 `k8s_server_tarball_checksum: sha512:https://.../.tar.gz.sha512` 时，`roles/resources` 须用远端 `.sha512` 而非离线包默认 `k8s_checksum`；见 `download-with-progress.sh` |
 
 ---
 
