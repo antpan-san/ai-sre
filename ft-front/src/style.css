@@ -104,6 +104,15 @@
   padding: 16px var(--page-padding-x) 32px;
 }
 
+/* 宽表管理页：占满 content-inner 可用宽度（不限制 1000px） */
+.page-shell.page-shell--crud-wide {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 16px var(--page-padding-x) 28px;
+  box-sizing: border-box;
+}
+
 .page-shell--crud .el-card {
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);

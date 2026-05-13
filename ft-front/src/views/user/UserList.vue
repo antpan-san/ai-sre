@@ -1,5 +1,5 @@
 <template>
-  <div class="user-list page-shell page-shell--crud">
+  <div class="user-list page-shell page-shell--crud-wide">
     <div class="user-page-head">
       <div class="user-page-head-left">
         <h2 class="user-page-title">用户管理</h2>
@@ -14,93 +14,104 @@
       <el-button type="primary" :icon="Plus" @click="handleAdd">新增用户</el-button>
     </div>
 
-    <div class="search-filters">
-      <el-input
-        v-model="userStore.filters.username"
-        placeholder="搜索用户名"
-        :prefix-icon="Search"
-        clearable
-        class="search-input"
-        @keyup.enter="handleSearch"
-        @clear="handleSearch"
-      />
-      <el-select
-        v-model="userStore.filters.role"
-        placeholder="角色"
-        clearable
-        class="filter-select"
-        @change="handleSearch"
-      >
-        <el-option label="管理员" value="admin" />
-        <el-option label="普通用户" value="user" />
-      </el-select>
-      <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
-      <el-button :icon="RefreshRight" @click="handleReset">重置</el-button>
-    </div>
-
-    <div class="user-table-wrap">
-      <el-table
-        v-loading="userStore.loading"
-        :data="userStore.userList"
-        stripe
-        border
-        table-layout="auto"
-        @selection-change="handleSelectionChange"
-      >
-        <el-table-column type="selection" width="48" :selectable="rowSelectable" />
-        <el-table-column prop="username" label="用户名" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="email" label="邮箱" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="full_name" label="显示名" min-width="100" show-overflow-tooltip />
-        <el-table-column prop="phone" label="手机" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="role" label="角色" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.role === 'admin' ? 'success' : 'info'" size="small">
-              {{ row.role === 'admin' ? '管理员' : '普通用户' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="168" align="center">
-          <template #default="{ row }">
-            {{ formatTime(row.created_at) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="248" align="center" fixed="right">
-          <template #default="{ row }">
-            <el-button type="primary" link size="small" :icon="Edit" @click="handleEdit(row)">编辑</el-button>
-            <el-button type="primary" link size="small" :icon="SwitchButton" @click="handleChangeRole(row)">
-              角色
-            </el-button>
-            <el-button
-              type="danger"
-              link
-              size="small"
-              :icon="Delete"
-              :disabled="row.role === 'admin'"
-              @click="handleDelete(row.id)"
-            >
-              删除
-            </el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-
-    <div class="table-footer">
-      <div v-if="selectedIds.length" class="batch-bar">
-        <span>已选 {{ selectedIds.length }} 项</span>
-        <el-button type="danger" size="small" :icon="Delete" @click="handleBatchDelete">批量删除</el-button>
+    <el-card class="user-data-card" shadow="never">
+      <div class="search-filters">
+        <el-input
+          v-model="userStore.filters.username"
+          placeholder="搜索用户名"
+          :prefix-icon="Search"
+          clearable
+          class="search-input"
+          @keyup.enter="handleSearch"
+          @clear="handleSearch"
+        />
+        <el-select
+          v-model="userStore.filters.role"
+          placeholder="角色"
+          clearable
+          class="filter-select"
+          @change="handleSearch"
+        >
+          <el-option label="管理员" value="admin" />
+          <el-option label="普通用户" value="user" />
+        </el-select>
+        <div class="search-filters-actions">
+          <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
+          <el-button :icon="RefreshRight" @click="handleReset">重置</el-button>
+        </div>
       </div>
-      <el-pagination
-        v-model:current-page="userStore.filters.page"
-        v-model:page-size="userStore.filters.pageSize"
-        class="pagination"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="userStore.total"
-        @size-change="handleSizeChange"
-        @current-change="handleCurrentChange"
-      />
-    </div>
+
+      <div class="user-table-wrap">
+        <el-table
+          v-loading="userStore.loading"
+          :data="userStore.userList"
+          stripe
+          border
+          row-key="id"
+          style="width: 100%"
+          table-layout="auto"
+          @selection-change="handleSelectionChange"
+        >
+          <el-table-column type="selection" width="52" :selectable="rowSelectable" />
+          <el-table-column prop="id" label="用户 ID" min-width="200" show-overflow-tooltip>
+            <template #default="{ row }">
+              <span class="user-id-cell">{{ row.id }}</span>
+            </template>
+          </el-table-column>
+          <el-table-column prop="username" label="用户名" min-width="140" show-overflow-tooltip />
+          <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="full_name" label="显示名" min-width="120" show-overflow-tooltip />
+          <el-table-column prop="phone" label="手机" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="role" label="角色" width="112" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.role === 'admin' ? 'success' : 'info'" size="small">
+                {{ row.role === 'admin' ? '管理员' : '普通用户' }}
+              </el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="创建时间" min-width="172" align="center">
+            <template #default="{ row }">
+              {{ formatTime(row.created_at) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="260" align="center" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" link size="small" :icon="Edit" @click="handleEdit(row)">编辑</el-button>
+              <el-button type="primary" link size="small" :icon="SwitchButton" @click="handleChangeRole(row)">
+                角色
+              </el-button>
+              <el-button
+                type="danger"
+                link
+                size="small"
+                :icon="Delete"
+                :disabled="row.role === 'admin'"
+                @click="handleDelete(row.id)"
+              >
+                删除
+              </el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <div class="table-footer">
+        <div v-if="selectedIds.length" class="batch-bar">
+          <span>已选 {{ selectedIds.length }} 项</span>
+          <el-button type="danger" size="small" :icon="Delete" @click="handleBatchDelete">批量删除</el-button>
+        </div>
+        <el-pagination
+          v-model:current-page="userStore.filters.page"
+          v-model:page-size="userStore.filters.pageSize"
+          class="pagination"
+          :page-sizes="[10, 20, 50, 100]"
+          layout="total, sizes, prev, pager, next, jumper"
+          :total="userStore.total"
+          @size-change="handleSizeChange"
+          @current-change="handleCurrentChange"
+        />
+      </div>
+    </el-card>
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑用户' : '新增用户'" width="520px" destroy-on-close>
       <el-form ref="userFormRef" :model="userForm" :rules="userRules" label-position="top">
@@ -390,12 +401,21 @@ const resetUserForm = () => {
 </script>
 
 <style scoped>
+.user-data-card {
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.user-data-card :deep(.el-card__body) {
+  padding: 20px 22px 18px;
+}
+
 .user-page-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
   flex-wrap: wrap;
 }
 
@@ -429,23 +449,45 @@ const resetUserForm = () => {
 .search-filters {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px 14px;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 18px;
 }
 
 .search-input {
-  width: 200px;
-  max-width: 100%;
+  flex: 1 1 220px;
+  min-width: 200px;
+  max-width: 420px;
 }
 
 .filter-select {
-  width: 120px;
+  width: 132px;
+  flex-shrink: 0;
+}
+
+.search-filters-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-left: auto;
 }
 
 .user-table-wrap {
   width: 100%;
   overflow-x: auto;
+  border-radius: 8px;
+}
+
+.user-table-wrap :deep(.el-table .cell) {
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.user-id-cell {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
 .table-footer {
@@ -453,8 +495,9 @@ const resetUserForm = () => {
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-top: 12px;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 4px;
 }
 
 .batch-bar {
