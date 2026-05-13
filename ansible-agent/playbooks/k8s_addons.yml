@@ -1,4 +1,14 @@
+# Calico：先在全部节点预拉镜像，再仅在 control plane 上 apply manifest（避免 init 拉取失败导致 CNI 半装）。
 # Flannel + CoreDNS；需在首个 control plane 上可用 kubectl 与 admin.conf。
+- hosts: k8s_cluster
+  become: true
+  pre_tasks:
+    - name: Load OpsFleet K8s bundle group_vars (alongside inventory/hosts.ini)
+      ansible.builtin.include_vars:
+        file: "{{ inventory_dir }}/group_vars/all.yml"
+  roles:
+    - role: ../roles/calico_image_prefetch
+
 - hosts: kube_control_plane
   become: true
   pre_tasks:

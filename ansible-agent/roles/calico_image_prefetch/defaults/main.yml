@@ -1,0 +1,7 @@
+---
+# 与 inventory calico_version 一致；apply Calico manifest 之前在所有节点预拉取，
+# 避免 DaemonSet init 在 quay.io 抖动时长时间 ImagePullBackOff，进而 CNI 半初始化
+#（/var/lib/calico/nodename 不存在 → coredns / calico-kube-controllers CreatePodSandbox 失败）。
+# ctr pull 在网络差的环境可能较慢；每次 pull 最多 (1 + retries) 次尝试，间隔 delay 秒。
+calico_prefetch_retries: 8
+calico_prefetch_delay: 20

@@ -74,13 +74,12 @@
     kubectl wait --for=condition=ready pod
     -l k8s-app=calico-node
     -n kube-system
-    --timeout=300s
+    --timeout=600s
   environment:
     KUBECONFIG: "{{ k8s_base_dir }}/admin.conf"
   run_once: true
   when: network_plugin | default('flannel') == 'calico'
   register: _calico_wait
-  failed_when: false
   changed_when: false
 
 # ---- CoreDNS（CNI 就绪后再装，避免长 Pending）----

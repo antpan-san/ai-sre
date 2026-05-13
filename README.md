@@ -66,6 +66,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 **extension-apiserver-authentication（0.5.3）**：在 **`kube-apiserver` 就绪后、`kube-controller-manager` 安装前**，`install.sh` 会跑 **`playbooks/extension_apiserver_authentication.yml`**，确保 **`kube-system/extension-apiserver-authentication`** 的 **`client-ca-file`** 与 **`requestheader-client-ca-file`** 含有效 PEM（与集群 CA 一致），避免 controller-manager 日志里 **`missing content for CA bundle ... requestheader-client-ca-file`** 并反复重启。已装集群若仍见该错误，可对照该 ConfigMap 是否缺键或为空，必要时用 **`/etc/kubernetes/pki/k8s_ca.crt`**（或你环境中的集群 CA 路径）补全后让 kubelet 重建 controller-manager Pod。
 
+**Calico 镜像预拉（0.5.4）**：选 **Calico** 时，`playbooks/k8s_addons.yml` 会先在 **`k8s_cluster` 全部节点**用 **`ctr -n k8s.io images pull`** 带重试拉齐 **`quay.io/calico/{cni,node,kube-controllers}:<calico_version>`**，再仅在控制面执行 **`kubectl apply`**；避免 init 长时间 **`ErrImagePull`** 导致主机 **`/var/lib/calico/nodename`** 未生成、其它 Pod **`CreatePodSandbox`** 报 CNI **`stat ... nodename`**。仍失败时 stderr 含 **`[ERROR-CODE] OPSFLEET_K8S_E_CALICO_PREFETCH_FAILED`**；纯离线需在内网制品站提供等价镜像或后续版本的 **`ctr import`** 路径（见 **`ft-backend/skills/builtin/error_codes.yaml`** 对应条目）。
+
 **下载进度条（0.5.0 新）**：在 **TTY 交互终端** 下，客户端涉及下载二进制 / 离线包的路径可输出**进度条 + 已下/总量 + 速度 + ETA**（非 TTY 自动退化为摘要）：
 - Go 侧：`ai-sre upgrade`、`ai-sre k8s install`、`ai-sre k8s download-bundle` 等使用统一的 `progressReader`（TTY 下绘 `[====-----] 42.3% 120MiB/284MiB 25.3MiB/s eta 7s`，非 TTY 自动退化为每秒一行可解析的摘要）。
 - 服务端动态生成的 `install-ai-sre.sh`、`bootstrap.sh`：TTY 下 `curl --progress-bar` / Python 内置流式进度；非 TTY 退化为静默 + 完成后摘要。
