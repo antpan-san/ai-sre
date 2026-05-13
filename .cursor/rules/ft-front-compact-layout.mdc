@@ -1,0 +1,28 @@
+---
+description: OpsFleetPilot（ft-front）页头与主内容区纵向空间：紧凑、少滚动条、数据优先
+globs: ft-front/**/*.vue
+alwaysApply: false
+---
+
+# 前端页面布局（强制倾向）
+
+## 页眉 / 说明区（标题 + 描述）
+
+- **目标**：上部「标题 + 说明」占用垂直空间**尽量小**，把像素留给表格、表单、分栏主内容。
+- **推荐结构**（新页面默认照做）：
+  - **一行主工具条**：左侧 `h2` 主标题（字号 **≤ 18px**）+ 必要 `Tag`/计数；右侧放次要操作或 **`el-button` link + `el-popover`/`el-tooltip`** 承载长说明，**不要把长段落直接铺在标题下方**。
+  - 若必须展示多行说明：使用 **折叠 `el-collapse` 第一项默认收起** 或 **Popover**，避免默认占 3～5 行。
+- **避免**：大号 `page-title`（22px+）、多段 `page-desc`、与主内容无关的 **`el-alert` 常驻大块** 叠在数据区上方。
+
+## 滚动与高度
+
+- 主布局已由 `MainLayout` 的 `.content-inner` 提供 **一层**纵向滚动；业务页内部应优先 **`height: 100%` + `min-height: 0` + `flex` 列布局**，让**仅数据子区域** `overflow-y: auto`，避免出现 **整页 + 内层 `el-scrollbar`** 的双滚动条。
+- 慎用 **`min-height: 70vh`** 等把子块撑得高于视口导致外层必滚；需要占满时优先用 **`page-shell--fill`**（见 `src/style.css`）+ 子区 `flex: 1; min-height: 0`。
+
+## 全局变量
+
+- 使用 `src/style.css` 中 **`--page-padding-y`**、**`--page-header-title-max`**、**`--page-header-desc-size`**；新页标题/副文案尽量引用或不超过这些尺度。
+
+## 存量页改造
+
+- 改动某业务页时，若发现头区或 Alert 明显挤压数据区，应**顺带**按本节收紧（不必全仓一次改完，但禁止越改越松）。

@@ -210,7 +210,9 @@
           </el-breadcrumb>
         </div>
         <div class="content-inner">
-          <router-view />
+          <div class="content-route">
+            <router-view />
+          </div>
         </div>
       </main>
     </div>
@@ -710,7 +712,7 @@ const handleLogout = () => {
 
 .breadcrumb-container {
   flex-shrink: 0;
-  padding: 14px 4px 12px;
+  padding: 8px 4px 8px;
 }
 
 .custom-breadcrumb {
@@ -757,13 +759,23 @@ const handleLogout = () => {
 .content-inner {
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   background: var(--layout-content-surface);
   border-radius: 16px;
   border: 1px solid var(--layout-sidebar-border);
   box-shadow: var(--layout-shadow-soft);
   padding: var(--layout-content-padding);
+}
+
+/* 单一纵向滚动条：业务页根节点用 height:100% / page-shell--fill 时可铺满剩余视口 */
+.content-route {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 /* Element Plus 菜单：浅色侧栏 */

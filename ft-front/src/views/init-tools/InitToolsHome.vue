@@ -538,17 +538,17 @@ onMounted(() => {
 
 .page-header {
   flex: 0 0 auto;
-  margin-bottom: 14px;
+  margin-bottom: 8px;
 }
 
 .page-header-inner {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .page-kicker {
-  font-size: 12px;
+  font-size: 11px;
   color: #2563EB;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -557,14 +557,14 @@ onMounted(() => {
 
 .page-title {
   margin: 0;
-  font-size: 22px;
+  font-size: 18px;
   color: #0f172a;
 }
 
 .page-desc {
   margin: 0;
   color: #475569;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .from-k8s-banner {

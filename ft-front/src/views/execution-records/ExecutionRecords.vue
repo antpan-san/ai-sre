@@ -275,7 +275,41 @@ function rollbackStatusLabel(value: string) {
 .execution-records {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
+}
+
+.page-header {
+  flex-shrink: 0;
+}
+
+.page-header-inner {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.page-kicker {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--el-color-primary);
+}
+
+.page-title {
+  margin: 0;
+  font-size: var(--page-header-title-max, 18px);
+  font-weight: 700;
+  color: var(--layout-sidebar-text-strong, #111827);
+  line-height: 1.25;
+}
+
+.page-desc {
+  margin: 0;
+  font-size: var(--page-header-desc-size, 12px);
+  line-height: 1.45;
+  color: #64748b;
+  max-width: 720px;
 }
 
 .search-filters {

@@ -1,26 +1,21 @@
 <template>
-  <div class="error-codes-lookup page-shell page-shell--dashboard">
-    <header class="page-header">
-      <div class="page-header-inner">
-        <span class="page-kicker">OpsFleet · Knowledge</span>
-        <h2 class="page-title">部署错误码查询</h2>
-        <p class="page-desc">
-          目录与根因说明由平台内置技能包 <strong>opsfleet_error_codes_v1</strong> 提供，与
-          <code>ai-sre analyze code &lt;CODE&gt;</code> 同源；下列条目均含完整字段，可直接检索与复制。
-        </p>
+  <div class="error-codes-lookup page-shell page-shell--fill">
+    <header class="toolbar-top">
+      <div class="toolbar-top__left">
+        <h2 class="toolbar-top__title">部署错误码查询</h2>
+        <el-tag v-if="!loading" type="success" size="small" effect="plain">{{ codes.length }} 条</el-tag>
+        <span class="toolbar-top__meta">与 <code>ai-sre analyze code</code> 同源</span>
       </div>
+      <el-popover placement="bottom-end" :width="340" trigger="click">
+        <template #reference>
+          <el-button type="primary" link size="small">数据来源与用法</el-button>
+        </template>
+        <div class="help-popover">
+          <p>目录由内置技能包 <strong>opsfleet_error_codes_v1</strong> 提供，与 CLI 使用同一 <code>GET /api/ai/error-codes</code>。</p>
+          <p>日志中 <code>[ERROR-CODE] OPSFLEET_…</code> 可复制到左侧搜索；支持 URL 参数 <code>?code=</code> 深链打开。</p>
+        </div>
+      </el-popover>
     </header>
-
-    <el-alert type="success" show-icon :closable="false" class="catalog-banner">
-      <template #title>
-        已加载 <strong>{{ codes.length }}</strong> 条结构化错误码（与安装 / 下载 / K8s 编排链对齐）
-      </template>
-      <template #default>
-        <span class="banner-hint">
-          日志中出现以 <code>[ERROR-CODE]</code> 开头的行时，将后面的 <code>OPSFLEET_*</code> 复制到下方搜索即可定位。
-        </span>
-      </template>
-    </el-alert>
 
     <div class="lookup-layout">
       <aside class="lookup-pane lookup-pane--list">
@@ -28,7 +23,7 @@
           <el-input
             v-model="keyword"
             clearable
-            placeholder="搜索代码、摘要、根因关键词…"
+            placeholder="搜索代码、摘要、根因…"
             :prefix-icon="Search"
             @clear="applyQueryFromRoute"
           />
@@ -40,7 +35,7 @@
             <el-option label="其它" value="other" />
           </el-select>
         </div>
-        <el-scrollbar class="list-scroll">
+        <div class="list-body">
           <ul class="code-list" role="list">
             <li
               v-for="row in filteredCodes"
@@ -58,8 +53,8 @@
               <p class="code-list-item__summary">{{ row.summary }}</p>
             </li>
           </ul>
-          <el-empty v-if="!loading && filteredCodes.length === 0" description="无匹配项，请调整筛选条件" />
-        </el-scrollbar>
+          <el-empty v-if="!loading && filteredCodes.length === 0" description="无匹配项" />
+        </div>
       </aside>
 
       <section class="lookup-pane lookup-pane--detail">
@@ -253,124 +248,131 @@ watch(
 </script>
 
 <style scoped>
-.error-codes-lookup {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.help-popover p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #334155;
 }
 
-.page-header {
-  padding-bottom: 4px;
+.help-popover p:last-child {
+  margin-bottom: 0;
 }
 
-.page-header-inner {
-  max-width: 960px;
-}
-
-.page-kicker {
-  display: inline-block;
+.help-popover code {
   font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--el-color-primary);
-  margin-bottom: 6px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: #f1f5f9;
 }
 
-.page-title {
-  font-size: 26px;
+.error-codes-lookup {
+  gap: 8px;
+}
+
+.toolbar-top {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 2px 0 4px;
+  min-height: 0;
+}
+
+.toolbar-top__left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.toolbar-top__title {
+  margin: 0;
+  font-size: var(--page-header-title-max, 18px);
   font-weight: 700;
   letter-spacing: -0.02em;
   color: var(--layout-sidebar-text-strong, #111827);
-  margin: 0 0 8px;
 }
 
-.page-desc {
-  margin: 0;
-  font-size: 14px;
-  line-height: 1.6;
+.toolbar-top__meta {
+  font-size: 12px;
   color: #64748b;
-  max-width: 880px;
+  white-space: nowrap;
 }
 
-.page-desc code {
-  font-size: 13px;
-  padding: 1px 6px;
-  border-radius: 6px;
+.toolbar-top__meta code {
+  font-size: 11px;
+  padding: 0 4px;
+  border-radius: 4px;
   background: #f1f5f9;
   color: #0f172a;
 }
 
-.catalog-banner {
-  border-radius: 12px;
-}
-
-.banner-hint {
-  font-size: 13px;
-  color: #475569;
-}
-
 .lookup-layout {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(300px, 380px) minmax(0, 1fr);
-  gap: 20px;
-  align-items: stretch;
-  min-height: 520px;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 12px;
+  overflow: hidden;
 }
 
 @media (max-width: 1100px) {
   .lookup-layout {
     grid-template-columns: 1fr;
+    grid-template-rows: minmax(200px, 38vh) minmax(0, 1fr);
   }
 }
 
 .lookup-pane {
   background: #fff;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid var(--layout-sidebar-border, #e5e7eb);
   box-shadow: 0 1px 3px rgb(0 0 0 / 6%);
-  overflow: hidden;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  min-height: 0;
+  overflow: hidden;
 }
 
 .lookup-pane--list {
-  max-height: min(78vh, 900px);
+  min-height: 0;
 }
 
 .pane-toolbar {
-  padding: 14px 14px 10px;
+  flex: 0 0 auto;
+  padding: 10px 10px 8px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
   border-bottom: 1px solid #f1f5f9;
-  flex-shrink: 0;
 }
 
 .kind-filter {
   width: 100%;
 }
 
-.list-scroll {
+.list-body {
   flex: 1;
   min-height: 0;
-}
-
-.list-scroll :deep(.el-scrollbar__wrap) {
-  max-height: calc(78vh - 120px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .code-list {
   list-style: none;
   margin: 0;
-  padding: 8px 10px 16px;
+  padding: 8px 8px 12px;
 }
 
 .code-list-item {
-  padding: 12px 12px;
-  margin-bottom: 8px;
-  border-radius: 10px;
+  padding: 10px 10px;
+  margin-bottom: 6px;
+  border-radius: 8px;
   cursor: pointer;
   border: 1px solid transparent;
   transition:
@@ -387,7 +389,7 @@ watch(
 .code-list-item.is-active {
   background: linear-gradient(135deg, rgba(255, 105, 0, 0.06), rgba(255, 140, 66, 0.08));
   border-color: rgba(255, 105, 0, 0.35);
-  box-shadow: 0 2px 10px rgba(255, 105, 0, 0.12);
+  box-shadow: 0 2px 8px rgba(255, 105, 0, 0.1);
 }
 
 .code-list-item__row {
@@ -398,7 +400,7 @@ watch(
 }
 
 .code-chip {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #0f172a;
   word-break: break-all;
@@ -409,9 +411,9 @@ watch(
 }
 
 .code-list-item__summary {
-  margin: 8px 0 0;
-  font-size: 13px;
-  line-height: 1.45;
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
   color: #64748b;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -420,9 +422,10 @@ watch(
 }
 
 .lookup-pane--detail {
-  padding: 20px 22px 28px;
-  max-height: min(78vh, 900px);
-  overflow: auto;
+  padding: 14px 16px 16px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
 }
 
 .detail-head {
@@ -430,7 +433,7 @@ watch(
   flex-wrap: wrap;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 14px;
+  gap: 10px;
 }
 
 .detail-head-titles {
@@ -439,8 +442,8 @@ watch(
 }
 
 .detail-code {
-  margin: 0 0 6px;
-  font-size: 18px;
+  margin: 0 0 4px;
+  font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: #0f172a;
@@ -449,26 +452,26 @@ watch(
 
 .detail-summary {
   margin: 0;
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 14px;
+  line-height: 1.45;
   color: #334155;
 }
 
 .detail-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
 }
 
 .detail-block {
   margin: 0;
-  padding: 14px 16px;
-  border-radius: 10px;
+  padding: 12px 14px;
+  border-radius: 8px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  font-size: 13px;
-  line-height: 1.65;
+  font-size: 12px;
+  line-height: 1.6;
   white-space: pre-wrap;
   word-break: break-word;
   color: #1e293b;
@@ -476,32 +479,32 @@ watch(
 
 .detail-block--shell {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-  font-size: 12.5px;
+  font-size: 12px;
 }
 
 .evidence-list {
   margin: 0;
-  padding-left: 18px;
+  padding-left: 16px;
   color: #475569;
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .evidence-list li {
-  margin-bottom: 8px;
+  margin-bottom: 6px;
 }
 
 .evidence-list code {
-  font-size: 12px;
+  font-size: 11px;
   background: #f1f5f9;
-  padding: 2px 6px;
-  border-radius: 6px;
+  padding: 2px 5px;
+  border-radius: 4px;
   color: #0f172a;
 }
 
 .related-wrap {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .related-tag {
@@ -512,14 +515,14 @@ watch(
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
-  min-height: 240px;
+  gap: 8px;
+  min-height: 160px;
   color: #64748b;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .spin {
-  font-size: 22px;
+  font-size: 20px;
   animation: spin 0.9s linear infinite;
 }
 
@@ -527,5 +530,9 @@ watch(
   to {
     transform: rotate(360deg);
   }
+}
+
+.lookup-pane--detail :deep(.el-divider) {
+  margin: 12px 0 10px;
 }
 </style>
