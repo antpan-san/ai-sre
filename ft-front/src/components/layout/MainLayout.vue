@@ -6,7 +6,7 @@
           <div class="sidebar-brand-mark" aria-hidden="true">{{ brandShort }}</div>
           <div v-show="!isCollapse" class="sidebar-brand-text">
             <span class="sidebar-brand-title">OpsFleetPilot</span>
-            <span class="sidebar-brand-sub">运维控制台</span>
+            <span class="sidebar-brand-sub">{{ isAdminShell ? '管理端' : '工作台' }}</span>
           </div>
         </div>
         <el-button type="primary" link class="collapse-btn" @click="isCollapse = !isCollapse">
@@ -51,80 +51,104 @@
           :collapse="isCollapse"
           :collapse-transition="true"
         >
-          <el-menu-item index="/dashboard">
-            <el-icon><PieChart /></el-icon>
-            <template #title>仪表盘</template>
-          </el-menu-item>
-          <el-sub-menu index="service-delivery">
-            <template #title>
-              <el-icon><Box /></el-icon>
-              <span>服务与交付</span>
-            </template>
-            <el-menu-item index="/service/deploy">
-              <el-icon><Operation /></el-icon>
-              <template #title>服务部署</template>
+          <template v-if="isAdminShell">
+            <el-menu-item index="/admin/dashboard">
+              <el-icon><PieChart /></el-icon>
+              <template #title>仪表盘</template>
             </el-menu-item>
-            <el-menu-item index="/service/k8s-deploy">
-              <el-icon><Connection /></el-icon>
-              <template #title>Kubernetes 部署</template>
+            <el-menu-item index="/admin/billing/features">
+              <el-icon><Setting /></el-icon>
+              <template #title>功能与计费</template>
             </el-menu-item>
-            <el-menu-item index="/service/k8s-mirror">
-              <el-icon><Download /></el-icon>
-              <template #title>K8s 制品镜像</template>
+            <el-sub-menu index="asm-service">
+              <template #title>
+                <el-icon><Box /></el-icon>
+                <span>服务与交付</span>
+              </template>
+              <el-menu-item index="/admin/service/deploy">
+                <el-icon><Operation /></el-icon>
+                <template #title>服务部署</template>
+              </el-menu-item>
+              <el-menu-item index="/admin/service/k8s-deploy">
+                <el-icon><Connection /></el-icon>
+                <template #title>Kubernetes 部署</template>
+              </el-menu-item>
+              <el-menu-item index="/admin/service/k8s-mirror">
+                <el-icon><Download /></el-icon>
+                <template #title>K8s 制品镜像</template>
+              </el-menu-item>
+              <el-menu-item index="/admin/service/linux">
+                <el-icon><Cpu /></el-icon>
+                <template #title>Linux 服务管理</template>
+              </el-menu-item>
+            </el-sub-menu>
+            <el-menu-item index="/admin/proxy/config">
+              <el-icon><Link /></el-icon>
+              <template #title>代理配置</template>
             </el-menu-item>
-            <el-menu-item index="/service/linux">
-              <el-icon><Cpu /></el-icon>
-              <template #title>Linux 服务管理</template>
+            <el-sub-menu index="asm-monitoring">
+              <template #title>
+                <el-icon><Monitor /></el-icon>
+                <span>监控告警</span>
+              </template>
+              <el-menu-item index="/admin/monitoring/prometheus">Prometheus</el-menu-item>
+              <el-menu-item index="/admin/monitoring/node-exporter">Node Exporter</el-menu-item>
+              <el-menu-item index="/admin/monitoring/jmx-exporter">JMX Exporter</el-menu-item>
+              <el-menu-item index="/admin/monitoring/redis-exporter">Redis Exporter</el-menu-item>
+              <el-menu-item index="/admin/monitoring/mongodb-exporter">MongoDB Exporter</el-menu-item>
+              <el-menu-item index="/admin/monitoring/blackbox-exporter">Blackbox Exporter</el-menu-item>
+            </el-sub-menu>
+            <el-menu-item index="/admin/job/center">
+              <el-icon><Management /></el-icon>
+              <template #title>作业中心</template>
             </el-menu-item>
-          </el-sub-menu>
-          <el-menu-item index="/proxy/config">
-            <el-icon><Link /></el-icon>
-            <template #title>代理配置</template>
-          </el-menu-item>
-          <el-sub-menu index="/monitoring">
-            <template #title>
-              <el-icon><Monitor /></el-icon>
-              <span>监控告警</span>
-            </template>
-            <el-menu-item index="/monitoring/prometheus">Prometheus</el-menu-item>
-            <el-menu-item index="/monitoring/node-exporter">Node Exporter</el-menu-item>
-            <el-menu-item index="/monitoring/jmx-exporter">JMX Exporter</el-menu-item>
-            <el-menu-item index="/monitoring/redis-exporter">Redis Exporter</el-menu-item>
-            <el-menu-item index="/monitoring/mongodb-exporter">MongoDB Exporter</el-menu-item>
-            <el-menu-item index="/monitoring/blackbox-exporter">Blackbox Exporter</el-menu-item>
-          </el-sub-menu>
-          <el-menu-item index="/job/center">
-            <el-icon><Management /></el-icon>
-            <template #title>作业中心</template>
-          </el-menu-item>
-          <el-sub-menu index="/security-audit">
-            <template #title>
-              <el-icon><Lock /></el-icon>
-              <span>安全与审计</span>
-            </template>
-            <el-menu-item index="/security-audit/operation-logs">操作日志</el-menu-item>
-            <el-menu-item index="/security-audit/permission-management">权限管理</el-menu-item>
-          </el-sub-menu>
-          <el-sub-menu index="/advanced">
-            <template #title>
+            <el-sub-menu index="asm-security">
+              <template #title>
+                <el-icon><Lock /></el-icon>
+                <span>安全与审计</span>
+              </template>
+              <el-menu-item index="/admin/security-audit/operation-logs">操作日志</el-menu-item>
+              <el-menu-item index="/admin/security-audit/permission-management">权限管理</el-menu-item>
+            </el-sub-menu>
+            <el-sub-menu index="asm-advanced">
+              <template #title>
+                <el-icon><DocumentCopy /></el-icon>
+                <span>高级功能</span>
+              </template>
+              <el-menu-item index="/admin/advanced/backup-restore">备份与恢复</el-menu-item>
+              <el-menu-item index="/admin/advanced/performance-analysis">性能分析</el-menu-item>
+            </el-sub-menu>
+            <el-menu-item index="/admin/init-tools">
+              <el-icon><Tools /></el-icon>
+              <template #title>初始化工具</template>
+            </el-menu-item>
+            <el-menu-item index="/admin/execution-records">
               <el-icon><DocumentCopy /></el-icon>
-              <span>高级功能</span>
-            </template>
-            <el-menu-item index="/advanced/backup-restore">备份与恢复</el-menu-item>
-            <el-menu-item index="/advanced/performance-analysis">性能分析</el-menu-item>
-          </el-sub-menu>
-          <el-menu-item index="/init-tools">
-            <el-icon><Tools /></el-icon>
-            <template #title>初始化工具</template>
-          </el-menu-item>
-          <el-menu-item index="/execution-records">
-            <el-icon><DocumentCopy /></el-icon>
-            <template #title>执行记录</template>
-          </el-menu-item>
-          <el-menu-item index="/help/error-codes">
-            <el-icon><Reading /></el-icon>
-            <template #title>部署错误码</template>
-          </el-menu-item>
+              <template #title>执行记录</template>
+            </el-menu-item>
+            <el-menu-item index="/admin/help/error-codes">
+              <el-icon><Reading /></el-icon>
+              <template #title>部署错误码</template>
+            </el-menu-item>
+          </template>
+          <template v-else>
+            <el-menu-item index="/app/dashboard">
+              <el-icon><PieChart /></el-icon>
+              <template #title>仪表盘</template>
+            </el-menu-item>
+            <el-menu-item index="/app/job/center">
+              <el-icon><Management /></el-icon>
+              <template #title>作业中心</template>
+            </el-menu-item>
+            <el-menu-item index="/app/init-tools">
+              <el-icon><Tools /></el-icon>
+              <template #title>初始化工具</template>
+            </el-menu-item>
+            <el-menu-item index="/app/help/error-codes">
+              <el-icon><Reading /></el-icon>
+              <template #title>部署错误码</template>
+            </el-menu-item>
+          </template>
         </el-menu>
       </el-scrollbar>
     </aside>
@@ -172,11 +196,11 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
-                <el-dropdown-item @click="handleUserManagement">
+                <el-dropdown-item v-if="isAdminUser" @click="handleUserManagement">
                   <el-icon><User /></el-icon>
                   用户管理
                 </el-dropdown-item>
-                <el-dropdown-item divided @click="handleLogout">
+                <el-dropdown-item :divided="isAdminUser" @click="handleLogout">
                   <el-icon><SwitchButton /></el-icon>
                   退出登录
                 </el-dropdown-item>
@@ -241,7 +265,8 @@ import {
   Cpu,
   Link,
   Download,
-  Reading
+  Reading,
+  Setting
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
@@ -275,7 +300,8 @@ const routeIconMap: Record<string, Component> = {
   '/advanced': DocumentCopy,
   '/init-tools': Tools,
   '/execution-records': DocumentCopy,
-  '/help/error-codes': Reading
+  '/help/error-codes': Reading,
+  '/billing/features': Setting
 }
 
 const sectionDefaultPath: Record<string, string> = {
@@ -288,28 +314,12 @@ const sectionDefaultPath: Record<string, string> = {
   '/user': '/user/list',
   '/init-tools': '/init-tools',
   '/execution-records': '/execution-records',
-  '/help': '/help/error-codes'
+  '/help': '/help/error-codes',
+  '/billing': '/billing/features'
 }
 
 const route = useRoute()
 const router = useRouter()
-
-const isCollapse = ref(false)
-
-const menuTextColor = 'var(--layout-sidebar-text)'
-const menuActiveColor = 'var(--el-color-primary)'
-
-const menuDefaultOpeneds = computed(() => {
-  const p = route.path
-  const open: string[] = []
-  if (p.startsWith('/service')) open.push('service-delivery')
-  if (p.startsWith('/monitoring')) open.push('/monitoring')
-  if (p.startsWith('/security-audit')) open.push('/security-audit')
-  if (p.startsWith('/advanced')) open.push('/advanced')
-  return open
-})
-
-const menuRemountKey = computed(() => menuDefaultOpeneds.value.join('|'))
 
 const currentUser = computed(() => {
   const userInfoStr = localStorage.getItem('userInfo')
@@ -322,6 +332,28 @@ const currentUser = computed(() => {
   }
   return { username: '管理员' }
 })
+
+const navBase = computed(() => (route.path.startsWith('/admin') ? '/admin' : '/app'))
+const isAdminShell = computed(() => route.path.startsWith('/admin'))
+const isAdminUser = computed(() => String(currentUser.value?.role ?? '') === 'admin')
+
+const isCollapse = ref(false)
+
+const menuTextColor = 'var(--layout-sidebar-text)'
+const menuActiveColor = 'var(--el-color-primary)'
+
+const menuDefaultOpeneds = computed(() => {
+  const p = route.path
+  const open: string[] = []
+  if (!p.startsWith('/admin')) return open
+  if (p.includes('/admin/service')) open.push('asm-service')
+  if (p.includes('/admin/monitoring')) open.push('asm-monitoring')
+  if (p.includes('/admin/security-audit')) open.push('asm-security')
+  if (p.includes('/admin/advanced')) open.push('asm-advanced')
+  return open
+})
+
+const menuRemountKey = computed(() => `${isAdminShell.value ? 'admin' : 'app'}|${menuDefaultOpeneds.value.join('|')}`)
 
 const userInitial = computed(() => {
   const name = String(currentUser.value?.username ?? '?').trim()
@@ -367,20 +399,30 @@ onUnmounted(() => {
 })
 
 const handleUserManagement = () => {
-  router.push('/user/list')
+  router.push('/admin/user/list')
 }
 
 const activeMenu = computed(() => {
   return route.path
 })
 
+function toLogicalRoutePath(full: string): string {
+  if (!full) return '/'
+  if (full.startsWith('/admin/')) return full.slice(6)
+  if (full === '/admin') return '/'
+  if (full.startsWith('/app/')) return full.slice(4)
+  if (full === '/app') return '/'
+  return full.startsWith('/') ? full : `/${full}`
+}
+
 const getRouteIcon = (path?: string): Component | undefined => {
-  if (!path) return undefined
-  if (routeIconMap[path]) {
-    return routeIconMap[path]
+  const raw = path ?? route.path
+  const logical = toLogicalRoutePath(raw)
+  if (routeIconMap[logical]) {
+    return routeIconMap[logical]
   }
 
-  const parentPath = path.substring(0, path.lastIndexOf('/'))
+  const parentPath = logical.substring(0, logical.lastIndexOf('/'))
   if (parentPath && routeIconMap[parentPath]) {
     return routeIconMap[parentPath]
   }
@@ -394,9 +436,18 @@ function titleOfRoute(routeItem: RouteLocationMatched): string | undefined {
 }
 
 function pathOfRoute(routeItem: RouteLocationMatched): string | undefined {
-  const path = routeItem.path
-  if (!path || path === '/' || path.includes(':')) return undefined
-  return sectionDefaultPath[path] ?? path
+  let p = routeItem.path
+  if (!p || p === '/' || p.includes(':')) return undefined
+  const base = navBase.value
+  const fullUnderShell =
+    p.startsWith('/admin') || p.startsWith('/app') ? p : `${base}/${p.replace(/^\//, '')}`
+  const logical = toLogicalRoutePath(fullUnderShell)
+  if (logical === '/' || logical === '') return undefined
+  const def = sectionDefaultPath[logical]
+  if (def) {
+    return def.startsWith('/admin') || def.startsWith('/app') ? def : base + def
+  }
+  return fullUnderShell
 }
 
 function pushBreadcrumb(items: BreadcrumbItem[], title: string, to?: string): void {

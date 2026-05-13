@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"mime"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -82,8 +84,56 @@ func UploadFile(c *gin.Context) {
 	})
 }
 
-// DownloadFile handles file downloads (public access).
+// DownloadFile handles public downloads for explicitly public files or share keys.
 func DownloadFile(c *gin.Context) {
+	ref := strings.TrimSpace(c.Param("file_id"))
+
+	var file models.File
+	if fileID, err := uuid.Parse(ref); err == nil {
+		if err := database.DB.Where("id = ? AND status = ? AND visibility = ?", fileID, "available", "public").First(&file).Error; err != nil {
+			if err == gorm.ErrRecordNotFound {
+				c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "文件不存在"})
+			} else {
+				c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "数据库错误"})
+			}
+			return
+		}
+		serveDownload(c, &file)
+		return
+	}
+
+	var share models.Share
+	if err := database.DB.Preload("File").
+		Where("share_key = ? AND expires_at > ?", ref, database.DB.NowFunc()).
+		First(&share).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "分享不存在或已过期"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "数据库错误"})
+		}
+		return
+	}
+
+	if share.File.Status != "available" {
+		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "文件不可用"})
+		return
+	}
+
+	serveDownload(c, &share.File)
+
+	go func() {
+		database.DB.Model(&share).UpdateColumn("access_count", gorm.Expr("access_count + ?", 1))
+	}()
+}
+
+// DownloadOwnedFile handles authenticated owner downloads for private files.
+func DownloadOwnedFile(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "未授权"})
+		return
+	}
+
 	fileID, err := uuid.Parse(c.Param("file_id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "无效的文件ID"})
@@ -91,7 +141,7 @@ func DownloadFile(c *gin.Context) {
 	}
 
 	var file models.File
-	if err := database.DB.Where("id = ? AND status = ?", fileID, "available").First(&file).Error; err != nil {
+	if err := database.DB.Where("id = ? AND user_id = ? AND status = ? AND deleted_at IS NULL", fileID, models.UserIDFromContext(userID), "available").First(&file).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "文件不存在"})
 		} else {
@@ -100,22 +150,62 @@ func DownloadFile(c *gin.Context) {
 		return
 	}
 
+	serveDownload(c, &file)
+}
+
+func serveDownload(c *gin.Context, file *models.File) {
+	cfg := c.MustGet("config").(*config.Config)
+	if !isPathInsideUploadDir(file.Path, cfg.File.UploadDir) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "文件路径不允许访问"})
+		return
+	}
+
 	if _, err := os.Stat(file.Path); err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "服务器上文件不存在"})
 		return
 	}
 
+	filename := safeDownloadName(file.OriginalName)
+	contentType := file.MimeType
+	if contentType == "" {
+		contentType = "application/octet-stream"
+	}
+
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Transfer-Encoding", "binary")
-	c.Header("Content-Disposition", "attachment; filename="+file.OriginalName)
-	c.Header("Content-Type", file.MimeType)
+	c.Header("Content-Disposition", mime.FormatMediaType("attachment", map[string]string{"filename": filename}))
+	c.Header("Content-Type", contentType)
 	c.Header("Content-Length", strconv.FormatInt(file.Size, 10))
 
 	c.File(file.Path)
 
 	go func() {
-		database.DB.Model(&file).UpdateColumn("download_count", gorm.Expr("download_count + ?", 1))
+		database.DB.Model(file).UpdateColumn("download_count", gorm.Expr("download_count + ?", 1))
 	}()
+}
+
+func safeDownloadName(name string) string {
+	name = strings.TrimSpace(strings.NewReplacer("\r", "", "\n", "").Replace(name))
+	if name == "" {
+		return "download"
+	}
+	return filepath.Base(name)
+}
+
+func isPathInsideUploadDir(filePath, uploadDir string) bool {
+	absFile, err := filepath.Abs(filePath)
+	if err != nil {
+		return false
+	}
+	absUpload, err := filepath.Abs(uploadDir)
+	if err != nil {
+		return false
+	}
+	rel, err := filepath.Rel(absUpload, absFile)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (!strings.HasPrefix(rel, ".."+string(filepath.Separator)) && rel != "..")
 }
 
 // ListFiles returns a paginated list of the authenticated user's files.

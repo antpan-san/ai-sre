@@ -5,6 +5,7 @@ import (
 	"ft-backend/handlers"
 	"ft-backend/iotservice"
 	"ft-backend/middleware"
+	"ft-backend/models"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -43,6 +44,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/auth/register", middleware.RateLimit("register", 12, time.Minute), handlers.Register)
 		public.POST("/auth/login", middleware.RateLimit("login", 30, time.Minute), handlers.Login)
 		public.POST("/auth/logout", handlers.Logout)
+		public.POST("/billing/stripe/webhook", handlers.StripeWebhook)
 
 		// File download is public only for explicitly public files or valid share keys.
 		public.GET("/files/download/:file_id", handlers.DownloadFile)
@@ -98,6 +100,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		admin := protected.Group("")
 		admin.Use(middleware.RequireAdmin())
 
+		protected.GET("/billing/me", handlers.GetBillingMe)
+		protected.POST("/billing/checkout-session", handlers.CreateStripeCheckoutSession)
+
 		// ---- Dashboard ----
 		protected.GET("/dashboard/data", handlers.GetDashboardData)
 
@@ -111,6 +116,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		admin.DELETE("/user/:id", handlers.DeleteUser)
 		admin.DELETE("/user/batch", handlers.BatchDeleteUser)
 		admin.PATCH("/user/:id/role", handlers.UpdateUserRole)
+		admin.GET("/admin/billing/features", handlers.AdminListFeatureBilling)
+		admin.PUT("/admin/billing/features", handlers.AdminPutFeatureBilling)
+		admin.POST("/admin/users/:id/entitlement", handlers.AdminGrantEntitlement)
 
 		// ---- Machine Management ----
 		admin.GET("/machine", handlers.GetMachineList)
@@ -210,21 +218,23 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		admin.GET("/security-audit/roles/:role/permissions", handlers.GetRolePermissions)
 		admin.POST("/security-audit/roles/:role/permissions", handlers.AssignRolePermissions)
 
+		adv := protected.Group("")
+		adv.Use(middleware.RequireEntitlementOrAdmin(models.FeatureKeyAdvanced))
 		// ---- Advanced / Backup (path aligned with frontend: /backups) ----
-		admin.GET("/advanced/backups", handlers.GetBackupList)
-		admin.GET("/advanced/backups/:id", handlers.GetBackupDetail)
-		admin.POST("/advanced/backups", handlers.Backup)
-		admin.POST("/advanced/backups/:id/restore", handlers.Restore)
-		admin.DELETE("/advanced/backups/:id", handlers.DeleteBackup)
+		adv.GET("/advanced/backups", handlers.GetBackupList)
+		adv.GET("/advanced/backups/:id", handlers.GetBackupDetail)
+		adv.POST("/advanced/backups", handlers.Backup)
+		adv.POST("/advanced/backups/:id/restore", handlers.Restore)
+		adv.DELETE("/advanced/backups/:id", handlers.DeleteBackup)
 		// Legacy path (keep for compatibility)
-		admin.GET("/advanced/backup", handlers.GetBackupList)
-		admin.POST("/advanced/backup", handlers.Backup)
+		adv.GET("/advanced/backup", handlers.GetBackupList)
+		adv.POST("/advanced/backup", handlers.Backup)
 
 		// ---- Advanced / Performance ----
-		admin.GET("/advanced/performance", handlers.GetPerformanceData)
-		admin.POST("/advanced/performance/report/generate", handlers.GeneratePerformanceReport)
+		adv.GET("/advanced/performance", handlers.GetPerformanceData)
+		adv.POST("/advanced/performance/report/generate", handlers.GeneratePerformanceReport)
 		// Legacy path
-		admin.POST("/advanced/performance/report", handlers.GeneratePerformanceReport)
+		adv.POST("/advanced/performance/report", handlers.GeneratePerformanceReport)
 
 		// ---- File Management ----
 		protected.POST("/files/upload", handlers.UploadFile)

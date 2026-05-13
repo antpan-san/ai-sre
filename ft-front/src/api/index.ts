@@ -35,6 +35,15 @@ export {
   updateUserRole,
 } from './user'
 
+// 计费 / 权益
+export {
+  getAdminFeatureBilling,
+  putAdminFeatureBilling,
+  getBillingMe,
+  createCheckoutSession,
+  grantUserEntitlement,
+} from './billing'
+
 // 服务管理相关
 export {
   deployService,

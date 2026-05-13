@@ -52,3 +52,9 @@ client:
 
 log:
     level: debug
+
+billing:
+    stripe_secret_key: ""
+    stripe_webhook_secret: ""
+    stripe_price_id_pro: ""
+    public_app_base_url: "http://127.0.0.1:9080"

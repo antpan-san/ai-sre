@@ -55,6 +55,9 @@ func ValidateToken(tokenString, secretKey string) (*JWTClaims, error) {
 	logger.Debug("Validating JWT token")
 
 	token, err := jwt.ParseWithClaims(tokenString, &JWTClaims{}, func(token *jwt.Token) (interface{}, error) {
+		if token.Method != jwt.SigningMethodHS256 {
+			return nil, errors.New("unexpected signing method")
+		}
 		return []byte(secretKey), nil
 	})
 

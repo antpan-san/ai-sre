@@ -25,7 +25,7 @@
         class="snapshot-card"
         role="button"
         tabindex="0"
-        @click="router.push('/init-tools')"
+        @click="goInitTools"
       >
         <div class="snapshot-label">托管机器</div>
         <div class="snapshot-value">
@@ -40,7 +40,7 @@
         class="snapshot-card"
         role="button"
         tabindex="0"
-        @click="router.push('/service/k8s/clusters')"
+        @click="goK8sClusters"
       >
         <div class="snapshot-label">K8s 集群</div>
         <div class="snapshot-value">
@@ -58,7 +58,7 @@
         class="snapshot-card"
         role="button"
         tabindex="0"
-        @click="router.push('/job/center')"
+        @click="goJobCenter"
       >
         <div class="snapshot-label">进行中任务</div>
         <div class="snapshot-value">{{ dash?.platformSummary?.tasksActive ?? 0 }}</div>
@@ -70,7 +70,7 @@
         class="snapshot-card"
         role="button"
         tabindex="0"
-        @click="router.push('/execution-records')"
+        @click="goExecRecords"
       >
         <div class="snapshot-label">近 24h 执行记录</div>
         <div class="snapshot-value">{{ dash?.platformSummary?.executionsLast24h ?? 0 }}</div>
@@ -289,7 +289,7 @@
         <template #header>
           <div class="card-header">
             <span>最近 K8s 集群</span>
-            <el-link type="primary" :underline="false" @click="router.push('/service/k8s/clusters')">
+            <el-link type="primary" :underline="false" @click="goK8sClusters">
               打开列表
             </el-link>
           </div>
@@ -317,7 +317,7 @@
         <template #header>
           <div class="card-header">
             <span>最近 ai-sre 安装</span>
-            <el-link type="primary" :underline="false" @click="router.push('/service/deploy')">
+            <el-link type="primary" :underline="false" @click="goServiceDeploy">
               服务部署
             </el-link>
           </div>
@@ -374,7 +374,7 @@
       <template #header>
         <div class="card-header">
           <span>最近执行记录</span>
-          <el-link type="primary" :underline="false" @click="router.push('/execution-records')"> 全部记录 </el-link>
+          <el-link type="primary" :underline="false" @click="goExecRecords"> 全部记录 </el-link>
         </div>
       </template>
       <el-table :data="dash?.recentExecutions ?? []" stripe border size="small" empty-text="暂无执行记录">
@@ -406,7 +406,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   RefreshRight,
@@ -422,10 +422,52 @@ import type { DashboardData } from '../types/dashboard'
 
 const dashboardStore = useDashboardStore()
 const router = useRouter()
+const route = useRoute()
+
+const shellPrefix = computed(() => (route.path.startsWith('/admin') ? '/admin' : '/app'))
+const isAdminUser = computed(() => {
+  try {
+    const u = JSON.parse(localStorage.getItem('userInfo') || '{}') as { role?: string }
+    return u?.role === 'admin'
+  } catch {
+    return false
+  }
+})
 
 const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
 
+const goInitTools = () => {
+  router.push(`${shellPrefix.value}/init-tools`)
+}
+const goJobCenter = () => {
+  router.push(`${shellPrefix.value}/job/center`)
+}
+const goK8sClusters = () => {
+  if (!isAdminUser.value) {
+    ElMessage.info('Kubernetes 集群列表请使用管理端入口（管理员）')
+    return
+  }
+  router.push('/admin/service/k8s/clusters')
+}
+const goExecRecords = () => {
+  if (!isAdminUser.value) {
+    ElMessage.info('执行记录请使用管理端入口（管理员）')
+    return
+  }
+  router.push('/admin/execution-records')
+}
+const goServiceDeploy = () => {
+  if (!isAdminUser.value) {
+    ElMessage.info('服务部署请使用管理端入口（管理员）')
+    return
+  }
+  router.push('/admin/service/deploy')
+}
+
 onMounted(() => {
+  const b = route.query.billing
+  if (b === 'success') ElMessage.success('支付已完成，订阅状态将在 Stripe Webhook 同步后更新')
+  if (b === 'cancel') ElMessage.info('已取消支付')
   void fetchDashboardData()
 })
 
@@ -562,7 +604,7 @@ const genericStatusType = (s: string) => {
 }
 
 const navigateToServiceList = () => {
-  router.push('/service/deploy')
+  goServiceDeploy()
 }
 </script>
 

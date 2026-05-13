@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"encoding/json"
 	"net/http"
 	"strconv"
 
@@ -33,7 +34,13 @@ func GetUserProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"code": 200, "data": user, "msg": "success"})
+	user.Password = ""
+	var payload map[string]interface{}
+	b, _ := json.Marshal(user)
+	_ = json.Unmarshal(b, &payload)
+	payload["billing_exempt"] = user.Role == "admin"
+
+	c.JSON(http.StatusOK, gin.H{"code": 200, "data": payload, "msg": "success"})
 }
 
 // UpdateUserProfile updates the profile of the authenticated user.
@@ -108,10 +115,26 @@ func GetUserList(c *gin.Context) {
 	var users []models.User
 	db.Limit(pageSize).Offset(offset).Order("created_at DESC").Find(&users)
 
+	list := make([]map[string]interface{}, 0, len(users))
+	for _, u := range users {
+		u.Password = ""
+		b, _ := json.Marshal(u)
+		var row map[string]interface{}
+		_ = json.Unmarshal(b, &row)
+		var sub models.Subscription
+		if err := database.DB.Where("user_id = ?", u.ID).First(&sub).Error; err == nil {
+			row["subscription_status"] = sub.Status
+			row["subscription_period_end"] = sub.CurrentPeriodEnd
+			row["stripe_customer_id"] = sub.StripeCustomerID
+			row["stripe_subscription_id"] = sub.StripeSubscriptionID
+		}
+		list = append(list, row)
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"data": gin.H{
-			"list":  users,
+			"list":  list,
 			"total": total,
 		},
 		"msg": "success",

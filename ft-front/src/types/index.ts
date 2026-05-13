@@ -153,12 +153,14 @@ export interface User {
   role: 'admin' | 'user'
   created_at?: string
   updated_at?: string
+  subscription_status?: string
+  subscription_period_end?: string | null
+  stripe_customer_id?: string
+  stripe_subscription_id?: string
   /** 兼容旧字段 */
   createTime?: string
   updateTime?: string
 }
-
-export interface UserListParams {
   page?: number
   pageSize?: number
   username?: string

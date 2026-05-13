@@ -44,7 +44,11 @@ class WebSocketService {
 
   private doConnect(): void {
     try {
-      this.ws = new WebSocket(this.url)
+      const token = localStorage.getItem('token')
+      if (!token) {
+        return
+      }
+      this.ws = new WebSocket(this.url, [`bearer.${token}`])
 
       this.ws.onopen = () => {
         console.log('[WS] Connected:', this.url)

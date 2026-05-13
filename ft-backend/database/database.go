@@ -96,6 +96,9 @@ func Migrate() error {
 		&models.ServiceDeployment{},
 		&models.ServiceDeploymentEvent{},
 		&models.ProxyConfig{},
+		&models.FeatureBillingSetting{},
+		&models.Subscription{},
+		&models.Entitlement{},
 		// NOTE: Heartbeat is NOT included here – it is a partitioned table
 		// and must be created via the migration_pg.sql script.
 	)
@@ -113,6 +116,9 @@ func Migrate() error {
 
 	// Seed K8s versions
 	initK8sVersions()
+
+	// Seed feature billing defaults (all off until admin enables)
+	seedFeatureBillingDefaults()
 
 	logger.Info("Database migration completed")
 	return nil
@@ -275,4 +281,23 @@ func ExecRawSQL(query string, args ...interface{}) error {
 
 	logger.Debug("Raw SQL executed, rows affected: %d", result.RowsAffected)
 	return nil
+}
+
+func seedFeatureBillingDefaults() {
+	rows := []models.FeatureBillingSetting{
+		{FeatureKey: models.FeatureKeyAdvanced, BillingEnabled: false, Description: "高级功能（备份与恢复、性能分析）"},
+	}
+	for _, r := range rows {
+		var n int64
+		if err := DB.Model(&models.FeatureBillingSetting{}).Where("feature_key = ?", r.FeatureKey).Count(&n).Error; err != nil {
+			logger.Error("feature billing seed count: %v", err)
+			continue
+		}
+		if n > 0 {
+			continue
+		}
+		if err := DB.Create(&r).Error; err != nil {
+			logger.Error("feature billing seed create: %v", err)
+		}
+	}
 }

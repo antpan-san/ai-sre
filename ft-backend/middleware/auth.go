@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
 	"strings"
 
@@ -43,9 +42,10 @@ func JWTAuth(secretKey string) gin.HandlerFunc {
 
 		claims, err := utils.ValidateToken(tokenString, secretKey)
 		if err != nil {
+			logger.Warn("JWT validation failed from %s: %v", c.ClientIP(), err)
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"code": 401,
-				"msg":  fmt.Sprintf("Invalid or expired token: %v", err),
+				"msg":  "Invalid or expired token",
 			})
 			c.Abort()
 			return

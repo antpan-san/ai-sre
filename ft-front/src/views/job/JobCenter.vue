@@ -454,8 +454,7 @@ const executeCommands = async () => {
       {
         confirmButtonText: '继续执行',
         cancelButtonText: '取消',
-        type: 'warning',
-        dangerouslyUseHTMLString: true
+        type: 'warning'
       }
     )
     

@@ -21,9 +21,18 @@ type Config struct {
 	Redis    RedisConfig    `yaml:"redis"`
 	Opsfleet OpsfleetConfig `yaml:"opsfleet"`
 	Security SecurityConfig `yaml:"security"`
+	Billing  BillingConfig   `yaml:"billing"`
 	Log      struct {
 		Level string `yaml:"level"`
 	} `yaml:"log"`
+}
+
+// BillingConfig Stripe 最简对接（密钥留空则关闭收银台/Webhook 写库外的危险路径仍可做占位）。
+type BillingConfig struct {
+	StripeSecretKey     string `yaml:"stripe_secret_key"`
+	StripeWebhookSecret string `yaml:"stripe_webhook_secret"`
+	StripePriceIDPro    string `yaml:"stripe_price_id_pro"`
+	PublicAppBaseURL    string `yaml:"public_app_base_url"`
 }
 
 // OpsfleetConfig 控制台扩展（K8s 部署页 curl 安装 ai-sre 等）。

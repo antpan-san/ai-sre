@@ -62,6 +62,12 @@
           <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
           <el-table-column prop="full_name" label="显示名" min-width="120" show-overflow-tooltip />
           <el-table-column prop="phone" label="手机" min-width="130" show-overflow-tooltip />
+          <el-table-column prop="subscription_status" label="订阅" width="100" align="center" show-overflow-tooltip />
+          <el-table-column label="订阅到期" min-width="158" align="center">
+            <template #default="{ row }">
+              {{ formatTime(row.subscription_period_end as string | undefined) }}
+            </template>
+          </el-table-column>
           <el-table-column prop="role" label="角色" width="112" align="center">
             <template #default="{ row }">
               <el-tag :type="row.role === 'admin' ? 'success' : 'info'" size="small">
@@ -74,11 +80,21 @@
               {{ formatTime(row.created_at) }}
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="260" align="center" fixed="right">
+          <el-table-column label="操作" width="340" align="center" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" link size="small" :icon="Edit" @click="handleEdit(row)">编辑</el-button>
               <el-button type="primary" link size="small" :icon="SwitchButton" @click="handleChangeRole(row)">
                 角色
+              </el-button>
+              <el-button
+                v-if="row.role !== 'admin'"
+                type="primary"
+                link
+                size="small"
+                :icon="Key"
+                @click="openEntitlement(row)"
+              >
+                权益
               </el-button>
               <el-button
                 type="danger"
@@ -167,14 +183,41 @@
         <el-button type="primary" :loading="roleDialogLoading" @click="handleRoleSubmit">保存</el-button>
       </template>
     </el-dialog>
+
+    <el-dialog v-model="entitlementVisible" title="授予功能权益" width="480px" destroy-on-close>
+      <p class="ent-user-line">
+        用户 <strong>{{ entitlementUser?.username }}</strong>
+      </p>
+      <el-form label-position="top">
+        <el-form-item label="功能">
+          <el-select v-model="entitlementForm.feature_key" style="width: 100%">
+            <el-option label="高级功能（feature.advanced）" value="feature.advanced" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="到期时间（可选）">
+          <el-date-picker
+            v-model="entitlementForm.valid_until"
+            type="datetime"
+            placeholder="留空表示不设到期"
+            style="width: 100%"
+            clearable
+          />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="entitlementVisible = false">取消</el-button>
+        <el-button type="primary" :loading="entitlementLoading" @click="submitEntitlement">确定</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, RefreshRight, Plus, Edit, Delete, SwitchButton } from '@element-plus/icons-vue'
+import { Search, RefreshRight, Plus, Edit, Delete, SwitchButton, Key } from '@element-plus/icons-vue'
 import { useUserManagementStore } from '../../stores/userManagement'
+import { grantUserEntitlement } from '../../api/billing'
 import type { User, UserForm } from '../../types'
 
 const userStore = useUserManagementStore()
@@ -187,6 +230,14 @@ const selectedIds = ref<string[]>([])
 const isEdit = ref(false)
 const selectedUser = ref<User | null>(null)
 const newRole = ref<string>('')
+
+const entitlementVisible = ref(false)
+const entitlementLoading = ref(false)
+const entitlementUser = ref<User | null>(null)
+const entitlementForm = reactive({
+  feature_key: 'feature.advanced',
+  valid_until: null as Date | null
+})
 
 const userForm = reactive<UserForm>({
   id: undefined,
@@ -347,6 +398,32 @@ const handleRoleSubmit = async () => {
     }
   } finally {
     roleDialogLoading.value = false
+  }
+}
+
+const openEntitlement = (row: User) => {
+  entitlementUser.value = row
+  entitlementForm.feature_key = 'feature.advanced'
+  entitlementForm.valid_until = null
+  entitlementVisible.value = true
+}
+
+const submitEntitlement = async () => {
+  if (!entitlementUser.value) return
+  entitlementLoading.value = true
+  try {
+    const body: { feature_key: string; valid_until?: string | null } = {
+      feature_key: entitlementForm.feature_key,
+      valid_until: entitlementForm.valid_until ? entitlementForm.valid_until.toISOString() : null
+    }
+    await grantUserEntitlement(entitlementUser.value.id, body)
+    ElMessage.success('已更新权益')
+    entitlementVisible.value = false
+    fetchUserList()
+  } catch {
+    /* 拦截器已提示 */
+  } finally {
+    entitlementLoading.value = false
   }
 }
 
@@ -526,5 +603,11 @@ const resetUserForm = () => {
 .role-select-item {
   margin-bottom: 0;
   margin-top: 4px;
+}
+
+.ent-user-line {
+  margin: 0 0 12px;
+  font-size: 14px;
+  color: var(--el-text-color-regular);
 }
 </style>
