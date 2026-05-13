@@ -302,7 +302,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 本地开发：在 `ft-backend` 配置 `conf/config.yaml` 后 `go run .`；在 `ft-front` 执行 `npm install && npm run dev`（Vite 代理 `/ft-api`）。
 
-**OpsFleet 控制台登录**：数据库迁移脚本初始化时默认用户名为 **`admin`**、密码为明文 **`password`**（bcrypt）。生产环境请修改；忘记密码可在数据库所在机执行 **`ft-backend/database/reset_admin_password_pg.sql`**（将 **`admin`** 重置为 **`123456`**，与当前运维约定一致）。登录页在默认配置下会要求**一次性算术验证码**（防撞库/脚本爆破，与 `POST /api/auth/login` 的限流并存）；可在 **`ft-backend/conf/config.yaml`** 的 **`security.disable_login_captcha: true`** 关闭（纯内网场景）。**自助注册**：`GET /api/auth/public-options` 与注册页受 **`security.disable_public_registration`** 控制；注册账号默认角色为 **`user`**，**`admin`** 仍仅由管理员在用户管理页分配。
+**OpsFleet 控制台登录**：数据库迁移脚本初始化时默认用户名为 **`admin`**、密码为明文 **`password`**（bcrypt）。生产环境请修改；忘记密码可在数据库所在机执行 **`ft-backend/database/reset_admin_password_pg.sql`**（将 **`admin`** 重置为 **`123456`**，与当前运维约定一致）。登录页在默认配置下会要求**一次性算术验证码**（防撞库/脚本爆破，与 `POST /api/auth/login` 的限流并存）；可在 **`ft-backend/conf/config.yaml`** 的 **`security.disable_login_captcha: true`** 关闭（纯内网场景）。**反代与限流**：Nginx 模板已传 **`X-Forwarded-For`**；后端信任私网/回环上游并按真实客户端 IP 限流，避免所有请求在 Gin 侧表现为 **`127.0.0.1`** 而误触 **429「请求过于频繁」**（此前易被误认为「登录拒绝」）。**自助注册**：`GET /api/auth/public-options` 与注册页受 **`security.disable_public_registration`** 控制；注册账号默认角色为 **`user`**，**`admin`** 仍仅由管理员在用户管理页分配。
 
 **执行记录**：左侧菜单最下方提供 **执行记录** 页面，统一持久化展示 `ai-sre` CLI、K8s 一键安装 / bootstrap、初始化工具复制脚本、作业中心任务等执行历史。记录包含来源、目标主机/资源、命令或脚本摘要、开始/结束时间、退出码、输出摘要、执行效果 JSON、回滚能力与回滚状态。目标机侧上报为 **best-effort**：脚本或 CLI 能连到 OpsFleet API 时会调用 `/api/execution-records/report/*` 写入开始、事件和结束状态；上报失败不会改变原命令退出码。页面回滚采用保守策略：同目标或同资源在该记录之后存在成功执行时，会先提示关联影响；可自动或半自动回滚的记录会创建一条关联的 rollback 记录，不可验证恢复的命令会显示人工回滚建议。
 

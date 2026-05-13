@@ -3,6 +3,12 @@ import { ElMessage } from 'element-plus'
 import NProgress from 'nprogress'
 import type { ApiResponse } from '../types'
 
+/** POST /api/auth/login（排除 login-captcha，避免 URL 误判） */
+function isAuthLoginPostURL(url: string | undefined): boolean {
+  if (!url) return false
+  return url.includes('/auth/login') && !url.includes('login-captcha')
+}
+
 // 请求计数器，用于处理并发请求
 let requestCount = 0
 
@@ -66,11 +72,13 @@ class Trae {
         // 根据code判断请求是否成功
         if (res.code !== 200) {
           const msg = (res as any).msg || (res as any).message || '请求失败'
-          ElMessage.error(msg)
+          if (!isAuthLoginPostURL(response.config?.url)) {
+            ElMessage.error(msg)
+          }
           // 处理401未授权（登录接口的 401 不跳转，由登录页自己处理）
           if (res.code === 401) {
-            const isLoginRequest = (response.config?.url ?? '').includes('/auth/login')
-            if (!isLoginRequest) {
+            const isLogin = isAuthLoginPostURL(response.config?.url)
+            if (!isLogin) {
               localStorage.removeItem('token')
               localStorage.removeItem('userInfo')
               window.location.href = '/login'
@@ -92,11 +100,11 @@ class Trae {
         
         let errorMsg = '网络错误'
         if (error.response) {
-          const isLoginRequest = (error.config?.url ?? '').includes('/auth/login')
+          const isLoginPost = isAuthLoginPostURL(error.config?.url)
           switch (error.response.status) {
             case 401:
               errorMsg = (error.response.data as any)?.message ?? (error.response.data as any)?.msg ?? '用户名或密码错误'
-              if (!isLoginRequest) {
+              if (!isLoginPost) {
                 localStorage.removeItem('token')
                 localStorage.removeItem('userInfo')
                 window.location.href = '/login'
@@ -108,19 +116,26 @@ class Trae {
             case 404:
               errorMsg = '请求地址不存在'
               break
+            case 429:
+              errorMsg = (error.response.data as any)?.msg ?? '请求过于频繁，请稍后再试'
+              break
             case 500:
               errorMsg = '服务器内部错误'
               break
             default:
-              errorMsg = error.response.data?.msg || '请求失败'
+              errorMsg = (error.response.data as any)?.msg || '请求失败'
+          }
+          if (!isLoginPost) {
+            ElMessage.error(errorMsg)
           }
         } else if (error.request) {
           errorMsg = '网络连接失败，请检查网络设置'
+          ElMessage.error(errorMsg)
         } else {
           errorMsg = error.message || '请求失败'
+          ElMessage.error(errorMsg)
         }
-        ElMessage.error(errorMsg)
-        return Promise.reject(error)
+        return Promise.reject(new Error(errorMsg))
       }
     )
   }

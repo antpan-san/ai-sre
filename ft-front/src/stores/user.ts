@@ -25,7 +25,8 @@ export const useUserStore = defineStore('user', () => {
       return null
     } catch (error) {
       console.error('登录失败:', error)
-      return null
+      const msg = error instanceof Error ? error.message : '登录失败'
+      throw new Error(msg)
     } finally {
       loading.value = false
     }

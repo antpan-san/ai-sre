@@ -15,6 +15,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	gin.SetMode(gin.ReleaseMode)
 
 	r := gin.Default()
+	// 本机 Nginx / Vite 反代时 RemoteAddr 为 127.0.0.1，须信任上游才能正确解析 X-Forwarded-For（与限流键一致）。
+	if err := r.SetTrustedProxies([]string{"127.0.0.1", "::1", "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16"}); err != nil {
+		gin.DefaultWriter.Write([]byte("gin SetTrustedProxies: " + err.Error() + "\n"))
+	}
 	r.Use(middleware.StripOptionalFtAPIPrefix())
 	r.Use(middleware.SecurityHeaders())
 	r.Use(middleware.CORS(cfg.Security.CORSAllowedOrigins))
@@ -37,7 +41,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/auth/public-options", handlers.PublicAuthOptions)
 		public.GET("/auth/login-captcha", middleware.RateLimit("login-captcha", 40, time.Minute), handlers.GetLoginCaptcha)
 		public.POST("/auth/register", middleware.RateLimit("register", 12, time.Minute), handlers.Register)
-		public.POST("/auth/login", middleware.RateLimit("login", 10, time.Minute), handlers.Login)
+		public.POST("/auth/login", middleware.RateLimit("login", 30, time.Minute), handlers.Login)
 		public.POST("/auth/logout", handlers.Logout)
 
 		// File download is public only for explicitly public files or valid share keys.

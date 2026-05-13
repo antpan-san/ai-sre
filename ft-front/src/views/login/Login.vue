@@ -209,23 +209,27 @@ const handleLogin = async () => {
   }
   try {
     await loginFormRef.value.validate()
-    const result = await userStore.login(loginForm)
-    if (result) {
-      if (loginForm.remember) {
-        localStorage.setItem('rememberedUsername', loginForm.username)
-      } else {
-        localStorage.removeItem('rememberedUsername')
+    try {
+      const result = await userStore.login(loginForm)
+      if (result) {
+        if (loginForm.remember) {
+          localStorage.setItem('rememberedUsername', loginForm.username)
+        } else {
+          localStorage.removeItem('rememberedUsername')
+        }
+        ElMessage.success('登录成功')
+        router.push('/dashboard')
+        return
       }
-      ElMessage.success('登录成功')
-      router.push('/dashboard')
-    } else {
       loginError.value = '用户名或密码错误，请重试'
       await loadCaptcha()
+    } catch (loginErr: unknown) {
+      const msg = loginErr instanceof Error ? loginErr.message : '登录失败，请检查用户名和密码'
+      loginError.value = msg
+      await loadCaptcha()
     }
-  } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : '登录失败，请检查用户名和密码'
-    loginError.value = msg
-    await loadCaptcha()
+  } catch {
+    /* 表单校验失败 */
   }
 }
 </script>

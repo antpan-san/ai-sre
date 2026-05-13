@@ -17,7 +17,15 @@ export default defineConfig({
       '/ft-api': {
         target: 'http://localhost:8080',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/ft-api/, '')
+        rewrite: (path) => path.replace(/^\/ft-api/, ''),
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq, req) => {
+            const a = req.socket?.remoteAddress
+            if (a && !proxyReq.getHeader('x-forwarded-for')) {
+              proxyReq.setHeader('X-Forwarded-For', a)
+            }
+          })
+        }
       }
     }
   },

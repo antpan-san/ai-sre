@@ -156,7 +156,8 @@ func Login(c *gin.Context) {
 	var user models.User
 	// 当前系统尚未在登录链路中引入 tenant 上下文，这里先固定到默认租户，
 	// 避免多租户同名账号导致命中错误记录。
-	if err := database.DB.Where("username = ? AND tenant_id = ?", req.Username, models.DefaultTenantID).First(&user).Error; err != nil {
+	defaultTenantUUID := uuid.MustParse(models.DefaultTenantID)
+	if err := database.DB.Where("username = ? AND tenant_id = ?", req.Username, defaultTenantUUID).First(&user).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "message": "用户名或密码错误", "msg": "用户名或密码错误"})
 		} else {
