@@ -1,17 +1,35 @@
 import request from '../utils/request'
-import type { LoginForm, LoginResponse, User } from '../types'
+import type { LoginForm, LoginResponse, PublicAuthOptions, RegisterForm, User } from '../types'
 
-// 用户登录
-export const login = (data: LoginForm): Promise<LoginResponse> => {
-  return request.post('/api/auth/login', data)
+export const getPublicAuthOptions = (): Promise<PublicAuthOptions> => {
+  return request.get('/api/auth/public-options')
 }
 
-// 用户登出
+export const getLoginCaptcha = (): Promise<{
+  captcha_id: string
+  challenge: string
+  captcha_skipped?: boolean
+}> => {
+  return request.get('/api/auth/login-captcha')
+}
+
+export const register = (data: RegisterForm): Promise<{ user: User }> => {
+  return request.post('/api/auth/register', data)
+}
+
+export const login = (data: LoginForm): Promise<LoginResponse> => {
+  return request.post('/api/auth/login', {
+    username: data.username,
+    password: data.password,
+    captcha_id: data.captcha_id,
+    captcha_answer: data.captcha_answer
+  })
+}
+
 export const logout = (): Promise<void> => {
   return request.post('/api/auth/logout')
 }
 
-// 获取用户信息
 export const getUserInfo = (): Promise<User> => {
   return request.get('/api/auth/info')
 }

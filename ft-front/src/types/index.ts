@@ -143,14 +143,19 @@ export interface MachineForm {
   master_machine_id?: string | null
 }
 
-// 用户相关类型
+// 用户相关类型（与 ft-backend models.User / JWT 载荷一致，id 为 UUID 字符串）
 export interface User {
-  id: number
+  id: string
   username: string
-  phone: string
+  email?: string
+  phone?: string
+  full_name?: string
   role: 'admin' | 'user'
-  createTime: string
-  updateTime: string
+  created_at?: string
+  updated_at?: string
+  /** 兼容旧字段 */
+  createTime?: string
+  updateTime?: string
 }
 
 export interface UserListParams {
@@ -166,10 +171,12 @@ export interface UserListResponse {
 }
 
 export interface UserForm {
-  id?: number
+  id?: string
   username: string
+  email: string
   password?: string
-  phone: string
+  phone?: string
+  full_name?: string
   role: 'admin' | 'user'
 }
 
@@ -178,6 +185,22 @@ export interface LoginForm {
   username: string
   password: string
   remember: boolean
+  captcha_id?: string
+  captcha_answer?: string
+}
+
+/** 控制台公开的认证策略（登录页用） */
+export interface PublicAuthOptions {
+  public_registration_allowed: boolean
+  login_captcha_required: boolean
+}
+
+/** 自助注册 */
+export interface RegisterForm {
+  username: string
+  email: string
+  password: string
+  full_name?: string
 }
 
 export interface LoginResponse {

@@ -28,6 +28,12 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '登录', requireAuth: false }
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../views/login/Register.vue'),
+    meta: { title: '注册', requireAuth: false }
+  },
+  {
     path: '/user',
     name: 'User',
     component: () => import('../components/layout/MainLayout.vue'),

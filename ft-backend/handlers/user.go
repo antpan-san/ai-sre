@@ -174,6 +174,7 @@ func AddUser(c *gin.Context) {
 	if user.Role == "" {
 		user.Role = "user"
 	}
+	user.TenantID = uuid.MustParse(models.DefaultTenantID)
 
 	if err := database.DB.Create(&user).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "添加用户失败"})

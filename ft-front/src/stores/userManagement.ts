@@ -43,7 +43,7 @@ export const useUserManagementStore = defineStore('userManagement', () => {
   }
 
   // 更新用户
-  const updateExistingUser = async (id: number, data: UserForm) => {
+  const updateExistingUser = async (id: string, data: UserForm) => {
     try {
       const res = await updateUser(id, data)
       await fetchUserList()
@@ -54,7 +54,7 @@ export const useUserManagementStore = defineStore('userManagement', () => {
   }
 
   // 删除用户
-  const removeUser = async (id: number) => {
+  const removeUser = async (id: string) => {
     try {
       await deleteUser(id)
       await fetchUserList()
@@ -65,7 +65,7 @@ export const useUserManagementStore = defineStore('userManagement', () => {
   }
 
   // 批量删除用户
-  const batchRemoveUser = async (ids: number[]) => {
+  const batchRemoveUser = async (ids: string[]) => {
     try {
       await batchDeleteUser(ids)
       await fetchUserList()
@@ -76,13 +76,13 @@ export const useUserManagementStore = defineStore('userManagement', () => {
   }
 
   // 更新用户角色
-  const changeUserRole = async (id: number, role: string) => {
+  const changeUserRole = async (id: string, role: string) => {
     try {
-      const res = await updateUserRole(id, role)
+      await updateUserRole(id, role)
       await fetchUserList()
-      return res
+      return true
     } catch (error) {
-      return null
+      return false
     }
   }
 

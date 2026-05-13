@@ -20,6 +20,7 @@ type Config struct {
 	File     FileConfig     `yaml:"file"`
 	Redis    RedisConfig    `yaml:"redis"`
 	Opsfleet OpsfleetConfig `yaml:"opsfleet"`
+	Security SecurityConfig `yaml:"security"`
 	Log      struct {
 		Level string `yaml:"level"`
 	} `yaml:"log"`
@@ -72,6 +73,24 @@ type RedisConfig struct {
 	DB       int    `yaml:"db"`
 }
 
+type SecurityConfig struct {
+	CORSAllowedOrigins []string `yaml:"cors_allowed_origins"`
+	// DisablePublicRegistration 为 true 时关闭 POST /api/auth/register（仅管理员可在后台建号）。
+	DisablePublicRegistration bool `yaml:"disable_public_registration"`
+	// DisableLoginCaptcha 为 true 时关闭登录算术验证码（仅依赖现有限流；内网可设 true）。
+	DisableLoginCaptcha bool `yaml:"disable_login_captcha"`
+}
+
+// PublicRegistrationAllowed 默认允许公开注册（未配置 disable 时为 true）。
+func (s SecurityConfig) PublicRegistrationAllowed() bool {
+	return !s.DisablePublicRegistration
+}
+
+// LoginCaptchaRequired 默认要求登录验证码（未配置 disable 时为 true）。
+func (s SecurityConfig) LoginCaptchaRequired() bool {
+	return !s.DisableLoginCaptcha
+}
+
 type ClientConfig struct {
 	EncryptKey string `yaml:"encrypt_key"`
 }
@@ -113,6 +132,14 @@ func LoadConfig() (*Config, error) {
 				Password: "",
 				DB:       0,
 			},
+			Security: SecurityConfig{
+				CORSAllowedOrigins: []string{
+					"http://localhost:5173",
+					"http://127.0.0.1:5173",
+					"http://opsfleetpilot.com",
+					"https://opsfleetpilot.com",
+				},
+			},
 			Log: struct {
 				Level string `yaml:"level"`
 			}{
@@ -143,6 +170,14 @@ func LoadConfig() (*Config, error) {
 	}
 	if config.Database.TimeZone == "" {
 		config.Database.TimeZone = "Asia/Shanghai"
+	}
+	if len(config.Security.CORSAllowedOrigins) == 0 {
+		config.Security.CORSAllowedOrigins = []string{
+			"http://localhost:5173",
+			"http://127.0.0.1:5173",
+			"http://opsfleetpilot.com",
+			"https://opsfleetpilot.com",
+		}
 	}
 
 	return &config, nil
