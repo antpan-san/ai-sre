@@ -35,8 +35,13 @@ security:
     cors_allowed_origins:
         - http://localhost:5173
         - http://127.0.0.1:5173
+        # 控制台常用入口（须与浏览器地址栏完全一致，含端口）
+        - http://127.0.0.1:9080
+        - http://192.168.56.11:9080
         - http://opsfleetpilot.com
         - https://opsfleetpilot.com
+        - http://opsfleetpilot.com:9080
+        - https://opsfleetpilot.com:9080
     # 为 true 时关闭 POST /api/auth/register（仅管理员后台建号）
     disable_public_registration: false
     # 为 true 时关闭登录算术验证码（仍保留限流；纯内网可开）

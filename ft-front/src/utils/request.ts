@@ -111,7 +111,7 @@ class Trae {
               }
               break
             case 403:
-              errorMsg = '拒绝访问'
+              errorMsg = (error.response.data as any)?.msg ?? '拒绝访问'
               break
             case 404:
               errorMsg = '请求地址不存在'

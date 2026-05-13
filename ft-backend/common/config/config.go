@@ -136,8 +136,12 @@ func LoadConfig() (*Config, error) {
 				CORSAllowedOrigins: []string{
 					"http://localhost:5173",
 					"http://127.0.0.1:5173",
+					"http://127.0.0.1:9080",
+					"http://192.168.56.11:9080",
 					"http://opsfleetpilot.com",
 					"https://opsfleetpilot.com",
+					"http://opsfleetpilot.com:9080",
+					"https://opsfleetpilot.com:9080",
 				},
 			},
 			Log: struct {
@@ -175,8 +179,12 @@ func LoadConfig() (*Config, error) {
 		config.Security.CORSAllowedOrigins = []string{
 			"http://localhost:5173",
 			"http://127.0.0.1:5173",
+			"http://127.0.0.1:9080",
+			"http://192.168.56.11:9080",
 			"http://opsfleetpilot.com",
 			"https://opsfleetpilot.com",
+			"http://opsfleetpilot.com:9080",
+			"https://opsfleetpilot.com:9080",
 		}
 	}
 
