@@ -30,6 +30,17 @@ echo "==> go build ai-sre CLI -> bin/ai-sre (K8s 确认页 curl 安装与 deploy
   go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/ai-sre" .
 )
 
+echo "==> go build ai-sre CLI (linux/arm64) -> bin/ai-sre.arm64（供 ARM 控制机 curl 安装；失败则仅影响 arm64 分发）"
+(
+  cd "$ROOT"
+  if GOOS=linux GOARCH=arm64 GOTOOLCHAIN=auto go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/ai-sre.arm64" .; then
+    echo "    ai-sre.arm64: OK"
+  else
+    echo "    WARN: linux/arm64 交叉编译失败，ARM 客户端需手动配置 OPSFLEET_AISRE_BINARY_PATH_ARM64" >&2
+    rm -f "$ROOT/bin/ai-sre.arm64"
+  fi
+)
+
 echo "==> npm build ft-front -> dist/web"
 (
   cd ft-front
@@ -45,7 +56,7 @@ echo "==> OK"
 echo "    Backend: $ROOT/bin/opsfleet-backend"
 echo "    K8s mirror-serve: $ROOT/bin/opsfleet-k8s-mirror-serve  (optional; 制品机 install + systemd)"
 echo "    Executor: $ROOT/bin/opsfleet-executor  (copy to managed hosts as needed)"
-echo "    ai-sre:   $ROOT/bin/ai-sre  (API 公开下载，见 OPSFLEET_AISRE_BINARY_PATH)"
+echo "    ai-sre:   $ROOT/bin/ai-sre  (API 公开下载；arm64 见 bin/ai-sre.arm64 与 OPSFLEET_AISRE_BINARY_PATH_ARM64)"
 echo "    Static:  $ROOT/dist/web/"
 echo "    Run API from directory ft-backend (conf/config.yaml):"
 echo "      cd ft-backend && ../bin/opsfleet-backend"

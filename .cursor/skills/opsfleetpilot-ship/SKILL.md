@@ -55,9 +55,9 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 2. **本地快速校验**（可选）：`make vet-opsfleet` 或 `cd ft-backend && go build -o /dev/null .`；`make build-opsfleet` 仅用于本地复现（**勿提交** `bin/`、`dist/`）。  
 3. **全栈远程部署**（仓库根）：`./scripts/deploy-opsfleet-remote.sh`  
    - rsync 源码 → 远端 **`scripts/build-all.sh`** → **`bin/opsfleet-backend`**、**`bin/ai-sre`**、**`dist/web/`** → 同步 **`/var/www/opsfleetpilot/`** → 渲染 Nginx → **`systemctl restart opsfleet-backend`**  
-   - 每次向 **`/etc/opsfleet/backend.env`** 追加/刷新 **`OPSFLEET_AISRE_BINARY_PATH=<REMOTE_DIR>/bin/ai-sre`**（控制台 **curl 安装 ai-sre**、**GET /ft-api/api/k8s/deploy/cli/ai-sre** 依赖此项）  
+   - 每次向 **`/etc/opsfleet/backend.env`** 追加/刷新 **`OPSFLEET_AISRE_BINARY_PATH=<REMOTE_DIR>/bin/ai-sre`**；若 **`build-all` 产出 `bin/ai-sre.arm64`**，另写 **`OPSFLEET_AISRE_BINARY_PATH_ARM64`**（aarch64 控制机安装脚本依赖）  
 4. **部署后远程自检（测试）**（SSH 到部署机，在 **`$OPSFLEET_REMOTE_DIR`** 下）：`bash scripts/verify-opsfleet-deployment.sh`  
-   - 必看：**systemd active**、**/health**、**静态 index.html**、**GET /ft-api/api/k8s/deploy/cli/ai-sre?arch=amd64 → 200**、**GET /ft-api/api/k8s/deploy/install-ai-sre.sh** 返回以 **`#!`** 开头的 shell（动态脚本；若 404/HTML 检查 Nginx **`location /ft-api/`** 与后端 **`StripOptionalFtAPIPrefix`**）  
+   - 必看：**systemd active**、**/health**、**静态 index.html**、**GET .../cli/ai-sre?arch=amd64 → 200**、若存在 **`bin/ai-sre.arm64`** 则 **`?arch=arm64 → 200`**、**GET .../install-ai-sre.sh** 返回以 **`#!`** 开头的 shell（动态脚本；若 404/HTML 检查 Nginx **`location /ft-api/`** 与后端 **`StripOptionalFtAPIPrefix`**）  
    - **manifest.json**：未部署 `deploy/k8s-mirror` 时 WARN 可接受  
 5. **CLI 同步**（同主机常规仍执行）：仓库根 **`./scripts/deploy-remote.sh`**（仅 **ai-sre** 二进制构建，与全栈共用目录时不冲突）。  
 6. **远程冒烟/功能测试**：仓库根 **`SHORT=1 bash scripts/remote-e2e.sh`**（见 **ai-sre-ship**；全量联调为可选，规则同 ai-sre-ship）。  
@@ -80,6 +80,7 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 | `OPSFLEET_UI_PORT` | `9080` |
 | `OPSFLEET_BACKEND_PORT` | `8080` |
 | `OPSFLEET_AISRE_BINARY_PATH` | 由 `deploy-opsfleet-remote.sh` 在远端设为 **`$OPSFLEET_REMOTE_DIR/bin/ai-sre`**（勿手改除非自定义路径） |
+| `OPSFLEET_AISRE_BINARY_PATH_ARM64` | 若存在 **`bin/ai-sre.arm64`** 则由同一脚本写入，供 **`?arch=arm64`** 下载 |
 
 ## 远程前提
 
@@ -89,13 +90,13 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 
 ## ai-sre 分发与版本（强制核对，避免「控制台仍发旧包」）
 
-**根因**：目标机执行 `curl .../install-ai-sre.sh | bash` 或 `ai-sre upgrade` 时，下载的是 **OpsFort 本机磁盘上** `opsfleet.ai_sre_binary_path`（环境变量 **`OPSFLEET_AISRE_BINARY_PATH`**）指向的文件；**不是** Git 改完就自动生效。若发布未换该文件，客户端会**一直**拿到旧 `ai-sre version`（例如始终 0.4.1）。
+**根因**：目标机执行 `curl .../install-ai-sre.sh | bash` 或 `ai-sre upgrade` 时，下载的是 **OpsFort 本机磁盘上** 与 **`?arch=`** 匹配的 ELF（**`OPSFLEET_AISRE_BINARY_PATH`** / **`_ARM64`** 等）；**不是** Git 改完就自动生效。若发布未换该文件，客户端会**一直**拿到旧 `ai-sre version`（例如始终 0.4.1）。**仅 amd64 分发而 ARM 控制机请求 `arch=arm64` 时，后端会 400 拒绝**，需 `bin/ai-sre.arm64` 或手动配置 **`OPSFLEET_AISRE_BINARY_PATH_ARM64`**。
 
 **两条构建路径（勿混淆）**：
 
 | 脚本 | 远端典型产物 | 是否被 `GET /ft-api/.../cli/ai-sre` 分发 |
 |------|----------------|----------------------------------------|
-| **`scripts/deploy-opsfleet-remote.sh`** | **`build-all.sh`** → **`$REMOTE_DIR/bin/ai-sre`**，并写入 **`/etc/opsfleet/backend.env`** 的 **`OPSFLEET_AISRE_BINARY_PATH`** | **是** |
+| **`scripts/deploy-opsfleet-remote.sh`** | **`build-all.sh`** → **`$REMOTE_DIR/bin/ai-sre`**（及可选 **`bin/ai-sre.arm64`**），并写入 **`backend.env`** 的 **`OPSFLEET_AISRE_BINARY_PATH`** / **`_ARM64`** | **是** |
 | **`scripts/deploy-remote.sh`** | 仓库根 **`go build -o ai-sre`** → **`$REMOTE_DIR/ai-sre`**（与 **`bin/ai-sre` 不是同一路径**） | **否**，除非再手动拷到 `bin/ai-sre` 并重启后端 |
 
 **每次全栈发布门禁**：

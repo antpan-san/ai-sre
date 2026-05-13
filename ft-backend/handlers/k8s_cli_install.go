@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"debug/elf"
 	"fmt"
 	"net"
 	"net/http"
@@ -44,7 +45,7 @@ func publicAPIBaseFromRequest(c *gin.Context) string {
 func ServeAiSreInstallScript(c *gin.Context) {
 	base := publicAPIBaseFromRequest(c)
 	body := fmt.Sprintf(`#!/usr/bin/env bash
-# OpsFleet：将 ai-sre 安装/升级到 /usr/local/bin，并保存 API 基址供本机后续每次执行 ai-sre 时联网比对版本并自升级（需服务器配置 opsfleet.ai_sre_binary_path）
+# OpsFleet：将 ai-sre 安装/升级到 /usr/local/bin，并保存 API 基址供本机后续每次执行 ai-sre 时联网比对版本并自升级。
 set -euo pipefail
 API_BASE=%s
 ARCH=$(uname -m)
@@ -58,19 +59,33 @@ if command -v ai-sre >/dev/null 2>&1; then
 else
   echo "正在从 OpsFleet 拉取并安装最新 ai-sre …" >&2
 fi
+echo "本机 uname -m=$ARCH → 请求 OpsFleet 分发 arch=$UARCH" >&2
 TMP=$(mktemp)
 trap 'rm -f "$TMP"' EXIT
-# 显示下载进度：TTY 下 --progress-bar 输出可视化进度条到 stderr；非 TTY（如管道至文件）退化为 -sS
 DL_URL="$API_BASE/api/k8s/deploy/cli/ai-sre?arch=$UARCH"
 DL_OPTS=("--fail" "--location" "--retry" "3" "--retry-delay" "2" "--connect-timeout" "10")
 if [ -t 2 ] && [ "${OPSFLEET_NO_PROGRESS:-}" != "1" ]; then
   echo "下载地址: $DL_URL" >&2
-  curl "${DL_OPTS[@]}" --progress-bar -o "$TMP" "$DL_URL" || { echo "下载 ai-sre 失败。请在 OpsFleet 服务器 ft-backend/conf/config.yaml 中配置 opsfleet.ai_sre_binary_path（指向已构建的 Linux 可执行文件）。" >&2; exit 1; }
+  curl "${DL_OPTS[@]}" --progress-bar -o "$TMP" "$DL_URL" || { echo "下载失败。若 HTTP 400：多为 OpsFleet 未配置对应架构的 ai-sre（ARM 机需服务端 OPSFLEET_AISRE_BINARY_PATH_ARM64 或 bin/ai-sre.arm64）。仍请检查 conf 中 opsfleet.ai_sre_binary_path*。" >&2; exit 1; }
 else
-  curl "${DL_OPTS[@]}" -sS -o "$TMP" "$DL_URL" || { echo "下载 ai-sre 失败。请在 OpsFleet 服务器 ft-backend/conf/config.yaml 中配置 opsfleet.ai_sre_binary_path（指向已构建的 Linux 可执行文件）。" >&2; exit 1; }
+  curl "${DL_OPTS[@]}" -sS -o "$TMP" "$DL_URL" || { echo "下载失败（同上提示）。" >&2; exit 1; }
 fi
 SIZE_BYTES=$(stat -c %%s "$TMP" 2>/dev/null || stat -f %%z "$TMP" 2>/dev/null || echo "?")
 echo "已下载: ${SIZE_BYTES} bytes" >&2
+if command -v file >/dev/null 2>&1; then
+  case "$UARCH" in
+    amd64)
+      if ! file -b "$TMP" 2>/dev/null | grep -qi 'x86-64'; then
+        echo "警告: file 显示该下载物可能不是 x86-64 ELF，若执行失败请核对 OpsFleet 分发路径。" >&2
+      fi
+      ;;
+    arm64)
+      if ! file -b "$TMP" 2>/dev/null | grep -qE 'aarch64|ARM aarch64|ARM, EABI5'; then
+        echo "警告: file 显示该下载物可能不是 aarch64 ELF，若执行失败请核对 OpsFleet 是否配置了 ARM64 分发。" >&2
+      fi
+      ;;
+  esac
+fi
 install -m 0755 "$TMP" /usr/local/bin/ai-sre
 if [ -n "${SUDO_USER:-}" ]; then
   UHOME=$(eval echo "~$SUDO_USER")
@@ -80,9 +95,8 @@ fi
 mkdir -p "$UHOME/.config/ai-sre"
 printf '%%s\n' "$API_BASE" > "$UHOME/.config/ai-sre/opsfleet_api_url" || true
 echo "已写入: $(command -v ai-sre)；已记录 OpsFleet 基址 $UHOME/.config/ai-sre/opsfleet_api_url（供自升级）"
-# 不依赖 version 的退出码：二进制已落盘；若执行失败多因架构/动态库，提示排查而非让整段管道失败
 if ! ai-sre version; then
-  echo "已写入 /usr/local/bin/ai-sre，但 version 子命令未成功。请检查架构是否与分发的 Linux 二进制一致、或 PATH/依赖。" >&2
+  echo "已写入 /usr/local/bin/ai-sre，但 version 未成功（多为架构与分发 ELF 不一致）。请让管理员在 OpsFort 配置与本机 $ARCH 一致的二进制。" >&2
 fi
 `, quoteShellSingleLine(base))
 
@@ -95,7 +109,37 @@ func quoteShellSingleLine(s string) string {
 	return `'` + strings.ReplaceAll(s, `'`, `'"'"'`) + `'`
 }
 
-// resolveAiSreBinaryPath 与 DownloadAiSreCLI 使用相同路径解析；未配置或文件无效时 path 为空。
+// readELFArch 返回 Linux ELF 的 amd64 / arm64，用于校验 ?arch= 与磁盘文件一致。
+func readELFArch(path string) (string, error) {
+	f, err := elf.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	switch f.Machine {
+	case elf.EM_X86_64:
+		return "amd64", nil
+	case elf.EM_AARCH64:
+		return "arm64", nil
+	default:
+		return "", fmt.Errorf("ELF machine %s not supported for ai-sre distribution", f.Machine.String())
+	}
+}
+
+func aiSrePathIfFile(p string) string {
+	p = strings.TrimSpace(p)
+	if p == "" {
+		return ""
+	}
+	p = filepath.Clean(p)
+	st, err := os.Stat(p)
+	if err != nil || st.IsDir() {
+		return ""
+	}
+	return p
+}
+
+// resolveAiSreBinaryPath 与旧逻辑一致：环境变量 OPSFLEET_AISRE_BINARY_PATH 优先于 config。
 func resolveAiSreBinaryPath(cfg *config.Config) (path string) {
 	if cfg != nil {
 		path = strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
@@ -105,15 +149,82 @@ func resolveAiSreBinaryPath(cfg *config.Config) (path string) {
 	} else {
 		path = strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
 	}
-	if path == "" {
+	return aiSrePathIfFile(path)
+}
+
+// resolveAiSreBinaryPathForArch 按客户端请求的 arch 选取分发文件（amd64 / arm64）。
+// arm64：优先 *_ARM64 / yaml arm64；否则若 legacy 单文件本身为 aarch64 ELF 则可用。
+func resolveAiSreBinaryPathForArch(cfg *config.Config, wantArch string) string {
+	wantArch = strings.TrimSpace(strings.ToLower(wantArch))
+	if wantArch == "arm64" {
+		if p := aiSrePathIfFile(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_ARM64")); p != "" {
+			return p
+		}
+		if cfg != nil {
+			if p := aiSrePathIfFile(cfg.Opsfleet.AiSreBinaryPathArm64); p != "" {
+				return p
+			}
+		}
+		if lp := resolveAiSreBinaryPath(cfg); lp != "" {
+			if got, err := readELFArch(lp); err == nil && got == "arm64" {
+				return lp
+			}
+		}
 		return ""
 	}
-	path = filepath.Clean(path)
-	st, err := os.Stat(path)
-	if err != nil || st.IsDir() {
+	if wantArch == "amd64" {
+		if p := aiSrePathIfFile(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_AMD64")); p != "" {
+			return p
+		}
+		if cfg != nil {
+			if p := aiSrePathIfFile(cfg.Opsfleet.AiSreBinaryPathAmd64); p != "" {
+				return p
+			}
+		}
+		if lp := resolveAiSreBinaryPath(cfg); lp != "" {
+			if got, err := readELFArch(lp); err == nil && got == "amd64" {
+				return lp
+			}
+		}
 		return ""
 	}
-	return path
+	return ""
+}
+
+func firstAiSrePathWithProbe(cfg *config.Config) string {
+	var candidates []string
+	add := func(p string) {
+		p = aiSrePathIfFile(p)
+		if p == "" {
+			return
+		}
+		for _, x := range candidates {
+			if x == p {
+				return
+			}
+		}
+		candidates = append(candidates, p)
+	}
+	add(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_AMD64"))
+	add(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_ARM64"))
+	add(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
+	if cfg != nil {
+		o := cfg.Opsfleet
+		add(o.AiSreBinaryPathAmd64)
+		add(o.AiSreBinaryPathArm64)
+		add(o.AiSreBinaryPath)
+	}
+	for _, p := range candidates {
+		if probeAiSreVersion(p) != "" {
+			return p
+		}
+	}
+	for _, p := range candidates {
+		if p != "" {
+			return p
+		}
+	}
+	return ""
 }
 
 // probeAiSreVersion 优先环境变量，其次执行二进制 `version` 子命令解析第二列。
@@ -144,7 +255,7 @@ func GetAiSreCLIVersion(c *gin.Context) {
 		response.ServerError(c, "配置未初始化")
 		return
 	}
-	p := resolveAiSreBinaryPath(cfg)
+	p := firstAiSrePathWithProbe(cfg)
 	ver := probeAiSreVersion(p)
 	if ver == "" {
 		ver = "unknown"
@@ -154,7 +265,7 @@ func GetAiSreCLIVersion(c *gin.Context) {
 			"name":    "ai-sre",
 			"version": ver,
 			"ok":      false,
-			"message": "未配置 ai-sre 分发路径，无法执行版本探测；请在 conf 或环境变量中设置 opsfleet.ai_sre_binary_path / OPSFLEET_AISRE_BINARY_PATH，可选 OPSFLEET_AISRE_VERSION。",
+			"message": "未配置 ai-sre 分发路径，无法执行版本探测；请在 conf 或环境变量中设置 opsfleet.ai_sre_binary_path / OPSFLEET_AISRE_BINARY_PATH，可选分架构 OPSFLEET_AISRE_BINARY_PATH_AMD64 / _ARM64 与 OPSFLEET_AISRE_VERSION。",
 		})
 		return
 	}
@@ -165,16 +276,36 @@ func GetAiSreCLIVersion(c *gin.Context) {
 	})
 }
 
-// DownloadAiSreCLI 公开：下载已配置的 ai-sre Linux 二进制（与架构参数校验可选）。
+// DownloadAiSreCLI 公开：下载已配置的 ai-sre Linux 二进制；?arch= 与 ELF 必须一致。
 func DownloadAiSreCLI(c *gin.Context) {
 	cfg, ok := c.MustGet("config").(*config.Config)
 	if !ok || cfg == nil {
 		response.ServerError(c, "配置未初始化")
 		return
 	}
-	path := resolveAiSreBinaryPath(cfg)
+	want := strings.TrimSpace(strings.ToLower(c.Query("arch")))
+	if want != "" && want != "amd64" && want != "arm64" {
+		response.BadRequest(c, "arch 仅支持 amd64 或 arm64")
+		return
+	}
+	var path string
+	var enforceELFMatch bool
+	if want == "" {
+		path = resolveAiSreBinaryPath(cfg)
+		enforceELFMatch = false
+	} else {
+		path = resolveAiSreBinaryPathForArch(cfg, want)
+		enforceELFMatch = true
+	}
 	if path == "" {
-		response.BadRequest(c, "未配置 ai-sre 分发：请在 conf/config.yaml 设置 opsfleet.ai_sre_binary_path，或环境变量 OPSFLEET_AISRE_BINARY_PATH（指向 Linux 可执行文件）")
+		switch want {
+		case "arm64":
+			response.BadRequest(c, "未配置 ARM64 的 ai-sre：请在服务端设置 OPSFLEET_AISRE_BINARY_PATH_ARM64 或 opsfleet.ai_sre_binary_path_arm64（或由全栈构建生成 bin/ai-sre.arm64）。仅 amd64 分发无法在 aarch64 控制机上运行。")
+		case "amd64":
+			response.BadRequest(c, "未配置 AMD64 的 ai-sre：请在服务端设置 OPSFLEET_AISRE_BINARY_PATH_AMD64 或 opsfleet.ai_sre_binary_path_amd64。若 OpsFort 本机为 aarch64 且仅构建 arm64，须单独提供 x86_64 二进制或交叉构建后配置上述路径。")
+		default:
+			response.BadRequest(c, "未配置 ai-sre 分发：请在 conf/config.yaml 设置 opsfleet.ai_sre_binary_path，或环境变量 OPSFLEET_AISRE_BINARY_PATH（指向 Linux 可执行文件）")
+		}
 		return
 	}
 	st, err := os.Stat(path)
@@ -182,12 +313,17 @@ func DownloadAiSreCLI(c *gin.Context) {
 		response.NotFound(c, "ai_sre_binary_path 无效或不是文件: "+path)
 		return
 	}
-	arch := strings.TrimSpace(strings.ToLower(c.Query("arch")))
-	if arch != "" && arch != "amd64" && arch != "arm64" {
-		response.BadRequest(c, "arch 仅支持 amd64 或 arm64")
-		return
+	if enforceELFMatch {
+		got, err := readELFArch(path)
+		if err != nil {
+			response.BadRequest(c, "分发文件不是有效 Linux ELF: "+path+" ("+err.Error()+")")
+			return
+		}
+		if got != want {
+			response.BadRequest(c, fmt.Sprintf("分发与 arch 不一致: 请求 %s，但 %s 的 ELF 为 %s。请为对应架构单独配置 OPSFLEET_AISRE_BINARY_PATH_* 或上传匹配的二进制。", want, path, got))
+			return
+		}
 	}
-	// 若配置了路径，当前仅分发该文件；arch 用于将来扩展多文件时校验
 	data, err := os.ReadFile(path)
 	if err != nil {
 		response.ServerError(c, "读取二进制失败")

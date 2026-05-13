@@ -37,6 +37,9 @@ client:
   encrypt_key: change-me-in-production
 log:
   level: info
-# 可选：curl 安装 ai-sre 的备用路径。全栈部署脚本会写入 OPSFLEET_AISRE_BINARY_PATH=<仓库>/bin/ai-sre（优先）
+# 可选：curl 安装 ai-sre。全栈 deploy-opsfleet-remote 会写 OPSFLEET_AISRE_* 到 systemd EnvironmentFile（优先于此处）。
+# 若需同时服务 amd64 与 arm64 客户端，请配置 arm64 专用路径（或由 build-all 生成 bin/ai-sre.arm64 并由部署脚本写入 OPSFLEET_AISRE_BINARY_PATH_ARM64）。
 opsfleet:
   ai_sre_binary_path: ""
+  # ai_sre_binary_path_amd64: ""
+  # ai_sre_binary_path_arm64: ""

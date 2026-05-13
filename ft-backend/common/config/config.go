@@ -27,8 +27,12 @@ type Config struct {
 
 // OpsfleetConfig 控制台扩展（K8s 部署页 curl 安装 ai-sre 等）。
 type OpsfleetConfig struct {
-	// AiSreBinaryPath 服务器上已构建的 Linux ai-sre 可执行文件绝对路径，用于公开下载（amd64/arm64 暂共用同一文件时请保证与目标机架构一致）。
+	// AiSreBinaryPath 默认/legacy：Linux 可执行文件绝对路径；未单独配置 *_amd64 / *_arm64 时 amd64 与「未带 arch」下载均用此文件。
 	AiSreBinaryPath string `yaml:"ai_sre_binary_path"`
+	// AiSreBinaryPathAmd64 可选：显式 amd64 分发（GET .../cli/ai-sre?arch=amd64 优先于 ai_sre_binary_path）。
+	AiSreBinaryPathAmd64 string `yaml:"ai_sre_binary_path_amd64"`
+	// AiSreBinaryPathArm64 可选：显式 arm64 分发（?arch=arm64）；与 amd64 分属不同文件时必配，否则 ARM 机会拿到错误 ELF。
+	AiSreBinaryPathArm64 string `yaml:"ai_sre_binary_path_arm64"`
 }
 
 type ServerConfig struct {

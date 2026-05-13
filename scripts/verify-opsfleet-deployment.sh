@@ -46,13 +46,37 @@ else
 fi
 
 AISRE="${OPSFLEET_AISRE_BINARY_PATH:-}"
+UNAME_M="$(uname -m 2>/dev/null || echo x86_64)"
+case "$UNAME_M" in
+  aarch64|arm64) PRIMARY_ARCH=arm64 ;;
+  x86_64|amd64) PRIMARY_ARCH=amd64 ;;
+  *) PRIMARY_ARCH=amd64 ;;
+esac
 if [[ -n "$AISRE" && -f "$AISRE" ]]; then
-  echo "-- ai-sre 公开下载（二进制 $AISRE）--"
-  code=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre?arch=amd64" || echo "000")
+  echo "-- ai-sre 公开下载（二进制 $AISRE；本机 uname -m=$UNAME_M → 校验 ?arch=$PRIMARY_ARCH）--"
+  code=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre?arch=${PRIMARY_ARCH}" || echo "000")
   if [[ "$code" == "200" ]]; then
-    echo "GET /ft-api/api/k8s/deploy/cli/ai-sre HTTP 200 OK"
+    echo "GET /ft-api/api/k8s/deploy/cli/ai-sre?arch=${PRIMARY_ARCH} HTTP 200 OK"
   else
-    echo "WARN: GET .../cli/ai-sre 返回 HTTP $code（预期 200；检查 opsfleet-backend 与 install-ai-sre 路由）"
+    echo "WARN: GET .../cli/ai-sre?arch=${PRIMARY_ARCH} 返回 HTTP $code（预期 200；检查 opsfleet-backend 与 install-ai-sre 路由）"
+  fi
+  if [[ "$PRIMARY_ARCH" == "amd64" && -f "${AISRE%/*}/ai-sre.arm64" ]]; then
+    acode=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre?arch=arm64" || echo "000")
+    if [[ "$acode" == "200" ]]; then
+      echo "GET /ft-api/api/k8s/deploy/cli/ai-sre?arch=arm64 HTTP 200 OK"
+    else
+      echo "WARN: GET .../cli/ai-sre?arch=arm64 返回 HTTP $acode（已存在 bin/ai-sre.arm64 时期望 200）"
+    fi
+  elif [[ "$PRIMARY_ARCH" == "arm64" ]]; then
+    AMD64_BIN="${OPSFLEET_AISRE_BINARY_PATH_AMD64:-}"
+    if [[ -n "$AMD64_BIN" && -f "$AMD64_BIN" ]]; then
+      dcode=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre?arch=amd64" || echo "000")
+      if [[ "$dcode" == "200" ]]; then
+        echo "GET /ft-api/api/k8s/deploy/cli/ai-sre?arch=amd64 HTTP 200 OK（已配置 OPSFLEET_AISRE_BINARY_PATH_AMD64）"
+      else
+        echo "WARN: GET .../cli/ai-sre?arch=amd64 返回 HTTP $dcode（已配置 amd64 路径时期望 200）"
+      fi
+    fi
   fi
   vcode=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre/version" 2>/dev/null || echo "000")
   if [[ "$vcode" == "200" ]]; then

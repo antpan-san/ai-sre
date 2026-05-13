@@ -118,10 +118,16 @@ fi
 ENV_FILE=/etc/opsfleet/backend.env
 tmp_be=$(mktemp)
 grep -v '^OPSFLEET_AISRE_BINARY_PATH=' "$ENV_FILE" \
+  | grep -v '^OPSFLEET_AISRE_BINARY_PATH_ARM64=' \
+  | grep -v '^OPSFLEET_AISRE_BINARY_PATH_AMD64=' \
   | grep -v '^OPSFLEET_AISRE_VERSION=' \
   | grep -v '^OPSFLEET_AI_SKILL_DATA_DIR=' > "$tmp_be" && cat "$tmp_be" > "$ENV_FILE"
 rm -f "$tmp_be"
 echo "OPSFLEET_AISRE_BINARY_PATH=${R}/bin/ai-sre" >> "$ENV_FILE"
+if [[ -f "${R}/bin/ai-sre.arm64" ]]; then
+  echo "OPSFLEET_AISRE_BINARY_PATH_ARM64=${R}/bin/ai-sre.arm64" >> "$ENV_FILE"
+  echo "opsfleet: OPSFLEET_AISRE_BINARY_PATH_ARM64=${R}/bin/ai-sre.arm64"
+fi
 if [[ -x "${R}/bin/ai-sre" ]]; then
   V="$("${R}/bin/ai-sre" version 2>/dev/null | head -1 | awk '{print $2}')"
   if [[ -n "${V:-}" ]]; then
