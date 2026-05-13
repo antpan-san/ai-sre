@@ -202,6 +202,25 @@ const routes: Array<RouteRecordRaw> = [
       }
     ]
   },
+  {
+    path: '/help',
+    name: 'Help',
+    component: () => import('../components/layout/MainLayout.vue'),
+    meta: { title: '帮助', requireAuth: true, roles: ['admin', 'user'] },
+    children: [
+      {
+        path: 'error-codes',
+        name: 'ErrorCodesLookup',
+        component: () => import('../views/help/ErrorCodesLookup.vue'),
+        meta: {
+          title: '部署错误码查询',
+          requireAuth: true,
+          roles: ['admin', 'user'],
+          breadcrumb: [{ title: '帮助中心' }, { title: '部署错误码查询' }]
+        }
+      }
+    ]
+  },
   // 兼容旧地址：访问任意已废弃的初始化工具子页一律重定向到聚合页
   {
     path: '/init-tools/:legacy(system-param|time-sync|security-hardening|disk-partition)',

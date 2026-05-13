@@ -121,6 +121,10 @@
             <el-icon><DocumentCopy /></el-icon>
             <template #title>执行记录</template>
           </el-menu-item>
+          <el-menu-item index="/help/error-codes">
+            <el-icon><Reading /></el-icon>
+            <template #title>部署错误码</template>
+          </el-menu-item>
         </el-menu>
       </el-scrollbar>
     </aside>
@@ -234,7 +238,8 @@ import {
   Connection,
   Cpu,
   Link,
-  Download
+  Download,
+  Reading
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
@@ -267,7 +272,8 @@ const routeIconMap: Record<string, Component> = {
   '/security-audit': Lock,
   '/advanced': DocumentCopy,
   '/init-tools': Tools,
-  '/execution-records': DocumentCopy
+  '/execution-records': DocumentCopy,
+  '/help/error-codes': Reading
 }
 
 const sectionDefaultPath: Record<string, string> = {
@@ -279,7 +285,8 @@ const sectionDefaultPath: Record<string, string> = {
   '/advanced': '/advanced/backup-restore',
   '/user': '/user/list',
   '/init-tools': '/init-tools',
-  '/execution-records': '/execution-records'
+  '/execution-records': '/execution-records',
+  '/help': '/help/error-codes'
 }
 
 const route = useRoute()
