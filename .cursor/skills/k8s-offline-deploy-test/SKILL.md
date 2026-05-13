@@ -52,6 +52,7 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 | 改合并 `group_vars` 规则或键名 | **强制检查点**里的 `grep` 示例 |
 | 改清理行为 | **Cleanup** 与 `scripts/k8s-offline-test-cleanup.sh`、`playbooks/pre_cleanup.yml` 三者说明一致 |
 | 改 `deploy/k8s-mirror/`、manifest 格式、`k8s_mirror_catalog` | **实验室 VM** 小节、`verify-opsfleet-deployment.sh` 中 manifest 检查说明 |
+| 改 `k8s_relay.go`、relay API、`resource_sources.json` / `install.sh` 客户端路由 | **强制检查点**（resource_sources）、**网络预检**、本表「zip 内容」说明；控制台 `GET /api/k8s/deploy/relay/preflight` 与 `POST .../relay/warm` |
 
 **单一事实来源（改步骤时先改代码再改文档）：**
 
@@ -64,7 +65,7 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 
 真实用户只会拿到 **OpsFleet 生成的 zip**，解压后得到：
 
-`install.sh` + **`inventory/`（含合并后的 `group_vars/all.yml`）** + `ansible-agent/` + `README.txt`。
+`install.sh` + **`inventory/`（含合并后的 `group_vars/all.yml`）** + `ansible-agent/` + `README.txt` + **`resource_sources.json`**（始终；`image_source: aliyun` 时另含 **`resource_routing_relay_overlay.yml`**，供 install.sh 客户端探测失败时追加进 `all.yml`）。
 
 若 Agent **只拷贝 `ansible-agent`** 到机器上跑 playbook、或用了**未合并**的 inventory，会得到 **内置默认** 的 `download_domain`（见 `ansible-agent/inventory/group_vars/all.yml`）、`/tmp/ansible-cache` 等，与 **控制台/CLI 打的离线包** 不一致——**这是 Skill「正常」而人工执行失败的首要原因**。  
 **本 Skill 要求：默认流程必须与「下载 zip → 解压 → install.sh」等价，禁止该捷径。**
@@ -86,6 +87,8 @@ ssh -o BatchMode=yes root@192.168.56.11 'curl -sfS --connect-timeout 8 http://12
 ## 离线 `install.sh` 步骤（权威，与当前代码一致）
 
 可选 **Step 0**：`OPSFLEET_OFFLINE_PRE_CLEANUP=1`（或打包时勾选预清理）→ `playbooks/pre_cleanup.yml`。
+
+**Step 0b（非编号 playbook，在 inventory 就绪后、大下载前）**：若存在 `resource_sources.json` 且未设 `OPSFLEET_SKIP_CLIENT_ROUTE=1`，对 `primary_probe_url` 做短超时 `curl --range 0-0`；失败则 **cat** `resource_routing_relay_overlay.yml` **追加**到 `inventory/group_vars/all.yml`，并输出信息码 **`OPSFLEET_K8S_I_RELAY_ROUTE_APPLIED`**（不调用 AI）。`ai-sre k8s install --package` 因执行同一 `install.sh`，行为一致。
 
 合并后的 **`inventory/group_vars/all.yml`** 含 **`control_plane_deploy_method`**：`binary`（默认）或 **`static-pod`**。前者为 **12 步**（控制平面 systemd）；后者为 **14 步**（先装 containerd → 下发 **`/etc/kubernetes/manifests`** 静态 Pod → kubelet → **`wait_apiserver`** → 补 **`extension-apiserver-authentication`** ConfigMap → kubectl → kube-proxy → addons）。
 
@@ -189,12 +192,16 @@ test -f inventory/group_vars/all.yml && test -f inventory/hosts.ini || { echo FA
 grep -E "local_cache_dir|image_source|arch_version|k8s_server_tarball_url|download_domain|pod_cluster_cidr|dns_service_ip|network_plugin" inventory/group_vars/all.yml | head -50
 
 # 3) 若选「阿里云」镜像源：应出现 dl.k8s.io 的 tarball/sha512 覆盖；若仍是纯内网 IP 且无合并块，说明包不对
+
+# 4) resource_sources.json（与 relay 路由）；aliyun 包还应含 resource_routing_relay_overlay.yml
+test -f resource_sources.json || { echo "FAIL: missing resource_sources.json"; exit 1; }
 ```
 
 **网络预检（与镜像源一致）：**
 
-- `imageSource: aliyun`（公网）：在控制机上 `curl -sI --connect-timeout 10 https://dl.k8s.io/` 或即将使用的版本 URL 应可达。  
+- `imageSource: aliyun`（公网）：在控制机上 `curl -sI --connect-timeout 10 https://dl.k8s.io/` 或即将使用的版本 URL 应可达；若不可达，**新版** `install.sh` 会追加 relay overlay（需 `download_domain` 上 manifest/tarball 就绪），或事先 `OPSFLEET_SKIP_CLIENT_ROUTE=1` 保持纯 aliyun 语义。  
 - `imageSource: default`（内网 mirror）：`curl -sI --connect-timeout 10 http://<download_domain>/` 必须可达，否则与人工在同一机房的结果一致：**会超时失败**——反馈中标 **非代码（网络）**，不得标 Skill 逻辑错误。
+- **生成阶段只读预检**（不 warm 大文件）：控制台 JWT 下 `GET /api/k8s/deploy/relay/preflight?primary_probe_url=…`（与执行机路径可能不同，见返回 `notes`）。
 
 ---
 
@@ -205,7 +212,7 @@ grep -E "local_cache_dir|image_source|arch_version|k8s_server_tarball_url|downlo
 | A | 确认分支、参数与目标机 `uname -m` | 同左；记录 git SHA |
 | B | UI 下载 zip **或** CLI `gen-k8s-bundle` | **禁止**只同步 ansible-agent 代替 zip |
 | C | scp + unzip 到**空目录** | 同左 |
-| **C.1** | 打开 `inventory/group_vars/all.yml` 看镜像与缓存 | **强制检查点**（上一节命令） |
+| **C.1** | 打开 `inventory/group_vars/all.yml` 看镜像与缓存；核对 `resource_sources.json` | **强制检查点**（上一节命令） |
 | D | `sudo bash install.sh \| tee log` | 同左；保存完整日志 |
 | E | 复测时一般不删 `/var/cache/opsfleet-k8s` | 同左 |
 | F | 写测试反馈与问题分类 | 使用下方 **测试结果模板**（含 Step 1–12 / 1–14） |

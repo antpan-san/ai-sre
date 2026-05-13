@@ -154,6 +154,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.POST("/k8s/deploy/bundle", handlers.GenerateK8sOfflineBundle)
 		protected.POST("/k8s/deploy/bundle-invite", handlers.CreateK8sBundleInvite)
 		protected.GET("/k8s/mirror/catalog", handlers.GetK8sMirrorCatalog)
+		protected.GET("/k8s/deploy/relay/preflight", handlers.GetK8sRelayPreflight)
+		protected.POST("/k8s/deploy/relay/warm", handlers.PostK8sRelayWarm)
 
 		// ---- Proxy Configuration ----
 		protected.GET("/proxy/config/list", handlers.GetProxyConfigList)

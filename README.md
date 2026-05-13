@@ -56,6 +56,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 - `OPSFLEET_K8S_E_APISERVER_TIMEOUT` — `wait_apiserver.yml` 180s 没等到 6443，pre_tasks 会先 emit 上述细分子码，避免裸 timeout 让运维迷路；
 - `OPSFLEET_DL_E_NETWORK` / `OPSFLEET_DL_E_CHECKSUM` — `download-with-progress.sh` 抓 mirror 失败；
 - `OPSFLEET_K8S_E_PLAYBOOK_*` — install.sh `run` wrapper 在每个 playbook 失败时按 yml 名生成，可直接 `ai-sre analyze code <CODE>` 让服务端给根因。
+- `OPSFLEET_K8S_I_RELAY_ROUTE_APPLIED` — 信息码：选阿里云源时控制机探测公网 tarball 失败后已追加 relay overlay（非致命）；制品中转与运维见 [`deploy/k8s-mirror/README.md`](deploy/k8s-mirror/README.md)。
 - `OPSFLEET_K8S_E_EXECUTOR_KUBECTL_BIN_MISSING` — 部署机缓存里尚无解压出的 `server/bin/kubectl`（多半是尚未跑完 resources，或 playbook 顺序被截断）。
 
 控制台对应的目录在 `GET /ft-api/api/ai/error-codes`，单条根因卡 `POST /ft-api/api/ai/error-codes/analyze {code,detail}`；客户端等价命令是 `ai-sre analyze code <CODE> [--detail "…"]`，输出三段式：根因 / 立即恢复一行 / 平台改进+文件路径（不给排查清单）。

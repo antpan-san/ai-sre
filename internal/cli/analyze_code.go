@@ -37,7 +37,7 @@ func analyzeCodeCmd() *cobra.Command {
 		Short: "把部署/运行错误码翻译成根因卡片（无 LLM 调用，纯查目录；不命中时由服务端推断）",
 		Long: `仅给根因，不给排查清单。
 
-CODE 形如 OPSFLEET_K8S_E_PAUSE_MISSING、OPSFLEET_DL_E_NETWORK、OPSFLEET_K8S_E_APISERVER_TIMEOUT。
+CODE 形如 OPSFLEET_K8S_E_PAUSE_MISSING、OPSFLEET_DL_E_NETWORK、OPSFLEET_K8S_I_RELAY_ROUTE_APPLIED、OPSFLEET_K8S_E_APISERVER_TIMEOUT。
 来源：ft-backend skills/builtin/error_codes.yaml（运维侧可通过 ai-sre skills server 列出）。
 
 工作流：

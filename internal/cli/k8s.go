@@ -70,6 +70,8 @@ func k8sCmd() *cobra.Command {
 		Short: "Kubernetes 离线包：对接 OpsFleet API 下载、本地安装与卸载清理",
 		Long: fmt.Sprintf(`推荐：在控制台「部署确认」生成一键安装引用后，在控制机执行一行命令即可拉包并安装（无需上传 zip）。
 
+离线包若含 resource_sources.json（控制台选「阿里云」镜像源时）：install.sh 会在 SSH 预检后对 dl.k8s.io 做短超时 Range 探测；失败则追加 relay 覆盖走 download_domain。跳过自动切换：OPSFLEET_SKIP_CLIENT_ROUTE=1。
+
 未安装 %s 时可用公开引导脚本（需 python3）：
   curl -fsSL 'http://<控制台>/ft-api/api/k8s/deploy/bootstrap.sh' | sudo bash -s -- 'ofpk8s1.xxxxx…'
 

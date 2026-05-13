@@ -1,0 +1,9 @@
+[Unit]
+Description=Weekly TTL cleanup for OpsFleet K8s mirror
+
+[Timer]
+OnCalendar=Sun *-*-* 03:30:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

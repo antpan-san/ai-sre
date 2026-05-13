@@ -66,6 +66,21 @@ error_codes:
       pull 成功后自动 ctr tag 到 quay.io 与官方 manifest 一致；纯离线仍建议 mirror tar + ctr import。
     related_codes: [OPSFLEET_DL_E_NETWORK]
 
+  - code: OPSFLEET_K8S_I_RELAY_ROUTE_APPLIED
+    summary: 信息：install.sh 客户端探测公网 tarball 失败后已追加 relay overlay（非致命）
+    root_cause: |
+      选择阿里云镜像源时，控制机对 dl.k8s.io 的短探测失败，install.sh 已将 resource_routing_relay_overlay.yml
+      追加进 inventory/group_vars/all.yml，后续 tarball/etcd/cni 走 download_domain 内网布局。
+      这是预期降级路径，不是安装失败本身。
+    typical_evidence:
+      - "[ERROR-CODE] OPSFLEET_K8S_I_RELAY_ROUTE_APPLIED"
+      - "客户端资源路由: 公网 tarball 不可达，已追加 relay 覆盖"
+    recovery_one_liner: |
+      确认 download_domain 上 manifest.json 与对应 kubernetes-server tarball 存在；或 OPSFLEET_SKIP_CLIENT_ROUTE=1 后重试仅用原配置。
+    platform_followup: |
+      ft-backend/handlers/k8s_relay.go、k8s_bundle.go 与 deploy/k8s-mirror/README.md；控制台可 GET /api/k8s/deploy/relay/preflight 做生成前只读预检。
+    related_codes: [OPSFLEET_DL_E_NETWORK]
+
   - code: OPSFLEET_K8S_E_APISERVER_TIMEOUT
     summary: wait_apiserver.yml 在 180s 内未检测到 127.0.0.1:6443
     root_cause: |

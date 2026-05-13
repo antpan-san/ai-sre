@@ -1,0 +1,8 @@
+[Unit]
+Description=OpsFleet K8s mirror TTL cleanup (free disk on relay nodes)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/opsfleet/k8s-mirror.env
+ExecStart=/usr/local/bin/k8s-mirror-ttl-cleanup.sh

@@ -96,3 +96,47 @@ sudo systemctl enable --now k8s-mirror-sync.timer
 - 或 `OPSFLEET_K8S_MIRROR_BASE_URL`：默认 `http://192.168.56.11`，实际请求 `{BASE}/manifest.json`
 
 前端菜单：**服务与交付 → K8s 制品镜像**。
+
+## 国外机作中转（跨境 / 小盘）
+
+典型拓扑：**国外 VPS** 能访问 `dl.k8s.io` / `github.com`，**国内控制机**仅访问国外机 HTTP(S)。将本目录栈部署在国外机，控制台「内网制品地址」填 **国外机公网域名或 IP**（即 `download_domain` 指向该主机）。
+
+- **按需落盘（省磁盘）**：部署 **Nginx + `opsfleet-k8s-mirror-serve`** 后，**不必**先跑全量 `k8s-mirror-sync.sh`；国内第一次 `GET` 缺失路径时由 serve **回源公网并落盘**。
+- **TTL 清理**：小盘可启用 **`k8s-mirror-ttl-cleanup.timer`**（见下），按 `mtime` 删除超过 `TTL_DAYS` 天的 `*.tar.gz` / `*.tgz` / `*.tar`（**保留** `manifest.json`）。清理后下次访问会再次回源，延迟增加属预期。
+- **TLS**：公网访问建议 **HTTPS + 正式证书**；`PUBLIC_BASE_URL` 与控制台填写的协议一致。
+
+### TTL 定时清理（systemd）
+
+```bash
+sudo cp deploy/k8s-mirror/k8s-mirror-ttl-cleanup.sh /usr/local/bin/
+sudo chmod +x /usr/local/bin/k8s-mirror-ttl-cleanup.sh
+sudo cp deploy/k8s-mirror/k8s-mirror-ttl-cleanup.{service,timer} /etc/systemd/system/
+# 可选：在 /etc/opsfleet/k8s-mirror.env 增加 export TTL_DAYS=7
+sudo systemctl daemon-reload
+sudo systemctl enable --now k8s-mirror-ttl-cleanup.timer
+# 干跑：sudo TTL_DAYS=14 DRY_RUN=1 bash /usr/local/bin/k8s-mirror-ttl-cleanup.sh
+```
+
+### 二级镜像站（国内再 rsync 一级）
+
+若国内访问国外仍不稳定：在国内机房另设一台 **二级** 仅 `rsync` 国外 `MIRROR_ROOT`（或定时拉取），控制台 `download_domain` 指向二级；国外机作一级缓存。可参考仓库 **`scripts/k8s-mirror-sync-remote-11.sh`** 思路扩展。
+
+### OpsFleet 控制台 API（中转预检 / warm）
+
+后端（需 JWT）：
+
+- `GET /ft-api/api/k8s/deploy/relay/preflight`：只读探测 **relay `/health`**、**manifest.json**；可选 query `primary_probe_url` 对公网 tarball 做 **Range 0-0** 探测（**不下载整包**）。
+- `POST /ft-api/api/k8s/deploy/relay/warm`：body `{"paths":["/kubernetes/v1.35.4/amd64/kubernetes-server-linux-amd64.tar.gz"]}`，对 **relay 基址** 发起 GET 触发按需落盘（**应在用户已决定执行安装后**由脚本调用，避免仅生成命令就占带宽）。
+
+环境变量（**OpsFleet 后端** `/etc/opsfleet/backend.env`）：
+
+- `OPSFLEET_K8S_MIRROR_BASE_URL` / `OPSFLEET_K8S_MIRROR_MANIFEST_URL`：与制品目录页一致。
+- `OPSFLEET_K8S_RELAY_BASE_URL`（可选）：与 mirror 不同主机时单独指定 relay 根 URL（无则回退 mirror base）。
+
+### 离线包内「国内优先公网、失败再走中转」
+
+选择 **阿里云** 镜像源打 zip 时，包内包含 **`resource_sources.json`** + **`resource_routing_relay_overlay.yml`**。执行 **`install.sh`** 时在控制机对 **dl.k8s.io** 做短探测，失败则 **追加 overlay** 将 `image_source` 切为 **default** 并走 `download_domain` 布局（与 ansible `group_vars` 一致）。跳过：`OPSFLEET_SKIP_CLIENT_ROUTE=1`。该逻辑**不调用 AI**。
+
+### OCI / 任意容器镜像（后续阶段）
+
+HTTP 制品站不服务 **OCI registry 协议**。若需 Calico 等镜像经国外中转，需在国外部署 **Registry pull-through**（或 Harbor Proxy Cache）并在节点 **containerd `registry.mirrors`** 中配置；与本 HTTP mirror 为**两条线**，见产品路线图（控制台统一镜像源字段待扩展）。
