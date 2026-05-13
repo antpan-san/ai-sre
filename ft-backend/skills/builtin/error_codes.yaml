@@ -60,10 +60,10 @@ error_codes:
       - "Failed to pull image \"quay.io/calico/cni"
       - "stat /var/lib/calico/nodename: no such file or directory"
     recovery_one_liner: |
-      在故障节点执行: ctr -n k8s.io images pull quay.io/calico/cni:v3.31.5 && ctr -n k8s.io images pull quay.io/calico/node:v3.31.5 && ctr -n k8s.io images pull quay.io/calico/kube-controllers:v3.31.5 && systemctl restart kubelet
+      ctr -n k8s.io images pull quay.m.daocloud.io/calico/cni:v3.31.5 && ctr -n k8s.io images tag quay.m.daocloud.io/calico/cni:v3.31.5 quay.io/calico/cni:v3.31.5 && 对 node 与 kube-controllers 重复后 systemctl restart kubelet
     platform_followup: |
-      ansible-agent/roles/calico_image_prefetch 与 playbooks/k8s_addons.yml 首段；
-      纯离线环境需在 deploy/k8s-mirror 增加 Calico oci tar 与 ctr import（比照 pause_preload）。
+      ansible-agent/roles/calico_image_prefetch：支持 inventory 变量 calico_image_pull_registry（如 quay.m.daocloud.io），
+      pull 成功后自动 ctr tag 到 quay.io 与官方 manifest 一致；纯离线仍建议 mirror tar + ctr import。
     related_codes: [OPSFLEET_DL_E_NETWORK]
 
   - code: OPSFLEET_K8S_E_APISERVER_TIMEOUT

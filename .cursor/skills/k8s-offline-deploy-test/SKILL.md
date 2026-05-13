@@ -316,4 +316,4 @@ kubectl -n kube-system get svc kube-dns
 - **group_vars 加载**：多数 play 使用 `inventory_dir` + `include_vars` 或 inventory 与 `group_vars` 同目录；**禁止**在未合并包上依赖 ansible-agent 内置默认值。
 - **与人手不一的常见根因**：只跑 ansible-agent、未用 zip 内 **合并后的** `group_vars`。  
 - **kube-controller-manager**：已对 `10257/healthz` 做轮询重试。  
-- **CNI 与 `network_plugin`**：addons playbook 在 **Calico** 时先 **`k8s_cluster` 全节点 `ctr pull` Calico 三镜像**（带重试），再 `kubectl apply` 并 **`kubectl wait` calico-node Ready**（失败即中止，避免旧版「wait 失败仍装 CoreDNS」造成半套 CNI）；Flannel 路径不变。纯离线仍须保证 quay 可达或后续制品站 **`ctr import`** 能力。
+- **CNI 与 `network_plugin`**：addons playbook 在 **Calico** 时先 **`k8s_cluster` 全节点 `ctr pull` Calico 三镜像**（带重试；可选 **`calico_image_pull_registry`** 如 **`quay.m.daocloud.io`**，pull 后 **`ctr tag`** 到 **`quay.io/...`** 与官方 manifest 一致），再 `kubectl apply` 并 **`kubectl wait` calico-node Ready**（失败即中止，避免旧版「wait 失败仍装 CoreDNS」造成半套 CNI）；Flannel 路径不变。纯离线仍须保证 quay 可达或后续制品站 **`ctr import`** 能力。

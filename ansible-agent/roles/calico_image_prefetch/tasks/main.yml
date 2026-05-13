@@ -3,9 +3,10 @@
   ansible.builtin.meta: end_host
   when: network_plugin | default('flannel') != 'calico'
 
+# 从镜像站拉取后 tag 成 quay.io/...，kubelet 与清单中的 image 引用一致，无需改 Calico YAML。
 - name: Pre-pull Calico CNI image (containerd k8s.io)
   ansible.builtin.command:
-    cmd: "ctr -n k8s.io images pull quay.io/calico/cni:{{ calico_version }}"
+    cmd: "ctr -n k8s.io images pull {{ calico_image_pull_registry }}/calico/cni:{{ calico_version }}"
   register: calico_pull_cni
   until: calico_pull_cni.rc == 0
   retries: "{{ calico_prefetch_retries | int }}"
@@ -13,9 +14,20 @@
   failed_when: false
   changed_when: calico_pull_cni.rc == 0
 
+- name: Tag Calico CNI image to canonical quay.io reference
+  ansible.builtin.command:
+    cmd: >-
+      ctr -n k8s.io images tag
+      {{ calico_image_pull_registry }}/calico/cni:{{ calico_version }}
+      {{ calico_image_canonical_registry }}/calico/cni:{{ calico_version }}
+  when:
+    - calico_pull_cni.rc | default(1) == 0
+    - calico_image_pull_registry != calico_image_canonical_registry
+  changed_when: true
+
 - name: Pre-pull Calico node image
   ansible.builtin.command:
-    cmd: "ctr -n k8s.io images pull quay.io/calico/node:{{ calico_version }}"
+    cmd: "ctr -n k8s.io images pull {{ calico_image_pull_registry }}/calico/node:{{ calico_version }}"
   register: calico_pull_node
   until: calico_pull_node.rc == 0
   retries: "{{ calico_prefetch_retries | int }}"
@@ -23,9 +35,20 @@
   failed_when: false
   changed_when: calico_pull_node.rc == 0
 
+- name: Tag Calico node image to canonical quay.io reference
+  ansible.builtin.command:
+    cmd: >-
+      ctr -n k8s.io images tag
+      {{ calico_image_pull_registry }}/calico/node:{{ calico_version }}
+      {{ calico_image_canonical_registry }}/calico/node:{{ calico_version }}
+  when:
+    - calico_pull_node.rc | default(1) == 0
+    - calico_image_pull_registry != calico_image_canonical_registry
+  changed_when: true
+
 - name: Pre-pull Calico kube-controllers image
   ansible.builtin.command:
-    cmd: "ctr -n k8s.io images pull quay.io/calico/kube-controllers:{{ calico_version }}"
+    cmd: "ctr -n k8s.io images pull {{ calico_image_pull_registry }}/calico/kube-controllers:{{ calico_version }}"
   register: calico_pull_ctrl
   until: calico_pull_ctrl.rc == 0
   retries: "{{ calico_prefetch_retries | int }}"
@@ -33,15 +56,26 @@
   failed_when: false
   changed_when: calico_pull_ctrl.rc == 0
 
+- name: Tag Calico kube-controllers image to canonical quay.io reference
+  ansible.builtin.command:
+    cmd: >-
+      ctr -n k8s.io images tag
+      {{ calico_image_pull_registry }}/calico/kube-controllers:{{ calico_version }}
+      {{ calico_image_canonical_registry }}/calico/kube-controllers:{{ calico_version }}
+  when:
+    - calico_pull_ctrl.rc | default(1) == 0
+    - calico_image_pull_registry != calico_image_canonical_registry
+  changed_when: true
+
 - name: Fail with OPSFLEET_K8S_E_CALICO_PREFETCH_FAILED if any Calico image missing
   ansible.builtin.fail:
     msg: |
       [ERROR-CODE] OPSFLEET_K8S_E_CALICO_PREFETCH_FAILED
-      节点 {{ inventory_hostname }} 无法在 {{ (calico_prefetch_retries | int) * (calico_prefetch_delay | int) }}s 量级的重试窗口内拉齐 Calico 镜像（quay.io/calico/*:{{ calico_version }}）。
+      节点 {{ inventory_hostname }} 无法在重试窗口内从 {{ calico_image_pull_registry }} 拉齐 Calico 镜像（*:{{ calico_version }}），或 tag 到 {{ calico_image_canonical_registry }} 失败。
       cni rc={{ calico_pull_cni.rc | default(-1) }} stderr={{ calico_pull_cni.stderr | default('') | truncate(400) }}
       node rc={{ calico_pull_node.rc | default(-1) }} stderr={{ calico_pull_node.stderr | default('') | truncate(400) }}
       kube-controllers rc={{ calico_pull_ctrl.rc | default(-1) }} stderr={{ calico_pull_ctrl.stderr | default('') | truncate(400) }}
-      根因：registry 不可达或限流；Calico DaemonSet init 会长期 ImagePullBackOff，主机缺少 /var/lib/calico/nodename，其它 Pod CreatePodSandbox 报 CNI calico 失败。
+      根因：registry 不可达或限流；可尝试 inventory 中设置 calico_image_pull_registry: quay.m.daocloud.io（拉取后仍 tag 为 quay.io 供清单匹配）。
   when: >-
     (calico_pull_cni.rc | default(1)) != 0
     or (calico_pull_node.rc | default(1)) != 0

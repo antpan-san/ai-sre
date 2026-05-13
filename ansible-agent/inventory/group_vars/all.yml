@@ -67,6 +67,8 @@ pause_image_tar_url: "{{ download_protocol }}{{ download_domain }}/{{ pause_imag
 pause_image_tar_local: "{{ local_cache_dir }}/registry-images/pause-3.10-linux-{{ arch_version }}.tar"
 
 # Kubernetes 插件配置
+# Calico 预拉镜像用的 registry（默认直连 quay.io；国内实验室可改为 quay.m.daocloud.io，ansible 会 tag 回 quay.io 与 manifest 一致）
+# calico_image_pull_registry: "quay.m.daocloud.io"
 calico_version: "v3.31.5"
 coredns_version: "v1.13.1"
 coredns_image: "registry.k8s.io/coredns/coredns:{{ coredns_version }}"

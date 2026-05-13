@@ -5,3 +5,7 @@
 # ctr pull 在网络差的环境可能较慢；每次 pull 最多 (1 + retries) 次尝试，间隔 delay 秒。
 calico_prefetch_retries: 8
 calico_prefetch_delay: 20
+# 拉取时使用的 registry（国内可设 quay.m.daocloud.io）；成功后会 ctr tag 到 quay.io/... 与上游 Calico YAML 中 image 字段一致。
+calico_image_pull_registry: "quay.io"
+# 与 manifest 一致，勿改，除非 patch_calico_manifest 同步改了 image 前缀
+calico_image_canonical_registry: "quay.io"
