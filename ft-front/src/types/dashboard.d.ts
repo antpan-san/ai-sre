@@ -56,8 +56,10 @@ export interface PlatformSummary {
   }
   tasksActive: number
   executionsLast24h: number
-  usersTotal: number
-  operationLogsTotal: number
+  /** 仅 super_admin 的仪表盘响应包含 */
+  usersTotal?: number
+  /** 仅 super_admin 的仪表盘响应包含 */
+  operationLogsTotal?: number
 }
 
 export interface RecentK8sClusterRow {

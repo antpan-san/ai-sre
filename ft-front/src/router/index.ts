@@ -236,6 +236,12 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '作业中心', requireAuth: true, roles: appRoles }
       },
       {
+        path: 'execution-records',
+        name: 'AppExecutionRecords',
+        component: () => import('../views/execution-records/ExecutionRecords.vue'),
+        meta: { title: '执行记录', requireAuth: true, roles: appRoles }
+      },
+      {
         path: 'init-tools',
         name: 'AppInitTools',
         component: () => import('../views/init-tools/InitToolsHome.vue'),

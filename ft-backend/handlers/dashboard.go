@@ -32,6 +32,11 @@ func GetDashboardData(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "未授权"})
 		return
 	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	userVal, _ := c.Get("username")
+	username, _ := userVal.(string)
+
 	tid := defaultTenantUUID()
 	now := time.Now()
 
@@ -54,10 +59,43 @@ func GetDashboardData(c *gin.Context) {
 	runningPie := svcRunning + svcDeploying
 
 	var totalK8s, k8sRunning, k8sPending, k8sFailed int64
-	database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ?", tid).Count(&totalK8s)
-	database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ? AND status = ?", tid, "running").Count(&k8sRunning)
-	database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ? AND status = ?", tid, "pending").Count(&k8sPending)
-	database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ? AND status = ?", tid, "failed").Count(&k8sFailed)
+	recentK8s := make([]gin.H, 0)
+	recentInstalls := make([]gin.H, 0)
+	if models.IsAdminRole(role) {
+		database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ?", tid).Count(&totalK8s)
+		database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ? AND status = ?", tid, "running").Count(&k8sRunning)
+		database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ? AND status = ?", tid, "pending").Count(&k8sPending)
+		database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ? AND status = ?", tid, "failed").Count(&k8sFailed)
+
+		var recentClusters []models.K8sCluster
+		database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ?", tid).
+			Order("updated_at DESC").Limit(8).Find(&recentClusters)
+		for _, k := range recentClusters {
+			recentK8s = append(recentK8s, gin.H{
+				"id":          k.ID.String(),
+				"clusterName": k.ClusterName,
+				"status":      k.Status,
+				"version":     k.Version,
+				"masterNode":  k.MasterNode,
+				"updatedAt":   k.UpdatedAt.Format(time.RFC3339),
+			})
+		}
+
+		var recentInst []models.ServiceDeployment
+		database.DB.Model(&models.ServiceDeployment{}).Where("tenant_id = ?", tid).
+			Order("updated_at DESC").Limit(8).Find(&recentInst)
+		for _, d := range recentInst {
+			recentInstalls = append(recentInstalls, gin.H{
+				"id":            d.ID.String(),
+				"service":       d.Service,
+				"profile":       d.Profile,
+				"status":        d.Status,
+				"currentStep":   d.CurrentStep,
+				"installMethod": d.InstallMethod,
+				"updatedAt":     d.UpdatedAt.Format(time.RFC3339),
+			})
+		}
+	}
 
 	var tasksActive int64
 	database.DB.Model(&models.Task{}).Where("tenant_id = ?", tid).
@@ -66,14 +104,16 @@ func GetDashboardData(c *gin.Context) {
 
 	var executions24h int64
 	t24 := now.Add(-24 * time.Hour)
-	database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid).
-		Where("created_at >= ?", t24).Count(&executions24h)
+	exec24 := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid).
+		Where("created_at >= ?", t24)
+	exec24 = applyExecutionConsoleMemberScope(exec24, role, username)
+	exec24.Count(&executions24h)
 
-	var totalUsers int64
-	database.DB.Model(&models.User{}).Where("tenant_id = ?", tid).Count(&totalUsers)
-
-	var totalOpLogs int64
-	database.DB.Model(&models.OperationLog{}).Where("tenant_id = ?", tid).Count(&totalOpLogs)
+	var totalUsers, totalOpLogs int64
+	if models.IsSuperAdminRole(role) {
+		database.DB.Model(&models.User{}).Where("tenant_id = ?", tid).Count(&totalUsers)
+		database.DB.Model(&models.OperationLog{}).Where("tenant_id = ?", tid).Count(&totalOpLogs)
+	}
 
 	// 在线机器平均资源占用（离线机器不报心跳，不参与平均更准确）。
 	type metricAgg struct {
@@ -111,44 +151,10 @@ func GetDashboardData(c *gin.Context) {
 		})
 	}
 
-	var recentClusters []models.K8sCluster
-	database.DB.Model(&models.K8sCluster{}).Where("tenant_id = ?", tid).
-		Order("updated_at DESC").Limit(8).Find(&recentClusters)
-
-	recentK8s := make([]gin.H, 0, len(recentClusters))
-	for _, k := range recentClusters {
-		recentK8s = append(recentK8s, gin.H{
-			"id":          k.ID.String(),
-			"clusterName": k.ClusterName,
-			"status":      k.Status,
-			"version":     k.Version,
-			"masterNode":  k.MasterNode,
-			"updatedAt":   k.UpdatedAt.Format(time.RFC3339),
-		})
-	}
-
-	var recentInst []models.ServiceDeployment
-	database.DB.Model(&models.ServiceDeployment{}).Where("tenant_id = ?", tid).
-		Order("updated_at DESC").Limit(8).Find(&recentInst)
-
-	recentInstalls := make([]gin.H, 0, len(recentInst))
-	for _, d := range recentInst {
-		recentInstalls = append(recentInstalls, gin.H{
-			"id":           d.ID.String(),
-			"service":      d.Service,
-			"profile":      d.Profile,
-			"status":       d.Status,
-			"currentStep":  d.CurrentStep,
-			"installMethod": d.InstallMethod,
-			"updatedAt":    d.UpdatedAt.Format(time.RFC3339),
-		})
-	}
-
 	var recentExec []models.ExecutionRecord
-	database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid).
-		Order("created_at DESC").
-		Limit(12).
-		Find(&recentExec)
+	qExec := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid)
+	qExec = applyExecutionConsoleMemberScope(qExec, role, username)
+	qExec.Order("created_at DESC").Limit(12).Find(&recentExec)
 
 	recentExecutions := make([]gin.H, 0, len(recentExec))
 	for _, e := range recentExec {
@@ -167,6 +173,28 @@ func GetDashboardData(c *gin.Context) {
 			"finishedAt":     fin,
 			"durationMs":     e.DurationMs,
 		})
+	}
+
+	platformSummary := gin.H{
+		"machines": gin.H{
+			"total":   totalMachines,
+			"online":  onlineMachines,
+			"offline": offlineMachines,
+			"masters": masterMachines,
+			"workers": workerMachines,
+		},
+		"k8sClusters": gin.H{
+			"total":   totalK8s,
+			"running": k8sRunning,
+			"pending": k8sPending,
+			"failed":  k8sFailed,
+		},
+		"tasksActive":       tasksActive,
+		"executionsLast24h": executions24h,
+	}
+	if models.IsSuperAdminRole(role) {
+		platformSummary["usersTotal"] = totalUsers
+		platformSummary["operationLogsTotal"] = totalOpLogs
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -199,25 +227,7 @@ func GetDashboardData(c *gin.Context) {
 			},
 			"recentDeployments": recentDeployments,
 
-			"platformSummary": gin.H{
-				"machines": gin.H{
-					"total":   totalMachines,
-					"online":  onlineMachines,
-					"offline": offlineMachines,
-					"masters": masterMachines,
-					"workers": workerMachines,
-				},
-				"k8sClusters": gin.H{
-					"total":   totalK8s,
-					"running": k8sRunning,
-					"pending": k8sPending,
-					"failed":  k8sFailed,
-				},
-				"tasksActive":        tasksActive,
-				"executionsLast24h":  executions24h,
-				"usersTotal":         totalUsers,
-				"operationLogsTotal": totalOpLogs,
-			},
+			"platformSummary": platformSummary,
 			"recentK8sClusters":     recentK8s,
 			"recentServiceInstalls": recentInstalls,
 			"recentExecutions":      recentExecutions,

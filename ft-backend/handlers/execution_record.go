@@ -119,6 +119,7 @@ func StartExecutionRecord(c *gin.Context) {
 
 	now := time.Now()
 	rec := buildExecutionRecord(req)
+	enrichExecutionRecordFromK8sInvite(&rec, strings.TrimSpace(req.InviteID))
 	if rec.CorrelationID == "" {
 		rec.CorrelationID = uuid.NewString()
 	}
@@ -237,7 +238,13 @@ func FinishExecutionRecord(c *gin.Context) {
 
 func GetExecutionRecords(c *gin.Context) {
 	p := response.GetPagination(c)
-	db := database.DB.Model(&models.ExecutionRecord{})
+	tid := uuid.MustParse(models.DefaultTenantID)
+	db := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid)
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	userVal, _ := c.Get("username")
+	username, _ := userVal.(string)
+	db = applyExecutionConsoleMemberScope(db, role, username)
 	if source := strings.TrimSpace(c.Query("source")); source != "" {
 		db = db.Where("source = ?", source)
 	}
@@ -281,6 +288,9 @@ func GetExecutionRecordDetail(c *gin.Context) {
 	if err := database.DB.Where("id = ?", id).First(&rec).Error; response.HandleDBError(c, err, "执行记录不存在") {
 		return
 	}
+	if !assertExecutionRecordVisibleToConsoleMember(c, rec) {
+		return
+	}
 	var events []models.ExecutionEvent
 	database.DB.Where("execution_id = ?", id).Order("created_at ASC").Find(&events)
 	impacts := findExecutionRollbackImpacts(rec)
@@ -291,6 +301,13 @@ func GetExecutionRecordEvents(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		response.BadRequest(c, "无效的执行记录 ID")
+		return
+	}
+	var rec models.ExecutionRecord
+	if err := database.DB.Where("id = ?", id).First(&rec).Error; response.HandleDBError(c, err, "执行记录不存在") {
+		return
+	}
+	if !assertExecutionRecordVisibleToConsoleMember(c, rec) {
 		return
 	}
 	p := response.GetPagination(c)
@@ -306,8 +323,16 @@ func GetExecutionRecordEvents(c *gin.Context) {
 }
 
 func GetExecutionRecordDependencies(c *gin.Context) {
-	rec, ok := loadExecutionRecordParam(c)
-	if !ok {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "无效的执行记录 ID")
+		return
+	}
+	var rec models.ExecutionRecord
+	if err := database.DB.Where("id = ?", id).First(&rec).Error; response.HandleDBError(c, err, "执行记录不存在") {
+		return
+	}
+	if !assertExecutionRecordVisibleToConsoleMember(c, rec) {
 		return
 	}
 	var explicit []models.ExecutionDependency
@@ -468,6 +493,39 @@ func buildExecutionRecord(req executionRecordPayload) models.ExecutionRecord {
 	}
 }
 
+// enrichExecutionRecordFromK8sInvite sets tenant_id and created_by / trigger_user
+// from the bundle invite owner when the CLI reports with a valid invite id.
+func enrichExecutionRecordFromK8sInvite(rec *models.ExecutionRecord, inviteID string) {
+	inviteID = strings.TrimSpace(inviteID)
+	if inviteID == "" {
+		return
+	}
+	id, err := uuid.Parse(inviteID)
+	if err != nil {
+		return
+	}
+	var inv models.K8sBundleInvite
+	if err := database.DB.Where("id = ?", id).First(&inv).Error; err != nil {
+		return
+	}
+	if time.Now().After(inv.ExpiresAt) {
+		return
+	}
+	rec.TenantID = inv.TenantID
+	if strings.TrimSpace(rec.CreatedBy) == "" || strings.TrimSpace(rec.TriggerUser) == "" {
+		var u models.User
+		if err := database.DB.Where("id = ?", inv.CreatedByUserID).First(&u).Error; err != nil {
+			return
+		}
+		if strings.TrimSpace(rec.CreatedBy) == "" {
+			rec.CreatedBy = u.Username
+		}
+		if strings.TrimSpace(rec.TriggerUser) == "" {
+			rec.TriggerUser = u.Username
+		}
+	}
+}
+
 func upsertExecutionStart(tx *gorm.DB, rec *models.ExecutionRecord) error {
 	var existing models.ExecutionRecord
 	q := tx.Where("correlation_id = ?", rec.CorrelationID)
@@ -493,6 +551,15 @@ func upsertExecutionStart(tx *gorm.DB, rec *models.ExecutionRecord) error {
 			"rollback_plan":       rec.RollbackPlan,
 			"rollback_advice":     rec.RollbackAdvice,
 			"metadata":            rec.Metadata,
+		}
+		if rec.CreatedBy != "" {
+			updates["created_by"] = rec.CreatedBy
+		}
+		if rec.TriggerUser != "" {
+			updates["trigger_user"] = rec.TriggerUser
+		}
+		if rec.TenantID != uuid.Nil {
+			updates["tenant_id"] = rec.TenantID
 		}
 		return tx.Model(&models.ExecutionRecord{}).Where("id = ?", existing.ID).Updates(updates).Error
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {

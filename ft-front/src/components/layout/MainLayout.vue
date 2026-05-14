@@ -145,6 +145,10 @@
               <el-icon><Management /></el-icon>
               <template #title>作业中心</template>
             </el-menu-item>
+            <el-menu-item index="/app/execution-records">
+              <el-icon><List /></el-icon>
+              <template #title>执行记录</template>
+            </el-menu-item>
             <el-menu-item v-if="featureVisible('feature.node_ops')" index="/app/init-tools">
               <el-icon><Tools /></el-icon>
               <template #title>节点初始化</template>
@@ -288,7 +292,8 @@ import {
   Download,
   Grid,
   Reading,
-  Setting
+  Setting,
+  List
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'

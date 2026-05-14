@@ -82,6 +82,10 @@ func (r *executionReporter) start() {
 			"version": Version,
 		},
 	}
+	if u := strings.TrimSpace(os.Getenv("OPSFLEET_EXECUTION_USERNAME")); u != "" {
+		payload["created_by"] = u
+		payload["trigger_user"] = u
+	}
 	r.post("/api/execution-records/report/start", payload)
 }
 
