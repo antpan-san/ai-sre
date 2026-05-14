@@ -135,14 +135,6 @@
               <el-menu-item index="/admin/advanced/backup-restore">备份</el-menu-item>
               <el-menu-item index="/admin/advanced/performance-analysis">性能</el-menu-item>
             </el-sub-menu>
-            <el-sub-menu index="asm-tools">
-              <template #title>
-                <el-icon><Tools /></el-icon>
-                <span>工具</span>
-              </template>
-              <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/init-tools">节点初始化</el-menu-item>
-              <el-menu-item index="/admin/help/error-codes">错误码</el-menu-item>
-            </el-sub-menu>
           </template>
           <template v-else>
             <el-menu-item index="/app/dashboard">
@@ -167,10 +159,6 @@
               <el-menu-item index="/app/advanced/backup-restore">备份</el-menu-item>
               <el-menu-item index="/app/advanced/performance-analysis">性能</el-menu-item>
             </el-sub-menu>
-            <el-menu-item index="/app/help/error-codes">
-              <el-icon><Reading /></el-icon>
-              <template #title>错误码</template>
-            </el-menu-item>
           </template>
         </el-menu>
       </el-scrollbar>
@@ -393,7 +381,6 @@ const menuDefaultOpeneds = computed(() => {
   if (p.includes('/admin/monitoring')) open.push('asm-observe')
   if (p.includes('/admin/job') || p.includes('/admin/execution-records')) open.push('asm-run')
   if (p.includes('/admin/security-audit')) open.push('asm-security')
-  if (p.includes('/admin/init-tools') || p.includes('/admin/help')) open.push('asm-tools')
   if (p.includes('/admin/advanced')) open.push('asm-advanced')
   return open
 })

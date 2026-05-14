@@ -1,5 +1,5 @@
 <template>
-  <div class="dashboard page-shell page-shell--dashboard">
+  <div class="dashboard page-shell page-shell--fill dashboard--layout">
     <div class="page-header">
       <div class="page-header__titles">
         <h2>概览</h2>
@@ -7,9 +7,12 @@
           <template #reference>
             <el-button text type="primary" class="dashboard-help">说明</el-button>
           </template>
-          <p class="page-desc--muted" style="margin: 0">
-            租户内已登记资产与任务的快照。资源占用率为<strong>在线机器</strong>心跳均值的近似值（不含 Pod / 带宽）。
-          </p>
+          <ul class="dashboard-help-list page-desc--muted">
+            <li>顶部 KPI 与控制台登记的机器、集群、作业、审计数据一致。</li>
+            <li>机器 CPU / 内存 / 磁盘为<strong>在线</strong>机器心跳上报均值，离线机器不参与平均。</li>
+            <li>
+              「业务服务」指应用服务台账；「运行」含<strong> deploying</strong>。</li>
+          </ul>
         </el-popover>
       </div>
       <el-button
@@ -22,8 +25,8 @@
       </el-button>
     </div>
 
-    <!-- 平台快照 -->
-    <div class="snapshot-row">
+    <!-- KPI -->
+    <div class="dash-grid dash-grid--kpi">
       <el-card
         v-loading="dashboardStore.loading"
         shadow="hover"
@@ -38,6 +41,10 @@
           <span class="snapshot-muted">/ {{ dash?.platformSummary?.machines?.total ?? 0 }}</span>
         </div>
         <div class="snapshot-foot">离线 {{ dash?.platformSummary?.machines?.offline ?? 0 }}</div>
+        <div class="snapshot-foot snapshot-foot--sub">
+          主控 {{ dash?.platformSummary?.machines?.masters ?? 0 }} · Worker
+          {{ dash?.platformSummary?.machines?.workers ?? 0 }}
+        </div>
       </el-card>
       <el-card
         v-loading="dashboardStore.loading"
@@ -65,7 +72,7 @@
         tabindex="0"
         @click="goJobCenter"
       >
-        <div class="snapshot-label">进行中任务</div>
+        <div class="snapshot-label">进行中作业</div>
         <div class="snapshot-value">{{ dash?.platformSummary?.tasksActive ?? 0 }}</div>
         <div class="snapshot-foot">作业中心</div>
       </el-card>
@@ -77,350 +84,226 @@
         tabindex="0"
         @click="goExecRecords"
       >
-        <div class="snapshot-label">近 24h 执行记录</div>
+        <div class="snapshot-label">近 24h 执行</div>
         <div class="snapshot-value">{{ dash?.platformSummary?.executionsLast24h ?? 0 }}</div>
-        <div class="snapshot-foot">控制台 / CLI 汇总</div>
+        <div class="snapshot-foot">控制台 / CLI</div>
       </el-card>
       <el-card v-loading="dashboardStore.loading" shadow="hover" class="snapshot-card snapshot-card--static">
-        <div class="snapshot-label">用户 / 审计</div>
+        <div class="snapshot-label">用户 / 审计日志</div>
         <div class="snapshot-value">
           {{ dash?.platformSummary?.usersTotal ?? 0 }}
           <span class="snapshot-muted"> / {{ dash?.platformSummary?.operationLogsTotal ?? 0 }}</span>
         </div>
-        <div class="snapshot-foot">用户·操作日志条数</div>
+        <div class="snapshot-foot">用户数 · 操作日志条数</div>
       </el-card>
     </div>
 
-    <!-- 在线机器平均资源 -->
-    <div class="resource-cards">
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="resource-card">
-        <template #header>
-          <div class="card-header">
-            <span>在线机器平均 CPU</span>
-            <el-tag :type="getUsageType(dash?.resourceUsage?.cpu ?? 0)" size="small">
-              {{ Number(dash?.resourceUsage?.cpu ?? 0).toFixed(1) }}%
-            </el-tag>
-          </div>
-        </template>
-        <div class="card-content">
-          <el-progress
-            :percentage="Math.round(clampPct(dash?.resourceUsage?.cpu ?? 0))"
-            :color="getUsageColor(dash?.resourceUsage?.cpu ?? 0)"
-            :show-text="false"
-            class="progress-bar"
-          />
+    <!-- 资源 + 业务分布：同一网格，少滚动 -->
+    <div class="dash-grid dash-grid--main">
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
+        <div class="meter-head">
+          <span>在线机器平均 CPU</span>
+          <el-tag :type="getUsageType(dash?.resourceUsage?.cpu ?? 0)" size="small">
+            {{ Number(dash?.resourceUsage?.cpu ?? 0).toFixed(1) }}%
+          </el-tag>
         </div>
+        <el-progress
+          :percentage="Math.round(clampPct(dash?.resourceUsage?.cpu ?? 0))"
+          :color="getUsageColor(dash?.resourceUsage?.cpu ?? 0)"
+          :show-text="false"
+          class="meter-progress"
+        />
+      </el-card>
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--mem">
+        <div class="meter-head">
+          <span>在线机器平均内存</span>
+          <el-tag :type="getUsageType(dash?.resourceUsage?.memory ?? 0)" size="small">
+            {{ Number(dash?.resourceUsage?.memory ?? 0).toFixed(1) }}%
+          </el-tag>
+        </div>
+        <el-progress
+          :percentage="Math.round(clampPct(dash?.resourceUsage?.memory ?? 0))"
+          :color="getUsageColor(dash?.resourceUsage?.memory ?? 0)"
+          :show-text="false"
+          class="meter-progress"
+        />
+      </el-card>
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--disk">
+        <div class="meter-head">
+          <span>在线机器平均磁盘</span>
+          <el-tag :type="getUsageType(dash?.resourceUsage?.disk ?? 0)" size="small">
+            {{ Number(dash?.resourceUsage?.disk ?? 0).toFixed(1) }}%
+          </el-tag>
+        </div>
+        <el-progress
+          :percentage="Math.round(clampPct(dash?.resourceUsage?.disk ?? 0))"
+          :color="getUsageColor(dash?.resourceUsage?.disk ?? 0)"
+          :show-text="false"
+          class="meter-progress"
+        />
       </el-card>
 
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="resource-card">
-        <template #header>
-          <div class="card-header">
-            <span>在线机器平均内存</span>
-            <el-tag :type="getUsageType(dash?.resourceUsage?.memory ?? 0)" size="small">
-              {{ Number(dash?.resourceUsage?.memory ?? 0).toFixed(1) }}%
-            </el-tag>
-          </div>
-        </template>
-        <div class="card-content">
-          <el-progress
-            :percentage="Math.round(clampPct(dash?.resourceUsage?.memory ?? 0))"
-            :color="getUsageColor(dash?.resourceUsage?.memory ?? 0)"
-            :show-text="false"
-            class="progress-bar"
-          />
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="svc-card">
+        <div class="svc-card-head">
+          <span class="svc-card-title">业务服务状态</span>
+          <span class="svc-card-meta">台账合计 {{ svcTotal }}</span>
         </div>
-      </el-card>
-
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="resource-card">
-        <template #header>
-          <div class="card-header">
-            <span>在线机器平均磁盘</span>
-            <el-tag :type="getUsageType(dash?.resourceUsage?.disk ?? 0)" size="small">
-              {{ Number(dash?.resourceUsage?.disk ?? 0).toFixed(1) }}%
-            </el-tag>
+        <div class="svc-stack-wrap" aria-label="状态占比">
+          <div v-if="svcTotal > 0" class="svc-stack-bar">
+            <div
+              v-if="svcRunWidth > 0"
+              class="svc-stack-seg svc-stack-seg--run"
+              :style="{ width: svcRunWidth + '%' }"
+              title="运行中（含 deploying）"
+            />
+            <div
+              v-if="svcStopWidth > 0"
+              class="svc-stack-seg svc-stack-seg--stopped"
+              :style="{ width: svcStopWidth + '%' }"
+              title="已停止"
+            />
+            <div
+              v-if="svcErrWidth > 0"
+              class="svc-stack-seg svc-stack-seg--error"
+              :style="{ width: svcErrWidth + '%' }"
+              title="异常"
+            />
           </div>
-        </template>
-        <div class="card-content">
-          <el-progress
-            :percentage="Math.round(clampPct(dash?.resourceUsage?.disk ?? 0))"
-            :color="getUsageColor(dash?.resourceUsage?.disk ?? 0)"
-            :show-text="false"
-            class="progress-bar"
-          />
+          <div v-else class="svc-stack-empty page-desc--muted">暂无业务服务台账</div>
         </div>
-      </el-card>
-
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="resource-card">
-        <template #header>
-          <div class="card-header">
-            <span>网络</span>
-            <el-tag type="info" size="small">未采集</el-tag>
+        <div class="svc-legends">
+          <div class="svc-legend">
+            <span class="svc-dot svc-dot--run" />
+            <span>运行 {{ dash?.serviceStatusStats?.running ?? 0 }}</span>
           </div>
-        </template>
-        <div class="network-hint">流量待 Agent / 监控上报。</div>
+          <div class="svc-legend">
+            <span class="svc-dot svc-dot--stopped" />
+            <span>停止 {{ dash?.serviceStatusStats?.stopped ?? 0 }}</span>
+          </div>
+          <div class="svc-legend">
+            <span class="svc-dot svc-dot--error" />
+            <span>异常 {{ dash?.serviceStatusStats?.error ?? 0 }}</span>
+          </div>
+        </div>
       </el-card>
     </div>
 
-    <div class="middle-section">
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="overview-card">
-        <template #header>
-            <div class="card-header card-header--wide">
-            <span>台账摘要</span>
-            <el-popover placement="bottom" :width="300" trigger="click">
-              <template #reference>
-                <span class="card-hint card-hint--btn">控制台口径 · 说明</span>
+    <el-card v-loading="dashboardStore.loading" shadow="never" class="dash-tabs-card">
+      <el-tabs v-model="activeDetailTab" class="dash-tabs">
+        <el-tab-pane v-if="isAdminUser" label="最近集群" name="k8s">
+          <template #label>
+            <span class="dash-tab-label">最近集群</span>
+          </template>
+          <el-table :data="dash?.recentK8sClusters ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无记录">
+            <el-table-column prop="clusterName" label="名称" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="version" label="版本" width="90" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="96" align="center">
+              <template #default="scope">
+                <el-tag :type="clusterStatusType(scope.row.status)" size="small">
+                  {{ scope.row.status || '—' }}
+                </el-tag>
               </template>
-              <p class="page-desc--muted" style="margin: 0">数据来源为控制台已登记台账，并非 kube-apiserver 实时视图。</p>
-            </el-popover>
-          </div>
-        </template>
-        <div class="overview-content">
-          <div class="overview-item">
-            <div class="overview-icon">
-              <el-icon :size="32"><Grid /></el-icon>
-            </div>
-            <div class="overview-info">
-              <div class="overview-value">{{ dash?.kubernetesOverview?.nodes ?? 0 }}</div>
-              <div class="overview-label">机器总数</div>
-            </div>
-          </div>
-          <div class="overview-item">
-            <div class="overview-icon">
-              <el-icon :size="32"><Histogram /></el-icon>
-            </div>
-            <div class="overview-info">
-              <div class="overview-value">{{ dash?.kubernetesOverview?.pods ?? 0 }}</div>
-              <div class="overview-label">K8s 集群条目</div>
-            </div>
-          </div>
-          <div class="overview-item">
-            <div class="overview-icon">
-              <el-icon :size="32"><Check /></el-icon>
-            </div>
-            <div class="overview-info">
-              <div class="overview-value">{{ dash?.kubernetesOverview?.runningPods ?? 0 }}</div>
-              <div class="overview-label">在线机器数</div>
-            </div>
-          </div>
-          <div class="overview-item">
-            <div class="overview-icon">
-              <el-icon :size="32"><Link /></el-icon>
-            </div>
-            <div class="overview-info">
-              <div class="overview-value">{{ dash?.kubernetesOverview?.services ?? 0 }}</div>
-              <div class="overview-label">Linux/服务条目</div>
-            </div>
-          </div>
-          <div class="overview-item">
-            <div class="overview-icon">
-              <el-icon :size="32"><Upload /></el-icon>
-            </div>
-            <div class="overview-info">
-              <div class="overview-value">{{ dash?.kubernetesOverview?.deployments ?? 0 }}</div>
-              <div class="overview-label">运行中集群数</div>
-            </div>
-          </div>
-          <div class="overview-item">
-            <div class="overview-icon">
-              <el-icon :size="32"><Operation /></el-icon>
-            </div>
-            <div class="overview-info">
-              <div class="overview-value">{{ dash?.kubernetesOverview?.replicasets ?? 0 }}</div>
-              <div class="overview-label">活跃作业任务</div>
-            </div>
-          </div>
-        </div>
-        <div class="topology-hint">
-          拓扑角色：主控 {{ dash?.platformSummary?.machines?.masters ?? 0 }} · Worker
-          {{ dash?.platformSummary?.machines?.workers ?? 0 }}
-        </div>
-      </el-card>
-
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="stats-card">
-        <template #header>
-          <div class="card-header">
-            <span>业务服务状态</span>
-            <el-tag type="info" size="small"> 总计: {{ dash?.serviceStatusStats?.total ?? 0 }} </el-tag>
-          </div>
-        </template>
-        <p class="stats-note">「运行中」含 deploying。</p>
-        <div class="stats-content">
-          <div class="stats-item">
-            <el-progress
-              type="circle"
-              :percentage="getStatusPercentage('running')"
-              :color="getStatusColor('running')"
-              :format="() => ''"
-              :width="60"
-            />
-            <div class="stats-info">
-              <div class="stats-value">{{ dash?.serviceStatusStats?.running ?? 0 }}</div>
-              <div class="stats-label">运行中</div>
-            </div>
-          </div>
-          <div class="stats-item">
-            <el-progress
-              type="circle"
-              :percentage="getStatusPercentage('stopped')"
-              :color="getStatusColor('stopped')"
-              :format="() => ''"
-              :width="60"
-            />
-            <div class="stats-info">
-              <div class="stats-value">{{ dash?.serviceStatusStats?.stopped ?? 0 }}</div>
-              <div class="stats-label">已停止</div>
-            </div>
-          </div>
-          <div class="stats-item">
-            <el-progress
-              type="circle"
-              :percentage="getStatusPercentage('error')"
-              :color="getStatusColor('error')"
-              :format="() => ''"
-              :width="60"
-            />
-            <div class="stats-info">
-              <div class="stats-value">{{ dash?.serviceStatusStats?.error ?? 0 }}</div>
-              <div class="stats-label">异常</div>
-            </div>
-          </div>
-        </div>
-      </el-card>
-    </div>
-
-    <div class="tables-grid">
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="table-card">
-        <template #header>
-          <div class="card-header">
-            <span>最近 K8s 集群</span>
-            <el-link type="primary" :underline="false" @click="goK8sClusters">
-              打开列表
-            </el-link>
-          </div>
-        </template>
-        <el-table :data="dash?.recentK8sClusters ?? []" stripe border size="small" empty-text="暂无记录">
-          <el-table-column prop="clusterName" label="名称" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="version" label="版本" width="90" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="100" align="center">
-            <template #default="scope">
-              <el-tag :type="clusterStatusType(scope.row.status)" size="small">
-                {{ scope.row.status || '—' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="masterNode" label="主节点" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="updatedAt" label="更新" min-width="150">
-            <template #default="scope">
-              {{ formatTs(scope.row.updatedAt) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="table-card">
-        <template #header>
-          <div class="card-header">
-            <span>最近 ai-sre 安装</span>
-            <el-link type="primary" :underline="false" @click="goServiceDeploy">
-              服务部署
-            </el-link>
-          </div>
-        </template>
-        <el-table :data="dash?.recentServiceInstalls ?? []" stripe border size="small" empty-text="暂无记录">
-          <el-table-column prop="service" label="组件" width="110" show-overflow-tooltip />
-          <el-table-column prop="profile" label="配置" width="100" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="100" align="center">
-            <template #default="scope">
-              <el-tag :type="genericStatusType(scope.row.status)" size="small">
-                {{ scope.row.status || '—' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="currentStep" label="步骤" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="updatedAt" label="更新" min-width="150">
-            <template #default="scope">
-              {{ formatTs(scope.row.updatedAt) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
-    </div>
-
-    <el-card v-loading="dashboardStore.loading" shadow="hover" class="recent-deployments-card">
-      <template #header>
-        <div class="card-header">
-          <span>最近 Linux / 业务服务（台账）</span>
-          <el-link type="primary" :underline="false" @click="navigateToServiceList"> 查看全部 </el-link>
-        </div>
-      </template>
-      <div class="recent-deployments-content">
-        <el-table :data="dash?.recentDeployments ?? []" stripe border size="small" empty-text="暂无服务">
-          <el-table-column prop="name" label="服务名称" min-width="150" show-overflow-tooltip />
-          <el-table-column prop="image" label="镜像" min-width="180" show-overflow-tooltip />
-          <el-table-column prop="replicas" label="副本" width="72" align="center" />
-          <el-table-column prop="status" label="状态" width="100" align="center">
-            <template #default="scope">
-              <el-tag :type="getStatusType(scope.row.status)" size="small">
-                {{ getStatusText(scope.row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="updateTime" label="更新时间" min-width="160">
-            <template #default="scope">
-              {{ formatTs(scope.row.updateTime) }}
-            </template>
-          </el-table-column>
-        </el-table>
+            </el-table-column>
+            <el-table-column prop="masterNode" label="主节点" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="updatedAt" label="更新" min-width="146">
+              <template #default="scope">
+                {{ formatTs(scope.row.updatedAt) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane v-if="isAdminUser" label="最近安装" name="install">
+          <el-table :data="dash?.recentServiceInstalls ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无记录">
+            <el-table-column prop="service" label="组件" width="110" show-overflow-tooltip />
+            <el-table-column prop="profile" label="配置" width="100" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="92" align="center">
+              <template #default="scope">
+                <el-tag :type="genericStatusType(scope.row.status)" size="small">
+                  {{ scope.row.status || '—' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="currentStep" label="步骤" min-width="136" show-overflow-tooltip />
+            <el-table-column prop="updatedAt" label="更新" min-width="146">
+              <template #default="scope">
+                {{ formatTs(scope.row.updatedAt) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="业务服务" name="services">
+          <el-table :data="dash?.recentDeployments ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无服务">
+            <el-table-column prop="name" label="服务名称" min-width="140" show-overflow-tooltip />
+            <el-table-column prop="image" label="镜像" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="replicas" label="副本" width="72" align="center" />
+            <el-table-column prop="status" label="状态" width="92" align="center">
+              <template #default="scope">
+                <el-tag :type="getStatusType(scope.row.status)" size="small">
+                  {{ getStatusText(scope.row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="updateTime" label="更新时间" min-width="146">
+              <template #default="scope">
+                {{ formatTs(scope.row.updateTime) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+        <el-tab-pane label="执行记录" name="exec">
+          <el-table :data="dash?.recentExecutions ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无执行记录">
+            <el-table-column prop="name" label="名称" min-width="168" show-overflow-tooltip />
+            <el-table-column prop="source" label="来源" width="80" show-overflow-tooltip />
+            <el-table-column prop="category" label="类别" width="100" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="92" align="center">
+              <template #default="scope">
+                <el-tag :type="genericStatusType(scope.row.status)" size="small">
+                  {{ scope.row.status || '—' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="targetHost" label="目标" min-width="112" show-overflow-tooltip />
+            <el-table-column prop="finishedAt" label="结束时间" min-width="146">
+              <template #default="scope">
+                {{ formatTs(scope.row.finishedAt) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="durationMs" label="耗时" width="84" align="right">
+              <template #default="scope">
+                {{ formatDuration(scope.row.durationMs) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+      <div class="dash-tabs-actions">
+        <el-link v-if="isAdminUser && activeDetailTab === 'k8s'" type="primary" :underline="false" @click="goK8sClusters">
+          集群列表
+        </el-link>
+        <el-link v-if="isAdminUser && activeDetailTab === 'install'" type="primary" :underline="false" @click="goServiceDeploy">
+          服务部署
+        </el-link>
+        <el-link v-if="activeDetailTab === 'services'" type="primary" :underline="false" @click="navigateToServiceList">
+          台账列表
+        </el-link>
+        <el-link
+          v-if="activeDetailTab === 'exec'"
+          type="primary"
+          :underline="false"
+          @click="isAdminUser ? goExecRecords() : goJobCenter()"
+        >
+          {{ isAdminUser ? '全部记录' : '作业中心' }}
+        </el-link>
       </div>
-    </el-card>
-
-    <el-card v-loading="dashboardStore.loading" shadow="hover" class="recent-deployments-card">
-      <template #header>
-        <div class="card-header">
-          <span>最近执行记录</span>
-          <el-link type="primary" :underline="false" @click="goExecRecords"> 全部记录 </el-link>
-        </div>
-      </template>
-      <el-table :data="dash?.recentExecutions ?? []" stripe border size="small" empty-text="暂无执行记录">
-        <el-table-column prop="name" label="名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="source" label="来源" width="90" show-overflow-tooltip />
-        <el-table-column prop="category" label="类别" width="110" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template #default="scope">
-            <el-tag :type="genericStatusType(scope.row.status)" size="small">
-              {{ scope.row.status || '—' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="targetHost" label="目标" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="finishedAt" label="结束时间" min-width="160">
-          <template #default="scope">
-            {{ formatTs(scope.row.finishedAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="durationMs" label="耗时" width="90" align="right">
-          <template #default="scope">
-            {{ formatDuration(scope.row.durationMs) }}
-          </template>
-        </el-table-column>
-      </el-table>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import {
-  RefreshRight,
-  Grid,
-  Check,
-  Link,
-  Upload,
-  Histogram,
-  Operation
-} from '@element-plus/icons-vue'
+import { RefreshRight } from '@element-plus/icons-vue'
 import { useDashboardStore } from '../stores/dashboard'
 import type { DashboardData } from '../types/dashboard'
 
@@ -438,7 +321,46 @@ const isAdminUser = computed(() => {
   }
 })
 
+const activeDetailTab = ref('services')
+
+watch(
+  isAdminUser,
+  (admin) => {
+    if (!admin && (activeDetailTab.value === 'k8s' || activeDetailTab.value === 'install')) {
+      activeDetailTab.value = 'services'
+    }
+  },
+  { immediate: true }
+)
+
 const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
+
+const svcTotal = computed(() => dash.value?.serviceStatusStats?.total ?? 0)
+
+const svcRunWidth = computed(() => {
+  const t = svcTotal.value
+  if (!t) return 0
+  const n = dash.value?.serviceStatusStats?.running ?? 0
+  return Math.max(0, Math.round((n / t) * 1000) / 10)
+})
+const svcStopWidth = computed(() => {
+  const t = svcTotal.value
+  if (!t) return 0
+  const n = dash.value?.serviceStatusStats?.stopped ?? 0
+  return Math.max(0, Math.round((n / t) * 1000) / 10)
+})
+const svcErrWidth = computed(() => {
+  const t = svcTotal.value
+  if (!t) return 0
+  const n = dash.value?.serviceStatusStats?.error ?? 0
+  return Math.max(0, Math.round((n / t) * 1000) / 10)
+})
+
+const tableMaxPx = ref(280)
+const recalcTableMax = () => {
+  const h = typeof window !== 'undefined' ? window.innerHeight : 900
+  tableMaxPx.value = Math.min(420, Math.max(200, Math.floor(h * 0.34)))
+}
 
 const goInitTools = () => {
   router.push(`${shellPrefix.value}/init-tools`)
@@ -467,13 +389,6 @@ const goServiceDeploy = () => {
   }
   router.push('/admin/service/deploy')
 }
-
-onMounted(() => {
-  const b = route.query.billing
-  if (b === 'success') ElMessage.success('支付已完成，订阅状态将在 Stripe Webhook 同步后更新')
-  if (b === 'cancel') ElMessage.info('已取消支付')
-  void fetchDashboardData()
-})
 
 const fetchDashboardData = async () => {
   const data = await dashboardStore.fetchDashboardData()
@@ -519,37 +434,6 @@ const formatDuration = (ms?: number) => {
   const m = Math.floor(s / 60)
   const rs = s - m * 60
   return `${m}m ${rs.toFixed(0)}s`
-}
-
-const getStatusPercentage = (status: 'running' | 'stopped' | 'error') => {
-  const total = dash.value?.serviceStatusStats?.total ?? 0
-  if (total === 0) return 0
-  let count = 0
-  switch (status) {
-    case 'running':
-      count = dash.value?.serviceStatusStats?.running ?? 0
-      break
-    case 'stopped':
-      count = dash.value?.serviceStatusStats?.stopped ?? 0
-      break
-    case 'error':
-      count = dash.value?.serviceStatusStats?.error ?? 0
-      break
-  }
-  return Math.round((count / total) * 100)
-}
-
-const getStatusColor = (status: 'running' | 'stopped' | 'error') => {
-  switch (status) {
-    case 'running':
-      return '#67c23a'
-    case 'stopped':
-      return '#909399'
-    case 'error':
-      return '#f56c6c'
-    default:
-      return '#0066cc'
-  }
 }
 
 const getStatusType = (status: string) => {
@@ -603,15 +487,36 @@ const genericStatusType = (s: string) => {
 const navigateToServiceList = () => {
   goServiceDeploy()
 }
+
+onMounted(() => {
+  const b = route.query.billing
+  if (b === 'success') ElMessage.success('支付已完成，订阅状态将在 Stripe Webhook 同步后更新')
+  if (b === 'cancel') ElMessage.info('已取消支付')
+  recalcTableMax()
+  window.addEventListener('resize', recalcTableMax)
+  void fetchDashboardData()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', recalcTableMax)
+})
 </script>
 
 <style scoped>
+.dashboard--layout {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+}
+
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  margin-bottom: 12px;
+  flex-shrink: 0;
 }
 
 .page-header__titles {
@@ -634,16 +539,31 @@ const navigateToServiceList = () => {
   min-height: auto !important;
 }
 
-.snapshot-row {
+.dashboard-help-list {
+  margin: 0;
+  padding-left: 1.1em;
+}
+
+.dash-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 12px;
-  margin-bottom: 20px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.dash-grid--kpi {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.dash-grid--main {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  align-items: stretch;
 }
 
 .snapshot-card {
   cursor: pointer;
-  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  transition:
+    transform 0.12s ease,
+    box-shadow 0.12s ease;
 }
 
 .snapshot-card:not(.snapshot-card--static):hover {
@@ -654,200 +574,248 @@ const navigateToServiceList = () => {
   cursor: default;
 }
 
+.snapshot-card :deep(.el-card__body) {
+  padding: 12px 14px;
+}
+
 .snapshot-label {
-  font-size: 13px;
-  color: #909399;
+  font-size: 12px;
+  color: var(--apple-muted, #909399);
 }
 
 .snapshot-value {
-  margin-top: 6px;
-  font-size: 22px;
+  margin-top: 4px;
+  font-size: 20px;
   font-weight: 700;
   color: #303133;
+  line-height: 1.2;
 }
 
 .snapshot-muted {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 500;
   color: #909399;
 }
 
 .snapshot-foot {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 11px;
   color: #a8abb2;
+  line-height: 1.35;
 }
 
-.resource-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
+.snapshot-foot--sub {
+  margin-top: 2px;
+  font-size: 11px;
 }
 
-.resource-card {
-  height: 100%;
+.meter-card :deep(.el-card__body) {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  min-height: 72px;
 }
 
-.card-header {
+.meter-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-weight: bold;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
 }
 
-.card-header--wide {
-  flex-wrap: wrap;
+.meter-progress {
+  margin: 0;
+}
+
+.meter-progress :deep(.el-progress-bar__outer) {
+  height: 8px !important;
+  border-radius: 999px;
+}
+
+.svc-card {
+  grid-column: span 1;
+}
+
+.svc-card :deep(.el-card__body) {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  min-height: 92px;
+}
+
+.svc-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
   gap: 8px;
 }
 
-.card-hint {
-  font-size: 12px;
-  font-weight: 400;
-  color: #909399;
-}
-
-.card-hint--btn {
-  cursor: pointer;
-  color: var(--apple-primary);
-}
-
-.card-content {
-  padding: 20px 0;
-}
-
-.progress-bar {
-  height: 10px;
-}
-
-.network-content {
-  padding: 8px 0;
-}
-
-.network-hint {
-  margin: 0;
+.svc-card-title {
   font-size: 13px;
-  color: #606266;
-  line-height: 1.5;
-}
-
-.middle-section {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.overview-content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 20px;
-}
-
-.overview-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.overview-icon {
-  color: var(--el-color-primary);
-}
-
-.overview-info {
-  display: flex;
-  flex-direction: column;
-}
-
-.overview-value {
-  font-size: 20px;
-  font-weight: bold;
+  font-weight: 600;
   color: #303133;
 }
 
-.overview-label {
-  color: #606266;
-  font-size: 13px;
-  line-height: 1.3;
+.svc-card-meta {
+  font-size: 11px;
+  color: #a8abb2;
 }
 
-.topology-hint {
-  margin-top: 16px;
-  padding-top: 12px;
-  border-top: 0;
-  font-size: 12px;
-  color: #909399;
+.svc-stack-wrap {
+  min-height: 14px;
 }
 
-.stats-note {
-  margin: 0 0 12px;
-  font-size: 12px;
-  color: #909399;
-}
-
-.stats-content {
+.svc-stack-bar {
   display: flex;
-  justify-content: space-around;
-  align-items: center;
+  width: 100%;
+  height: 12px;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--apple-hairline, #ebeef5);
 }
 
-.stats-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.stats-info {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.stats-value {
-  font-size: 18px;
-  font-weight: bold;
-  color: #303133;
-}
-
-.stats-label {
-  color: #606266;
-  font-size: 14px;
-}
-
-.tables-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
-  margin-bottom: 20px;
-}
-
-.table-card {
+.svc-stack-seg {
+  height: 100%;
   min-width: 0;
 }
 
-.recent-deployments-card {
-  margin-bottom: 20px;
+.svc-stack-seg--run {
+  background: #67c23a;
 }
 
-@media screen and (max-width: 1200px) {
-  .middle-section {
-    grid-template-columns: 1fr;
+.svc-stack-seg--stopped {
+  background: #c8c9cc;
+}
+
+.svc-stack-seg--error {
+  background: #f56c6c;
+}
+
+.svc-stack-empty {
+  font-size: 12px;
+}
+
+.svc-legends {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+.svc-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.svc-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+.svc-dot--run {
+  background: #67c23a;
+}
+.svc-dot--stopped {
+  background: #c8c9cc;
+}
+.svc-dot--error {
+  background: #f56c6c;
+}
+
+.dash-tabs-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--el-border-color-lighter);
+}
+
+.dash-tabs-card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 10px;
+  position: relative;
+}
+
+.dash-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-tabs :deep(.el-tabs__header) {
+  margin: 0 0 8px;
+  flex-shrink: 0;
+}
+
+.dash-tabs :deep(.el-tabs__nav-wrap)::after {
+  height: 1px;
+}
+
+.dash-tabs :deep(.el-tabs__content),
+.dash-tabs :deep(.el-tab-pane) {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dash-tab-label {
+  letter-spacing: 0.02em;
+}
+
+.dash-tabs-actions {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  z-index: 2;
+}
+
+@media screen and (max-width: 1280px) {
+  .dash-grid--kpi {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .dash-grid--main {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .svc-card {
+    grid-column: span 2;
   }
 }
 
-@media screen and (max-width: 768px) {
-  .resource-cards {
+@media screen and (max-width: 720px) {
+  .dash-grid--kpi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dash-grid--main {
     grid-template-columns: 1fr;
   }
 
-  .overview-content {
-    grid-template-columns: repeat(2, 1fr);
+  .svc-card {
+    grid-column: span 1;
   }
 
-  .stats-content {
-    flex-direction: column;
-    gap: 20px;
+  .dash-tabs-actions {
+    position: static;
+    margin: 0 0 6px;
+    text-align: right;
   }
 }
 </style>

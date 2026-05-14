@@ -11,7 +11,7 @@ export interface ResourceUsage {
   }
 }
 
-// 兼容字段：原为「集群内」计数；现映射为控制台内可查询的台账数据。
+// 兼容字段：服务端仍可返回；概览页已不再使用（历史上 UI 多块误标）。
 export interface KubernetesOverview {
   nodes: number
   pods: number
@@ -94,7 +94,7 @@ export interface RecentExecutionRow {
 // 仪表盘数据
 export interface DashboardData {
   resourceUsage: ResourceUsage
-  kubernetesOverview: KubernetesOverview
+  kubernetesOverview?: KubernetesOverview
   serviceStatusStats: ServiceStatusStats
   recentDeployments: RecentDeployment[]
   /** 租户内汇总快照 */
