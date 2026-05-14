@@ -4,7 +4,7 @@
     <div class="register-card">
       <header class="register-head">
         <h1 class="register-title">创建账号</h1>
-        <p class="register-sub">注册为普通用户（<span class="muted">admin 需由管理员分配</span>）</p>
+        <p class="register-sub">注册用户；<span class="muted">管理员角色由后台分配</span></p>
       </header>
 
       <el-form

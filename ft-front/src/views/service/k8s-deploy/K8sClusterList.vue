@@ -1,25 +1,11 @@
 <template>
   <div class="k8s-cluster-list">
     <div class="page-header">
-      <h2>Kubernetes 集群列表</h2>
-      <p class="page-desc">查看和管理已部署的 Kubernetes 集群</p>
+      <h2>集群</h2>
+      <el-button type="primary" size="small" text @click="goToDeploy">新建</el-button>
     </div>
 
-    <div class="action-bar">
-      <el-button type="primary" @click="goToDeploy">
-        <el-icon><Plus /></el-icon>
-        新建部署
-      </el-button>
-    </div>
-
-    <div class="cluster-card">
-      <div class="cluster-card-header">
-        <div class="cluster-card-indicator">
-          <el-icon :size="20"><Grid /></el-icon>
-        </div>
-        <h3 class="cluster-card-title">集群列表</h3>
-      </div>
-
+    <div class="cluster-sheet">
       <div class="cluster-card-body">
         <el-table
           v-loading="loading"
@@ -60,10 +46,10 @@
 
         <el-empty
           v-if="!loading && clusterList.length === 0"
-          description="暂无集群，点击「新建部署」开始部署 Kubernetes 集群"
+          description="暂无集群。使用右上角「新建」开始。"
           class="empty-state"
         >
-          <el-button type="primary" @click="goToDeploy">新建部署</el-button>
+          <el-button type="primary" @click="goToDeploy">新建</el-button>
         </el-empty>
       </div>
     </div>
@@ -74,7 +60,6 @@
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Plus, Grid } from '@element-plus/icons-vue'
 import { getClusterList } from '../../../api/k8s-deploy'
 
 const router = useRouter()
@@ -152,70 +137,34 @@ onMounted(() => {
 <style scoped>
 .k8s-cluster-list {
   width: 100%;
-  padding: 20px 24px;
+  padding: var(--page-padding-y) var(--page-padding-x);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 14px;
+  box-sizing: border-box;
 }
 
 .page-header {
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 .page-header h2 {
-  color: var(--el-color-primary);
-  margin: 0 0 6px 0;
-  font-size: 26px;
-  font-weight: 600;
-}
-
-.page-desc {
-  color: #6b7280;
-  font-size: 14px;
   margin: 0;
-}
-
-.action-bar {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.cluster-card {
-  background: #fff;
-  border-radius: 12px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
-  overflow: hidden;
-}
-
-.cluster-card-header {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 28px;
-  border-bottom: 1px solid #f0f0f0;
-  background: linear-gradient(135deg, var(--mi-surface-warm-a) 0%, var(--mi-surface-warm-b) 100%);
-}
-
-.cluster-card-indicator {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, var(--el-color-primary), var(--el-color-primary-dark-2));
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cluster-card-title {
-  margin: 0;
-  font-size: 17px;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
-  color: #1f2937;
+  color: var(--apple-ink);
+}
+
+.cluster-sheet {
+  min-width: 0;
 }
 
 .cluster-card-body {
-  padding: 20px 28px;
+  padding: 0;
+  min-height: 0;
 }
 
 .cluster-name {

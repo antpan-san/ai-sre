@@ -1,10 +1,14 @@
 <template>
   <div class="execution-records page-shell">
-    <header class="page-header">
-      <div class="page-header-inner">
-        <span class="page-kicker">Execution History</span>
+    <header class="page-header page-header--row">
+      <div class="page-header-copy">
         <h2 class="page-title">执行记录</h2>
-        <p class="page-desc">统一查看 ai-sre、复制脚本和作业任务的执行结果、影响摘要与回滚状态。</p>
+        <el-popover placement="bottom-start" :width="280" trigger="click">
+          <template #reference>
+            <el-button text type="primary" size="small">说明</el-button>
+          </template>
+          <p class="page-desc--muted" style="margin: 0">CLI、脚本副本、作业或 K8s 操作的统一历史。</p>
+        </el-popover>
       </div>
     </header>
 
@@ -280,36 +284,35 @@ function rollbackStatusLabel(value: string) {
 
 .page-header {
   flex-shrink: 0;
-}
-
-.page-header-inner {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
-.page-kicker {
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--el-color-primary);
+.page-header-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .page-title {
   margin: 0;
-  font-size: var(--page-header-title-max, 18px);
-  font-weight: 700;
-  color: var(--layout-sidebar-text-strong, #111827);
-  line-height: 1.25;
+  font-size: var(--page-header-title-max, 17px);
+  font-weight: 600;
+  color: var(--apple-ink, #111827);
+}
+
+.page-header-inner {
+  display: none;
+}
+
+.page-kicker {
+  display: none;
 }
 
 .page-desc {
-  margin: 0;
-  font-size: var(--page-header-desc-size, 12px);
-  line-height: 1.45;
-  color: #64748b;
-  max-width: 720px;
+  display: none;
 }
 
 .search-filters {

@@ -1,7 +1,7 @@
 <template>
   <div class="operation-logs">
     <div class="page-header">
-      <h2>操作日志</h2>
+      <h2>审计日志</h2>
     </div>
     
     <!-- 搜索和筛选区域 -->
@@ -270,14 +270,15 @@ const handleExport = async () => {
 
 <style scoped>
 .operation-logs {
-  padding: 0 20px 20px 20px;
+  padding: 0 var(--page-padding-x) 16px;
+  box-sizing: border-box;
 }
 
 .page-header h2 {
-  margin: 0 0 20px 0;
-  color: var(--el-color-primary);
-  font-size: 30px;
+  margin: 0 0 12px;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
+  color: var(--apple-ink);
 }
 
 .search-filters {

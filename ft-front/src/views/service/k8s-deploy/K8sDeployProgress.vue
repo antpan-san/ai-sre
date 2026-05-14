@@ -1,8 +1,7 @@
 <template>
   <div class="k8s-deploy-progress">
     <div class="page-header">
-      <h2>Kubernetes 集群部署进度</h2>
-      <p class="page-desc">实时查看集群部署进度和日志信息</p>
+      <h2>部署进度</h2>
     </div>
 
     <!-- 部署状态卡片 -->
@@ -391,27 +390,25 @@ const logLevelText = (l: string) => {
 /* ==================== 页面布局 ==================== */
 .k8s-deploy-progress {
   width: 100%;
-  padding: 20px 24px;
+  padding: var(--page-padding-y) var(--page-padding-x);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
 }
 
 .page-header {
-  text-align: center;
+  text-align: left;
 }
 
 .page-header h2 {
-  color: var(--el-color-primary);
-  margin: 0 0 6px 0;
-  font-size: 26px;
+  margin: 0;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
+  color: var(--apple-ink);
 }
 
 .page-desc {
-  color: #6b7280;
-  font-size: 14px;
-  margin: 0;
+  display: none;
 }
 
 /* ==================== 进度卡片（与 DeployForm 统一） ==================== */

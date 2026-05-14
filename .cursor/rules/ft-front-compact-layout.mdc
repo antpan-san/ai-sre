@@ -19,9 +19,10 @@ alwaysApply: false
 - 主布局已由 `MainLayout` 的 `.content-inner` 提供 **一层**纵向滚动；业务页内部应优先 **`height: 100%` + `min-height: 0` + `flex` 列布局**，让**仅数据子区域** `overflow-y: auto`，避免出现 **整页 + 内层 `el-scrollbar`** 的双滚动条。
 - 慎用 **`min-height: 70vh`** 等把子块撑得高于视口导致外层必滚；需要占满时优先用 **`page-shell--fill`**（见 `src/style.css`）+ 子区 `flex: 1; min-height: 0`。
 
-## 全局变量
+## 全局变量与壳层样式
 
 - 使用 `src/style.css` 中 **`--page-padding-y`**、**`--page-header-title-max`**、**`--page-header-desc-size`**；新页标题/副文案尽量引用或不超过这些尺度。
+- **`src/styles/opsfleet-ui.css`**（由 `main.ts` 在 `style.css` 之后加载）：卡片圆角与轻阴影、表头弱化、控件垂直尺寸；业务页不要再叠加「渐变巨型页眉」等与数据密度冲突的装饰。
 
 ## 存量页改造
 

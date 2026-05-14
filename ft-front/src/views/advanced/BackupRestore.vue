@@ -1,15 +1,9 @@
 <template>
   <div class="backup-restore">
     <div class="page-header">
-      <h2>备份与恢复</h2>
+      <h2>备份</h2>
     </div>
-    <el-alert
-      class="billing-alert"
-      type="warning"
-      show-icon
-      :closable="false"
-      :title="billingAlertTitle"
-    />
+    <p v-if="billingAlertTitle" class="billing-strip page-desc--muted">{{ billingAlertTitle }}</p>
     
     <!-- 搜索和筛选区域 -->
     <div class="search-filters">
@@ -244,13 +238,13 @@ const needsBackupSubscription = computed(() => {
 })
 const billingAlertTitle = computed(() => {
   if (!backupCapability.value) {
-    return '订阅功能包：pack.backup_performance。未订阅用户可查看页面与配置说明，真实备份数据与执行动作会在后端校验订阅。'
+    return '能力信息载入中… 备份与恢复受后端校验。'
   }
   if (canUseBackupData.value) {
-    return `当前账号可使用 ${backupPackKey.value}；创建、恢复、删除仍仅限管理员角色。`
+    return `已开通 · 创建 / 删除等操作仍为管理员。`
   }
   const state = backupCapability.value.execute_state as Record<string, unknown> | undefined
-  return String(state?.msg || `可预览，真实备份数据与执行动作需订阅 ${backupPackKey.value}。`)
+  return String(state?.msg || `需订阅 ${backupPackKey.value} 后执行写入类操作`)
 })
 
 // 筛选条件
@@ -533,18 +527,20 @@ const formatFileSize = (size: number): string => {
 
 <style scoped>
 .backup-restore {
-  padding: 0 20px 20px 20px;
+  padding: 0 var(--page-padding-x) 16px;
+  box-sizing: border-box;
 }
 
 .page-header h2 {
-  margin: 0 0 20px 0;
-  color: var(--el-color-primary);
-  font-size: 30px;
+  margin: 0 0 8px;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
+  color: var(--apple-ink);
 }
 
-.billing-alert {
-  margin-bottom: 16px;
+.billing-strip {
+  margin: 0 0 12px;
+  max-width: 48rem;
 }
 
 .search-filters {

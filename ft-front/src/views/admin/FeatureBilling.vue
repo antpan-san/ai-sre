@@ -1,11 +1,18 @@
 <template>
   <div class="feature-billing page-shell page-shell--crud-wide">
     <div class="page-head">
-      <div>
-        <h2 class="page-title">功能与计费</h2>
-        <p class="page-sub">
-          功能入口默认可见；关闭展示会隐藏入口，关闭执行会禁止所有角色执行。开启计费后，非超级管理员需拥有对应功能包权益。
-        </p>
+      <div class="page-head-copy">
+        <h2 class="page-title">订阅与计费</h2>
+        <el-popover placement="bottom-start" :width="320" trigger="click">
+          <template #reference>
+            <el-button text type="primary" size="small">字段说明</el-button>
+          </template>
+          <ul class="page-desc--muted billing-help-list">
+            <li><strong>展示</strong>：是否在导航中露出入口。</li>
+            <li><strong>执行</strong>：关闭后任意角色不可执行。</li>
+            <li><strong>计费</strong>：开启后按套餐校验权益。</li>
+          </ul>
+        </el-popover>
       </div>
       <el-button type="primary" :loading="saving" :disabled="loading" @click="handleSave">保存</el-button>
     </div>
@@ -124,24 +131,28 @@ onMounted(() => {
 .page-head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+.page-head-copy {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .page-title {
-  margin: 0 0 6px;
-  font-size: 20px;
+  margin: 0;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
-  color: #303133;
+  color: var(--apple-ink);
 }
 
-.page-sub {
+.billing-help-list {
   margin: 0;
-  max-width: 780px;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.5;
+  padding-left: 1.1rem;
 }
 
 .hint-code {

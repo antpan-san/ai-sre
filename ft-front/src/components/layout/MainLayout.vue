@@ -6,7 +6,7 @@
           <div class="sidebar-brand-mark" aria-hidden="true">{{ brandShort }}</div>
           <div v-show="!isCollapse" class="sidebar-brand-text">
             <span class="sidebar-brand-title">OpsFleetPilot</span>
-            <span class="sidebar-brand-sub">{{ isAdminShell ? '管理端' : '工作台' }}</span>
+            <span class="sidebar-brand-sub">{{ isAdminShell ? '控制台' : '工作台' }}</span>
           </div>
         </div>
         <el-button type="primary" link class="collapse-btn" @click="isCollapse = !isCollapse">
@@ -54,87 +54,100 @@
           <template v-if="isAdminShell">
             <el-menu-item index="/admin/dashboard">
               <el-icon><PieChart /></el-icon>
-              <template #title>仪表盘</template>
+              <template #title>概览</template>
             </el-menu-item>
             <el-menu-item v-if="isSuperAdmin" index="/admin/billing/features">
               <el-icon><Setting /></el-icon>
-              <template #title>功能与计费</template>
+              <template #title>订阅与计费</template>
             </el-menu-item>
-            <el-sub-menu v-if="featureVisible('feature.node_ops') || featureVisible('feature.k8s_delivery')" index="asm-service">
+            <el-sub-menu
+              v-if="featureVisible('feature.node_ops') || featureVisible('feature.k8s_delivery')"
+              index="asm-workloads"
+            >
               <template #title>
                 <el-icon><Box /></el-icon>
-                <span>服务与交付</span>
+                <span>工作负载</span>
               </template>
               <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/service/deploy">
                 <el-icon><Operation /></el-icon>
-                <template #title>服务部署</template>
+                <template #title>应用服务</template>
               </el-menu-item>
               <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/service/k8s-deploy">
                 <el-icon><Connection /></el-icon>
-                <template #title>Kubernetes 部署 <span v-if="featureBillingEnabled('feature.k8s_delivery')" class="menu-pack-tag">订阅</span></template>
+                <template #title>Kubernetes<span v-if="featureBillingEnabled('feature.k8s_delivery')" class="menu-pack-tag">订阅</span></template>
+              </el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/service/k8s/clusters">
+                <el-icon><Grid /></el-icon>
+                <template #title>集群</template>
               </el-menu-item>
               <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/service/k8s-mirror">
                 <el-icon><Download /></el-icon>
-                <template #title>K8s 制品镜像</template>
+                <template #title>制品目录</template>
               </el-menu-item>
               <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/service/linux">
                 <el-icon><Cpu /></el-icon>
-                <template #title>Linux 服务管理</template>
+                <template #title>Linux 主机</template>
               </el-menu-item>
             </el-sub-menu>
             <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/proxy/config">
               <el-icon><Link /></el-icon>
-              <template #title>代理配置</template>
+              <template #title>出口代理</template>
             </el-menu-item>
-            <el-sub-menu v-if="featureVisible('feature.monitoring')" index="asm-monitoring">
+            <el-sub-menu v-if="featureVisible('feature.monitoring')" index="asm-observe">
               <template #title>
                 <el-icon><Monitor /></el-icon>
-                <span>监控告警 <span v-if="featureBillingEnabled('feature.monitoring')" class="menu-pack-tag">订阅</span></span>
+                <span
+                  >可观测性<span v-if="featureBillingEnabled('feature.monitoring')" class="menu-pack-tag">订阅</span></span
+                >
               </template>
               <el-menu-item index="/admin/monitoring/prometheus">Prometheus</el-menu-item>
-              <el-menu-item index="/admin/monitoring/node-exporter">Node Exporter</el-menu-item>
-              <el-menu-item index="/admin/monitoring/jmx-exporter">JMX Exporter</el-menu-item>
-              <el-menu-item index="/admin/monitoring/redis-exporter">Redis Exporter</el-menu-item>
-              <el-menu-item index="/admin/monitoring/mongodb-exporter">MongoDB Exporter</el-menu-item>
-              <el-menu-item index="/admin/monitoring/blackbox-exporter">Blackbox Exporter</el-menu-item>
+              <el-menu-item index="/admin/monitoring/node-exporter">Node</el-menu-item>
+              <el-menu-item index="/admin/monitoring/jmx-exporter">JMX</el-menu-item>
+              <el-menu-item index="/admin/monitoring/redis-exporter">Redis</el-menu-item>
+              <el-menu-item index="/admin/monitoring/mongodb-exporter">MongoDB</el-menu-item>
+              <el-menu-item index="/admin/monitoring/blackbox-exporter">Blackbox</el-menu-item>
             </el-sub-menu>
-            <el-menu-item index="/admin/job/center">
-              <el-icon><Management /></el-icon>
-              <template #title>作业中心</template>
-            </el-menu-item>
+            <el-sub-menu index="asm-run">
+              <template #title>
+                <el-icon><Management /></el-icon>
+                <span>任务</span>
+              </template>
+              <el-menu-item index="/admin/job/center">作业中心</el-menu-item>
+              <el-menu-item index="/admin/execution-records">执行记录</el-menu-item>
+            </el-sub-menu>
             <el-sub-menu index="asm-security">
               <template #title>
                 <el-icon><Lock /></el-icon>
-                <span>安全与审计</span>
+                <span>安全</span>
               </template>
-              <el-menu-item index="/admin/security-audit/operation-logs">操作日志</el-menu-item>
-              <el-menu-item index="/admin/security-audit/permission-management">权限管理</el-menu-item>
+              <el-menu-item index="/admin/security-audit/operation-logs">审计日志</el-menu-item>
+              <el-menu-item v-if="isAdminUser" index="/admin/security-audit/permission-management"
+                >权限</el-menu-item
+              >
             </el-sub-menu>
             <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="asm-advanced">
               <template #title>
                 <el-icon><DocumentCopy /></el-icon>
-                <span>高级功能 <span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span>
+                <span
+                  >数据<span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span
+                >
               </template>
-              <el-menu-item index="/admin/advanced/backup-restore">备份与恢复</el-menu-item>
-              <el-menu-item index="/admin/advanced/performance-analysis">性能分析</el-menu-item>
+              <el-menu-item index="/admin/advanced/backup-restore">备份</el-menu-item>
+              <el-menu-item index="/admin/advanced/performance-analysis">性能</el-menu-item>
             </el-sub-menu>
-            <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/init-tools">
-              <el-icon><Tools /></el-icon>
-              <template #title>初始化工具</template>
-            </el-menu-item>
-            <el-menu-item index="/admin/execution-records">
-              <el-icon><DocumentCopy /></el-icon>
-              <template #title>执行记录</template>
-            </el-menu-item>
-            <el-menu-item index="/admin/help/error-codes">
-              <el-icon><Reading /></el-icon>
-              <template #title>部署错误码</template>
-            </el-menu-item>
+            <el-sub-menu index="asm-tools">
+              <template #title>
+                <el-icon><Tools /></el-icon>
+                <span>工具</span>
+              </template>
+              <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/init-tools">节点初始化</el-menu-item>
+              <el-menu-item index="/admin/help/error-codes">错误码</el-menu-item>
+            </el-sub-menu>
           </template>
           <template v-else>
             <el-menu-item index="/app/dashboard">
               <el-icon><PieChart /></el-icon>
-              <template #title>仪表盘</template>
+              <template #title>概览</template>
             </el-menu-item>
             <el-menu-item index="/app/job/center">
               <el-icon><Management /></el-icon>
@@ -142,19 +155,21 @@
             </el-menu-item>
             <el-menu-item v-if="featureVisible('feature.node_ops')" index="/app/init-tools">
               <el-icon><Tools /></el-icon>
-              <template #title>初始化工具</template>
+              <template #title>节点初始化</template>
             </el-menu-item>
             <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="app-advanced">
               <template #title>
                 <el-icon><DocumentCopy /></el-icon>
-                <span>高级功能 <span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span>
+                <span
+                  >数据<span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span
+                >
               </template>
-              <el-menu-item index="/app/advanced/backup-restore">备份与恢复</el-menu-item>
-              <el-menu-item index="/app/advanced/performance-analysis">性能分析</el-menu-item>
+              <el-menu-item index="/app/advanced/backup-restore">备份</el-menu-item>
+              <el-menu-item index="/app/advanced/performance-analysis">性能</el-menu-item>
             </el-sub-menu>
             <el-menu-item index="/app/help/error-codes">
               <el-icon><Reading /></el-icon>
-              <template #title>部署错误码</template>
+              <template #title>错误码</template>
             </el-menu-item>
           </template>
         </el-menu>
@@ -229,7 +244,7 @@
               <el-dropdown-menu>
                 <el-dropdown-item v-if="isAdminUser" @click="handleUserManagement">
                   <el-icon><User /></el-icon>
-                  用户管理
+                  用户
                 </el-dropdown-item>
                 <el-dropdown-item :divided="isAdminUser" @click="handleLogout">
                   <el-icon><SwitchButton /></el-icon>
@@ -274,6 +289,7 @@ import {
   Cpu,
   Link,
   Download,
+  Grid,
   Reading,
   Setting
 } from '@element-plus/icons-vue'
@@ -301,6 +317,7 @@ const routeIconMap: Record<string, Component> = {
   '/service': Box,
   '/service/deploy': Operation,
   '/service/k8s-deploy': Connection,
+  '/service/k8s/clusters': Grid,
   '/service/k8s-mirror': Download,
   '/service/linux': Cpu,
   '/proxy': Link,
@@ -361,9 +378,11 @@ const menuDefaultOpeneds = computed(() => {
     if (p.includes('/app/advanced')) open.push('app-advanced')
     return open
   }
-  if (p.includes('/admin/service')) open.push('asm-service')
-  if (p.includes('/admin/monitoring')) open.push('asm-monitoring')
+  if (p.includes('/admin/service')) open.push('asm-workloads')
+  if (p.includes('/admin/monitoring')) open.push('asm-observe')
+  if (p.includes('/admin/job') || p.includes('/admin/execution-records')) open.push('asm-run')
   if (p.includes('/admin/security-audit')) open.push('asm-security')
+  if (p.includes('/admin/init-tools') || p.includes('/admin/help')) open.push('asm-tools')
   if (p.includes('/admin/advanced')) open.push('asm-advanced')
   return open
 })
@@ -683,9 +702,9 @@ const handleLogout = () => {
   flex-shrink: 0;
   height: var(--layout-header-height);
   background: var(--layout-header-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(29, 29, 31, 0.08) !important;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-bottom: 0 !important;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -736,11 +755,11 @@ const handleLogout = () => {
   padding: 6px 12px;
   border: 0;
   border-radius: 999px;
-  background: transparent;
+  background: var(--apple-canvas-parchment, #f5f5f7);
   font: inherit;
   font-size: 14px;
   font-weight: 500;
-  color: var(--layout-sidebar-text-strong);
+  color: var(--apple-primary, #0066cc);
   cursor: pointer;
   transition:
     background-color 0.2s ease,

@@ -1,0 +1,106 @@
+/**
+ * OpsFleet 控制台 — Apple HIG influenced shell（层次、留白、控件比例）
+ * 在 style.css 之后加载。
+ */
+
+:root {
+  --of-radius-lg: 12px;
+  --of-radius-md: 10px;
+  --of-radius-sm: 8px;
+  --of-hairline: 1px solid rgba(29, 29, 31, 0.09);
+  --of-hairline-light: 1px solid rgba(29, 29, 31, 0.06);
+  --of-shadow-elevate:
+    0 0 0 var(--of-hairline-light),
+    0 4px 24px rgba(0, 0, 0, 0.06);
+  --of-text-tertiary: #86868b;
+  --of-surface: #ffffff;
+  --of-surface-canvas: #f5f5f7;
+
+  --el-border-radius-base: var(--of-radius-md);
+}
+
+/* Headings — slight tightening */
+h1,
+h2,
+.page-title,
+.user-page-title,
+.toolbar-top__title,
+.page-kicker {
+  letter-spacing: -0.022em !important;
+}
+
+.toolbar-top__title {
+  font-size: 17px !important;
+  font-weight: 600 !important;
+  line-height: 1.25 !important;
+  color: var(--apple-ink) !important;
+}
+
+.proxy-config .page-header h2,
+.prometheus-config .card-header h2 {
+  font-size: 17px !important;
+  font-weight: 600 !important;
+}
+
+/* Cards */
+.el-card {
+  border-radius: var(--of-radius-lg) !important;
+  border: var(--of-hairline) !important;
+  box-shadow: var(--of-shadow-elevate) !important;
+  overflow: hidden;
+}
+
+.el-card__header {
+  border-bottom: var(--of-hairline-light) !important;
+  padding: 14px 18px !important;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.el-card__body {
+  padding: 16px 18px !important;
+}
+
+.el-button:not(.el-button--small):not(.is-link):not(.el-button--text) {
+  min-height: 36px !important;
+  padding: 8px 18px !important;
+  font-size: 15px !important;
+}
+
+.el-button--small {
+  min-height: 30px !important;
+  padding: 5px 12px !important;
+  font-size: 13px !important;
+}
+
+.el-table {
+  --el-table-border-color: rgba(29, 29, 31, 0.07);
+  border-radius: var(--of-radius-md) !important;
+}
+
+.el-table th.el-table__cell {
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  color: var(--apple-ink-muted) !important;
+  background: var(--of-surface-canvas) !important;
+}
+
+.el-collapse {
+  border: var(--of-hairline) !important;
+  border-radius: var(--of-radius-lg) !important;
+  overflow: hidden;
+}
+
+.el-collapse-item__header {
+  font-weight: 500 !important;
+  padding: 12px 16px !important;
+}
+
+.page-desc--muted,
+.page-sub--muted {
+  margin: 0;
+  font-size: 13px !important;
+  line-height: 1.45 !important;
+  color: var(--of-text-tertiary) !important;
+  max-width: 52rem;
+}

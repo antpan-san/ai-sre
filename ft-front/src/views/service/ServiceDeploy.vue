@@ -5,7 +5,7 @@
         <template #header>
           <div class="catalog-header">
             <span class="catalog-title">基础服务</span>
-            <span class="catalog-sub">选择 → 配参 → 生成脚本</span>
+            <span class="catalog-sub">选择后在右侧配置</span>
           </div>
         </template>
         <div class="catalog-list">

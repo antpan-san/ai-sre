@@ -3,11 +3,15 @@
     <header class="page-header">
       <div class="page-header-inner">
         <div class="page-header-copy">
-          <span class="page-kicker">Kubernetes</span>
-          <h2 class="page-title">部署 Kubernetes 集群</h2>
-          <p class="page-desc">
-            按信息类别展开配置，不必按步骤线性跳转；离线生成命令或 zip，在线由 Agent 执行。安装 <strong>ai-sre</strong> CLI 请使用顶部导航栏「安装 ai-sre」。
-          </p>
+          <h2 class="page-title">Kubernetes</h2>
+          <el-popover placement="bottom-start" :width="340" trigger="click">
+            <template #reference>
+              <el-button text type="primary" size="small">工作流程</el-button>
+            </template>
+            <p class="page-desc--muted" style="margin: 0 0 8px">
+              按区块展开配置即可；离线可生成脚本或离线包；在线由 Agent 执行。安装 CLI 用顶栏「安装 ai-sre」。
+            </p>
+          </el-popover>
         </div>
       </div>
     </header>
@@ -1611,60 +1615,37 @@ const submitDeploy = async () => {
   flex-direction: column;
   gap: 12px;
   overflow-x: hidden;
-  background:
-    radial-gradient(circle at top left, rgba(255, 105, 0, 0.07), transparent 32%),
-    linear-gradient(180deg, #fafafa 0%, #ffffff 36%);
+  background: transparent;
 }
 
 .page-header {
-  margin: 0;
+  margin: 0 0 8px;
 }
 
 .page-header-inner {
   display: block;
-  text-align: left;
-  max-width: none;
-  margin: 0 auto;
-  padding: 16px 18px;
-  border-radius: 14px;
-  background: linear-gradient(165deg, var(--el-color-primary-light-9) 0%, #fff 55%);
-  border: 1px solid var(--el-border-color-lighter);
-  box-shadow: 0 1px 2px rgba(255, 105, 0, 0.07);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  border-radius: 0;
 }
 
 .page-header-copy {
   min-width: 0;
-}
-
-.page-kicker {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--el-color-primary);
-  margin-bottom: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
 }
 
 .page-title {
-  color: var(--el-text-color-primary);
-  margin: 0 0 8px;
-  font-size: 24px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  line-height: 1.25;
-}
-
-.page-desc {
-  color: var(--el-text-color-secondary);
-  font-size: 14px;
-  line-height: 1.65;
+  color: var(--apple-ink);
   margin: 0;
-}
-
-.page-desc strong {
-  color: var(--el-text-color-regular);
+  font-size: var(--page-header-title-max);
   font-weight: 600;
+  letter-spacing: -0.022em;
+  line-height: 1.25;
 }
 
 .deploy-layout {

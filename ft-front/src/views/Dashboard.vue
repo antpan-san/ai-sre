@@ -1,11 +1,16 @@
 <template>
   <div class="dashboard page-shell page-shell--dashboard">
     <div class="page-header">
-      <div>
-        <h2>仪表盘</h2>
-        <p class="page-sub">
-          数据来自当前租户下已入库的资产与任务；资源率为<strong>在线机器</strong>上报心跳的平均值；未对接集群内 Pod/带宽采集。
-        </p>
+      <div class="page-header__titles">
+        <h2>概览</h2>
+        <el-popover placement="bottom-start" :width="320" trigger="click">
+          <template #reference>
+            <el-button text type="primary" class="dashboard-help">说明</el-button>
+          </template>
+          <p class="page-desc--muted" style="margin: 0">
+            租户内已登记资产与任务的快照。资源占用率为<strong>在线机器</strong>心跳均值的近似值（不含 Pod / 带宽）。
+          </p>
+        </el-popover>
       </div>
       <el-button
         type="primary"
@@ -152,22 +157,21 @@
             <el-tag type="info" size="small">未采集</el-tag>
           </div>
         </template>
-        <div class="card-content network-content">
-          <p class="network-hint">
-            入/出流量需 Agent 或监控侧上报；当前仅占位
-            {{ formatNetwork(dash?.resourceUsage?.network?.in ?? 0) }} /
-            {{ formatNetwork(dash?.resourceUsage?.network?.out ?? 0) }}。
-          </p>
-        </div>
+        <div class="network-hint">流量待 Agent / 监控上报。</div>
       </el-card>
     </div>
 
     <div class="middle-section">
       <el-card v-loading="dashboardStore.loading" shadow="hover" class="overview-card">
         <template #header>
-          <div class="card-header card-header--wide">
-            <span>平台概览（控制台台账）</span>
-            <span class="card-hint">非 kube-apiserver 实时口径</span>
+            <div class="card-header card-header--wide">
+            <span>台账摘要</span>
+            <el-popover placement="bottom" :width="300" trigger="click">
+              <template #reference>
+                <span class="card-hint card-hint--btn">控制台口径 · 说明</span>
+              </template>
+              <p class="page-desc--muted" style="margin: 0">数据来源为控制台已登记台账，并非 kube-apiserver 实时视图。</p>
+            </el-popover>
           </div>
         </template>
         <div class="overview-content">
@@ -239,7 +243,7 @@
             <el-tag type="info" size="small"> 总计: {{ dash?.serviceStatusStats?.total ?? 0 }} </el-tag>
           </div>
         </template>
-        <p class="stats-note">「运行中」含状态为 deploying 的服务。</p>
+        <p class="stats-note">「运行中」含 deploying。</p>
         <div class="stats-content">
           <div class="stats-item">
             <el-progress
@@ -500,13 +504,6 @@ const getUsageColor = (percentage: number) => {
   return '#67c23a'
 }
 
-const formatNetwork = (value: number) => {
-  if (value >= 1024) {
-    return `${(value / 1024).toFixed(2)} GB`
-  }
-  return `${value.toFixed(2)} MB`
-}
-
 const formatTs = (iso?: string) => {
   if (!iso) return '—'
   const d = new Date(iso)
@@ -612,22 +609,29 @@ const navigateToServiceList = () => {
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+
+.page-header__titles {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .page-header h2 {
-  margin: 0 0 6px;
-  color: #303133;
+  margin: 0;
+  font-size: var(--page-header-title-max);
+  color: var(--apple-ink);
 }
 
-.page-sub {
-  margin: 0;
-  max-width: 720px;
-  font-size: 13px;
-  color: #606266;
-  line-height: 1.5;
+.dashboard-help {
+  font-size: 13px !important;
+  padding: 0 4px !important;
+  min-height: auto !important;
 }
 
 .snapshot-row {
@@ -701,6 +705,11 @@ const navigateToServiceList = () => {
   font-size: 12px;
   font-weight: 400;
   color: #909399;
+}
+
+.card-hint--btn {
+  cursor: pointer;
+  color: var(--apple-primary);
 }
 
 .card-content {

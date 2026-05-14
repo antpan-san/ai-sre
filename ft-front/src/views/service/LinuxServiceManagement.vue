@@ -1,7 +1,7 @@
 <template>
   <div class="linux-service-management">
     <div class="page-header">
-      <h2>Linux服务管理</h2>
+      <h2>Linux 主机</h2>
     </div>
     
     <el-card class="filter-card">
@@ -419,16 +419,19 @@ onMounted(() => {
 
 <style scoped>
 .linux-service-management {
-  padding: 20px;
+  padding: var(--page-padding-y) var(--page-padding-x);
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
+  box-sizing: border-box;
 }
 
 .page-header h2 {
-  margin: 0 0 20px 0;
-  color: #303133;
+  margin: 0 0 8px;
+  font-size: var(--page-header-title-max);
+  font-weight: 600;
+  color: var(--apple-ink);
 }
 
 .filter-card {

@@ -1,14 +1,17 @@
 <template>
-  <div class="k8s-mirror-page">
-    <h2 class="page-title">K8s 制品镜像</h2>
-
-    <el-alert
-      type="info"
-      :closable="false"
-      show-icon
-      class="hint"
-      title="数据来自制品机上的 manifest.json（由 k8s-mirror-generate-manifest.sh 生成）。后端通过 OPSFLEET_K8S_MIRROR_BASE_URL 或 OPSFLEET_K8S_MIRROR_MANIFEST_URL 拉取。"
-    />
+  <div class="k8s-mirror-page page-shell">
+    <div class="mirror-toolbar">
+      <h2 class="page-title">制品目录</h2>
+      <el-popover placement="bottom-start" :width="360" trigger="click">
+        <template #reference>
+          <el-button text type="primary" size="small">数据来源</el-button>
+        </template>
+        <p class="page-desc--muted" style="margin: 0">
+          读取制品机 manifest（<code>k8s-mirror-generate-manifest.sh</code>）。后端经
+          <code>OPSFLEET_K8S_MIRROR_BASE_URL</code> / <code>_MANIFEST_URL</code> 拉取。
+        </p>
+      </el-popover>
+    </div>
 
     <div v-if="loading" class="loading-wrap">
       <el-skeleton :rows="6" animated />
@@ -92,15 +95,22 @@ onMounted(() => {
 
 <style scoped>
 .k8s-mirror-page {
-  padding: 16px 24px 32px;
+  padding: var(--page-padding-y) var(--page-padding-x) 24px;
+  box-sizing: border-box;
 }
+
+.mirror-toolbar {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
+}
+
 .page-title {
-  margin: 0 0 8px;
-  font-size: 20px;
+  margin: 0;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
-}
-.hint {
-  margin: 16px 0;
 }
 .meta {
   margin-top: 12px;

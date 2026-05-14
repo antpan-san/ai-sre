@@ -2,9 +2,9 @@
   <div class="error-codes-lookup page-shell page-shell--fill">
     <header class="toolbar-top">
       <div class="toolbar-top__left">
-        <h2 class="toolbar-top__title">部署错误码查询</h2>
-        <el-tag v-if="!loading" type="success" size="small" effect="plain">{{ codes.length }} 条</el-tag>
-        <span class="toolbar-top__meta">与 <code>ai-sre analyze code</code> 同源</span>
+        <h2 class="toolbar-top__title">错误码</h2>
+        <el-tag v-if="!loading" type="success" size="small" effect="plain">{{ codes.length }}</el-tag>
+        <span class="toolbar-top__meta">与 CLI 同源</span>
       </div>
       <el-popover placement="bottom-end" :width="340" trigger="click">
         <template #reference>

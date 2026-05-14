@@ -8,11 +8,8 @@
   <div class="init-tools-home page-shell">
     <header class="page-header">
       <div class="page-header-inner">
-        <span class="page-kicker">Initialization</span>
-        <h2 class="page-title">节点初始化与优化工具</h2>
-        <p class="page-desc">
-          填写目标节点 IP 与配置参数 → 生成 Ansible 执行脚本 → 在控制机上运行脚本，Ansible 自动对所有节点执行。
-        </p>
+        <h2 class="page-title">节点初始化</h2>
+        <p class="page-desc page-desc--muted">填写参数并生成脚本，在控制机上执行；Ansible 负责多节点并行。</p>
       </div>
     </header>
 

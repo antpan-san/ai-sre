@@ -1,10 +1,8 @@
 <template>
   <div class="proxy-config">
     <div class="page-header">
-      <h2>代理配置管理</h2>
-      <el-button type="primary" icon="Plus" @click="handleAddConfig">
-        新增配置
-      </el-button>
+      <h2>出口代理</h2>
+      <el-button type="primary" :icon="Plus" @click="handleAddConfig">新增</el-button>
     </div>
     
     <!-- 搜索和筛选区域 -->
@@ -397,7 +395,7 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, RefreshRight, Edit, Check, Delete } from '@element-plus/icons-vue'
+import { Search, RefreshRight, Edit, Check, Delete, Plus } from '@element-plus/icons-vue'
 import { useProxyStore } from '../../stores/proxy'
 import type { ProxyConfig, SaveProxyConfigParams } from '../../types/proxy'
 
@@ -778,19 +776,23 @@ const getStatusText = (status: string) => {
 
 <style scoped>
 .proxy-config {
-  padding: 20px;
+  padding: var(--page-padding-y) var(--page-padding-x);
+  box-sizing: border-box;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 20px;
+  margin-bottom: 12px;
+  gap: 12px;
 }
 
 .page-header h2 {
   margin: 0;
-  color: #303133;
+  font-size: var(--page-header-title-max);
+  font-weight: 600;
+  color: var(--apple-ink);
 }
 
 /* 搜索和筛选区域 */

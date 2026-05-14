@@ -1,15 +1,9 @@
 <template>
   <div class="performance-analysis">
     <div class="page-header">
-      <h2>性能分析</h2>
+      <h2>性能</h2>
     </div>
-    <el-alert
-      class="billing-alert"
-      type="warning"
-      show-icon
-      :closable="false"
-      :title="billingAlertTitle"
-    />
+    <p v-if="billingAlertTitle" class="billing-strip page-desc--muted">{{ billingAlertTitle }}</p>
     
     <!-- 搜索和筛选区域 -->
     <div class="search-filters">
@@ -246,13 +240,13 @@ const performancePackKey = computed(() => performanceCapability.value?.pack_key 
 const canUsePerformance = computed(() => performanceCapability.value?.can_execute ?? true)
 const billingAlertTitle = computed(() => {
   if (!performanceCapability.value) {
-    return '订阅功能包：pack.backup_performance。未订阅用户可查看筛选项和示例区，查询真实性能数据与生成报告会在后端校验订阅。'
+    return '能力信息载入中… 查询结果受后端校验。'
   }
   if (canUsePerformance.value) {
-    return `当前账号可使用 ${performancePackKey.value} 查询真实性能数据并生成报告。`
+    return '已开通 · 可查实时数据并导出报告'
   }
   const state = performanceCapability.value.execute_state as Record<string, unknown> | undefined
-  return String(state?.msg || `可预览，查询真实性能数据与生成报告需订阅 ${performancePackKey.value}。`)
+  return String(state?.msg || `需订阅 ${performancePackKey.value} 查询真实数据`)
 })
 
 // 筛选条件
@@ -515,18 +509,20 @@ const formatNetworkSpeed = (speed: number): string => {
 
 <style scoped>
 .performance-analysis {
-  padding: 0 20px 20px 20px;
+  padding: 0 var(--page-padding-x) 16px;
+  box-sizing: border-box;
 }
 
 .page-header h2 {
-  margin: 0 0 20px 0;
-  color: var(--el-color-primary);
-  font-size: 30px;
+  margin: 0 0 8px;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
+  color: var(--apple-ink);
 }
 
-.billing-alert {
-  margin-bottom: 16px;
+.billing-strip {
+  margin: 0 0 12px;
+  max-width: 48rem;
 }
 
 .search-filters {

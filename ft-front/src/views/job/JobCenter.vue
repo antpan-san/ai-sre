@@ -1,7 +1,15 @@
 <template>
   <div class="job-center">
     <div class="page-header">
-      <h2>作业中心</h2>
+      <div class="page-header__row">
+        <h2>作业中心</h2>
+        <el-popover placement="bottom-start" :width="280" trigger="click">
+          <template #reference>
+            <el-button text type="primary" size="small">说明</el-button>
+          </template>
+          <p class="page-desc--muted" style="margin: 0">选择目标机、下发命令或技能；结果在下方终端查看。</p>
+        </el-popover>
+      </div>
     </div>
 
     <el-card class="main-card">
@@ -514,19 +522,25 @@ const formatDate = (dateString: string): string => {
 
 <style scoped>
 .job-center {
-  padding: 0 20px 20px 20px;
+  padding: 0 var(--page-padding-x) 16px;
+  box-sizing: border-box;
 }
 
 .page-header {
-  margin-bottom: 20px;
-  padding-bottom: 10px;
+  margin-bottom: 12px;
+}
+
+.page-header__row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
 }
 
 .page-header h2 {
-  color: var(--el-color-primary);
   margin: 0;
-  font-size: 30px;
+  font-size: var(--page-header-title-max);
   font-weight: 600;
+  color: var(--apple-ink);
 }
 
 .main-card {

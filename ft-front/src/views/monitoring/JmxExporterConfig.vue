@@ -3,7 +3,7 @@
     <el-card>
       <template #header>
         <div class="card-header">
-          <h2>JMX Exporter 配置管理</h2>
+          <h2>JMX</h2>
           <el-button type="primary" @click="handleAddConfig">
             <el-icon><Plus /></el-icon>
             添加配置

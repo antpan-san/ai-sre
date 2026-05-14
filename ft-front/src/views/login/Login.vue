@@ -6,11 +6,11 @@
         <div class="login-hero-inner">
           <div class="login-hero-mark">OP</div>
           <h2 class="login-hero-title">OpsFleetPilot</h2>
-          <p class="login-hero-lead">统一运维控制台：交付、K8s、可观测与自动化技能编排。</p>
+          <p class="login-hero-lead">交付、Kubernetes 与可观测的一体化控制台。</p>
           <ul class="login-hero-points">
-            <li>角色与权限隔离</li>
-            <li>JWT 会话与限流保护</li>
-            <li>可选自助注册（由管理员配置）</li>
+            <li>RBAC 与审计</li>
+            <li>JWT 会话</li>
+            <li>可按策略开放注册</li>
           </ul>
         </div>
       </aside>
@@ -19,7 +19,7 @@
         <div class="login-card">
           <header class="login-card-head">
             <h1 class="login-title">欢迎回来</h1>
-            <p class="login-subtitle">使用账号登录运维控制台</p>
+            <p class="login-subtitle">登录到控制台</p>
           </header>
 
           <el-form

@@ -2,7 +2,7 @@
   <div class="user-list page-shell page-shell--crud-wide">
     <div class="user-page-head">
       <div class="user-page-head-left">
-        <h2 class="user-page-title">用户管理</h2>
+        <h2 class="user-page-title">用户</h2>
         <el-tag size="small" type="info" effect="plain">共 {{ userStore.total }} 人</el-tag>
         <el-popover placement="bottom-start" :width="280" trigger="click">
           <template #reference>
