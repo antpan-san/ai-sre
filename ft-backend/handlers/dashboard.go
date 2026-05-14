@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"time"
@@ -40,13 +41,7 @@ func GetDashboardData(c *gin.Context) {
 	tid := defaultTenantUUID()
 	now := time.Now()
 
-	var totalMachines, onlineMachines, offlineMachines, masterMachines, workerMachines int64
-	database.DB.Model(&models.Machine{}).Where("tenant_id = ?", tid).Count(&totalMachines)
-	database.DB.Model(&models.Machine{}).Where("tenant_id = ? AND status = ?", tid, "online").Count(&onlineMachines)
-	database.DB.Model(&models.Machine{}).Where("tenant_id = ? AND status = ?", tid, "offline").Count(&offlineMachines)
-	database.DB.Model(&models.Machine{}).Where("tenant_id = ? AND node_role = ?", tid, models.NodeRoleMaster).Count(&masterMachines)
-	database.DB.Model(&models.Machine{}).Where("tenant_id = ? AND node_role = ?", tid, models.NodeRoleWorker).Count(&workerMachines)
-
+	// 业务侧未统一上报 Machine 心跳时不在此聚合托管机；概览「服务端资源」仅 super_admin 见本机采样（见 resourceUsage / hostRuntime）。
 	var svcRunning, svcStopped, svcError, svcDeploying, svcTotal int64
 	database.DB.Model(&models.Service{}).Where("tenant_id = ?", tid).Where("status = ?", "running").Count(&svcRunning)
 	database.DB.Model(&models.Service{}).Where("tenant_id = ?", tid).Where("status = ?", "deploying").Count(&svcDeploying)
@@ -115,20 +110,13 @@ func GetDashboardData(c *gin.Context) {
 		database.DB.Model(&models.OperationLog{}).Where("tenant_id = ?", tid).Count(&totalOpLogs)
 	}
 
-	// 在线机器平均资源占用（离线机器不报心跳，不参与平均更准确）。
-	type metricAgg struct {
-		AvgCPU    float64 `gorm:"column:avg_cpu"`
-		AvgMemory float64 `gorm:"column:avg_memory"`
-		AvgDisk   float64 `gorm:"column:avg_disk"`
+	zeroMachines := gin.H{
+		"total":   0,
+		"online":  0,
+		"offline": 0,
+		"masters": 0,
+		"workers": 0,
 	}
-	var onlineAgg metricAgg
-	_ = database.DB.Model(&models.Machine{}).
-		Where("tenant_id = ?", tid).
-		Where("status = ?", "online").
-		Select(`COALESCE(AVG(cpu_usage), 0) AS avg_cpu,
-			COALESCE(AVG(memory_usage), 0) AS avg_memory,
-			COALESCE(AVG(disk_usage), 0) AS avg_disk`).
-		Scan(&onlineAgg).Error
 
 	var recentSvcs []models.Service
 	database.DB.Model(&models.Service{}).
@@ -176,13 +164,7 @@ func GetDashboardData(c *gin.Context) {
 	}
 
 	platformSummary := gin.H{
-		"machines": gin.H{
-			"total":   totalMachines,
-			"online":  onlineMachines,
-			"offline": offlineMachines,
-			"masters": masterMachines,
-			"workers": workerMachines,
-		},
+		"machines": zeroMachines,
 		"k8sClusters": gin.H{
 			"total":   totalK8s,
 			"running": k8sRunning,
@@ -197,40 +179,50 @@ func GetDashboardData(c *gin.Context) {
 		platformSummary["operationLogsTotal"] = totalOpLogs
 	}
 
+	resourceUsage := gin.H{
+		"cpu":    0.0,
+		"memory": 0.0,
+		"disk":   0.0,
+		"network": gin.H{
+			"in":  0,
+			"out": 0,
+		},
+	}
+	var hostRuntime gin.H
+	if models.IsSuperAdminRole(role) {
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2500*time.Millisecond)
+		hr := collectHostRuntime(ctx, 320*time.Millisecond)
+		cancel()
+		resourceUsage["cpu"] = clampPct(hr.CPU)
+		resourceUsage["memory"] = clampPct(hr.Memory)
+		resourceUsage["disk"] = clampPct(hr.Disk)
+		hostRuntime = gin.H{
+			"hostname":  hr.Hostname,
+			"sampledAt": hr.SampledAt,
+			"os":        hr.OS,
+		}
+		if hr.ErrCollect != "" {
+			hostRuntime["error"] = hr.ErrCollect
+		}
+	}
+
+	data := gin.H{
+		"resourceUsage":      resourceUsage,
+		"kubernetesOverview": gin.H{"nodes": 0, "pods": totalK8s, "runningPods": 0, "services": svcTotal, "deployments": k8sRunning, "replicasets": tasksActive},
+		"serviceStatusStats": gin.H{"running": runningPie, "stopped": svcStopped, "error": svcError, "total": svcTotal},
+		"recentDeployments":  recentDeployments,
+		"platformSummary":    platformSummary,
+		"recentK8sClusters":    recentK8s,
+		"recentServiceInstalls": recentInstalls,
+		"recentExecutions":   recentExecutions,
+	}
+	if hostRuntime != nil && len(hostRuntime) > 0 {
+		data["hostRuntime"] = hostRuntime
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"msg":  "获取仪表盘数据成功",
-		"data": gin.H{
-			// 兼容原有前端卡片：语义见页面文案（Kubernetes 一栏为控制台侧清单，非 kube-apiserver）
-			"resourceUsage": gin.H{
-				"cpu":    clampPct(onlineAgg.AvgCPU),
-				"memory": clampPct(onlineAgg.AvgMemory),
-				"disk":   clampPct(onlineAgg.AvgDisk),
-				"network": gin.H{
-					"in":  0,
-					"out": 0,
-				},
-			},
-			"kubernetesOverview": gin.H{
-				"nodes":       totalMachines,
-				"pods":        totalK8s,
-				"runningPods": onlineMachines,
-				"services":    svcTotal,
-				"deployments": k8sRunning,
-				"replicasets": tasksActive,
-			},
-			"serviceStatusStats": gin.H{
-				"running": runningPie,
-				"stopped": svcStopped,
-				"error":   svcError,
-				"total":   svcTotal,
-			},
-			"recentDeployments": recentDeployments,
-
-			"platformSummary": platformSummary,
-			"recentK8sClusters":     recentK8s,
-			"recentServiceInstalls": recentInstalls,
-			"recentExecutions":      recentExecutions,
-		},
+		"data": data,
 	})
 }

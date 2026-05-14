@@ -4,37 +4,23 @@
       <div class="page-header__titles">
         <h2>概览</h2>
       </div>
-      <el-button
-        type="primary"
-        :icon="RefreshRight"
-        :loading="dashboardStore.loading"
-        @click="handleRefresh"
-      >
-        刷新
-      </el-button>
+      <el-tooltip content="刷新数据" placement="bottom-end">
+        <button
+          type="button"
+          class="dash-refresh"
+          :disabled="dashboardStore.loading"
+          :aria-busy="dashboardStore.loading"
+          aria-label="刷新概览"
+          @click="handleRefresh"
+        >
+          <el-icon class="dash-refresh__icon" :class="{ 'dash-refresh__icon--spin': dashboardStore.loading }">
+            <RefreshRight />
+          </el-icon>
+        </button>
+      </el-tooltip>
     </div>
 
     <div class="dash-grid dash-grid--kpi" :style="{ '--kpi-cols': String(kpiColumnCount) }">
-      <el-card
-        v-loading="dashboardStore.loading"
-        shadow="hover"
-        class="snapshot-card"
-        role="button"
-        tabindex="0"
-        @click="goInitTools"
-      >
-        <div class="snapshot-label">托管机器</div>
-        <div class="snapshot-value">
-          {{ dash?.platformSummary?.machines?.online ?? 0 }}
-          <span class="snapshot-muted">/ {{ dash?.platformSummary?.machines?.total ?? 0 }}</span>
-        </div>
-        <div class="snapshot-foot">离线 {{ dash?.platformSummary?.machines?.offline ?? 0 }}</div>
-        <div class="snapshot-foot snapshot-foot--sub">
-          主控 {{ dash?.platformSummary?.machines?.masters ?? 0 }} · Worker
-          {{ dash?.platformSummary?.machines?.workers ?? 0 }}
-        </div>
-      </el-card>
-
       <el-card
         v-if="isConsoleAdmin"
         v-loading="dashboardStore.loading"
@@ -106,49 +92,55 @@
       </el-card>
     </div>
 
-    <div class="dash-grid dash-grid--main">
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
-        <div class="meter-head">
-          <span>在线机器平均 CPU</span>
-          <el-tag :type="getUsageType(dash?.resourceUsage?.cpu ?? 0)" size="small">
-            {{ Number(dash?.resourceUsage?.cpu ?? 0).toFixed(1) }}%
-          </el-tag>
-        </div>
-        <el-progress
-          :percentage="Math.round(clampPct(dash?.resourceUsage?.cpu ?? 0))"
-          :color="getUsageColor(dash?.resourceUsage?.cpu ?? 0)"
-          :show-text="false"
-          class="meter-progress"
-        />
-      </el-card>
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--mem">
-        <div class="meter-head">
-          <span>在线机器平均内存</span>
-          <el-tag :type="getUsageType(dash?.resourceUsage?.memory ?? 0)" size="small">
-            {{ Number(dash?.resourceUsage?.memory ?? 0).toFixed(1) }}%
-          </el-tag>
-        </div>
-        <el-progress
-          :percentage="Math.round(clampPct(dash?.resourceUsage?.memory ?? 0))"
-          :color="getUsageColor(dash?.resourceUsage?.memory ?? 0)"
-          :show-text="false"
-          class="meter-progress"
-        />
-      </el-card>
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--disk">
-        <div class="meter-head">
-          <span>在线机器平均磁盘</span>
-          <el-tag :type="getUsageType(dash?.resourceUsage?.disk ?? 0)" size="small">
-            {{ Number(dash?.resourceUsage?.disk ?? 0).toFixed(1) }}%
-          </el-tag>
-        </div>
-        <el-progress
-          :percentage="Math.round(clampPct(dash?.resourceUsage?.disk ?? 0))"
-          :color="getUsageColor(dash?.resourceUsage?.disk ?? 0)"
-          :show-text="false"
-          class="meter-progress"
-        />
-      </el-card>
+    <div class="dash-grid dash-grid--main" :class="{ 'dash-grid--main--no-host': !isSuperAdmin }">
+      <template v-if="isSuperAdmin">
+        <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
+          <div class="meter-head">
+            <span>服务端 CPU</span>
+            <el-tag :type="getUsageType(dash?.resourceUsage?.cpu ?? 0)" size="small">
+              {{ Number(dash?.resourceUsage?.cpu ?? 0).toFixed(1) }}%
+            </el-tag>
+          </div>
+          <p class="meter-sub">{{ hostRuntimeLine }}</p>
+          <p v-if="dash?.hostRuntime?.error" class="meter-sub meter-sub--err">{{ dash.hostRuntime.error }}</p>
+          <el-progress
+            :percentage="Math.round(clampPct(dash?.resourceUsage?.cpu ?? 0))"
+            :color="getUsageColor(dash?.resourceUsage?.cpu ?? 0)"
+            :show-text="false"
+            class="meter-progress"
+          />
+        </el-card>
+        <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--mem">
+          <div class="meter-head">
+            <span>服务端内存</span>
+            <el-tag :type="getUsageType(dash?.resourceUsage?.memory ?? 0)" size="small">
+              {{ Number(dash?.resourceUsage?.memory ?? 0).toFixed(1) }}%
+            </el-tag>
+          </div>
+          <p class="meter-sub">{{ hostRuntimeLine }}</p>
+          <el-progress
+            :percentage="Math.round(clampPct(dash?.resourceUsage?.memory ?? 0))"
+            :color="getUsageColor(dash?.resourceUsage?.memory ?? 0)"
+            :show-text="false"
+            class="meter-progress"
+          />
+        </el-card>
+        <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--disk">
+          <div class="meter-head">
+            <span>服务端磁盘</span>
+            <el-tag :type="getUsageType(dash?.resourceUsage?.disk ?? 0)" size="small">
+              {{ Number(dash?.resourceUsage?.disk ?? 0).toFixed(1) }}%
+            </el-tag>
+          </div>
+          <p class="meter-sub">{{ diskRootHint }}</p>
+          <el-progress
+            :percentage="Math.round(clampPct(dash?.resourceUsage?.disk ?? 0))"
+            :color="getUsageColor(dash?.resourceUsage?.disk ?? 0)"
+            :show-text="false"
+            class="meter-progress"
+          />
+        </el-card>
+      </template>
 
       <el-card v-loading="dashboardStore.loading" shadow="hover" class="svc-card">
         <div class="svc-card-head">
@@ -341,9 +333,20 @@ const userRole = computed(() => {
 const isSuperAdmin = computed(() => userRole.value === 'super_admin')
 const isConsoleAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super_admin')
 
-const kpiColumnCount = computed(() => (isSuperAdmin.value ? 5 : 4))
+const kpiColumnCount = computed(() => (isSuperAdmin.value ? 4 : 3))
 
 const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
+
+const hostRuntimeLine = computed(() => {
+  const h = dash.value?.hostRuntime
+  if (!h?.hostname) return '本机（运行 opsfleet-backend）'
+  const bits = [h.hostname]
+  if (h.sampledAt) bits.push(formatTs(h.sampledAt))
+  if (h.os) bits.push(h.os)
+  return bits.join(' · ')
+})
+
+const diskRootHint = computed(() => '根分区使用率（Linux 为 /）')
 
 const svcTotal = computed(() => dash.value?.serviceStatusStats?.total ?? 0)
 
@@ -372,9 +375,6 @@ const recalcTableMax = () => {
   tableMaxPx.value = Math.min(320, Math.max(180, Math.floor(h * 0.26)))
 }
 
-const goInitTools = () => {
-  router.push(`${shellPrefix.value}/init-tools`)
-}
 const goJobCenter = () => {
   router.push(`${shellPrefix.value}/job/center`)
 }
@@ -534,6 +534,71 @@ onBeforeUnmount(() => {
   margin: 0;
   font-size: var(--page-header-title-max);
   color: var(--apple-ink);
+}
+
+.dash-refresh {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 10px;
+  border: 1px solid var(--el-border-color);
+  background: var(--el-fill-color-blank);
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.dash-refresh:hover:not(:disabled) {
+  border-color: var(--el-color-primary-light-5);
+  color: var(--el-color-primary);
+  background: var(--el-color-primary-light-9);
+}
+
+.dash-refresh:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.dash-refresh__icon {
+  font-size: 18px;
+}
+
+.dash-refresh__icon--spin {
+  animation: dash-spin 0.85s linear infinite;
+}
+
+@keyframes dash-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.meter-sub {
+  margin: 0 0 6px;
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--el-text-color-secondary);
+}
+
+.meter-sub--err {
+  color: var(--el-color-danger);
+  margin-top: -2px;
+}
+
+.dash-grid--main--no-host {
+  grid-template-columns: 1fr;
+}
+
+.dash-grid--main--no-host .svc-card {
+  grid-column: 1 / -1;
 }
 
 .dash-grid {
@@ -758,11 +823,11 @@ onBeforeUnmount(() => {
 }
 
 @media screen and (max-width: 1280px) {
-  .dash-grid--main {
+  .dash-grid--main:not(.dash-grid--main--no-host) {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .svc-card {
+  .dash-grid--main:not(.dash-grid--main--no-host) .svc-card {
     grid-column: span 2;
   }
 
@@ -776,11 +841,11 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dash-grid--main {
+  .dash-grid--main:not(.dash-grid--main--no-host) {
     grid-template-columns: 1fr;
   }
 
-  .svc-card {
+  .dash-grid--main:not(.dash-grid--main--no-host) .svc-card {
     grid-column: span 1;
   }
 }
