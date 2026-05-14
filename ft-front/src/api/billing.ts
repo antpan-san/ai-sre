@@ -21,19 +21,37 @@ export const putAdminFeatureBilling = (items: FeatureBillingUpdateItem[]): Promi
   return request.put('/api/admin/billing/features', { items })
 }
 
+export interface BillingPackageRow {
+  id: string
+  display_name: string
+  feature_keys: string[]
+}
+
 export interface BillingMe {
   billing_exempt: boolean
   subscription: Record<string, unknown> | null
   entitlements: unknown[]
   feature_flags: Record<string, boolean>
+  feature_access?: Record<string, boolean>
+  can_use_advanced: boolean
+  can_manage_advanced: boolean
+  can_use_k8s_ops?: boolean
+  can_use_service_ops?: boolean
+  can_use_infra_ops?: boolean
+}
+
+export const getBillingPackages = (): Promise<BillingPackageRow[]> => {
+  return request.get('/api/billing/packages')
 }
 
 export const getBillingMe = (): Promise<BillingMe> => {
   return request.get('/api/billing/me')
 }
 
-export const createCheckoutSession = (): Promise<{ url: string }> => {
-  return request.post('/api/billing/checkout-session', {})
+export const createCheckoutSession = (payload?: {
+  package_id?: string
+}): Promise<{ url: string }> => {
+  return request.post('/api/billing/checkout-session', payload ?? {})
 }
 
 export const grantUserEntitlement = (

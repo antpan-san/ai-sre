@@ -4,7 +4,9 @@
       <div>
         <h2 class="page-title">功能与计费</h2>
         <p class="page-sub">
-          控制各功能是否对<strong>非管理员</strong>启用计费校验。关闭时与历史行为一致；开启后需用户具备对应权益或有效订阅（Stripe Webhook 同步）。
+          功能分级四档：<strong>feature.k8s_ops</strong>（K8s）、<strong>feature.service_ops</strong>（服务交付）、<strong>feature.infra_ops</strong>（代理/监控/初始化）、<strong>feature.advanced</strong>（备份与性能）。
+          Stripe 可多档订阅包映射多键，见服务端 <code class="hint-code">billing.packages</code>；Webhook 据此同步 <code class="hint-code">entitlements</code>。
+          计费关闭时逻辑与历史上未开启计费一致。
         </p>
       </div>
       <el-button type="primary" :loading="saving" :disabled="loading" @click="handleSave">保存</el-button>
@@ -100,9 +102,17 @@ onMounted(() => {
 
 .page-sub {
   margin: 0;
-  max-width: 720px;
+  max-width: 780px;
   font-size: 13px;
   color: #606266;
   line-height: 1.5;
+}
+
+.hint-code {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  background: var(--el-fill-color-light);
+  padding: 1px 5px;
+  border-radius: 4px;
 }
 </style>

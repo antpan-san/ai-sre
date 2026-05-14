@@ -113,6 +113,7 @@ func Migrate() error {
 
 	// Seed default roles
 	initRoles()
+	ensureDefaultSuperAdmin()
 
 	// Seed K8s versions
 	initK8sVersions()
@@ -153,20 +154,63 @@ func initRoles() {
 		return
 	}
 
-	if count == 0 {
-		logger.Info("Seeding default roles")
-		roles := []models.Role{
-			{Name: "管理员", Code: "admin", Description: "系统管理员，拥有所有权限", IsSystem: true},
-			{Name: "普通用户", Code: "user", Description: "普通用户，拥有基础查看权限", IsSystem: true},
-			{Name: "运维工程师", Code: "operator", Description: "运维人员，拥有机器管理和任务执行权限", IsSystem: true},
-			{Name: "只读用户", Code: "viewer", Description: "只读用户，仅有查看权限", IsSystem: true},
-		}
-		if err := DB.CreateInBatches(roles, 5).Error; err != nil {
-			logger.Error("Failed to seed roles: %v", err)
-			return
-		}
-		logger.Info("Seeded %d roles", len(roles))
+	roles := []models.Role{
+		{Name: "超级管理员", Code: models.RoleSuperAdmin, Description: "系统级超级管理员，拥有所有权限且不受计费限制", IsSystem: true},
+		{Name: "管理员", Code: models.RoleAdmin, Description: "系统管理员，拥有管理端权限但高级功能需有效权益", IsSystem: true},
+		{Name: "普通用户", Code: models.RoleUser, Description: "普通用户，拥有基础工作台权限", IsSystem: true},
+		{Name: "运维工程师", Code: "operator", Description: "运维人员，拥有机器管理和任务执行权限", IsSystem: true},
+		{Name: "只读用户", Code: "viewer", Description: "只读用户，仅有查看权限", IsSystem: true},
 	}
+	for _, role := range roles {
+		var n int64
+		if err := DB.Model(&models.Role{}).Where("code = ?", role.Code).Count(&n).Error; err != nil {
+			logger.Error("Failed to count role %s: %v", role.Code, err)
+			continue
+		}
+		if n > 0 {
+			continue
+		}
+		if err := DB.Create(&role).Error; err != nil {
+			logger.Error("Failed to seed role %s: %v", role.Code, err)
+			continue
+		}
+		logger.Info("Seeded role %s", role.Code)
+	}
+}
+
+func ensureDefaultSuperAdmin() {
+	var superCount int64
+	if err := DB.Model(&models.User{}).Where("role = ? AND deleted_at IS NULL", models.RoleSuperAdmin).Count(&superCount).Error; err != nil {
+		logger.Error("Failed to count super admins: %v", err)
+		return
+	}
+	if superCount > 0 {
+		return
+	}
+
+	tx := DB.Model(&models.User{}).
+		Where("username = ? AND deleted_at IS NULL", "admin").
+		Update("role", models.RoleSuperAdmin)
+	if tx.Error != nil {
+		logger.Error("Failed to promote default admin: %v", tx.Error)
+		return
+	}
+	if tx.RowsAffected > 0 {
+		logger.Info("Promoted default admin account to super_admin")
+		return
+	}
+
+	var firstAdmin models.User
+	if err := DB.Where("role = ? AND deleted_at IS NULL", models.RoleAdmin).
+		Order("created_at ASC").
+		First(&firstAdmin).Error; err != nil {
+		return
+	}
+	if err := DB.Model(&firstAdmin).Update("role", models.RoleSuperAdmin).Error; err != nil {
+		logger.Error("Failed to promote first admin: %v", err)
+		return
+	}
+	logger.Info("Promoted first admin account to super_admin")
 }
 
 // initK8sVersions seeds default K8s version data.
@@ -285,6 +329,9 @@ func ExecRawSQL(query string, args ...interface{}) error {
 
 func seedFeatureBillingDefaults() {
 	rows := []models.FeatureBillingSetting{
+		{FeatureKey: models.FeatureKeyK8sOps, BillingEnabled: false, Description: "K8s 交付（部署提交、bundle、集群、relay）"},
+		{FeatureKey: models.FeatureKeyServiceOps, BillingEnabled: false, Description: "服务交付（控制台服务部署、Linux 服务）"},
+		{FeatureKey: models.FeatureKeyInfraOps, BillingEnabled: false, Description: "基础设施（代理配置、监控告警、初始化工具）"},
 		{FeatureKey: models.FeatureKeyAdvanced, BillingEnabled: false, Description: "高级功能（备份与恢复、性能分析）"},
 	}
 	for _, r := range rows {

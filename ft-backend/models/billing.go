@@ -6,14 +6,42 @@ import (
 	"github.com/google/uuid"
 )
 
-// FeatureKeyAdvanced 与「高级功能」API 粗粒度绑定（备份 + 性能）。
-const FeatureKeyAdvanced = "feature.advanced"
+// 功能分级：各 feature_key 对应一类管理端能力；计费开启时非 super_admin 需具备对应 entitlement。
+const (
+	FeatureKeyAdvanced   = "feature.advanced"    // 备份、性能分析、报告
+	FeatureKeyK8sOps    = "feature.k8s_ops"    // K8s 部署、集群、bundle、relay
+	FeatureKeyServiceOps = "feature.service_ops" // 服务部署、Linux 服务、控制台 service-deploy
+	FeatureKeyInfraOps  = "feature.infra_ops"  // 代理、监控告警、初始化工具
+)
 
-// FeatureBillingSetting toggles whether non-admin users must have entitlement for a feature_key.
+var knownFeatureKeys = map[string]struct{}{
+	FeatureKeyAdvanced:   {},
+	FeatureKeyK8sOps:     {},
+	FeatureKeyServiceOps: {},
+	FeatureKeyInfraOps:   {},
+}
+
+// IsKnownFeatureKey 用于管理端配置与人工授权校验。
+func IsKnownFeatureKey(featureKey string) bool {
+	_, ok := knownFeatureKeys[featureKey]
+	return ok
+}
+
+// AllFeatureKeysStable 返回稳定排序的功能键列表（用于 seed、测试）。
+func AllFeatureKeysStable() []string {
+	return []string{
+		FeatureKeyInfraOps,
+		FeatureKeyK8sOps,
+		FeatureKeyServiceOps,
+		FeatureKeyAdvanced,
+	}
+}
+
+// FeatureBillingSetting toggles whether non-super-admin users must have entitlement for a feature_key.
 type FeatureBillingSetting struct {
-	FeatureKey     string `gorm:"primaryKey;size:80" json:"feature_key"`
-	BillingEnabled bool   `gorm:"not null;default:false" json:"billing_enabled"`
-	Description    string `gorm:"size:512" json:"description"`
+	FeatureKey     string    `gorm:"primaryKey;size:80" json:"feature_key"`
+	BillingEnabled bool      `gorm:"not null;default:false" json:"billing_enabled"`
+	Description    string    `gorm:"size:512" json:"description"`
 	UpdatedAt      time.Time `json:"updated_at"`
 }
 

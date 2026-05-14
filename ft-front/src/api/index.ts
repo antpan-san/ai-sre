@@ -39,6 +39,7 @@ export {
 export {
   getAdminFeatureBilling,
   putAdminFeatureBilling,
+  getBillingPackages,
   getBillingMe,
   createCheckoutSession,
   grantUserEntitlement,

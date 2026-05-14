@@ -27,12 +27,22 @@ type Config struct {
 	} `yaml:"log"`
 }
 
-// BillingConfig Stripe 最简对接（密钥留空则关闭收银台/Webhook 写库外的危险路径仍可做占位）。
+// BillingPackage maps a Stripe Price 到订阅后授予的一组 feature_key（多功能包）。
+// 若 billing.packages 为空且 stripe_price_id_pro 非空，运行时会退化为仅此价授予 feature.advanced（兼容旧配置）。
+type BillingPackage struct {
+	ID            string   `yaml:"id"`
+	DisplayName   string   `yaml:"display_name"`
+	StripePriceID string   `yaml:"stripe_price_id"`
+	FeatureKeys   []string `yaml:"feature_keys"`
+}
+
+// BillingConfig Stripe 对接：密钥留空则关闭收银台；packages 为多档订阅。
 type BillingConfig struct {
-	StripeSecretKey     string `yaml:"stripe_secret_key"`
-	StripeWebhookSecret string `yaml:"stripe_webhook_secret"`
-	StripePriceIDPro    string `yaml:"stripe_price_id_pro"`
-	PublicAppBaseURL    string `yaml:"public_app_base_url"`
+	StripeSecretKey     string           `yaml:"stripe_secret_key"`
+	StripeWebhookSecret string           `yaml:"stripe_webhook_secret"`
+	StripePriceIDPro    string           `yaml:"stripe_price_id_pro"` // 兼容旧版单包：仅授予高级功能
+	PublicAppBaseURL    string           `yaml:"public_app_base_url"`
+	Packages            []BillingPackage `yaml:"packages"`
 }
 
 // OpsfleetConfig 控制台扩展（K8s 部署页 curl 安装 ai-sre 等）。

@@ -8,7 +8,7 @@
           <template #reference>
             <el-button text type="primary" class="user-help-btn">说明</el-button>
           </template>
-          <p class="user-help-text">支持按用户名、角色筛选；UUID 为主键。删除与批量删除会跳过管理员账号。</p>
+          <p class="user-help-text">支持按用户名、角色筛选；UUID 为主键。最后一个超级管理员不能删除或降级。</p>
         </el-popover>
       </div>
       <el-button type="primary" :icon="Plus" @click="handleAdd">新增用户</el-button>
@@ -32,6 +32,7 @@
           class="filter-select"
           @change="handleSearch"
         >
+          <el-option label="超级管理员" value="super_admin" />
           <el-option label="管理员" value="admin" />
           <el-option label="普通用户" value="user" />
         </el-select>
@@ -68,10 +69,10 @@
               {{ formatTime(row.subscription_period_end as string | undefined) }}
             </template>
           </el-table-column>
-          <el-table-column prop="role" label="角色" width="112" align="center">
+          <el-table-column prop="role" label="角色" width="126" align="center">
             <template #default="{ row }">
-              <el-tag :type="row.role === 'admin' ? 'success' : 'info'" size="small">
-                {{ row.role === 'admin' ? '管理员' : '普通用户' }}
+              <el-tag :type="roleTagType(row.role)" size="small">
+                {{ roleLabel(row.role) }}
               </el-tag>
             </template>
           </el-table-column>
@@ -83,11 +84,18 @@
           <el-table-column label="操作" width="340" align="center" fixed="right">
             <template #default="{ row }">
               <el-button type="primary" link size="small" :icon="Edit" @click="handleEdit(row)">编辑</el-button>
-              <el-button type="primary" link size="small" :icon="SwitchButton" @click="handleChangeRole(row)">
+              <el-button
+                type="primary"
+                link
+                size="small"
+                :icon="SwitchButton"
+                :disabled="row.role === 'super_admin' && !isSuperAdmin"
+                @click="handleChangeRole(row)"
+              >
                 角色
               </el-button>
               <el-button
-                v-if="row.role !== 'admin'"
+                v-if="isSuperAdmin"
                 type="primary"
                 link
                 size="small"
@@ -101,7 +109,7 @@
                 link
                 size="small"
                 :icon="Delete"
-                :disabled="row.role === 'admin'"
+                :disabled="row.role === 'super_admin' && !isSuperAdmin"
                 @click="handleDelete(row.id)"
               >
                 删除
@@ -151,6 +159,7 @@
         </el-form-item>
         <el-form-item label="角色" prop="role">
           <el-select v-model="userForm.role" placeholder="角色" style="width: 100%">
+            <el-option v-if="isSuperAdmin" label="超级管理员" value="super_admin" />
             <el-option label="管理员" value="admin" />
             <el-option label="普通用户" value="user" />
           </el-select>
@@ -167,12 +176,13 @@
         <p><strong>用户</strong> {{ selectedUser?.username }}</p>
         <p>
           当前角色
-          <el-tag :type="selectedUser?.role === 'admin' ? 'success' : 'info'" size="small">
-            {{ selectedUser?.role === 'admin' ? '管理员' : '普通用户' }}
+          <el-tag :type="roleTagType(selectedUser?.role)" size="small">
+            {{ roleLabel(selectedUser?.role) }}
           </el-tag>
         </p>
         <el-form-item label="新角色" class="role-select-item">
           <el-select v-model="newRole" placeholder="请选择" style="width: 100%">
+            <el-option v-if="isSuperAdmin" label="超级管理员" value="super_admin" />
             <el-option label="管理员" value="admin" />
             <el-option label="普通用户" value="user" />
           </el-select>
@@ -189,8 +199,11 @@
         用户 <strong>{{ entitlementUser?.username }}</strong>
       </p>
       <el-form label-position="top">
-        <el-form-item label="功能">
+          <el-form-item label="功能">
           <el-select v-model="entitlementForm.feature_key" style="width: 100%">
+            <el-option label="K8s 交付（feature.k8s_ops）" value="feature.k8s_ops" />
+            <el-option label="服务交付（feature.service_ops）" value="feature.service_ops" />
+            <el-option label="基础设施（feature.infra_ops）" value="feature.infra_ops" />
             <el-option label="高级功能（feature.advanced）" value="feature.advanced" />
           </el-select>
         </el-form-item>
@@ -213,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, RefreshRight, Plus, Edit, Delete, SwitchButton, Key } from '@element-plus/icons-vue'
 import { useUserManagementStore } from '../../stores/userManagement'
@@ -230,6 +243,14 @@ const selectedIds = ref<string[]>([])
 const isEdit = ref(false)
 const selectedUser = ref<User | null>(null)
 const newRole = ref<string>('')
+const currentUser = computed(() => {
+  try {
+    return JSON.parse(localStorage.getItem('userInfo') || '{}') as { role?: string }
+  } catch {
+    return {}
+  }
+})
+const isSuperAdmin = computed(() => currentUser.value.role === 'super_admin')
 
 const entitlementVisible = ref(false)
 const entitlementLoading = ref(false)
@@ -289,8 +310,20 @@ function formatTime(s?: string) {
   return String(s).replace('T', ' ').slice(0, 19)
 }
 
+function roleLabel(role?: string) {
+  if (role === 'super_admin') return '超级管理员'
+  if (role === 'admin') return '管理员'
+  return '普通用户'
+}
+
+function roleTagType(role?: string) {
+  if (role === 'super_admin') return 'danger'
+  if (role === 'admin') return 'success'
+  return 'info'
+}
+
 function rowSelectable(row: User) {
-  return row.role !== 'admin'
+  return !(row.role === 'super_admin' && !isSuperAdmin.value)
 }
 
 onMounted(() => {

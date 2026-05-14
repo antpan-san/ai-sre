@@ -99,8 +99,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	{
 		admin := protected.Group("")
 		admin.Use(middleware.RequireAdmin())
+		superAdmin := protected.Group("")
+		superAdmin.Use(middleware.RequireSuperAdmin())
 
 		protected.GET("/billing/me", handlers.GetBillingMe)
+		protected.GET("/billing/packages", handlers.ListBillingPackages)
 		protected.POST("/billing/checkout-session", handlers.CreateStripeCheckoutSession)
 
 		// ---- Dashboard ----
@@ -116,9 +119,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		admin.DELETE("/user/:id", handlers.DeleteUser)
 		admin.DELETE("/user/batch", handlers.BatchDeleteUser)
 		admin.PATCH("/user/:id/role", handlers.UpdateUserRole)
-		admin.GET("/admin/billing/features", handlers.AdminListFeatureBilling)
-		admin.PUT("/admin/billing/features", handlers.AdminPutFeatureBilling)
-		admin.POST("/admin/users/:id/entitlement", handlers.AdminGrantEntitlement)
+		superAdmin.GET("/admin/billing/features", handlers.AdminListFeatureBilling)
+		superAdmin.PUT("/admin/billing/features", handlers.AdminPutFeatureBilling)
+		superAdmin.POST("/admin/users/:id/entitlement", handlers.AdminGrantEntitlement)
 
 		// ---- Machine Management ----
 		admin.GET("/machine", handlers.GetMachineList)
@@ -151,60 +154,64 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		admin.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
 		admin.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
 
-		// ---- Service Management ----
-		admin.POST("/service/deploy", handlers.DeployService)
-		admin.GET("/service/list", handlers.GetServiceList)
-		admin.GET("/service/detail", handlers.GetServiceDetail)
-		admin.POST("/service/start", handlers.ServiceAction("start"))
-		admin.POST("/service/stop", handlers.ServiceAction("stop"))
-		admin.POST("/service/restart", handlers.ServiceAction("restart"))
-		admin.DELETE("/service/delete", handlers.DeleteService)
-		admin.POST("/service/batch-delete", handlers.BatchDeleteService)
-		admin.GET("/service/linux/list", handlers.GetLinuxServiceList)
-		admin.POST("/service/linux/operate", handlers.OperateLinuxService)
-		admin.POST("/service-deploy/deployments", handlers.CreateServiceDeployment)
-		admin.PUT("/service-deploy/deployments/:id", handlers.UpdateServiceDeployment)
+		// ---- Service Management（计费开启时需 feature.service_ops） ----
+		svcAdmin := admin.Group("")
+		svcAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyServiceOps))
+		svcAdmin.POST("/service/deploy", handlers.DeployService)
+		svcAdmin.GET("/service/list", handlers.GetServiceList)
+		svcAdmin.GET("/service/detail", handlers.GetServiceDetail)
+		svcAdmin.POST("/service/start", handlers.ServiceAction("start"))
+		svcAdmin.POST("/service/stop", handlers.ServiceAction("stop"))
+		svcAdmin.POST("/service/restart", handlers.ServiceAction("restart"))
+		svcAdmin.DELETE("/service/delete", handlers.DeleteService)
+		svcAdmin.POST("/service/batch-delete", handlers.BatchDeleteService)
+		svcAdmin.GET("/service/linux/list", handlers.GetLinuxServiceList)
+		svcAdmin.POST("/service/linux/operate", handlers.OperateLinuxService)
+		svcAdmin.POST("/service-deploy/deployments", handlers.CreateServiceDeployment)
+		svcAdmin.PUT("/service-deploy/deployments/:id", handlers.UpdateServiceDeployment)
 
-		// ---- K8s Deployment ----
-		protected.GET("/k8s/deploy/versions", handlers.GetK8sVersions)
-		protected.GET("/k8s/deploy/component-catalog", handlers.GetK8sComponentCatalog)
-		admin.GET("/k8s/deploy/machines", handlers.GetK8sDeployMachines)
-		admin.GET("/k8s/deploy/check-name", handlers.CheckClusterName)
-		admin.POST("/k8s/deploy/submit", handlers.SubmitK8sDeployWithAnsible) // Ansible-integrated
-		admin.POST("/k8s/deploy/terminate", handlers.TerminateK8sDeploy)      // 终止部署并下发清理任务
-		protected.GET("/k8s/deploy/progress", handlers.GetK8sDeployProgress)
-		protected.GET("/k8s/deploy/logs", handlers.GetK8sDeployLogs)
-		admin.GET("/k8s/clusters", handlers.GetK8sClusters)
-		admin.POST("/k8s/deploy/bundle", handlers.GenerateK8sOfflineBundle)
-		admin.POST("/k8s/deploy/bundle-invite", handlers.CreateK8sBundleInvite)
-		protected.GET("/k8s/mirror/catalog", handlers.GetK8sMirrorCatalog)
-		admin.GET("/k8s/deploy/relay/preflight", handlers.GetK8sRelayPreflight)
-		admin.POST("/k8s/deploy/relay/warm", handlers.PostK8sRelayWarm)
+		// ---- K8s Deployment（计费开启时需 feature.k8s_ops） ----
+		k8sPaid := protected.Group("")
+		k8sPaid.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyK8sOps))
+		k8sPaid.GET("/k8s/deploy/versions", handlers.GetK8sVersions)
+		k8sPaid.GET("/k8s/deploy/component-catalog", handlers.GetK8sComponentCatalog)
+		k8sPaid.GET("/k8s/deploy/progress", handlers.GetK8sDeployProgress)
+		k8sPaid.GET("/k8s/deploy/logs", handlers.GetK8sDeployLogs)
+		k8sPaid.GET("/k8s/mirror/catalog", handlers.GetK8sMirrorCatalog)
+		k8sAdminPaid := admin.Group("")
+		k8sAdminPaid.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyK8sOps))
+		k8sAdminPaid.GET("/k8s/deploy/machines", handlers.GetK8sDeployMachines)
+		k8sAdminPaid.GET("/k8s/deploy/check-name", handlers.CheckClusterName)
+		k8sAdminPaid.POST("/k8s/deploy/submit", handlers.SubmitK8sDeployWithAnsible) // Ansible-integrated
+		k8sAdminPaid.POST("/k8s/deploy/terminate", handlers.TerminateK8sDeploy)      // 终止部署并下发清理任务
+		k8sAdminPaid.GET("/k8s/clusters", handlers.GetK8sClusters)
+		k8sAdminPaid.POST("/k8s/deploy/bundle", handlers.GenerateK8sOfflineBundle)
+		k8sAdminPaid.POST("/k8s/deploy/bundle-invite", handlers.CreateK8sBundleInvite)
+		k8sAdminPaid.GET("/k8s/deploy/relay/preflight", handlers.GetK8sRelayPreflight)
+		k8sAdminPaid.POST("/k8s/deploy/relay/warm", handlers.PostK8sRelayWarm)
 
-		// ---- Proxy Configuration ----
-		admin.GET("/proxy/config/list", handlers.GetProxyConfigList)
-		admin.GET("/proxy/config/detail", handlers.GetProxyConfigDetail)
-		admin.POST("/proxy/config/save", handlers.SaveProxyConfig)
-		admin.DELETE("/proxy/config/delete", handlers.DeleteProxyConfig)
-		admin.POST("/proxy/config/apply", handlers.ApplyProxyConfig)
-
-		// ---- Init Tools ----
-		admin.GET("/init-tools/system-params", handlers.GetSystemParams)
-		admin.POST("/init-tools/system-params", handlers.ApplySystemParams)
-		admin.POST("/init-tools/time-sync", handlers.ApplyTimeSync)
-		admin.POST("/init-tools/security-harden", handlers.ApplySecurityHarden)
-		admin.POST("/init-tools/disk-optimize", handlers.ApplyDiskOptimize)
-
-		// ---- Monitoring ----
-		admin.GET("/monitoring/configs", handlers.GetMonitoringConfigList)
-		admin.GET("/monitoring/configs/:id", handlers.GetMonitoringConfig)
-		admin.POST("/monitoring/configs", handlers.CreateMonitoringConfig)
-		admin.PUT("/monitoring/configs/:id", handlers.UpdateMonitoringConfig)
-		admin.DELETE("/monitoring/configs/:id", handlers.DeleteMonitoringConfig)
-		admin.GET("/monitoring/alert-rules", handlers.GetAlertRules)
-		admin.POST("/monitoring/alert-rules", handlers.CreateAlertRule)
-		admin.PUT("/monitoring/alert-rules/:id", handlers.UpdateAlertRule)
-		admin.DELETE("/monitoring/alert-rules/:id", handlers.DeleteAlertRule)
+		// ---- Proxy / Monitoring / Init Tools（计费开启时需 feature.infra_ops） ----
+		infraAdmin := admin.Group("")
+		infraAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyInfraOps))
+		infraAdmin.GET("/proxy/config/list", handlers.GetProxyConfigList)
+		infraAdmin.GET("/proxy/config/detail", handlers.GetProxyConfigDetail)
+		infraAdmin.POST("/proxy/config/save", handlers.SaveProxyConfig)
+		infraAdmin.DELETE("/proxy/config/delete", handlers.DeleteProxyConfig)
+		infraAdmin.POST("/proxy/config/apply", handlers.ApplyProxyConfig)
+		infraAdmin.GET("/init-tools/system-params", handlers.GetSystemParams)
+		infraAdmin.POST("/init-tools/system-params", handlers.ApplySystemParams)
+		infraAdmin.POST("/init-tools/time-sync", handlers.ApplyTimeSync)
+		infraAdmin.POST("/init-tools/security-harden", handlers.ApplySecurityHarden)
+		infraAdmin.POST("/init-tools/disk-optimize", handlers.ApplyDiskOptimize)
+		infraAdmin.GET("/monitoring/configs", handlers.GetMonitoringConfigList)
+		infraAdmin.GET("/monitoring/configs/:id", handlers.GetMonitoringConfig)
+		infraAdmin.POST("/monitoring/configs", handlers.CreateMonitoringConfig)
+		infraAdmin.PUT("/monitoring/configs/:id", handlers.UpdateMonitoringConfig)
+		infraAdmin.DELETE("/monitoring/configs/:id", handlers.DeleteMonitoringConfig)
+		infraAdmin.GET("/monitoring/alert-rules", handlers.GetAlertRules)
+		infraAdmin.POST("/monitoring/alert-rules", handlers.CreateAlertRule)
+		infraAdmin.PUT("/monitoring/alert-rules/:id", handlers.UpdateAlertRule)
+		infraAdmin.DELETE("/monitoring/alert-rules/:id", handlers.DeleteAlertRule)
 
 		// ---- Security & Audit ----
 		admin.GET("/security-audit/operation-logs", handlers.GetOperationLogs)
@@ -219,16 +226,18 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		admin.POST("/security-audit/roles/:role/permissions", handlers.AssignRolePermissions)
 
 		adv := protected.Group("")
-		adv.Use(middleware.RequireEntitlementOrAdmin(models.FeatureKeyAdvanced))
+		adv.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyAdvanced))
+		advAdmin := protected.Group("")
+		advAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyAdvanced), middleware.RequireAdmin())
 		// ---- Advanced / Backup (path aligned with frontend: /backups) ----
 		adv.GET("/advanced/backups", handlers.GetBackupList)
 		adv.GET("/advanced/backups/:id", handlers.GetBackupDetail)
-		adv.POST("/advanced/backups", handlers.Backup)
-		adv.POST("/advanced/backups/:id/restore", handlers.Restore)
-		adv.DELETE("/advanced/backups/:id", handlers.DeleteBackup)
+		advAdmin.POST("/advanced/backups", handlers.Backup)
+		advAdmin.POST("/advanced/backups/:id/restore", handlers.Restore)
+		advAdmin.DELETE("/advanced/backups/:id", handlers.DeleteBackup)
 		// Legacy path (keep for compatibility)
 		adv.GET("/advanced/backup", handlers.GetBackupList)
-		adv.POST("/advanced/backup", handlers.Backup)
+		advAdmin.POST("/advanced/backup", handlers.Backup)
 
 		// ---- Advanced / Performance ----
 		adv.GET("/advanced/performance", handlers.GetPerformanceData)
