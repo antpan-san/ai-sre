@@ -203,6 +203,15 @@
           </div>
         </div>
         <div class="header-right">
+          <router-link
+            :to="{ path: errorCodesPath }"
+            class="header-quick-codes"
+            :aria-current="route.path.endsWith('/help/error-codes') ? 'page' : undefined"
+          >
+            <el-icon :size="18"><Reading /></el-icon>
+            <span>错误码</span>
+          </router-link>
+
           <el-popover
             placement="bottom-end"
             :width="440"
@@ -361,6 +370,8 @@ const currentUser = computed(() => {
 })
 
 const navBase = computed(() => (route.path.startsWith('/admin') ? '/admin' : '/app'))
+/** 高频工具：顶栏直达，与同壳层侧栏路由一致 */
+const errorCodesPath = computed(() => `${navBase.value}/help/error-codes`)
 const isAdminShell = computed(() => route.path.startsWith('/admin'))
 const isSuperAdmin = computed(() => String(currentUser.value?.role ?? '') === 'super_admin')
 const isAdminUser = computed(() => ['admin', 'super_admin'].includes(String(currentUser.value?.role ?? '')))
@@ -743,8 +754,37 @@ const handleLogout = () => {
 .header-right {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   flex-shrink: 0;
+}
+
+.header-quick-codes {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--layout-sidebar-text-strong);
+  text-decoration: none;
+  white-space: nowrap;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.header-quick-codes:hover {
+  background-color: var(--apple-canvas-parchment, #f5f5f7);
+  color: var(--apple-primary, #0066cc);
+}
+
+.header-quick-codes.router-link-active {
+  background-color: var(--apple-canvas-parchment, #f5f5f7);
+  color: var(--apple-primary, #0066cc);
+  font-weight: 600;
 }
 
 .install-ai-sre-trigger {
