@@ -82,6 +82,62 @@
       </el-card>
 
       <el-card
+        v-loading="dashboardStore.loading"
+        shadow="hover"
+        class="snapshot-card snapshot-card--static svc-card--kpi"
+        role="region"
+        aria-label="业务服务状态"
+      >
+        <div class="snapshot-label">业务服务状态</div>
+        <div class="svc-kpi-mid">
+          <div class="svc-stack-wrap">
+            <div v-if="svcTotal > 0" class="svc-stack-bar" role="img" :aria-label="svcStackAria">
+              <div
+                v-if="svcRunN > 0"
+                class="svc-stack-seg svc-stack-seg--run"
+                :style="svcSegStyle(svcRunN)"
+              />
+              <div
+                v-if="svcDepN > 0"
+                class="svc-stack-seg svc-stack-seg--deploy"
+                :style="svcSegStyle(svcDepN)"
+              />
+              <div
+                v-if="svcStopN > 0"
+                class="svc-stack-seg svc-stack-seg--stopped"
+                :style="svcSegStyle(svcStopN)"
+              />
+              <div
+                v-if="svcErrN > 0"
+                class="svc-stack-seg svc-stack-seg--error"
+                :style="svcSegStyle(svcErrN)"
+              />
+            </div>
+            <div v-else class="svc-stack-empty page-desc--muted">暂无台账</div>
+          </div>
+          <div class="svc-legends svc-legends--kpi">
+            <div class="svc-legend">
+              <span class="svc-dot svc-dot--run" />
+              <span>运行 {{ svcRunN }}</span>
+            </div>
+            <div class="svc-legend">
+              <span class="svc-dot svc-dot--deploy" />
+              <span>部署中 {{ svcDepN }}</span>
+            </div>
+            <div class="svc-legend">
+              <span class="svc-dot svc-dot--stopped" />
+              <span>停止 {{ svcStopN }}</span>
+            </div>
+            <div class="svc-legend">
+              <span class="svc-dot svc-dot--error" />
+              <span>异常 {{ svcErrN }}</span>
+            </div>
+          </div>
+        </div>
+        <div class="snapshot-foot">台账 {{ svcTotal }} · 运行态 {{ svcOperational }}</div>
+      </el-card>
+
+      <el-card
         v-if="isSuperAdmin"
         v-loading="dashboardStore.loading"
         shadow="hover"
@@ -117,104 +173,52 @@
       </div>
     </el-card>
 
-    <div class="dash-grid dash-grid--main" :class="isSuperAdmin ? 'dash-grid--main--with-host' : 'dash-grid--main--no-host'">
-      <template v-if="isSuperAdmin">
-        <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
-          <div class="meter-head">
-            <span>服务端 CPU</span>
-            <el-tag :type="getUsageType(dash?.resourceUsage?.cpu ?? 0)" size="small">
-              {{ Number(dash?.resourceUsage?.cpu ?? 0).toFixed(1) }}%
-            </el-tag>
-          </div>
-          <p class="meter-sub">{{ hostRuntimeLine }}</p>
-          <p v-if="dash?.hostRuntime?.error" class="meter-sub meter-sub--err">{{ dash.hostRuntime.error }}</p>
-          <el-progress
-            :percentage="Math.round(clampPct(dash?.resourceUsage?.cpu ?? 0))"
-            :color="getUsageColor(dash?.resourceUsage?.cpu ?? 0)"
-            :show-text="false"
-            class="meter-progress"
-          />
-        </el-card>
-        <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--mem">
-          <div class="meter-head">
-            <span>服务端内存</span>
-            <el-tag :type="getUsageType(dash?.resourceUsage?.memory ?? 0)" size="small">
-              {{ Number(dash?.resourceUsage?.memory ?? 0).toFixed(1) }}%
-            </el-tag>
-          </div>
-          <p class="meter-sub">{{ hostRuntimeLine }}</p>
-          <el-progress
-            :percentage="Math.round(clampPct(dash?.resourceUsage?.memory ?? 0))"
-            :color="getUsageColor(dash?.resourceUsage?.memory ?? 0)"
-            :show-text="false"
-            class="meter-progress"
-          />
-        </el-card>
-        <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--disk">
-          <div class="meter-head">
-            <span>服务端磁盘</span>
-            <el-tag :type="getUsageType(dash?.resourceUsage?.disk ?? 0)" size="small">
-              {{ Number(dash?.resourceUsage?.disk ?? 0).toFixed(1) }}%
-            </el-tag>
-          </div>
-          <p class="meter-sub">{{ diskRootHint }}</p>
-          <el-progress
-            :percentage="Math.round(clampPct(dash?.resourceUsage?.disk ?? 0))"
-            :color="getUsageColor(dash?.resourceUsage?.disk ?? 0)"
-            :show-text="false"
-            class="meter-progress"
-          />
-        </el-card>
-      </template>
-
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="svc-card" role="region" aria-label="业务服务状态">
-        <div class="svc-card-head">
-          <span class="svc-card-title">业务服务状态</span>
-          <span class="svc-card-meta">台账 {{ svcTotal }} · 运行态 {{ svcOperational }}</span>
+    <div v-if="isSuperAdmin" class="dash-grid dash-grid--main dash-grid--main--meters">
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
+        <div class="meter-head">
+          <span>服务端 CPU</span>
+          <el-tag :type="getUsageType(dash?.resourceUsage?.cpu ?? 0)" size="small">
+            {{ Number(dash?.resourceUsage?.cpu ?? 0).toFixed(1) }}%
+          </el-tag>
         </div>
-        <div class="svc-stack-wrap">
-          <div v-if="svcTotal > 0" class="svc-stack-bar" role="img" :aria-label="svcStackAria">
-            <div
-              v-if="svcRunN > 0"
-              class="svc-stack-seg svc-stack-seg--run"
-              :style="svcSegStyle(svcRunN)"
-            />
-            <div
-              v-if="svcDepN > 0"
-              class="svc-stack-seg svc-stack-seg--deploy"
-              :style="svcSegStyle(svcDepN)"
-            />
-            <div
-              v-if="svcStopN > 0"
-              class="svc-stack-seg svc-stack-seg--stopped"
-              :style="svcSegStyle(svcStopN)"
-            />
-            <div
-              v-if="svcErrN > 0"
-              class="svc-stack-seg svc-stack-seg--error"
-              :style="svcSegStyle(svcErrN)"
-            />
-          </div>
-          <div v-else class="svc-stack-empty page-desc--muted">暂无业务服务台账</div>
+        <p class="meter-sub">{{ hostRuntimeLine }}</p>
+        <p v-if="dash?.hostRuntime?.error" class="meter-sub meter-sub--err">{{ dash.hostRuntime.error }}</p>
+        <el-progress
+          :percentage="Math.round(clampPct(dash?.resourceUsage?.cpu ?? 0))"
+          :color="getUsageColor(dash?.resourceUsage?.cpu ?? 0)"
+          :show-text="false"
+          class="meter-progress"
+        />
+      </el-card>
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--mem">
+        <div class="meter-head">
+          <span>服务端内存</span>
+          <el-tag :type="getUsageType(dash?.resourceUsage?.memory ?? 0)" size="small">
+            {{ Number(dash?.resourceUsage?.memory ?? 0).toFixed(1) }}%
+          </el-tag>
         </div>
-        <div class="svc-legends">
-          <div class="svc-legend">
-            <span class="svc-dot svc-dot--run" />
-            <span>运行 {{ svcRunN }}</span>
-          </div>
-          <div class="svc-legend">
-            <span class="svc-dot svc-dot--deploy" />
-            <span>部署中 {{ svcDepN }}</span>
-          </div>
-          <div class="svc-legend">
-            <span class="svc-dot svc-dot--stopped" />
-            <span>停止 {{ svcStopN }}</span>
-          </div>
-          <div class="svc-legend">
-            <span class="svc-dot svc-dot--error" />
-            <span>异常 {{ svcErrN }}</span>
-          </div>
+        <p class="meter-sub">{{ hostRuntimeLine }}</p>
+        <el-progress
+          :percentage="Math.round(clampPct(dash?.resourceUsage?.memory ?? 0))"
+          :color="getUsageColor(dash?.resourceUsage?.memory ?? 0)"
+          :show-text="false"
+          class="meter-progress"
+        />
+      </el-card>
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--disk">
+        <div class="meter-head">
+          <span>服务端磁盘</span>
+          <el-tag :type="getUsageType(dash?.resourceUsage?.disk ?? 0)" size="small">
+            {{ Number(dash?.resourceUsage?.disk ?? 0).toFixed(1) }}%
+          </el-tag>
         </div>
+        <p class="meter-sub">{{ diskRootHint }}</p>
+        <el-progress
+          :percentage="Math.round(clampPct(dash?.resourceUsage?.disk ?? 0))"
+          :color="getUsageColor(dash?.resourceUsage?.disk ?? 0)"
+          :show-text="false"
+          class="meter-progress"
+        />
       </el-card>
     </div>
 
@@ -381,7 +385,7 @@ const userRole = computed(() => {
 const isSuperAdmin = computed(() => userRole.value === 'super_admin')
 const isConsoleAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super_admin')
 
-const kpiColumnCount = computed(() => (isSuperAdmin.value ? 4 : 3))
+const kpiColumnCount = computed(() => (isSuperAdmin.value ? 5 : 4))
 
 const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
 
@@ -674,30 +678,37 @@ onBeforeUnmount(() => {
   margin-top: -2px;
 }
 
-.dash-grid--main--no-host {
-  grid-template-columns: 1fr;
+.dash-grid--kpi {
+  grid-template-columns: repeat(var(--kpi-cols, 4), minmax(0, 1fr));
+  align-items: stretch;
 }
 
-.dash-grid--main--no-host .svc-card {
-  grid-column: 1 / -1;
+.dash-grid--kpi > .el-card {
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
 }
 
-.dash-grid--main--with-host {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+.dash-grid--kpi > .el-card :deep(.el-card__body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.dash-grid--main--with-host .svc-card {
-  grid-column: auto;
+.dash-grid--kpi > .snapshot-card :deep(.el-card__body) > .snapshot-foot {
+  margin-top: auto;
+}
+
+.dash-grid--main--meters {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .dash-grid {
   display: grid;
   gap: 10px;
   flex-shrink: 0;
-}
-
-.dash-grid--kpi {
-  grid-template-columns: repeat(var(--kpi-cols, 4), minmax(0, 1fr));
 }
 
 .dash-grid--main {
@@ -782,35 +793,31 @@ onBeforeUnmount(() => {
   border-radius: 999px;
 }
 
-.svc-card {
-  grid-column: span 1;
+.svc-card--kpi :deep(.el-card__body) {
+  gap: 6px;
 }
 
-.svc-card :deep(.el-card__body) {
-  padding: 12px 14px;
+.svc-kpi-mid {
+  flex: 1;
+  min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  justify-content: flex-start;
-  min-height: 108px;
-}
-
-.svc-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
+  justify-content: center;
   gap: 8px;
 }
 
-.svc-card-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #303133;
+.svc-legends--kpi {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 6px;
 }
 
-.svc-card-meta {
+.svc-legends--kpi .svc-legend {
   font-size: 11px;
-  color: #a8abb2;
+  gap: 4px;
+}
+
+.svc-card--kpi .svc-stack-empty {
+  font-size: 11px;
 }
 
 .svc-stack-wrap {
@@ -999,7 +1006,7 @@ onBeforeUnmount(() => {
 }
 
 @media screen and (max-width: 1280px) {
-  .dash-grid--main--with-host {
+  .dash-grid--main--meters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1009,7 +1016,7 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dash-grid--main--with-host {
+  .dash-grid--main--meters {
     grid-template-columns: 1fr;
   }
 }
