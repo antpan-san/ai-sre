@@ -15,6 +15,7 @@ import (
 
 // DeployService creates a new service deployment.
 func DeployService(c *gin.Context) {
+	_ = reconcileStaleDeployingServices(database.DB)
 	var svc models.Service
 	if err := c.ShouldBindJSON(&svc); err != nil {
 		response.BadRequest(c, "无效的请求参数")
@@ -32,6 +33,7 @@ func DeployService(c *gin.Context) {
 
 // GetServiceList returns services.
 func GetServiceList(c *gin.Context) {
+	_ = reconcileStaleDeployingServices(database.DB)
 	p := response.GetPagination(c)
 	db := database.DB.Model(&models.Service{})
 
@@ -59,6 +61,7 @@ func GetServiceDetail(c *gin.Context) {
 		response.BadRequest(c, "无效的服务ID")
 		return
 	}
+	_ = reconcileStaleDeployingServices(database.DB)
 	var svc models.Service
 	if response.HandleDBError(c, database.DB.Where("id = ?", id).First(&svc).Error, "服务不存在") {
 		return
