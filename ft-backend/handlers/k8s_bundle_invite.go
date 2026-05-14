@@ -15,6 +15,7 @@ import (
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
 	"ft-backend/database"
+	"ft-backend/middleware"
 	"ft-backend/models"
 
 	"github.com/gin-gonic/gin"
@@ -88,9 +89,10 @@ func CreateK8sBundleInvite(c *gin.Context) {
 	exp := time.Now().Add(7 * 24 * time.Hour)
 
 	inv := models.K8sBundleInvite{
-		RequestPayload: models.JSONB(payload),
-		DownloadToken:  token,
-		ExpiresAt:      exp,
+		RequestPayload:  models.JSONB(payload),
+		DownloadToken:   token,
+		ExpiresAt:       exp,
+		CreatedByUserID: models.UserIDFromContext(c.MustGet("userID")),
 	}
 	if err := database.DB.Create(&inv).Error; err != nil {
 		logger.Error("CreateK8sBundleInvite: %v", err)
@@ -151,6 +153,23 @@ func DownloadK8sBundleInviteZip(c *gin.Context) {
 	}
 	if subtle.ConstantTimeCompare([]byte(inv.DownloadToken), []byte(tok)) != 1 {
 		response.Unauthorized(c, "token 无效")
+		return
+	}
+	if inv.CreatedByUserID == uuid.Nil {
+		response.Forbidden(c, "安装引用缺少创建者信息，请在控制台重新生成")
+		return
+	}
+	var owner models.User
+	if err := database.DB.Where("id = ?", inv.CreatedByUserID).First(&owner).Error; err != nil {
+		response.Forbidden(c, "安装引用创建者不存在或不可用")
+		return
+	}
+	if ok, payload := middleware.CheckCapability(owner.ID, owner.Role, models.FeatureKeyK8sDelivery, middleware.CapabilityActionDownload); !ok {
+		code, _ := payload["code"].(int)
+		if code == 0 {
+			code = http.StatusForbidden
+		}
+		c.JSON(code, payload)
 		return
 	}
 

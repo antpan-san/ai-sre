@@ -21,10 +21,10 @@ type RegisterRequest struct {
 }
 
 type LoginRequest struct {
-	Username       string `json:"username" binding:"required"`
-	Password       string `json:"password" binding:"required"`
-	CaptchaID      string `json:"captcha_id"`
-	CaptchaAnswer  string `json:"captcha_answer"`
+	Username      string `json:"username" binding:"required"`
+	Password      string `json:"password" binding:"required"`
+	CaptchaID     string `json:"captcha_id"`
+	CaptchaAnswer string `json:"captcha_answer"`
 }
 
 type RefreshTokenRequest struct {
@@ -117,7 +117,7 @@ func Register(c *gin.Context) {
 		Email:    req.Email,
 		Password: hashedPassword,
 		FullName: req.FullName,
-		Role:     "user",
+		Role:     models.RoleUser,
 	}
 
 	if err := database.DB.Create(&newUser).Error; err != nil {
@@ -190,16 +190,16 @@ func Login(c *gin.Context) {
 		"data": gin.H{
 			"token": accessToken,
 			"user": gin.H{
-				"id":              user.ID,
-				"username":        user.Username,
-				"email":           user.Email,
-				"phone":           user.Phone,
-				"role":            user.Role,
-				"full_name":       user.FullName,
-				"avatar":          user.Avatar,
-				"createTime":      user.CreatedAt,
-				"updateTime":      user.UpdatedAt,
-				"billing_exempt":  user.Role == "admin",
+				"id":             user.ID,
+				"username":       user.Username,
+				"email":          user.Email,
+				"phone":          user.Phone,
+				"role":           user.Role,
+				"full_name":      user.FullName,
+				"avatar":         user.Avatar,
+				"createTime":     user.CreatedAt,
+				"updateTime":     user.UpdatedAt,
+				"billing_exempt": models.IsSuperAdminRole(user.Role),
 			},
 		},
 		"msg": "success",

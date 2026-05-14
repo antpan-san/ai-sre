@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -21,6 +22,15 @@ func serverAIResult(answer string) *engine.RunResult {
 		Answer:       a,
 		SkillName:    "server-ai",
 		SkillDisplay: "OpsFleet 服务端 AI",
+	}
+}
+
+func attachOpsfleetAuth(req *http.Request) {
+	if req == nil {
+		return
+	}
+	if tok := strings.TrimSpace(os.Getenv("OPSFLEET_TOKEN")); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 }
 
@@ -92,6 +102,7 @@ func callServerAsk(ctx context.Context, question string, noRag bool) (string, er
 		return "", err
 	}
 	hreq.Header.Set("Content-Type", "application/json")
+	attachOpsfleetAuth(hreq)
 	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(hreq)
 	if err != nil {
@@ -126,6 +137,7 @@ func callServerRunbook(ctx context.Context, scenario string, ctxMap map[string]s
 		return "", err
 	}
 	hreq.Header.Set("Content-Type", "application/json")
+	attachOpsfleetAuth(hreq)
 	client := &http.Client{Timeout: 90 * time.Second}
 	resp, err := client.Do(hreq)
 	if err != nil {

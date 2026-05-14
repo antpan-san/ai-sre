@@ -88,7 +88,7 @@ CREATE TABLE IF NOT EXISTS shares (
 -- 插入测试数据
 -- 注意：实际环境中密码应该使用bcrypt或argon2进行哈希处理
 INSERT INTO users (username, email, password, full_name, role) VALUES 
-('admin', 'admin@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Administrator', 'admin'),
+('admin', 'admin@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Administrator', 'super_admin'),
 ('testuser', 'test@example.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', 'Test User', 'user');
 
 -- 插入测试文件
@@ -183,8 +183,13 @@ INSERT INTO permissions (name, code, description) VALUES
 ('安全审计', 'security_audit', '查看安全审计日志'),
 ('权限管理', 'permission_manage', '管理系统权限');
 
--- 为管理员角色分配所有权限
+-- 为超级管理员和管理员角色分配所有权限
 INSERT INTO role_permissions (role_id, permission_id) VALUES 
+('super_admin', 1),
+('super_admin', 2),
+('super_admin', 3),
+('super_admin', 4),
+('super_admin', 5),
 ('admin', 1),
 ('admin', 2),
 ('admin', 3),

@@ -4,9 +4,7 @@
       <div>
         <h2 class="page-title">功能与计费</h2>
         <p class="page-sub">
-          功能分级四档：<strong>feature.k8s_ops</strong>（K8s）、<strong>feature.service_ops</strong>（服务交付）、<strong>feature.infra_ops</strong>（代理/监控/初始化）、<strong>feature.advanced</strong>（备份与性能）。
-          Stripe 可多档订阅包映射多键，见服务端 <code class="hint-code">billing.packages</code>；Webhook 据此同步 <code class="hint-code">entitlements</code>。
-          计费关闭时逻辑与历史上未开启计费一致。
+          功能入口默认可见；关闭展示会隐藏入口，关闭执行会禁止所有角色执行。开启计费后，非超级管理员需拥有对应功能包权益。
         </p>
       </div>
       <el-button type="primary" :loading="saving" :disabled="loading" @click="handleSave">保存</el-button>
@@ -15,14 +13,36 @@
     <el-card shadow="never" v-loading="loading">
       <el-table :data="rows" stripe border size="small" empty-text="暂无配置">
         <el-table-column prop="feature_key" label="功能键" min-width="200" show-overflow-tooltip />
+        <el-table-column label="功能包" min-width="190">
+          <template #default="{ row }">
+            <el-select v-model="row.pack_key" size="small">
+              <el-option v-for="p in packOptions" :key="p" :label="p" :value="p" />
+            </el-select>
+          </template>
+        </el-table-column>
         <el-table-column prop="description" label="说明" min-width="220">
           <template #default="{ row }">
             <el-input v-model="row.description" type="textarea" :rows="2" maxlength="512" show-word-limit />
           </template>
         </el-table-column>
-        <el-table-column label="启用计费" width="120" align="center">
+        <el-table-column label="展示" width="100" align="center">
+          <template #default="{ row }">
+            <el-switch v-model="row.visible_enabled" />
+          </template>
+        </el-table-column>
+        <el-table-column label="执行" width="100" align="center">
+          <template #default="{ row }">
+            <el-switch v-model="row.execution_enabled" />
+          </template>
+        </el-table-column>
+        <el-table-column label="计费" width="100" align="center">
           <template #default="{ row }">
             <el-switch v-model="row.billing_enabled" />
+          </template>
+        </el-table-column>
+        <el-table-column label="Stripe Price" min-width="180">
+          <template #default="{ row }">
+            <el-input v-model="row.stripe_price_id" size="small" placeholder="price_xxx" clearable />
           </template>
         </el-table-column>
         <el-table-column label="更新时间" width="172" align="center">
@@ -43,6 +63,18 @@ import { getAdminFeatureBilling, putAdminFeatureBilling, type FeatureBillingRow 
 const loading = ref(false)
 const saving = ref(false)
 const rows = ref<FeatureBillingRow[]>([])
+const packOptions = [
+  'pack.k8s_delivery',
+  'pack.node_ops',
+  'pack.monitoring',
+  'pack.backup_performance',
+  'skillpack.k8s',
+  'skillpack.kafka',
+  'skillpack.redis',
+  'skillpack.nginx',
+  'skillpack.mysql',
+  'skillpack.elasticsearch'
+]
 
 function formatTs(s?: string) {
   if (!s) return '—'
@@ -66,7 +98,11 @@ const handleSave = async () => {
   try {
     const items = rows.value.map((r) => ({
       feature_key: r.feature_key,
+      pack_key: r.pack_key,
+      visible_enabled: r.visible_enabled,
+      execution_enabled: r.execution_enabled,
       billing_enabled: r.billing_enabled,
+      stripe_price_id: r.stripe_price_id,
       description: r.description
     }))
     const next = await putAdminFeatureBilling(items)

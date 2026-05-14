@@ -9,6 +9,7 @@ import (
 	"ft-backend/common/logger"
 	"ft-backend/common/redis"
 	"ft-backend/database"
+	"ft-backend/middleware"
 	"ft-backend/models"
 	"ft-backend/utils"
 
@@ -74,10 +75,10 @@ type HostInfo struct {
 
 // HeartbeatResponse is the response returned to the client agent.
 type HeartbeatResponse struct {
-	Message               string           `json:"message"`
-	Commands              []models.Command `json:"commands,omitempty"`
-	Upgrade               *UpgradeInfo     `json:"upgrade,omitempty"` // non-nil means client should upgrade
-	ExcludeSecondaryIPs   []string         `json:"exclude_secondary_ips,omitempty"` // IPs of workers user deleted; client should stop reporting them
+	Message             string           `json:"message"`
+	Commands            []models.Command `json:"commands,omitempty"`
+	Upgrade             *UpgradeInfo     `json:"upgrade,omitempty"`               // non-nil means client should upgrade
+	ExcludeSecondaryIPs []string         `json:"exclude_secondary_ips,omitempty"` // IPs of workers user deleted; client should stop reporting them
 }
 
 // UpgradeInfo tells the client a newer version is available.
@@ -269,6 +270,10 @@ func fetchPendingCommands(clientID string, localIP string) []models.Command {
 				if seen[cmd.SubTaskID] {
 					continue
 				}
+				if !taskDispatchAllowed(cmd.TaskID, cmd.SubTaskID) {
+					logger.Warn("Blocked paid command dispatch task=%s sub_task=%s client=%s", cmd.TaskID, cmd.SubTaskID, clientID)
+					continue
+				}
 				seen[cmd.SubTaskID] = true
 				commands = append(commands, cmd)
 
@@ -317,6 +322,10 @@ func fetchPendingCommands(clientID string, localIP string) []models.Command {
 
 			var task models.Task
 			database.DB.Where("id = ?", st.TaskID).First(&task)
+			if !taskDispatchAllowed(st.TaskID.String(), st.ID.String()) {
+				logger.Warn("Blocked paid command dispatch task=%s sub_task=%s client=%s", st.TaskID.String(), st.ID.String(), clientID)
+				continue
+			}
 
 			cmd := models.Command{
 				TaskID:    st.TaskID.String(),
@@ -345,6 +354,59 @@ func fetchPendingCommands(clientID string, localIP string) []models.Command {
 	}
 
 	return commands
+}
+
+func taskDispatchAllowed(taskID, subTaskID string) bool {
+	if strings.TrimSpace(taskID) == "" {
+		return true
+	}
+	var task models.Task
+	if err := database.DB.Where("id = ?", taskID).First(&task).Error; err != nil {
+		return true
+	}
+	if strings.TrimSpace(task.FeatureKey) == "" {
+		return true
+	}
+	var user models.User
+	if err := database.DB.Where("username = ?", task.CreatedBy).First(&user).Error; err != nil {
+		markSubTaskBillingBlocked(task, subTaskID, "任务创建者不存在，无法完成订阅复核")
+		return false
+	}
+	if ok, payload := middleware.CheckCapability(user.ID, user.Role, task.FeatureKey, middleware.CapabilityActionExecute); ok {
+		return true
+	} else {
+		msg := "订阅状态已失效，任务下发被阻止"
+		if s, _ := payload["msg"].(string); s != "" {
+			msg = s
+		}
+		markSubTaskBillingBlocked(task, subTaskID, msg)
+		return false
+	}
+}
+
+func markSubTaskBillingBlocked(task models.Task, subTaskID, msg string) {
+	now := time.Now()
+	if strings.TrimSpace(subTaskID) != "" {
+		database.DB.Model(&models.SubTask{}).
+			Where("id = ? AND status = ?", subTaskID, string(models.TaskStatusPending)).
+			Updates(map[string]interface{}{
+				"status":      string(models.TaskStatusFailed),
+				"finished_at": now,
+				"error":       msg,
+			})
+	}
+	database.DB.Model(&models.Task{}).
+		Where("id = ? AND status = ?", task.ID, string(models.TaskStatusPending)).
+		Updates(map[string]interface{}{
+			"status":       string(models.TaskStatusFailed),
+			"finished_at":  now,
+			"failed_count": 1,
+		})
+	database.DB.Create(&models.TaskLog{
+		TaskID:  task.ID,
+		Level:   "error",
+		Message: msg,
+	})
 }
 
 // updateMachineFromHeartbeat auto-registers or updates a machine.
@@ -634,12 +696,12 @@ func processSecondaryHosts(info ClientHeartbeat) {
 			}
 
 			// Use unique client_id and host_fingerprint to satisfy unique constraints:
-		// - idx_machines_tenant_client_id: (tenant_id, client_id) when client_id IS NOT NULL
-		// - idx_machines_tenant_fingerprint: (tenant_id, host_fingerprint) when host_fingerprint IS NOT NULL
-		// Empty strings would collide when multiple workers are auto-registered in the same tenant.
-		workerIdentity := "worker:" + secondaryIP
+			// - idx_machines_tenant_client_id: (tenant_id, client_id) when client_id IS NOT NULL
+			// - idx_machines_tenant_fingerprint: (tenant_id, host_fingerprint) when host_fingerprint IS NOT NULL
+			// Empty strings would collide when multiple workers are auto-registered in the same tenant.
+			workerIdentity := "worker:" + secondaryIP
 
-		newMachine := models.Machine{
+			newMachine := models.Machine{
 				Name:            hostname,
 				IP:              secondaryIP,
 				ClientID:        workerIdentity,

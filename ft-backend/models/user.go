@@ -4,6 +4,12 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	RoleSuperAdmin = "super_admin"
+	RoleAdmin      = "admin"
+	RoleUser       = "user"
+)
+
 type User struct {
 	SoftDeleteModel
 	Username string `gorm:"size:50;not null" json:"username"`
@@ -17,6 +23,23 @@ type User struct {
 	// Associations
 	Files     []File     `gorm:"foreignKey:UserID" json:"files,omitempty"`
 	Transfers []Transfer `gorm:"foreignKey:UserID" json:"transfers,omitempty"`
+}
+
+func IsValidUserRole(role string) bool {
+	switch role {
+	case RoleSuperAdmin, RoleAdmin, RoleUser:
+		return true
+	default:
+		return false
+	}
+}
+
+func IsSuperAdminRole(role string) bool {
+	return role == RoleSuperAdmin
+}
+
+func IsAdminRole(role string) bool {
+	return role == RoleAdmin || role == RoleSuperAdmin
 }
 
 // UserIDFromContext is a helper to extract uuid.UUID from a context value.

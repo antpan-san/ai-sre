@@ -3,15 +3,22 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sort"
 	"strings"
 	"time"
 
+	"ft-backend/common/config"
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
+	"ft-backend/database"
+	"ft-backend/models"
 	"ft-backend/services"
+	"ft-backend/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+	"gorm.io/gorm"
 )
 
 type aiDiagnoseRequest struct {
@@ -62,6 +69,10 @@ func AIDiagnose(c *gin.Context) {
 		response.BadRequest(c, "topic 不能为空")
 		return
 	}
+	commitQuota, ok := beginAIQuota(c, skillPackForTopic(topic))
+	if !ok {
+		return
+	}
 	reg := services.DefaultSkillRegistry()
 	matched := reg.Match(topic, req.Context)
 
@@ -72,6 +83,7 @@ func AIDiagnose(c *gin.Context) {
 		response.ServerError(c, "服务端 AI 诊断失败: "+err.Error())
 		return
 	}
+	commitQuota(true)
 
 	draft := buildSkillDraftFromContext(topic, kvForSkillDraft(req.Context))
 	if !isSkillDraftValid(draft) {
@@ -174,6 +186,10 @@ func AIAsk(c *gin.Context) {
 		response.BadRequest(c, "无效参数: "+err.Error())
 		return
 	}
+	commitQuota, ok := beginAIQuota(c, skillPackForText(req.Question))
+	if !ok {
+		return
+	}
 	prompt := buildServerAskPrompt(req.Question, req.NoRAG)
 	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
 	if err != nil {
@@ -181,6 +197,7 @@ func AIAsk(c *gin.Context) {
 		response.ServerError(c, "服务端 AI 失败: "+err.Error())
 		return
 	}
+	commitQuota(true)
 	response.OK(c, gin.H{
 		"answer": answer,
 		"source": "server-ai",
@@ -194,6 +211,10 @@ func AIRunbook(c *gin.Context) {
 		response.BadRequest(c, "无效参数: "+err.Error())
 		return
 	}
+	commitQuota, ok := beginAIQuota(c, skillPackForText(req.Scenario))
+	if !ok {
+		return
+	}
 	prompt := buildServerRunbookPrompt(req.Scenario, req.Context)
 	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
 	if err != nil {
@@ -201,10 +222,133 @@ func AIRunbook(c *gin.Context) {
 		response.ServerError(c, "服务端 AI 失败: "+err.Error())
 		return
 	}
+	commitQuota(true)
 	response.OK(c, gin.H{
 		"answer": answer,
 		"source": "server-ai",
 	})
+}
+
+const aiFreeDailyLimit = 5
+
+func skillPackForTopic(topic string) string {
+	switch strings.ToLower(strings.TrimSpace(topic)) {
+	case "k8s", "kubernetes":
+		return models.SkillPackK8s
+	case "kafka":
+		return models.SkillPackKafka
+	case "redis":
+		return models.SkillPackRedis
+	case "nginx":
+		return models.SkillPackNginx
+	case "mysql":
+		return models.SkillPackMySQL
+	case "elasticsearch", "es":
+		return models.SkillPackElasticsearch
+	default:
+		return models.SkillPackK8s
+	}
+}
+
+func skillPackForText(text string) string {
+	s := strings.ToLower(text)
+	switch {
+	case strings.Contains(s, "kafka"):
+		return models.SkillPackKafka
+	case strings.Contains(s, "redis"):
+		return models.SkillPackRedis
+	case strings.Contains(s, "nginx"):
+		return models.SkillPackNginx
+	case strings.Contains(s, "mysql"):
+		return models.SkillPackMySQL
+	case strings.Contains(s, "elastic") || strings.Contains(s, "es "):
+		return models.SkillPackElasticsearch
+	default:
+		return models.SkillPackK8s
+	}
+}
+
+func beginAIQuota(c *gin.Context, packKey string) (func(bool), bool) {
+	subject, uid, role := aiQuotaSubject(c)
+	if uid != uuid.Nil {
+		if models.IsSuperAdminRole(role) {
+			return func(bool) {}, true
+		}
+		var ent models.Entitlement
+		if err := database.DB.Where("user_id = ? AND feature_key = ?", uid, packKey).
+			Where("valid_until IS NULL OR valid_until > ?", time.Now().UTC()).
+			First(&ent).Error; err == nil {
+			return func(bool) {}, true
+		}
+	}
+	date := aiQuotaDate()
+	var usage models.AIUsage
+	err := database.DB.Where("subject = ? AND pack_key = ? AND usage_date = ?", subject, packKey, date).First(&usage).Error
+	if err == gorm.ErrRecordNotFound {
+		usage = models.AIUsage{ID: uuid.New(), Subject: subject, PackKey: packKey, UsageDate: date, Count: 0}
+		if err := database.DB.Create(&usage).Error; err != nil {
+			logger.Error("ai quota create: %v", err)
+			response.ServerError(c, "AI 免费额度检查失败")
+			return nil, false
+		}
+	} else if err != nil {
+		logger.Error("ai quota lookup: %v", err)
+		response.ServerError(c, "AI 免费额度检查失败")
+		return nil, false
+	}
+	if usage.Count >= aiFreeDailyLimit {
+		c.JSON(http.StatusForbidden, gin.H{
+			"code":               403,
+			"msg":                "今日免费 AI 诊断次数已用完，请订阅对应技能包",
+			"biz":                "PAYWALL_" + packKey,
+			"feature_key":        models.FeatureKeyAIDiagnosis,
+			"pack_key":           packKey,
+			"reason":             "ai_free_quota_exhausted",
+			"checkout_available": true,
+			"ai_quota": gin.H{
+				"free_daily_limit": aiFreeDailyLimit,
+				"used":             usage.Count,
+				"remaining":        0,
+				"usage_date":       date,
+				"timezone":         "Asia/Shanghai",
+			},
+		})
+		return nil, false
+	}
+	return func(success bool) {
+		if !success {
+			return
+		}
+		if err := database.DB.Model(&models.AIUsage{}).
+			Where("id = ?", usage.ID).
+			UpdateColumn("count", gorm.Expr("count + 1")).Error; err != nil {
+			logger.Error("ai quota increment: %v", err)
+		}
+	}, true
+}
+
+func aiQuotaSubject(c *gin.Context) (string, uuid.UUID, string) {
+	cfgVal, _ := c.Get("config")
+	cfg, _ := cfgVal.(*config.Config)
+	auth := strings.TrimSpace(c.GetHeader("Authorization"))
+	if cfg != nil && strings.HasPrefix(auth, "Bearer ") {
+		claims, err := utils.ValidateToken(strings.TrimSpace(strings.TrimPrefix(auth, "Bearer ")), cfg.JWT.SecretKey)
+		if err == nil {
+			uid, _ := uuid.Parse(claims.UserID)
+			if uid != uuid.Nil {
+				return "user:" + uid.String(), uid, claims.Role
+			}
+		}
+	}
+	return "ip:" + c.ClientIP(), uuid.Nil, ""
+}
+
+func aiQuotaDate() string {
+	loc, err := time.LoadLocation("Asia/Shanghai")
+	if err != nil {
+		loc = time.FixedZone("Asia/Shanghai", 8*3600)
+	}
+	return time.Now().In(loc).Format("2006-01-02")
 }
 
 func buildServerAskPrompt(question string, noRAG bool) string {

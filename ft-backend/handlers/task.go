@@ -54,6 +54,7 @@ func CreateTask(c *gin.Context) {
 		TotalCount:  len(req.TargetIDs),
 		TimeoutSec:  req.TimeoutSec,
 	}
+	applyBillingSnapshot(c, &task)
 
 	// Start transaction to create task + sub-tasks atomically
 	tx := database.DB.Begin()
@@ -123,6 +124,25 @@ func CreateTask(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": task, "msg": "任务创建成功"})
+}
+
+func applyBillingSnapshot(c *gin.Context, task *models.Task) {
+	if c == nil || task == nil {
+		return
+	}
+	if v, ok := c.Get("feature_key"); ok {
+		task.FeatureKey, _ = v.(string)
+	}
+	if v, ok := c.Get("pack_key"); ok {
+		task.PackKey, _ = v.(string)
+	}
+	if v, ok := c.Get("entitlement_source"); ok {
+		task.EntitlementSource, _ = v.(string)
+	}
+	if task.FeatureKey != "" || task.PackKey != "" {
+		now := time.Now().UTC()
+		task.BillingCheckedAt = &now
+	}
 }
 
 // GetTaskList returns a paginated list of tasks.

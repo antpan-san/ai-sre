@@ -153,7 +153,7 @@ func newRoot(programName string) *cobra.Command {
 func analyzeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "analyze [topic]",
-		Short: "故障诊断（核心能力）",
+		Short: "故障诊断（AI 技能包；未购买时每日免费 5 次）",
 		Long: `topic 取值: kafka | k8s | nginx | redis | elasticsearch
 
 k8s 场景 --pod 可填：
@@ -216,7 +216,7 @@ k8s 场景 --pod 可填：
 func askCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "ask [question]",
-		Short: "知识库问答（结合轻量 RAG）",
+		Short: "知识库问答（AI 技能包；未购买时每日免费 5 次）",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			q := strings.Join(args, " ")
@@ -259,7 +259,7 @@ func askCmd() *cobra.Command {
 func runbookCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "runbook [scenario]",
-		Short: "生成 Runbook 文档",
+		Short: "生成 Runbook 文档（AI 技能包；未购买时每日免费 5 次）",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			scenario := strings.Join(args, " ")

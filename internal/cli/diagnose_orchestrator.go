@@ -200,6 +200,7 @@ func callServerDiagnose(ctx context.Context, req diagnoseRequest) (*diagnoseResp
 		return nil, err
 	}
 	hreq.Header.Set("Content-Type", "application/json")
+	attachOpsfleetAuth(hreq)
 	client := &http.Client{Timeout: 120 * time.Second}
 	resp, err := client.Do(hreq)
 	if err != nil {

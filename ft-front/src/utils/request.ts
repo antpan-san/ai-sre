@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import NProgress from 'nprogress'
 import type { ApiResponse } from '../types'
 
@@ -11,6 +11,42 @@ function isAuthLoginPostURL(url: string | undefined): boolean {
 
 // 请求计数器，用于处理并发请求
 let requestCount = 0
+let paywallPromptVisible = false
+
+function isPaywall(data: unknown): boolean {
+  return String((data as any)?.biz || '').startsWith('PAYWALL_')
+}
+
+async function promptSubscription(baseURL: string, data: any): Promise<void> {
+  if (paywallPromptVisible) return
+  paywallPromptVisible = true
+  const packKey = String(data?.pack_key || '').trim()
+  const title = packKey ? `订阅 ${packKey}` : '功能订阅'
+  const message = data?.msg || (packKey ? `当前功能需要开通 ${packKey} 后使用。是否前往 Stripe 收银台？` : '当前功能需要订阅后使用。是否前往 Stripe 收银台？')
+  try {
+    await ElMessageBox.confirm(message, title, {
+      confirmButtonText: '去订阅',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    const token = localStorage.getItem('token')
+    const resp = await axios.post(
+      `${baseURL.replace(/\/$/, '')}/api/billing/checkout-session`,
+      packKey ? { pack_key: packKey } : {},
+      { headers: token ? { Authorization: `Bearer ${token}` } : {} }
+    )
+    const url = resp.data?.data?.url
+    if (url) {
+      window.location.href = url
+    } else {
+      ElMessage.info(resp.data?.data?.message || '当前账号无需订阅')
+    }
+  } catch {
+    // user canceled or checkout failed; interceptor/default axios message handles network failures elsewhere
+  } finally {
+    paywallPromptVisible = false
+  }
+}
 
 // Trae Library - 自定义API请求库
 class Trae {
@@ -112,6 +148,9 @@ class Trae {
               break
             case 403:
               errorMsg = (error.response.data as any)?.msg ?? '拒绝访问'
+              if (isPaywall(error.response.data)) {
+                void promptSubscription(this.instance.defaults.baseURL || '/ft-api', error.response.data)
+              }
               break
             case 404:
               errorMsg = '请求地址不存在'

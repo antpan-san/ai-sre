@@ -299,9 +299,9 @@ Client（Master 节点 Agent）收到 install_k8s 命令
 - 操作日志（OperationLog）记录与分页查询（支持按用户、操作类型、资源、状态、时间范围筛选）
 - 权限（Permission）CRUD + 批量删除
 - 角色-权限关联（RolePermission）管理
-- 用户角色字段（User.Role: admin/user）
+- 用户角色字段（User.Role: super_admin/admin/user）
 
-**注意：** 当前 JWT 中间件仅校验 Token 合法性，RBAC 权限校验未在 API 层强制执行（Permission 表存在但未接入 Gin 中间件）。
+**注意：** 当前 API 层已对管理端、计费管理、高级功能写操作做角色与权益校验；Permission 表仍主要用于权限配置展示，尚未作为细粒度 Gin 权限中间件全面接入。
 
 ---
 
@@ -335,13 +335,29 @@ Client（Master 节点 Agent）收到 install_k8s 命令
 
 ---
 
-## 3.10 高级功能
+## 3.10 高级功能与付费
 
-| 功能 | 状态 |
-|------|------|
-| 备份/恢复 | Mock 实现（接口存在，数据为硬编码示例）|
-| 性能分析 | 真实实现（PerformanceData 表，统计 CPU/内存/磁盘/网络均值/峰值/谷值）|
-| 性能报告生成 | 已实现（按时间范围聚合统计数据并返回）|
+高级功能已升级为账号级 **功能分级 + 多功能包订阅**。产品策略为：功能入口默认可见、付费状态清晰、执行前强校验、Web/CLI/Agent 同源权限控制。默认计费开关关闭以兼容历史部署；开启后，除 `super_admin` 外，`admin` 与 `user` 都需要有效 Stripe 订阅或人工授予的对应功能包权益。
+
+免费基础能力包括登录注册、个人资料、基础仪表盘、错误码查询、帮助中心、CLI `version/doctor/upgrade/help`、机器状态/任务记录/执行记录基础查看、高级功能说明和配置预览。AI 诊断在未购买对应技能包时每天免费 5 次，按 `Asia/Shanghai` 自然日重置。
+
+| 功能包 | 权益键 | 覆盖能力 |
+|------|------|----------|
+| K8s 交付包 | `pack.k8s_delivery` | K8s 在线部署、离线包、installRef、bootstrap、集群清理、镜像/制品分发 |
+| 节点运维包 | `pack.node_ops` | 系统初始化、时间同步、安全加固、磁盘优化、Shell、文件分发、Linux 服务 |
+| 监控包 | `pack.monitoring` | Prometheus、Node Exporter、JMX/Redis/MongoDB/Blackbox Exporter 安装与配置 |
+| 备份与性能包 | `pack.backup_performance` | 备份列表/详情、创建备份、恢复、删除、性能分析、真实报告生成 |
+| AI 技能包 | `skillpack.k8s` 等 | 对应领域 AI 诊断、Runbook、知识问答增强能力 |
+
+角色边界：
+
+- `super_admin`：系统级超级管理员，拥有全部管理端能力，永久豁免功能包订阅，可配置展示、执行、计费、Stripe Price 与手动授权。
+- `admin`：可访问管理端，但收费功能不再免费；开启计费后必须具备对应功能包权益。
+- `user`：可查看功能入口、填写配置、查看说明和示例结果；真实客户机动作、离线包下载、任务下发、AI 技能增强均由后端按功能包再次校验。
+
+统一能力接口为 `GET /api/billing/capabilities`。执行校验使用 `RequireCapability(featureKey, action)`，action 覆盖 `view`、`preview`、`execute`、`report`、`download`、`ai_call`。未订阅时统一返回 HTTP 403 与 `biz: "PAYWALL_<pack_key>"`，并包含 `feature_key`、`pack_key`、`reason`、`checkout_available`。
+
+详细付费设计见 `docs/advanced-feature-billing-design.md`。
 
 ---
 
@@ -397,6 +413,7 @@ ft-backend/
 - 服务管理（服务部署 / Linux 服务管理）
 - 安全审计（操作日志 / 权限管理）
 - 用户管理
+- 功能包订阅（K8s 交付 / 节点运维 / 监控 / 备份性能 / AI 技能包）
 - 高级功能（备份恢复 / 性能分析）
 
 ## 4.3 客户端（ft-client）

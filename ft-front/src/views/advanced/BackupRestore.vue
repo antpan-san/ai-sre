@@ -3,6 +3,13 @@
     <div class="page-header">
       <h2>备份与恢复</h2>
     </div>
+    <el-alert
+      class="billing-alert"
+      type="warning"
+      show-icon
+      :closable="false"
+      :title="billingAlertTitle"
+    />
     
     <!-- 搜索和筛选区域 -->
     <div class="search-filters">
@@ -50,9 +57,13 @@
         重置
       </el-button>
       
-      <el-button type="success" @click="handleCreateBackup">
+      <el-button v-if="canManageBackups" type="success" :disabled="!canRunBackupActions" @click="handleCreateBackup">
         <el-icon><Plus /></el-icon>
         创建备份
+      </el-button>
+
+      <el-button v-if="canManageBackups && needsBackupSubscription" type="warning" @click="goSubscribe">
+        订阅解锁
       </el-button>
     </div>
     
@@ -67,7 +78,7 @@
         style="width: 100%"
         row-key="id"
       >
-        <el-table-column type="selection" min-width="40" />
+        <el-table-column v-if="canRunBackupActions" type="selection" min-width="40" />
         
         <el-table-column prop="id" label="ID" min-width="60" align="center" />
         
@@ -107,21 +118,24 @@
         <el-table-column label="操作" min-width="180" align="center">
           <template #default="scope">
             <el-button
+              v-if="canManageBackups"
               size="small"
               type="primary"
               @click="handleRestoreBackup(scope.row.id)"
               :icon="RefreshRight"
               title="恢复"
-              :disabled="scope.row.status !== 'completed'"
+              :disabled="!canRunBackupActions || scope.row.status !== 'completed'"
             >
             </el-button>
             
             <el-button
+              v-if="canManageBackups"
               type="danger"
               size="small"
               @click="handleDeleteBackup(scope.row.id)"
               :icon="Delete"
               title="删除"
+              :disabled="!canRunBackupActions"
             >
             </el-button>
           </template>
@@ -130,7 +144,7 @@
     </div>
     
     <!-- 批量操作 -->
-    <div class="batch-actions" v-if="selectedIds.length > 0">
+    <div class="batch-actions" v-if="canRunBackupActions && selectedIds.length > 0">
       <el-button type="danger" @click="handleBatchDelete">
         <el-icon><Delete /></el-icon>
         批量删除 ({{ selectedIds.length }})
@@ -152,6 +166,7 @@
     
     <!-- 创建备份对话框 -->
     <el-dialog
+      v-if="canRunBackupActions"
       v-model="createDialogVisible"
       title="创建备份"
       width="400px"
@@ -198,10 +213,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, RefreshRight, Plus, Delete } from '@element-plus/icons-vue'
 import { getBackups, createBackup, restoreBackup, deleteBackup, batchDeleteBackups } from '../../api/advanced'
+import { createCheckoutSession, getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import type { Backup, BackupParams, BackupListResponse } from '../../types'
 
 // 响应式状态
@@ -210,6 +226,32 @@ const createDialogVisible = ref(false)
 const createDialogLoading = ref(false)
 const createBackupFormRef = ref()
 const selectedIds = ref<number[]>([])
+const currentRole = computed(() => {
+  try {
+    return (JSON.parse(localStorage.getItem('userInfo') || '{}') as { role?: string }).role || ''
+  } catch {
+    return ''
+  }
+})
+const canManageBackups = computed(() => currentRole.value === 'admin' || currentRole.value === 'super_admin')
+const backupCapability = ref<BillingCapabilityFeature | null>(null)
+const backupPackKey = computed(() => backupCapability.value?.pack_key || 'pack.backup_performance')
+const canUseBackupData = computed(() => backupCapability.value?.can_execute ?? true)
+const canRunBackupActions = computed(() => canManageBackups.value && canUseBackupData.value)
+const needsBackupSubscription = computed(() => {
+  const state = backupCapability.value?.execute_state as Record<string, unknown> | undefined
+  return !canUseBackupData.value && String(state?.biz || '').startsWith('PAYWALL_')
+})
+const billingAlertTitle = computed(() => {
+  if (!backupCapability.value) {
+    return '订阅功能包：pack.backup_performance。未订阅用户可查看页面与配置说明，真实备份数据与执行动作会在后端校验订阅。'
+  }
+  if (canUseBackupData.value) {
+    return `当前账号可使用 ${backupPackKey.value}；创建、恢复、删除仍仅限管理员角色。`
+  }
+  const state = backupCapability.value.execute_state as Record<string, unknown> | undefined
+  return String(state?.msg || `可预览，真实备份数据与执行动作需订阅 ${backupPackKey.value}。`)
+})
 
 // 筛选条件
 const filters = reactive<BackupParams>({
@@ -242,12 +284,29 @@ const createBackupRules = reactive({
 })
 
 // 加载备份列表
-onMounted(() => {
-  fetchBackups()
+onMounted(async () => {
+  await loadBackupCapability()
+  if (canUseBackupData.value) {
+    fetchBackups()
+  }
 })
+
+const loadBackupCapability = async () => {
+  try {
+    const data = await getBillingCapabilities()
+    backupCapability.value = (data.features || []).find((item) => item.feature_key === 'feature.backup_performance') || null
+  } catch {
+    backupCapability.value = null
+  }
+}
 
 // 获取备份列表
 const fetchBackups = async () => {
+  if (!canUseBackupData.value) {
+    backupsList.value = []
+    total.value = 0
+    return
+  }
   loading.value = true
   try {
     const response: BackupListResponse = await getBackups(filters)
@@ -263,6 +322,10 @@ const fetchBackups = async () => {
 
 // 处理搜索
 const handleSearch = () => {
+  if (!canUseBackupData.value) {
+    ElMessage.warning('订阅后可查看真实备份数据')
+    return
+  }
   filters.page = 1
   fetchBackups()
 }
@@ -314,8 +377,25 @@ const handleSelectionChange = (selection: Backup[]) => {
 
 // 处理创建备份
 const handleCreateBackup = () => {
+  if (!canRunBackupActions.value) {
+    void goSubscribe()
+    return
+  }
   resetCreateBackupForm()
   createDialogVisible.value = true
+}
+
+const goSubscribe = async () => {
+  try {
+    const resp = await createCheckoutSession({ pack_key: backupPackKey.value })
+    if (resp.url) {
+      window.location.href = resp.url
+    } else {
+      ElMessage.info('当前账号无需订阅')
+    }
+  } catch {
+    /* 拦截器已提示 */
+  }
 }
 
 // 处理恢复备份
@@ -461,6 +541,10 @@ const formatFileSize = (size: number): string => {
   color: var(--el-color-primary);
   font-size: 30px;
   font-weight: 600;
+}
+
+.billing-alert {
+  margin-bottom: 16px;
 }
 
 .search-filters {

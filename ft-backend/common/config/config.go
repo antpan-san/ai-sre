@@ -21,14 +21,14 @@ type Config struct {
 	Redis    RedisConfig    `yaml:"redis"`
 	Opsfleet OpsfleetConfig `yaml:"opsfleet"`
 	Security SecurityConfig `yaml:"security"`
-	Billing  BillingConfig   `yaml:"billing"`
+	Billing  BillingConfig  `yaml:"billing"`
 	Log      struct {
 		Level string `yaml:"level"`
 	} `yaml:"log"`
 }
 
-// BillingPackage maps a Stripe Price 到订阅后授予的一组 feature_key（多功能包）。
-// 若 billing.packages 为空且 stripe_price_id_pro 非空，运行时会退化为仅此价授予 feature.advanced（兼容旧配置）。
+// BillingPackage maps a Stripe Price 到订阅后授予的功能包和兼容 feature_key。
+// 若 billing.packages 为空且 stripe_price_id_pro 非空，运行时会退化为备份与性能包（兼容旧配置）。
 type BillingPackage struct {
 	ID            string   `yaml:"id"`
 	DisplayName   string   `yaml:"display_name"`
@@ -40,7 +40,7 @@ type BillingPackage struct {
 type BillingConfig struct {
 	StripeSecretKey     string           `yaml:"stripe_secret_key"`
 	StripeWebhookSecret string           `yaml:"stripe_webhook_secret"`
-	StripePriceIDPro    string           `yaml:"stripe_price_id_pro"` // 兼容旧版单包：仅授予高级功能
+	StripePriceIDPro    string           `yaml:"stripe_price_id_pro"` // 兼容旧版单包：授予备份与性能包
 	PublicAppBaseURL    string           `yaml:"public_app_base_url"`
 	Packages            []BillingPackage `yaml:"packages"`
 }

@@ -771,6 +771,7 @@ func SubmitK8sDeployWithAnsible(c *gin.Context) {
 		TotalCount:  1, // Ansible 在 executor 节点执行，SSH 到 Master/Worker 节点
 		TimeoutSec:  3600,
 	}
+	applyBillingSnapshot(c, &task)
 	if err := tx.Create(&task).Error; err != nil {
 		tx.Rollback()
 		response.ServerError(c, "创建部署任务失败")

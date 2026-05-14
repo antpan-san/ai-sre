@@ -107,6 +107,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.Use(middleware.RequireSuperAdmin())
 
 		protected.GET("/billing/me", handlers.GetBillingMe)
+		protected.GET("/billing/capabilities", handlers.GetBillingCapabilities)
 		protected.GET("/billing/packages", handlers.ListBillingPackages)
 		protected.POST("/billing/checkout-session", handlers.CreateStripeCheckoutSession)
 
@@ -138,7 +139,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		adminOnly.POST("/machine/:id/register-workers", handlers.RegisterWorkerNodes)
 
 		// ---- Task System (core) ----
-		adminOnly.POST("/task", handlers.CreateTask)
+		adminOnly.POST("/task", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.CreateTask)
 		protected.GET("/task", handlers.GetTaskList)
 		protected.GET("/task/:id", handlers.GetTaskDetail)
 		adminOnly.POST("/task/:id/cancel", handlers.CancelTask)
@@ -146,7 +147,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// ---- Job Center ----
 		protected.GET("/job/machines", handlers.GetJobMachines)
-		adminOnly.POST("/job/execute", handlers.ExecuteJob)
+		adminOnly.POST("/job/execute", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ExecuteJob)
 		protected.GET("/job/result/:jobId", handlers.GetJobResult)
 
 		// ---- Execution Records ----
@@ -158,64 +159,60 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		adminOnly.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
 		adminOnly.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
 
-		// ---- Service Management（计费开启时需 feature.service_ops） ----
+		// ---- Service Management（计费开启时需 pack.node_ops） ----
 		svcAdmin := console.Group("")
-		svcAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyServiceOps))
-		svcAdmin.POST("/service/deploy", handlers.DeployService)
-		svcAdmin.GET("/service/list", handlers.GetServiceList)
-		svcAdmin.GET("/service/detail", handlers.GetServiceDetail)
-		svcAdmin.POST("/service/start", handlers.ServiceAction("start"))
-		svcAdmin.POST("/service/stop", handlers.ServiceAction("stop"))
-		svcAdmin.POST("/service/restart", handlers.ServiceAction("restart"))
-		svcAdmin.DELETE("/service/delete", handlers.DeleteService)
-		svcAdmin.POST("/service/batch-delete", handlers.BatchDeleteService)
-		svcAdmin.GET("/service/linux/list", handlers.GetLinuxServiceList)
-		svcAdmin.POST("/service/linux/operate", handlers.OperateLinuxService)
-		svcAdmin.POST("/service-deploy/deployments", handlers.CreateServiceDeployment)
-		svcAdmin.PUT("/service-deploy/deployments/:id", handlers.UpdateServiceDeployment)
+		svcAdmin.GET("/service/list", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetServiceList)
+		svcAdmin.GET("/service/detail", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetServiceDetail)
+		svcAdmin.GET("/service/linux/list", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetLinuxServiceList)
+		svcAdmin.POST("/service/deploy", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.DeployService)
+		svcAdmin.POST("/service/start", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ServiceAction("start"))
+		svcAdmin.POST("/service/stop", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ServiceAction("stop"))
+		svcAdmin.POST("/service/restart", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ServiceAction("restart"))
+		svcAdmin.DELETE("/service/delete", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.DeleteService)
+		svcAdmin.POST("/service/batch-delete", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.BatchDeleteService)
+		svcAdmin.POST("/service/linux/operate", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.OperateLinuxService)
+		svcAdmin.POST("/service-deploy/deployments", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.CreateServiceDeployment)
+		svcAdmin.PUT("/service-deploy/deployments/:id", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.UpdateServiceDeployment)
 
-		// ---- K8s Deployment（计费开启时需 feature.k8s_ops） ----
+		// ---- K8s Deployment（计费开启时需 pack.k8s_delivery） ----
 		k8sPaid := protected.Group("")
-		k8sPaid.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyK8sOps))
-		k8sPaid.GET("/k8s/deploy/versions", handlers.GetK8sVersions)
-		k8sPaid.GET("/k8s/deploy/component-catalog", handlers.GetK8sComponentCatalog)
-		k8sPaid.GET("/k8s/deploy/progress", handlers.GetK8sDeployProgress)
-		k8sPaid.GET("/k8s/deploy/logs", handlers.GetK8sDeployLogs)
-		k8sPaid.GET("/k8s/mirror/catalog", handlers.GetK8sMirrorCatalog)
+		k8sPaid.GET("/k8s/deploy/versions", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sVersions)
+		k8sPaid.GET("/k8s/deploy/component-catalog", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sComponentCatalog)
+		k8sPaid.GET("/k8s/deploy/progress", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sDeployProgress)
+		k8sPaid.GET("/k8s/deploy/logs", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sDeployLogs)
+		k8sPaid.GET("/k8s/mirror/catalog", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sMirrorCatalog)
 		k8sAdminPaid := console.Group("")
-		k8sAdminPaid.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyK8sOps))
-		k8sAdminPaid.GET("/k8s/deploy/machines", handlers.GetK8sDeployMachines)
-		k8sAdminPaid.GET("/k8s/deploy/check-name", handlers.CheckClusterName)
-		k8sAdminPaid.POST("/k8s/deploy/submit", handlers.SubmitK8sDeployWithAnsible) // Ansible-integrated
-		k8sAdminPaid.POST("/k8s/deploy/terminate", handlers.TerminateK8sDeploy)      // 终止部署并下发清理任务
-		k8sAdminPaid.GET("/k8s/clusters", handlers.GetK8sClusters)
-		k8sAdminPaid.POST("/k8s/deploy/bundle", handlers.GenerateK8sOfflineBundle)
-		k8sAdminPaid.POST("/k8s/deploy/bundle-invite", handlers.CreateK8sBundleInvite)
-		k8sAdminPaid.GET("/k8s/deploy/relay/preflight", handlers.GetK8sRelayPreflight)
-		k8sAdminPaid.POST("/k8s/deploy/relay/warm", handlers.PostK8sRelayWarm)
+		k8sAdminPaid.GET("/k8s/deploy/machines", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sDeployMachines)
+		k8sAdminPaid.GET("/k8s/deploy/check-name", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.CheckClusterName)
+		k8sAdminPaid.GET("/k8s/clusters", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sClusters)
+		k8sAdminPaid.GET("/k8s/deploy/relay/preflight", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionView), handlers.GetK8sRelayPreflight)
+		k8sAdminPaid.POST("/k8s/deploy/submit", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionExecute), handlers.SubmitK8sDeployWithAnsible) // Ansible-integrated
+		k8sAdminPaid.POST("/k8s/deploy/terminate", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionExecute), handlers.TerminateK8sDeploy)      // 终止部署并下发清理任务
+		k8sAdminPaid.POST("/k8s/deploy/bundle", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionDownload), handlers.GenerateK8sOfflineBundle)
+		k8sAdminPaid.POST("/k8s/deploy/bundle-invite", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionDownload), handlers.CreateK8sBundleInvite)
+		k8sAdminPaid.POST("/k8s/deploy/relay/warm", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionDownload), handlers.PostK8sRelayWarm)
 
-		// ---- Proxy / Monitoring / Init Tools（计费开启时需 feature.infra_ops） ----
+		// ---- Proxy / Monitoring / Init Tools（计费开启时需 pack.node_ops / pack.monitoring） ----
 		infraAdmin := console.Group("")
-		infraAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyInfraOps))
-		infraAdmin.GET("/proxy/config/list", handlers.GetProxyConfigList)
-		infraAdmin.GET("/proxy/config/detail", handlers.GetProxyConfigDetail)
-		infraAdmin.POST("/proxy/config/save", handlers.SaveProxyConfig)
-		infraAdmin.DELETE("/proxy/config/delete", handlers.DeleteProxyConfig)
-		infraAdmin.POST("/proxy/config/apply", handlers.ApplyProxyConfig)
-		infraAdmin.GET("/init-tools/system-params", handlers.GetSystemParams)
-		infraAdmin.POST("/init-tools/system-params", handlers.ApplySystemParams)
-		infraAdmin.POST("/init-tools/time-sync", handlers.ApplyTimeSync)
-		infraAdmin.POST("/init-tools/security-harden", handlers.ApplySecurityHarden)
-		infraAdmin.POST("/init-tools/disk-optimize", handlers.ApplyDiskOptimize)
-		infraAdmin.GET("/monitoring/configs", handlers.GetMonitoringConfigList)
-		infraAdmin.GET("/monitoring/configs/:id", handlers.GetMonitoringConfig)
-		infraAdmin.POST("/monitoring/configs", handlers.CreateMonitoringConfig)
-		infraAdmin.PUT("/monitoring/configs/:id", handlers.UpdateMonitoringConfig)
-		infraAdmin.DELETE("/monitoring/configs/:id", handlers.DeleteMonitoringConfig)
-		infraAdmin.GET("/monitoring/alert-rules", handlers.GetAlertRules)
-		infraAdmin.POST("/monitoring/alert-rules", handlers.CreateAlertRule)
-		infraAdmin.PUT("/monitoring/alert-rules/:id", handlers.UpdateAlertRule)
-		infraAdmin.DELETE("/monitoring/alert-rules/:id", handlers.DeleteAlertRule)
+		infraAdmin.GET("/proxy/config/list", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetProxyConfigList)
+		infraAdmin.GET("/proxy/config/detail", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetProxyConfigDetail)
+		infraAdmin.POST("/proxy/config/save", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.SaveProxyConfig)
+		infraAdmin.DELETE("/proxy/config/delete", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.DeleteProxyConfig)
+		infraAdmin.POST("/proxy/config/apply", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplyProxyConfig)
+		infraAdmin.GET("/init-tools/system-params", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetSystemParams)
+		infraAdmin.POST("/init-tools/system-params", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplySystemParams)
+		infraAdmin.POST("/init-tools/time-sync", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplyTimeSync)
+		infraAdmin.POST("/init-tools/security-harden", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplySecurityHarden)
+		infraAdmin.POST("/init-tools/disk-optimize", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplyDiskOptimize)
+		infraAdmin.GET("/monitoring/configs", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionView), handlers.GetMonitoringConfigList)
+		infraAdmin.GET("/monitoring/configs/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionView), handlers.GetMonitoringConfig)
+		infraAdmin.POST("/monitoring/configs", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.CreateMonitoringConfig)
+		infraAdmin.PUT("/monitoring/configs/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.UpdateMonitoringConfig)
+		infraAdmin.DELETE("/monitoring/configs/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.DeleteMonitoringConfig)
+		infraAdmin.GET("/monitoring/alert-rules", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionView), handlers.GetAlertRules)
+		infraAdmin.POST("/monitoring/alert-rules", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.CreateAlertRule)
+		infraAdmin.PUT("/monitoring/alert-rules/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.UpdateAlertRule)
+		infraAdmin.DELETE("/monitoring/alert-rules/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.DeleteAlertRule)
 
 		// ---- Security & Audit（读：租户成员；写：管理员） ----
 		console.GET("/security-audit/operation-logs", handlers.GetOperationLogs)
@@ -230,24 +227,23 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		adminOnly.POST("/security-audit/roles/:role/permissions", handlers.AssignRolePermissions)
 
 		adv := protected.Group("")
-		adv.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyAdvanced))
 		advAdmin := protected.Group("")
-		advAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyAdvanced), middleware.RequireAdmin())
+		advAdmin.Use(middleware.RequireAdmin())
 		// ---- Advanced / Backup (path aligned with frontend: /backups) ----
-		adv.GET("/advanced/backups", handlers.GetBackupList)
-		adv.GET("/advanced/backups/:id", handlers.GetBackupDetail)
-		advAdmin.POST("/advanced/backups", handlers.Backup)
-		advAdmin.POST("/advanced/backups/:id/restore", handlers.Restore)
-		advAdmin.DELETE("/advanced/backups/:id", handlers.DeleteBackup)
+		adv.GET("/advanced/backups", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GetBackupList)
+		adv.GET("/advanced/backups/:id", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GetBackupDetail)
+		advAdmin.POST("/advanced/backups", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionExecute), handlers.Backup)
+		advAdmin.POST("/advanced/backups/:id/restore", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionExecute), handlers.Restore)
+		advAdmin.DELETE("/advanced/backups/:id", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionExecute), handlers.DeleteBackup)
 		// Legacy path (keep for compatibility)
-		adv.GET("/advanced/backup", handlers.GetBackupList)
-		advAdmin.POST("/advanced/backup", handlers.Backup)
+		adv.GET("/advanced/backup", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GetBackupList)
+		advAdmin.POST("/advanced/backup", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionExecute), handlers.Backup)
 
 		// ---- Advanced / Performance ----
-		adv.GET("/advanced/performance", handlers.GetPerformanceData)
-		adv.POST("/advanced/performance/report/generate", handlers.GeneratePerformanceReport)
+		adv.GET("/advanced/performance", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GetPerformanceData)
+		adv.POST("/advanced/performance/report/generate", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GeneratePerformanceReport)
 		// Legacy path
-		adv.POST("/advanced/performance/report", handlers.GeneratePerformanceReport)
+		adv.POST("/advanced/performance/report", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GeneratePerformanceReport)
 
 		// ---- File Management ----
 		protected.POST("/files/upload", handlers.UploadFile)

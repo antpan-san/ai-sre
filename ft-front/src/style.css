@@ -1,56 +1,74 @@
 :root {
-  /* 基础样式：偏小米官网 — 深色正文 + 留白 + 米橙点缀 */
+  /* Apple design tokens from DESIGN.md */
   font-family:
+    "SF Pro Text",
     -apple-system,
     BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Helvetica,
-    Arial,
-    "PingFang SC",
-    "Hiragino Sans GB",
-    "Microsoft YaHei",
+    system-ui,
     sans-serif;
-  line-height: 1.5;
+  line-height: 1.47;
   font-weight: 400;
-  color: #333333;
+  color: #1d1d1f;
   background-color: #ffffff;
 
-  /* Element Plus：米橙主色（与小米系官网 common 橙色接近） */
-  --el-color-primary: #ff6900;
-  --el-color-primary-light-3: #ff8533;
-  --el-color-primary-light-5: #ff9f5c;
-  --el-color-primary-light-7: #ffc299;
-  --el-color-primary-light-8: #ffd4b8;
-  --el-color-primary-light-9: #fff0e8;
-  --el-color-primary-dark-2: #e85f00;
-  --el-color-info: #8c8c8c;
+  --apple-primary: #0066cc;
+  --apple-primary-focus: #0071e3;
+  --apple-ink: #1d1d1f;
+  --apple-ink-muted: #7a7a7a;
+  --apple-canvas: #ffffff;
+  --apple-canvas-parchment: #f5f5f7;
+  --apple-pill: 9999px;
+  --apple-font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --apple-font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --apple-body-size: 17px;
+  --apple-body-line: 1.47;
+  --apple-title-tracking: 0;
 
-  /* 与小米风页面块、K8s 向导等共用的暖色高光（替代原冷蓝渐变） */
-  --mi-surface-warm-a: #fffaf6;
-  --mi-surface-warm-b: #fff0e8;
-  --mi-brand-rgb: 255, 105, 0;
+  /* Element Plus: single Action Blue interactive color */
+  --el-color-primary: #0066cc;
+  --el-color-primary-light-3: #0071e3;
+  --el-color-primary-light-5: #0066cc;
+  --el-color-primary-light-7: #0066cc;
+  --el-color-primary-light-8: #0066cc;
+  --el-color-primary-light-9: #f5f5f7;
+  --el-color-primary-dark-2: #0066cc;
+  --el-color-success: #0066cc;
+  --el-color-warning: #0066cc;
+  --el-color-danger: #0066cc;
+  --el-color-info: #7a7a7a;
+
+  --mi-surface-warm-a: #ffffff;
+  --mi-surface-warm-b: #f5f5f7;
+  --mi-brand-rgb: 0, 102, 204;
 
   /* 布局壳层 */
-  --layout-page-bg: #f5f5f5;
+  --layout-page-bg: #f5f5f7;
   --layout-sidebar-bg: #ffffff;
-  --layout-sidebar-border: #e7e7e7;
-  --layout-sidebar-text: #666666;
-  --layout-sidebar-text-strong: #333333;
-  --layout-sidebar-active-bg: rgba(255, 105, 0, 0.08);
-  --layout-sidebar-hover-bg: rgba(0, 0, 0, 0.04);
-  --layout-sidebar-sub-bg: #fafafa;
-  --layout-header-bg: rgba(255, 255, 255, 0.96);
-  --layout-header-border: #ebebeb;
+  --layout-sidebar-border: transparent;
+  --layout-sidebar-text: #7a7a7a;
+  --layout-sidebar-text-strong: #1d1d1f;
+  --layout-sidebar-active-bg: #f5f5f7;
+  --layout-sidebar-hover-bg: #f5f5f7;
+  --layout-sidebar-sub-bg: #f5f5f7;
+  --layout-header-bg: #ffffff;
+  --layout-header-border: transparent;
   --layout-content-surface: #ffffff;
-  --layout-shadow-soft: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --layout-shadow-soft: none;
 
-  /* Element Plus 正文灰阶（小米官网常见对比） */
-  --el-text-color-primary: #333333;
-  --el-text-color-regular: #666666;
-  --el-text-color-secondary: #999999;
-  --el-text-color-placeholder: #b0b0b0;
+  --el-text-color-primary: #1d1d1f;
+  --el-text-color-regular: #1d1d1f;
+  --el-text-color-secondary: #7a7a7a;
+  --el-text-color-placeholder: #7a7a7a;
+  --el-bg-color: #ffffff;
+  --el-bg-color-page: #f5f5f7;
+  --el-fill-color: #f5f5f7;
+  --el-fill-color-light: #f5f5f7;
+  --el-fill-color-lighter: #f5f5f7;
+  --el-fill-color-blank: #ffffff;
+  --el-border-color: transparent;
+  --el-border-color-light: transparent;
+  --el-border-color-lighter: transparent;
+  --el-border-color-extra-light: transparent;
 
   /* 布局变量 */
   --layout-header-height: 52px;
@@ -114,8 +132,8 @@
 }
 
 .page-shell--crud .el-card {
-  border-radius: 12px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* 基础重置 */
@@ -172,9 +190,9 @@ a:hover {
 
 /* 顶栏用户下拉（挂载在 body，与 MainLayout 配套） */
 .layout-user-dropdown.el-popper {
-  border: 1px solid var(--layout-sidebar-border) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none;
   padding: 6px !important;
 }
 
@@ -200,9 +218,9 @@ a:hover {
 .install-ai-sre-popover.el-popper.is-light,
 .install-ai-sre-popover.el-popper {
   padding: 16px !important;
-  border: 1px solid var(--layout-sidebar-border) !important;
-  border-radius: 12px !important;
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.1) !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none;
 }
 
 .install-ai-sre-popover .install-ai-sre-panel__desc {
@@ -234,4 +252,345 @@ a:hover {
   margin-top: 12px;
   display: flex;
   justify-content: flex-end;
+}
+
+/* Apple flat system theme */
+*,
+*::before,
+*::after {
+  letter-spacing: 0 !important;
+  box-shadow: none;
+  background-image: none !important;
+}
+
+html,
+body,
+#app {
+  background: var(--apple-canvas-parchment) !important;
+  color: var(--apple-ink) !important;
+  font-family: var(--apple-font-text) !important;
+  font-size: var(--apple-body-size) !important;
+  line-height: var(--apple-body-line) !important;
+}
+
+body {
+  color: var(--apple-ink);
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.page-title,
+.user-page-title,
+.register-title,
+.login-title,
+.sidebar-brand-title,
+.card-title,
+.section-title,
+.stats-title,
+.module-title,
+.el-dialog__title,
+.el-card__header {
+  font-family: var(--apple-font-display) !important;
+  font-weight: 600 !important;
+  letter-spacing: var(--apple-title-tracking) !important;
+  color: var(--apple-ink) !important;
+}
+
+p,
+span,
+label,
+li,
+td,
+th,
+.el-form-item__label,
+.el-input__inner,
+.el-textarea__inner,
+.el-select-dropdown__item,
+.el-table,
+.el-menu,
+.el-message-box__message,
+.el-dialog__body {
+  font-family: var(--apple-font-text) !important;
+  font-size: var(--apple-body-size);
+  line-height: var(--apple-body-line);
+}
+
+a,
+.el-link,
+.el-button.is-link,
+.el-button--text,
+.register-link,
+.breadcrumb-item:hover,
+.sidebar-menu .el-menu-item.is-active,
+.sidebar-menu .el-sub-menu__title:hover {
+  color: var(--apple-primary) !important;
+}
+
+button,
+.el-button,
+.el-switch,
+.el-link,
+a,
+[role="button"] {
+  transition:
+    transform 0.14s ease,
+    background-color 0.18s ease,
+    color 0.18s ease !important;
+}
+
+button:active,
+.el-button:active,
+.el-switch:active,
+.el-link:active,
+a:active,
+[role="button"]:active {
+  transform: scale(0.95) !important;
+}
+
+.el-button {
+  min-height: 42px;
+  border: 0 !important;
+  border-radius: var(--apple-pill) !important;
+  background: transparent !important;
+  color: var(--apple-primary) !important;
+  font-family: var(--apple-font-text) !important;
+  font-size: 17px !important;
+  line-height: 1 !important;
+  padding: 11px 22px !important;
+}
+
+.el-button--primary,
+.el-button--success,
+.el-button--warning,
+.el-button--danger,
+.el-button--info,
+.el-button:not(.is-link):not(.el-button--text).el-button--default:hover,
+.el-button:not(.is-link):not(.el-button--text).is-plain:hover {
+  background: var(--apple-primary) !important;
+  color: #ffffff !important;
+}
+
+.el-button--default,
+.el-button.is-plain {
+  background: var(--apple-canvas) !important;
+  color: var(--apple-primary) !important;
+}
+
+.el-button.is-disabled,
+.el-button.is-disabled:hover {
+  background: var(--apple-canvas-parchment) !important;
+  color: var(--apple-ink-muted) !important;
+  opacity: 0.65;
+}
+
+.el-switch.is-checked .el-switch__core {
+  background: var(--apple-primary) !important;
+  border-color: transparent !important;
+}
+
+.el-switch__core {
+  background: var(--apple-canvas-parchment) !important;
+  border-color: transparent !important;
+}
+
+.el-radio__input.is-checked .el-radio__inner,
+.el-checkbox__input.is-checked .el-checkbox__inner {
+  background: var(--apple-primary) !important;
+  border-color: var(--apple-primary) !important;
+}
+
+.main-layout,
+.content,
+.content-route,
+.page-shell,
+.login-page,
+.register-page,
+.dashboard-page,
+.backup-restore,
+.performance-analysis {
+  background: var(--apple-canvas-parchment) !important;
+}
+
+.sidebar,
+.header,
+.content-inner,
+.el-card,
+.el-card__body,
+.el-dialog,
+.el-dialog__body,
+.el-message-box,
+.el-popover.el-popper,
+.el-popper.is-light,
+.el-dropdown-menu,
+.el-table,
+.el-table__inner-wrapper,
+.el-table__body,
+.el-table__header,
+.el-table__footer,
+.el-tabs__content,
+.el-collapse,
+.el-collapse-item__header,
+.el-collapse-item__wrap,
+.search-filters,
+.filter-bar,
+.toolbar,
+.page-head,
+.user-page-head,
+.stats-card,
+.stat-card,
+.resource-card,
+.snapshot-card,
+.overview-card,
+.table-card,
+.catalog-card,
+.chart-card,
+.data-table-card,
+.recent-deployments-card,
+.user-data-card,
+.feature-billing,
+.backup-table,
+.data-table-container,
+.charts-container,
+.form-section,
+.config-section,
+.section-card,
+.config-card,
+.info-card,
+.panel,
+.card,
+.register-card,
+.login-card {
+  background: var(--apple-canvas) !important;
+  border: 0 !important;
+  box-shadow: none;
+}
+
+.el-card:nth-of-type(even),
+.stats-cards > :nth-child(even),
+.search-filters,
+.batch-actions,
+.chart-placeholder,
+.empty-state,
+.preview-box,
+.script-preview,
+.code-block,
+pre,
+code,
+.el-table__row:nth-child(even) > td,
+.el-table tr:nth-child(even) > td,
+.el-table th.el-table__cell,
+.el-table__header-wrapper,
+.el-alert,
+.el-tag,
+.menu-pack-tag,
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper,
+.el-date-editor,
+.el-input-number,
+.el-upload-dragger {
+  background: var(--apple-canvas-parchment) !important;
+  border: 0 !important;
+  box-shadow: none;
+}
+
+.el-table__row:nth-child(odd) > td,
+.el-table tr:nth-child(odd) > td,
+.el-table td.el-table__cell {
+  background: var(--apple-canvas) !important;
+  border: 0 !important;
+}
+
+.el-table::before,
+.el-table__inner-wrapper::before,
+.el-table__border-left-patch,
+.el-card,
+.el-input__wrapper,
+.el-textarea__inner,
+.el-select__wrapper,
+.el-date-editor,
+.el-popper,
+.el-dialog,
+.el-message-box,
+.el-table--border,
+.el-table--group,
+.el-tabs__nav-wrap::after,
+.el-collapse {
+  border: 0 !important;
+  box-shadow: none;
+}
+
+.el-input__wrapper.is-focus,
+.el-select__wrapper.is-focused,
+.el-textarea__inner:focus,
+.el-date-editor.is-active {
+  outline: 2px solid var(--apple-primary) !important;
+  outline-offset: 2px;
+}
+
+.el-alert,
+.el-tag,
+.menu-pack-tag {
+  color: var(--apple-ink) !important;
+}
+
+.el-tag--primary,
+.menu-pack-tag {
+  color: var(--apple-primary) !important;
+}
+
+.el-menu,
+.el-menu-item,
+.el-sub-menu__title {
+  background: transparent !important;
+  border: 0 !important;
+}
+
+.el-menu-item:hover,
+.el-sub-menu__title:hover,
+.el-menu-item.is-active {
+  background: var(--apple-canvas-parchment) !important;
+  color: var(--apple-primary) !important;
+}
+
+.el-scrollbar__thumb,
+::-webkit-scrollbar-thumb {
+  background: var(--apple-canvas-parchment) !important;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--apple-canvas) !important;
+}
+
+.el-progress-bar__outer {
+  background: var(--apple-canvas-parchment) !important;
+}
+
+.el-progress-bar__inner,
+#nprogress .bar {
+  background: var(--apple-primary) !important;
+}
+
+.login-page-bg,
+.register-page-bg {
+  background: var(--apple-canvas-parchment) !important;
+}
+
+.sidebar-brand-mark,
+.user-avatar,
+.module-icon,
+.stat-icon,
+.card-icon,
+.section-icon {
+  background: var(--apple-primary) !important;
+  color: #ffffff !important;
+}
+
+.error-message,
+.el-form-item__error {
+  color: var(--apple-primary) !important;
 }

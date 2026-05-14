@@ -17,18 +17,18 @@ import (
 func GetSystemParams(c *gin.Context) {
 	// Return default recommended kernel parameters
 	params := map[string]interface{}{
-		"vm.swappiness":                        10,
-		"net.core.somaxconn":                   65535,
-		"net.ipv4.tcp_max_syn_backlog":         65535,
-		"net.ipv4.ip_forward":                  1,
-		"net.bridge.bridge-nf-call-iptables":   1,
-		"net.bridge.bridge-nf-call-ip6tables":  1,
-		"fs.file-max":                          1048576,
-		"fs.inotify.max_user_watches":          524288,
-		"net.ipv4.tcp_keepalive_time":          600,
-		"net.ipv4.tcp_keepalive_intvl":         30,
-		"net.ipv4.tcp_keepalive_probes":        10,
-		"kernel.pid_max":                       65535,
+		"vm.swappiness":                       10,
+		"net.core.somaxconn":                  65535,
+		"net.ipv4.tcp_max_syn_backlog":        65535,
+		"net.ipv4.ip_forward":                 1,
+		"net.bridge.bridge-nf-call-iptables":  1,
+		"net.bridge.bridge-nf-call-ip6tables": 1,
+		"fs.file-max":                         1048576,
+		"fs.inotify.max_user_watches":         524288,
+		"net.ipv4.tcp_keepalive_time":         600,
+		"net.ipv4.tcp_keepalive_intvl":        30,
+		"net.ipv4.tcp_keepalive_probes":       10,
+		"kernel.pid_max":                      65535,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -70,7 +70,7 @@ func ApplySystemParams(c *gin.Context) {
 	}
 	script += "sysctl -p\necho 'System parameters optimized successfully'\n"
 
-	task, err := createInitTask(username.(string), "系统参数优化", string(models.TaskTypeSysInit),
+	task, err := createInitTask(c, username.(string), "系统参数优化", string(models.TaskTypeSysInit),
 		req.MachineIDs, map[string]interface{}{"script": script})
 	if err != nil {
 		logger.Error("创建系统参数优化任务失败: %v", err)
@@ -130,7 +130,7 @@ systemctl restart chronyd
 chronyc makestep
 echo "Time synchronization configured successfully"
 `
-	task, err := createInitTask(username.(string), "时间同步配置", string(models.TaskTypeTimeSync),
+	task, err := createInitTask(c, username.(string), "时间同步配置", string(models.TaskTypeTimeSync),
 		req.MachineIDs, map[string]interface{}{"script": script, "ntp_server": req.NTPServer, "timezone": req.Timezone})
 	if err != nil {
 		logger.Error("创建时间同步任务失败: %v", err)
@@ -200,7 +200,7 @@ systemctl restart sshd
 echo "Security hardening completed successfully"
 `
 
-	task, err := createInitTask(username.(string), "安全加固", string(models.TaskTypeSecurityHarden),
+	task, err := createInitTask(c, username.(string), "安全加固", string(models.TaskTypeSecurityHarden),
 		req.MachineIDs, map[string]interface{}{"script": script})
 	if err != nil {
 		logger.Error("创建安全加固任务失败: %v", err)
@@ -252,7 +252,7 @@ done
 
 echo "Disk optimization completed successfully"
 `
-	task, err := createInitTask(username.(string), "磁盘分区优化", string(models.TaskTypeDiskOptimize),
+	task, err := createInitTask(c, username.(string), "磁盘分区优化", string(models.TaskTypeDiskOptimize),
 		req.MachineIDs, map[string]interface{}{"script": script})
 	if err != nil {
 		logger.Error("创建磁盘优化任务失败: %v", err)
@@ -270,7 +270,7 @@ echo "Disk optimization completed successfully"
 // ---- Helper Functions ----
 
 // createInitTask is a helper to create init-tool tasks with sub-tasks.
-func createInitTask(username, name, taskType string, machineIDs []string, payload map[string]interface{}) (*models.Task, error) {
+func createInitTask(c *gin.Context, username, name, taskType string, machineIDs []string, payload map[string]interface{}) (*models.Task, error) {
 	payloadJSON, _ := json.Marshal(payload)
 	targetIDsJSON, _ := json.Marshal(machineIDs)
 
@@ -284,6 +284,7 @@ func createInitTask(username, name, taskType string, machineIDs []string, payloa
 		TotalCount: len(machineIDs),
 		TimeoutSec: 600,
 	}
+	applyBillingSnapshot(c, &task)
 
 	tx := database.DB.Begin()
 	if err := tx.Create(&task).Error; err != nil {

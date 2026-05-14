@@ -99,6 +99,7 @@ func Migrate() error {
 		&models.FeatureBillingSetting{},
 		&models.Subscription{},
 		&models.Entitlement{},
+		&models.AIUsage{},
 		// NOTE: Heartbeat is NOT included here – it is a partitioned table
 		// and must be created via the migration_pg.sql script.
 	)
@@ -329,10 +330,15 @@ func ExecRawSQL(query string, args ...interface{}) error {
 
 func seedFeatureBillingDefaults() {
 	rows := []models.FeatureBillingSetting{
-		{FeatureKey: models.FeatureKeyK8sOps, BillingEnabled: false, Description: "K8s 交付（部署提交、bundle、集群、relay）"},
-		{FeatureKey: models.FeatureKeyServiceOps, BillingEnabled: false, Description: "服务交付（控制台服务部署、Linux 服务）"},
-		{FeatureKey: models.FeatureKeyInfraOps, BillingEnabled: false, Description: "基础设施（代理配置、监控告警、初始化工具）"},
-		{FeatureKey: models.FeatureKeyAdvanced, BillingEnabled: false, Description: "高级功能（备份与恢复、性能分析）"},
+		{FeatureKey: models.FeatureKeyK8sDelivery, PackKey: models.PackKeyK8sDelivery, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyK8sDelivery)},
+		{FeatureKey: models.FeatureKeyNodeOps, PackKey: models.PackKeyNodeOps, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyNodeOps)},
+		{FeatureKey: models.FeatureKeyMonitoring, PackKey: models.PackKeyMonitoring, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyMonitoring)},
+		{FeatureKey: models.FeatureKeyBackupPerformance, PackKey: models.PackKeyBackupPerformance, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyBackupPerformance)},
+		{FeatureKey: models.FeatureKeyAIDiagnosis, PackKey: models.SkillPackK8s, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyAIDiagnosis)},
+		{FeatureKey: models.FeatureKeyK8sOps, PackKey: models.PackKeyK8sDelivery, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyK8sOps)},
+		{FeatureKey: models.FeatureKeyServiceOps, PackKey: models.PackKeyNodeOps, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyServiceOps)},
+		{FeatureKey: models.FeatureKeyInfraOps, PackKey: models.PackKeyNodeOps, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyInfraOps)},
+		{FeatureKey: models.FeatureKeyAdvanced, PackKey: models.PackKeyBackupPerformance, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyAdvanced)},
 	}
 	for _, r := range rows {
 		var n int64
@@ -341,6 +347,15 @@ func seedFeatureBillingDefaults() {
 			continue
 		}
 		if n > 0 {
+			updates := map[string]interface{}{
+				"pack_key": r.PackKey,
+			}
+			if err := DB.Model(&models.FeatureBillingSetting{}).
+				Where("feature_key = ?", r.FeatureKey).
+				Where("pack_key = '' OR pack_key IS NULL").
+				Updates(updates).Error; err != nil {
+				logger.Error("feature billing seed heal: %v", err)
+			}
 			continue
 		}
 		if err := DB.Create(&r).Error; err != nil {

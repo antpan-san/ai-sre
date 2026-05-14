@@ -37,20 +37,24 @@ const (
 // Task represents a top-level task (may be split into sub-tasks for multiple machines).
 type Task struct {
 	BaseModel
-	Name         string     `gorm:"size:200;not null" json:"name"`
-	Type         string     `gorm:"size:50;not null" json:"type"`
-	Status       string     `gorm:"size:20;not null;default:'pending'" json:"status"`
-	Priority     int        `gorm:"not null;default:0" json:"priority"`                 // 优先级, 0=normal, 1=high, 2=urgent
-	CreatedBy    string     `gorm:"size:50;not null" json:"created_by"`                 // 创建人用户名
-	Description  string     `gorm:"size:500" json:"description"`                        // 任务描述
-	Payload      JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"payload"`    // 任务参数 (脚本内容/配置等)
-	TargetIDs    JSONB      `gorm:"type:jsonb;not null;default:'[]'" json:"target_ids"` // 目标机器ID列表
-	TotalCount   int        `gorm:"not null;default:0" json:"total_count"`              // 子任务总数
-	SuccessCount int        `gorm:"not null;default:0" json:"success_count"`            // 成功数
-	FailedCount  int        `gorm:"not null;default:0" json:"failed_count"`             // 失败数
-	TimeoutSec   int        `gorm:"not null;default:300" json:"timeout_sec"`            // 超时秒数
-	StartedAt    *time.Time `json:"started_at,omitempty"`
-	FinishedAt   *time.Time `json:"finished_at,omitempty"`
+	Name              string     `gorm:"size:200;not null" json:"name"`
+	Type              string     `gorm:"size:50;not null" json:"type"`
+	Status            string     `gorm:"size:20;not null;default:'pending'" json:"status"`
+	Priority          int        `gorm:"not null;default:0" json:"priority"`                 // 优先级, 0=normal, 1=high, 2=urgent
+	CreatedBy         string     `gorm:"size:50;not null" json:"created_by"`                 // 创建人用户名
+	Description       string     `gorm:"size:500" json:"description"`                        // 任务描述
+	Payload           JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"payload"`    // 任务参数 (脚本内容/配置等)
+	TargetIDs         JSONB      `gorm:"type:jsonb;not null;default:'[]'" json:"target_ids"` // 目标机器ID列表
+	TotalCount        int        `gorm:"not null;default:0" json:"total_count"`              // 子任务总数
+	SuccessCount      int        `gorm:"not null;default:0" json:"success_count"`            // 成功数
+	FailedCount       int        `gorm:"not null;default:0" json:"failed_count"`             // 失败数
+	TimeoutSec        int        `gorm:"not null;default:300" json:"timeout_sec"`            // 超时秒数
+	FeatureKey        string     `gorm:"size:80;index" json:"feature_key,omitempty"`
+	PackKey           string     `gorm:"size:80;index" json:"pack_key,omitempty"`
+	EntitlementSource string     `gorm:"size:64" json:"entitlement_source,omitempty"`
+	BillingCheckedAt  *time.Time `json:"billing_checked_at,omitempty"`
+	StartedAt         *time.Time `json:"started_at,omitempty"`
+	FinishedAt        *time.Time `json:"finished_at,omitempty"`
 }
 
 func (Task) TableName() string {

@@ -257,9 +257,13 @@ CREATE TABLE IF NOT EXISTS k8s_bundle_invites (
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     request_payload  JSONB        NOT NULL,
     download_token   VARCHAR(64)  NOT NULL,
-    expires_at       TIMESTAMPTZ  NOT NULL
+    expires_at       TIMESTAMPTZ  NOT NULL,
+    created_by_user_id UUID
 );
 CREATE INDEX IF NOT EXISTS idx_k8s_bundle_invites_expires ON k8s_bundle_invites (expires_at);
+ALTER TABLE k8s_bundle_invites
+    ADD COLUMN IF NOT EXISTS created_by_user_id UUID;
+CREATE INDEX IF NOT EXISTS idx_k8s_bundle_invites_created_by_user_id ON k8s_bundle_invites (created_by_user_id);
 
 -- ============================================================
 -- 8. k8s_versions
@@ -536,16 +540,27 @@ CREATE TABLE IF NOT EXISTS tasks (
     success_count   INT          NOT NULL DEFAULT 0,
     failed_count    INT          NOT NULL DEFAULT 0,
     timeout_sec     INT          NOT NULL DEFAULT 300,
+    feature_key     VARCHAR(80),
+    pack_key        VARCHAR(80),
+    entitlement_source VARCHAR(64),
+    billing_checked_at TIMESTAMPTZ,
     started_at      TIMESTAMPTZ,
     finished_at     TIMESTAMPTZ,
     created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
+ALTER TABLE tasks
+    ADD COLUMN IF NOT EXISTS feature_key VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS pack_key VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS entitlement_source VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS billing_checked_at TIMESTAMPTZ;
 
 CREATE INDEX IF NOT EXISTS idx_tasks_tenant_id  ON tasks (tenant_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_type       ON tasks (type);
 CREATE INDEX IF NOT EXISTS idx_tasks_status     ON tasks (status);
 CREATE INDEX IF NOT EXISTS idx_tasks_created_by ON tasks (created_by);
+CREATE INDEX IF NOT EXISTS idx_tasks_feature_key ON tasks (feature_key);
+CREATE INDEX IF NOT EXISTS idx_tasks_pack_key ON tasks (pack_key);
 CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks (created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_composite  ON tasks (tenant_id, status, created_at DESC);
 
@@ -643,6 +658,66 @@ CREATE INDEX IF NOT EXISTS idx_alert_rules_type     ON alert_rules (type);
 CREATE INDEX IF NOT EXISTS idx_alert_rules_severity ON alert_rules (severity);
 CREATE INDEX IF NOT EXISTS idx_alert_rules_status   ON alert_rules (status);
 
+-- ============================================
+-- 15.7 Billing / Feature Packages / AI Quota
+-- ============================================
+CREATE TABLE IF NOT EXISTS feature_billing_settings (
+    feature_key       VARCHAR(80)  PRIMARY KEY,
+    pack_key          VARCHAR(80),
+    visible_enabled   BOOLEAN      NOT NULL DEFAULT TRUE,
+    execution_enabled BOOLEAN      NOT NULL DEFAULT TRUE,
+    billing_enabled   BOOLEAN      NOT NULL DEFAULT FALSE,
+    stripe_price_id   VARCHAR(128),
+    description       VARCHAR(512),
+    updated_at        TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+ALTER TABLE feature_billing_settings
+    ADD COLUMN IF NOT EXISTS pack_key VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS visible_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS execution_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+    ADD COLUMN IF NOT EXISTS billing_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+    ADD COLUMN IF NOT EXISTS stripe_price_id VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS description VARCHAR(512),
+    ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+CREATE INDEX IF NOT EXISTS idx_feature_billing_settings_pack_key ON feature_billing_settings (pack_key);
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+    id                     UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id                UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    status                 VARCHAR(32)  NOT NULL,
+    plan_id                VARCHAR(64),
+    stripe_customer_id     VARCHAR(128),
+    stripe_subscription_id VARCHAR(128),
+    current_period_end     TIMESTAMPTZ,
+    created_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at             TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscriptions_user_id ON subscriptions (user_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_customer_id ON subscriptions (stripe_customer_id);
+CREATE INDEX IF NOT EXISTS idx_subscriptions_stripe_subscription_id ON subscriptions (stripe_subscription_id);
+
+CREATE TABLE IF NOT EXISTS entitlements (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id     UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    feature_key VARCHAR(80)  NOT NULL,
+    valid_until TIMESTAMPTZ,
+    source      VARCHAR(64),
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_ent_user_feature ON entitlements (user_id, feature_key);
+
+CREATE TABLE IF NOT EXISTS ai_usages (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    subject    VARCHAR(120) NOT NULL,
+    pack_key   VARCHAR(80)  NOT NULL,
+    usage_date VARCHAR(10)  NOT NULL,
+    count      INT          NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_usage_subject_day_pack ON ai_usages (subject, usage_date, pack_key);
+
 -- ============================================================
 -- 16. 种子数据  (全部幂等, 已存在则跳过)
 -- ============================================================
@@ -654,13 +729,13 @@ WHERE NOT EXISTS (
     SELECT 1 FROM tenants WHERE code = 'default'
 );
 
--- 16.2  管理员用户  (password = admin123)
+-- 16.2  超级管理员用户  (password = password)
 INSERT INTO users (username, email, password, full_name, role)
 SELECT 'admin',
        'admin@example.com',
        crypt('password', gen_salt('bf', 10)),
        'Administrator',
-       'admin'
+       'super_admin'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE username = 'admin' AND deleted_at IS NULL
 );
@@ -704,7 +779,8 @@ WHERE NOT EXISTS (
 INSERT INTO roles (name, code, description, is_system)
 SELECT name, code, description, is_system FROM (
     VALUES
-        ('管理员',      'admin',    '系统管理员，拥有所有权限',           TRUE),
+        ('超级管理员',  'super_admin', '系统级超级管理员，拥有所有权限且不受计费限制', TRUE),
+        ('管理员',      'admin',    '系统管理员，拥有管理端权限但高级功能需有效权益', TRUE),
         ('普通用户',    'user',     '普通用户，拥有基础查看权限',         TRUE),
         ('运维工程师',  'operator', '运维人员，拥有机器管理和任务执行权限', TRUE),
         ('只读用户',    'viewer',   '只读用户，仅有查看权限',            TRUE)
@@ -713,7 +789,16 @@ WHERE NOT EXISTS (
     SELECT 1 FROM roles WHERE roles.code = t.code
 );
 
--- 16.7  为 admin 角色分配所有权限
+-- 16.7  为 super_admin / admin 角色分配所有权限
+INSERT INTO role_permissions (role_id, permission_id, tenant_id)
+SELECT 'super_admin', p.id, '00000000-0000-0000-0000-000000000001'::uuid
+FROM permissions p
+WHERE p.deleted_at IS NULL
+  AND NOT EXISTS (
+      SELECT 1 FROM role_permissions rp
+      WHERE rp.role_id = 'super_admin' AND rp.permission_id = p.id
+);
+
 INSERT INTO role_permissions (role_id, permission_id, tenant_id)
 SELECT 'admin', p.id, '00000000-0000-0000-0000-000000000001'::uuid
 FROM permissions p
@@ -722,6 +807,40 @@ WHERE p.deleted_at IS NULL
       SELECT 1 FROM role_permissions rp
       WHERE rp.role_id = 'admin' AND rp.permission_id = p.id
 );
+
+-- 16.8  默认功能包计费配置
+INSERT INTO feature_billing_settings (
+    feature_key, pack_key, visible_enabled, execution_enabled, billing_enabled, description, updated_at
+)
+SELECT feature_key, pack_key, TRUE, TRUE, FALSE, description, NOW()
+FROM (
+    VALUES
+        ('feature.k8s_delivery', 'pack.k8s_delivery', 'K8s 交付包（在线部署、离线包、installRef、集群清理、制品分发）'),
+        ('feature.node_ops', 'pack.node_ops', '节点运维包（初始化、时间同步、安全加固、磁盘优化、Shell、文件分发、Linux 服务）'),
+        ('feature.monitoring', 'pack.monitoring', '监控包（Prometheus 与各类 exporter 安装、配置、下发）'),
+        ('feature.backup_performance', 'pack.backup_performance', '备份与性能包（备份恢复、性能分析、真实报告生成）'),
+        ('feature.ai_diagnosis', 'skillpack.k8s', 'AI 诊断技能包（未购买时每日免费 5 次）'),
+        ('feature.k8s_ops', 'pack.k8s_delivery', 'K8s 交付（兼容旧功能键）'),
+        ('feature.service_ops', 'pack.node_ops', '服务/节点运维（兼容旧功能键）'),
+        ('feature.infra_ops', 'pack.node_ops', '基础设施运维（兼容旧功能键）'),
+        ('feature.advanced', 'pack.backup_performance', '高级功能（兼容旧功能键）')
+) AS t(feature_key, pack_key, description)
+ON CONFLICT (feature_key) DO NOTHING;
+
+UPDATE feature_billing_settings
+SET pack_key = CASE feature_key
+    WHEN 'feature.k8s_delivery' THEN 'pack.k8s_delivery'
+    WHEN 'feature.node_ops' THEN 'pack.node_ops'
+    WHEN 'feature.monitoring' THEN 'pack.monitoring'
+    WHEN 'feature.backup_performance' THEN 'pack.backup_performance'
+    WHEN 'feature.ai_diagnosis' THEN 'skillpack.k8s'
+    WHEN 'feature.k8s_ops' THEN 'pack.k8s_delivery'
+    WHEN 'feature.service_ops' THEN 'pack.node_ops'
+    WHEN 'feature.infra_ops' THEN 'pack.node_ops'
+    WHEN 'feature.advanced' THEN 'pack.backup_performance'
+    ELSE pack_key
+END
+WHERE pack_key IS NULL OR pack_key = '';
 
 -- ============================================================
 -- 17. 表注释
@@ -746,6 +865,10 @@ COMMENT ON TABLE sub_tasks          IS '子任务 (分配到具体机器)';
 COMMENT ON TABLE task_logs          IS '任务执行日志';
 COMMENT ON TABLE monitoring_configs IS '监控工具配置';
 COMMENT ON TABLE alert_rules        IS '告警规则';
+COMMENT ON TABLE feature_billing_settings IS '功能展示、执行、计费和功能包映射配置';
+COMMENT ON TABLE subscriptions      IS '账号订阅状态';
+COMMENT ON TABLE entitlements       IS '账号功能包/功能权益';
+COMMENT ON TABLE ai_usages          IS 'AI 免费额度按日用量';
 
 COMMENT ON COLUMN machines.labels            IS '任意键值标签 (JSONB)';
 COMMENT ON COLUMN machines.metadata          IS '可扩展元数据 (JSONB)';

@@ -143,6 +143,8 @@ export interface MachineForm {
   master_machine_id?: string | null
 }
 
+export type UserRole = 'super_admin' | 'admin' | 'user'
+
 // 用户相关类型（与 ft-backend models.User / JWT 载荷一致，id 为 UUID 字符串）
 export interface User {
   id: string
@@ -150,7 +152,7 @@ export interface User {
   email?: string
   phone?: string
   full_name?: string
-  role: 'admin' | 'user'
+  role: UserRole
   created_at?: string
   updated_at?: string
   subscription_status?: string
@@ -179,7 +181,7 @@ export interface UserForm {
   password?: string
   phone?: string
   full_name?: string
-  role: 'admin' | 'user'
+  role: UserRole
 }
 
 // 登录相关类型

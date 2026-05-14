@@ -617,6 +617,19 @@ func createTaskExecutionRecord(tx *gorm.DB, task models.Task, source, category, 
 		capability = models.RollbackCapabilityNone
 		advice = "该任务未提供自动回滚计划。"
 	}
+	metadata := map[string]interface{}{"task_id": task.ID.String()}
+	if task.FeatureKey != "" {
+		metadata["feature_key"] = task.FeatureKey
+	}
+	if task.PackKey != "" {
+		metadata["pack_key"] = task.PackKey
+	}
+	if task.EntitlementSource != "" {
+		metadata["entitlement_source"] = task.EntitlementSource
+	}
+	if task.BillingCheckedAt != nil {
+		metadata["billing_checked_at"] = task.BillingCheckedAt.Format(time.RFC3339)
+	}
 	rec := models.ExecutionRecord{
 		CorrelationID:      task.ID.String(),
 		Source:             source,
@@ -630,7 +643,7 @@ func createTaskExecutionRecord(tx *gorm.DB, task models.Task, source, category, 
 		TaskID:             &task.ID,
 		TargetIPs:          task.TargetIDs,
 		Effects:            models.NewJSONBFromMap(map[string]interface{}{}),
-		Metadata:           models.NewJSONBFromMap(map[string]interface{}{"task_id": task.ID.String()}),
+		Metadata:           models.NewJSONBFromMap(metadata),
 		RollbackCapability: capability,
 		RollbackStatus:     models.RollbackStatusNotStarted,
 		RollbackPlan:       models.NewJSONBFromMap(rollbackPlan),

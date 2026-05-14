@@ -428,7 +428,7 @@ const shellPrefix = computed(() => (route.path.startsWith('/admin') ? '/admin' :
 const isAdminUser = computed(() => {
   try {
     const u = JSON.parse(localStorage.getItem('userInfo') || '{}') as { role?: string }
-    return u?.role === 'admin'
+    return u?.role === 'admin' || u?.role === 'super_admin'
   } catch {
     return false
   }
@@ -551,7 +551,7 @@ const getStatusColor = (status: 'running' | 'stopped' | 'error') => {
     case 'error':
       return '#f56c6c'
     default:
-      return '#ff6900'
+      return '#0066cc'
   }
 }
 
@@ -765,7 +765,7 @@ const navigateToServiceList = () => {
 .topology-hint {
   margin-top: 16px;
   padding-top: 12px;
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: 0;
   font-size: 12px;
   color: #909399;
 }

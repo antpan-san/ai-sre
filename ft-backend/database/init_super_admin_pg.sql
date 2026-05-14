@@ -11,7 +11,7 @@
 -- 用户名: admin
 -- 邮箱:   admin@example.com
 -- 密码:   password  （下述 bcrypt 哈希对应的明文）
--- 角色:   admin
+-- 角色:   super_admin
 -- 说明:   哈希 $2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
 --         为 bcrypt 常见测试哈希，明文一般为 "password"。
 --         若需改为 admin123 等，请执行下方「二、重置密码」并替换为对应哈希。
@@ -29,10 +29,17 @@ SELECT '00000000-0000-0000-0000-000000000001'::uuid,
        'admin@example.com',
        crypt('password', gen_salt('bf', 10)),
        'Administrator',
-       'admin'
+       'super_admin'
 WHERE NOT EXISTS (
     SELECT 1 FROM users WHERE username = 'admin' AND deleted_at IS NULL
 );
+
+UPDATE users
+SET role = 'super_admin',
+    updated_at = NOW()
+WHERE username = 'admin'
+  AND role = 'admin'
+  AND deleted_at IS NULL;
 
 -- ----------------------------------------------------------------------------
 -- 二、重置 admin 密码（可选）

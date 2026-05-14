@@ -56,40 +56,40 @@
               <el-icon><PieChart /></el-icon>
               <template #title>仪表盘</template>
             </el-menu-item>
-            <el-menu-item index="/admin/billing/features">
+            <el-menu-item v-if="isSuperAdmin" index="/admin/billing/features">
               <el-icon><Setting /></el-icon>
               <template #title>功能与计费</template>
             </el-menu-item>
-            <el-sub-menu index="asm-service">
+            <el-sub-menu v-if="featureVisible('feature.node_ops') || featureVisible('feature.k8s_delivery')" index="asm-service">
               <template #title>
                 <el-icon><Box /></el-icon>
                 <span>服务与交付</span>
               </template>
-              <el-menu-item index="/admin/service/deploy">
+              <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/service/deploy">
                 <el-icon><Operation /></el-icon>
                 <template #title>服务部署</template>
               </el-menu-item>
-              <el-menu-item index="/admin/service/k8s-deploy">
+              <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/service/k8s-deploy">
                 <el-icon><Connection /></el-icon>
-                <template #title>Kubernetes 部署</template>
+                <template #title>Kubernetes 部署 <span v-if="featureBillingEnabled('feature.k8s_delivery')" class="menu-pack-tag">订阅</span></template>
               </el-menu-item>
-              <el-menu-item index="/admin/service/k8s-mirror">
+              <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/service/k8s-mirror">
                 <el-icon><Download /></el-icon>
                 <template #title>K8s 制品镜像</template>
               </el-menu-item>
-              <el-menu-item index="/admin/service/linux">
+              <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/service/linux">
                 <el-icon><Cpu /></el-icon>
                 <template #title>Linux 服务管理</template>
               </el-menu-item>
             </el-sub-menu>
-            <el-menu-item index="/admin/proxy/config">
+            <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/proxy/config">
               <el-icon><Link /></el-icon>
               <template #title>代理配置</template>
             </el-menu-item>
-            <el-sub-menu index="asm-monitoring">
+            <el-sub-menu v-if="featureVisible('feature.monitoring')" index="asm-monitoring">
               <template #title>
                 <el-icon><Monitor /></el-icon>
-                <span>监控告警</span>
+                <span>监控告警 <span v-if="featureBillingEnabled('feature.monitoring')" class="menu-pack-tag">订阅</span></span>
               </template>
               <el-menu-item index="/admin/monitoring/prometheus">Prometheus</el-menu-item>
               <el-menu-item index="/admin/monitoring/node-exporter">Node Exporter</el-menu-item>
@@ -110,15 +110,15 @@
               <el-menu-item index="/admin/security-audit/operation-logs">操作日志</el-menu-item>
               <el-menu-item index="/admin/security-audit/permission-management">权限管理</el-menu-item>
             </el-sub-menu>
-            <el-sub-menu index="asm-advanced">
+            <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="asm-advanced">
               <template #title>
                 <el-icon><DocumentCopy /></el-icon>
-                <span>高级功能</span>
+                <span>高级功能 <span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span>
               </template>
               <el-menu-item index="/admin/advanced/backup-restore">备份与恢复</el-menu-item>
               <el-menu-item index="/admin/advanced/performance-analysis">性能分析</el-menu-item>
             </el-sub-menu>
-            <el-menu-item index="/admin/init-tools">
+            <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/init-tools">
               <el-icon><Tools /></el-icon>
               <template #title>初始化工具</template>
             </el-menu-item>
@@ -140,10 +140,18 @@
               <el-icon><Management /></el-icon>
               <template #title>作业中心</template>
             </el-menu-item>
-            <el-menu-item index="/app/init-tools">
+            <el-menu-item v-if="featureVisible('feature.node_ops')" index="/app/init-tools">
               <el-icon><Tools /></el-icon>
               <template #title>初始化工具</template>
             </el-menu-item>
+            <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="app-advanced">
+              <template #title>
+                <el-icon><DocumentCopy /></el-icon>
+                <span>高级功能 <span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span>
+              </template>
+              <el-menu-item index="/app/advanced/backup-restore">备份与恢复</el-menu-item>
+              <el-menu-item index="/app/advanced/performance-analysis">性能分析</el-menu-item>
+            </el-sub-menu>
             <el-menu-item index="/app/help/error-codes">
               <el-icon><Reading /></el-icon>
               <template #title>部署错误码</template>
@@ -272,6 +280,7 @@ import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
 import { getInstallAiSreShellCurlLine } from '../../utils/installAiSre'
 import { useMachineStore } from '../../stores/machine'
+import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 
 type BreadcrumbMetaItem = {
   title: string
@@ -335,9 +344,11 @@ const currentUser = computed(() => {
 
 const navBase = computed(() => (route.path.startsWith('/admin') ? '/admin' : '/app'))
 const isAdminShell = computed(() => route.path.startsWith('/admin'))
-const isAdminUser = computed(() => String(currentUser.value?.role ?? '') === 'admin')
+const isSuperAdmin = computed(() => String(currentUser.value?.role ?? '') === 'super_admin')
+const isAdminUser = computed(() => ['admin', 'super_admin'].includes(String(currentUser.value?.role ?? '')))
 
 const isCollapse = ref(false)
+const capabilityByFeature = ref<Record<string, BillingCapabilityFeature>>({})
 
 const menuTextColor = 'var(--layout-sidebar-text)'
 const menuActiveColor = 'var(--el-color-primary)'
@@ -345,7 +356,10 @@ const menuActiveColor = 'var(--el-color-primary)'
 const menuDefaultOpeneds = computed(() => {
   const p = route.path
   const open: string[] = []
-  if (!p.startsWith('/admin')) return open
+  if (p.startsWith('/app')) {
+    if (p.includes('/app/advanced')) open.push('app-advanced')
+    return open
+  }
   if (p.includes('/admin/service')) open.push('asm-service')
   if (p.includes('/admin/monitoring')) open.push('asm-monitoring')
   if (p.includes('/admin/security-audit')) open.push('asm-security')
@@ -364,6 +378,28 @@ const userInitial = computed(() => {
 const brandShort = computed(() => 'OP')
 
 const installAiSreCommand = computed(() => getInstallAiSreShellCurlLine())
+
+const featureVisible = (featureKey: string) => {
+  const row = capabilityByFeature.value[featureKey]
+  return row ? row.visible_enabled && row.can_view !== false : true
+}
+
+const featureBillingEnabled = (featureKey: string) => {
+  return capabilityByFeature.value[featureKey]?.billing_enabled === true
+}
+
+const loadBillingCapabilities = async () => {
+  try {
+    const data = await getBillingCapabilities()
+    const next: Record<string, BillingCapabilityFeature> = {}
+    ;(data.features || []).forEach((item) => {
+      next[item.feature_key] = item
+    })
+    capabilityByFeature.value = next
+  } catch {
+    capabilityByFeature.value = {}
+  }
+}
 
 const copyInstallAiSreCommand = async () => {
   const cmd = installAiSreCommand.value
@@ -387,6 +423,7 @@ const handleMachineStatusMessage = (msg: any) => {
 onMounted(() => {
   const userId = currentUser.value?.id || 'anonymous'
   wsService.connect(String(userId))
+  void loadBillingCapabilities()
 
   wsService.on('machine_heartbeat', handleMachineHeartbeatMessage)
   wsService.on('machine_status_update', handleMachineStatusMessage)
@@ -520,8 +557,8 @@ const handleLogout = () => {
   left: 0;
   bottom: 0;
   z-index: 1000;
-  border-right: 1px solid var(--layout-sidebar-border);
-  box-shadow: var(--layout-shadow-soft);
+  border-right: 0;
+  box-shadow: none;
   display: flex;
   flex-direction: column;
 }
@@ -534,12 +571,12 @@ const handleLogout = () => {
   flex-shrink: 0;
   height: var(--layout-header-height);
   padding: 0 12px 0 14px;
-  border-bottom: 1px solid var(--layout-sidebar-border);
+  border-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  background: linear-gradient(180deg, #ffffff 0%, #fafafa 100%);
+  background: var(--apple-canvas, #ffffff);
 }
 
 .sidebar-brand {
@@ -560,10 +597,10 @@ const handleLogout = () => {
   justify-content: center;
   font-size: 12px;
   font-weight: 700;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   color: #fff;
-  background: linear-gradient(135deg, var(--el-color-primary) 0%, var(--el-color-primary-light-3) 100%);
-  box-shadow: 0 2px 10px rgba(255, 105, 0, 0.22);
+  background: var(--apple-primary, #0066cc);
+  box-shadow: none;
 }
 
 .sidebar-brand-text {
@@ -576,7 +613,7 @@ const handleLogout = () => {
 .sidebar-brand-title {
   font-size: 15px;
   font-weight: 600;
-  letter-spacing: -0.02em;
+  letter-spacing: 0;
   color: var(--layout-sidebar-text-strong);
   line-height: 1.25;
   white-space: nowrap;
@@ -586,7 +623,7 @@ const handleLogout = () => {
   font-size: 11px;
   font-weight: 400;
   color: var(--layout-sidebar-text);
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   opacity: 0.92;
 }
 
@@ -647,7 +684,7 @@ const handleLogout = () => {
   background: var(--layout-header-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--layout-header-border);
+  border-bottom: 0;
   display: flex;
   align-items: center;
   justify-content: flex-end;
@@ -674,7 +711,7 @@ const handleLogout = () => {
   gap: 6px;
   margin: 0;
   padding: 6px 12px;
-  border: 1px solid transparent;
+  border: 0;
   border-radius: 999px;
   background: transparent;
   font: inherit;
@@ -684,14 +721,12 @@ const handleLogout = () => {
   cursor: pointer;
   transition:
     background-color 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    color 0.2s ease;
 }
 
 .install-ai-sre-trigger:hover {
-  background-color: rgba(255, 255, 255, 0.95);
-  border-color: var(--layout-sidebar-border);
-  box-shadow: var(--layout-shadow-soft);
+  background-color: var(--apple-canvas-parchment, #f5f5f7);
+  color: var(--apple-primary, #0066cc);
 }
 
 .install-ai-sre-trigger__text {
@@ -713,18 +748,15 @@ const handleLogout = () => {
   cursor: pointer;
   padding: 4px 6px 4px 4px;
   border-radius: 999px;
-  border: 1px solid transparent;
+  border: 0;
   transition:
     background-color 0.2s ease,
-    border-color 0.2s ease,
-    box-shadow 0.2s ease;
+    color 0.2s ease;
   outline: none;
 }
 
 .user-trigger:hover {
-  background-color: rgba(255, 255, 255, 0.9);
-  border-color: var(--layout-sidebar-border);
-  box-shadow: var(--layout-shadow-soft);
+  background-color: var(--apple-canvas-parchment, #f5f5f7);
 }
 
 .user-avatar {
@@ -732,7 +764,7 @@ const handleLogout = () => {
   font-size: 14px;
   font-weight: 600;
   color: #fff;
-  background: linear-gradient(145deg, var(--el-color-primary-light-3), var(--el-color-primary)) !important;
+  background: var(--apple-primary, #0066cc) !important;
 }
 
 .user-trigger-name {
@@ -814,9 +846,9 @@ const handleLogout = () => {
   display: flex;
   flex-direction: column;
   background: var(--layout-content-surface);
-  border-radius: 16px;
-  border: 1px solid var(--layout-sidebar-border);
-  box-shadow: var(--layout-shadow-soft);
+  border-radius: 0;
+  border: 0;
+  box-shadow: none;
   padding: var(--layout-content-padding);
 }
 
@@ -883,5 +915,18 @@ const handleLogout = () => {
 
 .sidebar-menu.el-menu--collapse :deep(.el-tooltip__trigger) {
   justify-content: center;
+}
+
+.menu-pack-tag {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  margin-left: 6px;
+  padding: 0 5px;
+  border-radius: 4px;
+  background: var(--apple-canvas-parchment, #f5f5f7);
+  color: var(--apple-primary, #0066cc);
+  font-size: 11px;
+  font-weight: 600;
 }
 </style>

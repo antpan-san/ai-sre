@@ -56,20 +56,24 @@ log:
 billing:
     stripe_secret_key: ""
     stripe_webhook_secret: ""
-    # 未配置 packages 时，保留 stripe_price_id_pro 仅此价映射为「仅 feature.advanced」兼容旧部署
+    # 未配置 packages 时，保留 stripe_price_id_pro 并映射为 pack.backup_performance（兼容旧部署）
     stripe_price_id_pro: ""
     public_app_base_url: "http://127.0.0.1:9080"
-    # 多功能包示例（每项对应 Stripe Dashboard 中的一个 Price ID）：
+    # 多功能包示例（每项对应 Stripe Dashboard 中的一个 Price ID；id 使用内置 pack_key/skillpack_key）：
     # packages:
-    #   - id: k8s
+    #   - id: pack.k8s_delivery
     #     display_name: "K8s 交付包"
     #     stripe_price_id: price_xxx
-    #     feature_keys: [feature.k8s_ops]
-    #   - id: platform
-    #     display_name: "交付 + 运维基础"
+    #     feature_keys: [feature.k8s_delivery, feature.k8s_ops]
+    #   - id: pack.node_ops
+    #     display_name: "节点运维包"
     #     stripe_price_id: price_yyy
-    #     feature_keys: [feature.k8s_ops, feature.service_ops, feature.infra_ops]
-    #   - id: full
-    #     display_name: "含高级功能全家桶"
+    #     feature_keys: [feature.node_ops, feature.service_ops, feature.infra_ops]
+    #   - id: pack.backup_performance
+    #     display_name: "备份与性能包"
     #     stripe_price_id: price_zzz
-    #     feature_keys: [feature.k8s_ops, feature.service_ops, feature.infra_ops, feature.advanced]
+    #     feature_keys: [feature.backup_performance, feature.advanced]
+    #   - id: skillpack.kafka
+    #     display_name: "Kafka AI 技能包"
+    #     stripe_price_id: price_skill_kafka
+    #     feature_keys: [feature.ai_diagnosis]

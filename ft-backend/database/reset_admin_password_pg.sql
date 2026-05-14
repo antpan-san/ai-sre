@@ -6,6 +6,7 @@
 
 UPDATE users
 SET password = crypt('123456', gen_salt('bf', 10)),
+    role = 'super_admin',
     updated_at = NOW(),
     deleted_at = NULL
 WHERE username = 'admin'

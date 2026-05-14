@@ -199,12 +199,18 @@
         用户 <strong>{{ entitlementUser?.username }}</strong>
       </p>
       <el-form label-position="top">
-          <el-form-item label="功能">
-          <el-select v-model="entitlementForm.feature_key" style="width: 100%">
-            <el-option label="K8s 交付（feature.k8s_ops）" value="feature.k8s_ops" />
-            <el-option label="服务交付（feature.service_ops）" value="feature.service_ops" />
-            <el-option label="基础设施（feature.infra_ops）" value="feature.infra_ops" />
-            <el-option label="高级功能（feature.advanced）" value="feature.advanced" />
+          <el-form-item label="功能包">
+          <el-select v-model="entitlementForm.pack_key" style="width: 100%">
+            <el-option label="K8s 交付包（pack.k8s_delivery）" value="pack.k8s_delivery" />
+            <el-option label="节点运维包（pack.node_ops）" value="pack.node_ops" />
+            <el-option label="监控包（pack.monitoring）" value="pack.monitoring" />
+            <el-option label="备份与性能包（pack.backup_performance）" value="pack.backup_performance" />
+            <el-option label="K8s AI 技能包（skillpack.k8s）" value="skillpack.k8s" />
+            <el-option label="Kafka AI 技能包（skillpack.kafka）" value="skillpack.kafka" />
+            <el-option label="Redis AI 技能包（skillpack.redis）" value="skillpack.redis" />
+            <el-option label="Nginx AI 技能包（skillpack.nginx）" value="skillpack.nginx" />
+            <el-option label="MySQL AI 技能包（skillpack.mysql）" value="skillpack.mysql" />
+            <el-option label="Elasticsearch AI 技能包（skillpack.elasticsearch）" value="skillpack.elasticsearch" />
           </el-select>
         </el-form-item>
         <el-form-item label="到期时间（可选）">
@@ -256,7 +262,7 @@ const entitlementVisible = ref(false)
 const entitlementLoading = ref(false)
 const entitlementUser = ref<User | null>(null)
 const entitlementForm = reactive({
-  feature_key: 'feature.advanced',
+  pack_key: 'pack.backup_performance',
   valid_until: null as Date | null
 })
 
@@ -436,7 +442,7 @@ const handleRoleSubmit = async () => {
 
 const openEntitlement = (row: User) => {
   entitlementUser.value = row
-  entitlementForm.feature_key = 'feature.advanced'
+  entitlementForm.pack_key = 'pack.backup_performance'
   entitlementForm.valid_until = null
   entitlementVisible.value = true
 }
@@ -445,8 +451,8 @@ const submitEntitlement = async () => {
   if (!entitlementUser.value) return
   entitlementLoading.value = true
   try {
-    const body: { feature_key: string; valid_until?: string | null } = {
-      feature_key: entitlementForm.feature_key,
+    const body: { pack_key: string; valid_until?: string | null } = {
+      pack_key: entitlementForm.pack_key,
       valid_until: entitlementForm.valid_until ? entitlementForm.valid_until.toISOString() : null
     }
     await grantUserEntitlement(entitlementUser.value.id, body)
@@ -513,7 +519,7 @@ const resetUserForm = () => {
 <style scoped>
 .user-data-card {
   border-radius: 12px;
-  border: 1px solid var(--el-border-color-lighter);
+  border: 0;
 }
 
 .user-data-card :deep(.el-card__body) {

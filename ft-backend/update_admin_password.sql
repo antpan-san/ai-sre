@@ -1,7 +1,8 @@
--- 更新admin用户的密码为123456
+-- 更新admin用户的密码为123456，并确保其为超级管理员
 -- 使用兼容bcrypt算法的哈希值
 UPDATE users 
-SET password = '$2a$10$b9TQ5sZ84rbNJWQRYg7uKOxHK8m2jnPhI4P6ZS/8Orn.QEKxz/FR2'
+SET password = '$2a$10$b9TQ5sZ84rbNJWQRYg7uKOxHK8m2jnPhI4P6ZS/8Orn.QEKxz/FR2',
+    role = 'super_admin'
 WHERE username = 'admin';
 
 -- 或者如果你使用的MySQL版本支持BCRYPT函数

@@ -67,7 +67,7 @@ type k8sDeployAPIBody struct {
 func k8sCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "k8s",
-		Short: "Kubernetes 离线包：对接 OpsFleet API 下载、本地安装与卸载清理",
+		Short: "Kubernetes 离线包（需 K8s 交付包订阅）：对接 OpsFleet API 下载、本地安装与卸载清理",
 		Long: fmt.Sprintf(`推荐：在控制台「部署确认」生成一键安装引用后，在控制机执行一行命令即可拉包并安装（无需上传 zip）。
 
 离线包若含 resource_sources.json（控制台选「阿里云」镜像源时）：install.sh 会在 SSH 预检后对 dl.k8s.io 做短超时 Range 探测；失败则追加 relay 覆盖走 download_domain。跳过自动切换：OPSFLEET_SKIP_CLIENT_ROUTE=1。
@@ -130,7 +130,7 @@ func k8sDownloadCmd() *cobra.Command {
 	)
 	cmd := &cobra.Command{
 		Use:   "download",
-		Short: "登录 OpsFleet 并下载 K8s 离线 zip（与页面「生成离线包」相同接口）",
+		Short: "登录 OpsFleet 并下载 K8s 离线 zip（需 K8s 交付包订阅）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			base := strings.TrimSpace(apiURL)
 			if base == "" {

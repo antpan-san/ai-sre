@@ -3,6 +3,13 @@
     <div class="page-header">
       <h2>性能分析</h2>
     </div>
+    <el-alert
+      class="billing-alert"
+      type="warning"
+      show-icon
+      :closable="false"
+      :title="billingAlertTitle"
+    />
     
     <!-- 搜索和筛选区域 -->
     <div class="search-filters">
@@ -59,9 +66,9 @@
         <el-option label="网络流量" value="network" />
       </el-select>
       
-      <el-button type="primary" @click="handleSearch">
+      <el-button type="primary" @click="canUsePerformance ? handleSearch() : goSubscribe()">
         <el-icon><Search /></el-icon>
-        查询数据
+        {{ canUsePerformance ? '查询数据' : '订阅后查询' }}
       </el-button>
       
       <el-button @click="handleReset">
@@ -69,9 +76,9 @@
         重置
       </el-button>
       
-      <el-button type="success" @click="handleGenerateReport">
+      <el-button type="success" @click="canUsePerformance ? handleGenerateReport() : goSubscribe()">
         <el-icon><Document /></el-icon>
-        生成报告
+        {{ canUsePerformance ? '生成报告' : '订阅生成报告' }}
       </el-button>
       
       <el-button type="info" @click="handleExportData">
@@ -223,7 +230,8 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, RefreshRight, Document, Download, PieChart } from '@element-plus/icons-vue'
-import { getPerformanceData } from '../../api/advanced'
+import { generatePerformanceReport, getPerformanceData } from '../../api/advanced'
+import { createCheckoutSession, getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import type { PerformanceData, PerformanceParams, PerformanceDataResponse } from '../../types'
 
 // 响应式状态
@@ -233,6 +241,19 @@ const reportDialogLoading = ref(false)
 const reportFormRef = ref()
 const currentPage = ref(1)
 const pageSize = ref(20)
+const performanceCapability = ref<BillingCapabilityFeature | null>(null)
+const performancePackKey = computed(() => performanceCapability.value?.pack_key || 'pack.backup_performance')
+const canUsePerformance = computed(() => performanceCapability.value?.can_execute ?? true)
+const billingAlertTitle = computed(() => {
+  if (!performanceCapability.value) {
+    return '订阅功能包：pack.backup_performance。未订阅用户可查看筛选项和示例区，查询真实性能数据与生成报告会在后端校验订阅。'
+  }
+  if (canUsePerformance.value) {
+    return `当前账号可使用 ${performancePackKey.value} 查询真实性能数据并生成报告。`
+  }
+  const state = performanceCapability.value.execute_state as Record<string, unknown> | undefined
+  return String(state?.msg || `可预览，查询真实性能数据与生成报告需订阅 ${performancePackKey.value}。`)
+})
 
 // 筛选条件
 const filters = reactive<PerformanceParams>({
@@ -287,12 +308,29 @@ const currentPageData = computed(() => {
 })
 
 // 加载性能数据
-onMounted(() => {
-  fetchPerformanceData()
+onMounted(async () => {
+  await loadPerformanceCapability()
+  if (canUsePerformance.value) {
+    fetchPerformanceData()
+  }
 })
+
+const loadPerformanceCapability = async () => {
+  try {
+    const data = await getBillingCapabilities()
+    performanceCapability.value = (data.features || []).find((item) => item.feature_key === 'feature.backup_performance') || null
+  } catch {
+    performanceCapability.value = null
+  }
+}
 
 // 获取性能数据
 const fetchPerformanceData = async () => {
+  if (!canUsePerformance.value) {
+    performanceData.value = []
+    updateStats()
+    return
+  }
   loading.value = true
   try {
     const response: PerformanceDataResponse = await getPerformanceData(filters)
@@ -346,6 +384,10 @@ const updateStats = () => {
 
 // 处理搜索
 const handleSearch = () => {
+  if (!canUsePerformance.value) {
+    ElMessage.warning('订阅后可查询真实性能数据')
+    return
+  }
   fetchPerformanceData()
 }
 
@@ -392,7 +434,24 @@ const handleCurrentChange = (current: number) => {
 
 // 处理生成报告
 const handleGenerateReport = () => {
+  if (!canUsePerformance.value) {
+    void goSubscribe()
+    return
+  }
   reportDialogVisible.value = true
+}
+
+const goSubscribe = async () => {
+  try {
+    const resp = await createCheckoutSession({ pack_key: performancePackKey.value })
+    if (resp.url) {
+      window.location.href = resp.url
+    } else {
+      ElMessage.info('当前账号无需订阅')
+    }
+  } catch {
+    /* 拦截器已提示 */
+  }
 }
 
 // 处理导出数据
@@ -417,8 +476,11 @@ const handleReportDialogSubmit = async () => {
     await reportFormRef.value.validate()
     reportDialogLoading.value = true
     
-    // 这里应该调用API生成报告
-    // await generatePerformanceReport(filters)
+    await generatePerformanceReport({
+      ...filters,
+      name: reportForm.name,
+      description: reportForm.description
+    } as any)
     
     ElMessage.success('报告生成成功')
     reportDialogVisible.value = false
@@ -461,6 +523,10 @@ const formatNetworkSpeed = (speed: number): string => {
   color: var(--el-color-primary);
   font-size: 30px;
   font-weight: 600;
+}
+
+.billing-alert {
+  margin-bottom: 16px;
 }
 
 .search-filters {

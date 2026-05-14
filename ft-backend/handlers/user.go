@@ -38,9 +38,54 @@ func GetUserProfile(c *gin.Context) {
 	var payload map[string]interface{}
 	b, _ := json.Marshal(user)
 	_ = json.Unmarshal(b, &payload)
-	payload["billing_exempt"] = user.Role == "admin"
+	payload["billing_exempt"] = models.IsSuperAdminRole(user.Role)
 
 	c.JSON(http.StatusOK, gin.H{"code": 200, "data": payload, "msg": "success"})
+}
+
+func requesterRole(c *gin.Context) string {
+	role, _ := c.Get("role")
+	roleString, _ := role.(string)
+	return roleString
+}
+
+func requesterIsSuperAdmin(c *gin.Context) bool {
+	return models.IsSuperAdminRole(requesterRole(c))
+}
+
+func countSuperAdmins() (int64, error) {
+	var count int64
+	err := database.DB.Model(&models.User{}).Where("role = ?", models.RoleSuperAdmin).Count(&count).Error
+	return count, err
+}
+
+func ensureRoleChangeAllowed(c *gin.Context, currentRole, nextRole string) bool {
+	if !models.IsValidUserRole(nextRole) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "无效的角色"})
+		return false
+	}
+	if currentRole == nextRole {
+		return true
+	}
+
+	touchesSuperAdmin := currentRole == models.RoleSuperAdmin || nextRole == models.RoleSuperAdmin
+	if touchesSuperAdmin && !requesterIsSuperAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "只有超级管理员可以分配或撤销超级管理员角色"})
+		return false
+	}
+
+	if currentRole == models.RoleSuperAdmin && nextRole != models.RoleSuperAdmin {
+		count, err := countSuperAdmins()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "检查超级管理员失败"})
+			return false
+		}
+		if count <= 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "不能降级最后一个超级管理员"})
+			return false
+		}
+	}
+	return true
 }
 
 // UpdateUserProfile updates the profile of the authenticated user.
@@ -195,7 +240,15 @@ func AddUser(c *gin.Context) {
 	user.Password = hashedPassword
 
 	if user.Role == "" {
-		user.Role = "user"
+		user.Role = models.RoleUser
+	}
+	if !models.IsValidUserRole(user.Role) {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "无效的角色"})
+		return
+	}
+	if user.Role == models.RoleSuperAdmin && !requesterIsSuperAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "只有超级管理员可以创建超级管理员账号"})
+		return
 	}
 	user.TenantID = uuid.MustParse(models.DefaultTenantID)
 
@@ -240,6 +293,10 @@ func UpdateUser(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "查询用户失败"})
 		return
 	}
+	if user.Role == models.RoleSuperAdmin && !requesterIsSuperAdmin(c) {
+		c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "只有超级管理员可以修改超级管理员账号"})
+		return
+	}
 
 	if request.Username != "" && request.Username != user.Username {
 		var existingUser models.User
@@ -269,6 +326,9 @@ func UpdateUser(c *gin.Context) {
 		user.Phone = request.Phone
 	}
 	if request.Role != "" {
+		if !ensureRoleChangeAllowed(c, user.Role, request.Role) {
+			return
+		}
 		user.Role = request.Role
 	}
 	if request.FullName != "" {
@@ -314,9 +374,20 @@ func DeleteUser(c *gin.Context) {
 		return
 	}
 
-	if user.Role == "admin" {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "不能删除管理员用户"})
-		return
+	if user.Role == models.RoleSuperAdmin {
+		if !requesterIsSuperAdmin(c) {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "只有超级管理员可以删除超级管理员账号"})
+			return
+		}
+		count, err := countSuperAdmins()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "检查超级管理员失败"})
+			return
+		}
+		if count <= 1 {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "不能删除最后一个超级管理员"})
+			return
+		}
 	}
 
 	if err := database.DB.Delete(&user).Error; err != nil {
@@ -337,11 +408,22 @@ func BatchDeleteUser(c *gin.Context) {
 		return
 	}
 
-	var adminCount int64
-	database.DB.Model(&models.User{}).Where("id IN ? AND role = ?", request.IDs, "admin").Count(&adminCount)
-	if adminCount > 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "不能删除管理员用户"})
-		return
+	var targetSuperCount int64
+	database.DB.Model(&models.User{}).Where("id IN ? AND role = ?", request.IDs, models.RoleSuperAdmin).Count(&targetSuperCount)
+	if targetSuperCount > 0 {
+		if !requesterIsSuperAdmin(c) {
+			c.JSON(http.StatusForbidden, gin.H{"code": 403, "msg": "只有超级管理员可以删除超级管理员账号"})
+			return
+		}
+		superCount, err := countSuperAdmins()
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "检查超级管理员失败"})
+			return
+		}
+		if targetSuperCount >= superCount {
+			c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "不能删除最后一个超级管理员"})
+			return
+		}
 	}
 
 	if err := database.DB.Where("id IN ?", request.IDs).Delete(&models.User{}).Error; err != nil {
@@ -378,6 +460,9 @@ func UpdateUserRole(c *gin.Context) {
 		return
 	}
 
+	if !ensureRoleChangeAllowed(c, user.Role, request.Role) {
+		return
+	}
 	user.Role = request.Role
 
 	if err := database.DB.Save(&user).Error; err != nil {
