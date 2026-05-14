@@ -206,7 +206,7 @@
       >
         <template #header>
           <div class="table-card-head">
-            <span>最近 K8s 集群</span>
+            <span class="table-card-head__title">最近 K8s 集群</span>
             <el-link type="primary" :underline="false" @click="goK8sClusters">列表</el-link>
           </div>
         </template>
@@ -237,7 +237,7 @@
       >
         <template #header>
           <div class="table-card-head">
-            <span>最近 ai-sre 安装</span>
+            <span class="table-card-head__title">最近 ai-sre 安装</span>
             <el-link type="primary" :underline="false" @click="goServiceDeploy">服务部署</el-link>
           </div>
         </template>
@@ -263,7 +263,7 @@
       <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card">
         <template #header>
           <div class="table-card-head">
-            <span>最近 Linux / 业务服务</span>
+            <span class="table-card-head__title">最近 Linux / 业务服务</span>
             <el-link type="primary" :underline="false" @click="navigateToServiceList">台账</el-link>
           </div>
         </template>
@@ -289,7 +289,7 @@
       <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card">
         <template #header>
           <div class="table-card-head">
-            <span>{{ isConsoleAdmin ? '最近执行记录' : 'CLI / AI 执行记录' }}</span>
+            <span class="table-card-head__title">最近执行记录</span>
             <el-link type="primary" :underline="false" @click="goExecRecords">全部</el-link>
           </div>
         </template>
@@ -838,25 +838,32 @@ onBeforeUnmount(() => {
 
 .dash-table-card {
   min-width: 0;
-  border: 1px solid var(--el-border-color-lighter);
 }
 
+/* 与概览 KPI / meter 卡片内边距一致，避免表格区被全局 el-card 大留白 + 本页窄 padding 夹成「两种卡片」 */
 .dash-table-card :deep(.el-card__header) {
-  padding: 10px 12px;
+  padding: 12px 14px !important;
   border-bottom: 1px solid var(--el-border-color-extra-light);
 }
 
 .dash-table-card :deep(.el-card__body) {
-  padding: 10px 12px 12px;
+  padding: 12px 14px !important;
 }
 
 .table-card-head {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  min-width: 0;
+}
+
+.table-card-head__title {
   font-weight: 600;
   font-size: 14px;
+  line-height: 1.35;
+  color: var(--apple-ink, #303133);
+  min-width: 0;
 }
 
 @media screen and (max-width: 1280px) {
