@@ -59,7 +59,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 - `OPSFLEET_K8S_I_RELAY_ROUTE_APPLIED` — 信息码：选阿里云源时控制机探测公网 tarball 失败后已追加 relay overlay（非致命）；制品中转与运维见 [`deploy/k8s-mirror/README.md`](deploy/k8s-mirror/README.md)。
 - `OPSFLEET_K8S_E_EXECUTOR_KUBECTL_BIN_MISSING` — 部署机缓存里尚无解压出的 `server/bin/kubectl`（多半是尚未跑完 resources，或 playbook 顺序被截断）。
 
-控制台：登录后在侧栏打开 **「部署错误码」**（工作台 **`/app/help/error-codes`**，旧路径 **`/help/error-codes`** 会重定向）可浏览与搜索同源目录；接口仍为 `GET /ft-api/api/ai/error-codes`，单条根因卡 `POST /ft-api/api/ai/error-codes/analyze {code,detail}`；客户端等价命令是 `ai-sre analyze code <CODE> [--detail "…"]`，输出三段式：根因 / 立即恢复一行 / 平台改进+文件路径（不给排查清单）。**前端页头与纵向留白约定**见仓库 **`.cursor/rules/ft-front-compact-layout.mdc`**（`ft-front` 新页与改版须遵守）。
+控制台：登录后在侧栏打开 **「部署错误码」**（工作台 **`/app/help/error-codes`**，旧路径 **`/help/error-codes`** 会重定向）可浏览与搜索同源目录；接口仍为 `GET /ft-api/api/ai/error-codes`，单条根因卡 `POST /ft-api/api/ai/error-codes/analyze {code,detail}`；客户端等价命令是 `ai-sre analyze code <CODE> [--detail "…"]`，输出三段式：根因 / 立即恢复一行 / 平台改进+文件路径（不给排查清单）。**壳层布局**：顶栏左侧为面包屑与上下文导航，右侧为「安装 ai-sre」与用户菜单；主内容区外侧留白由 `--layout-content-gutter` 与业务页 `page-shell` 分层，避免与页内留白叠加。**前端页头与纵向留白约定**见仓库 **`.cursor/rules/ft-front-compact-layout.mdc`**（`ft-front` 新页与改版须遵守）。
 
 **错误码扩展（开发门控）**：在 Cursor 中为代理准备 **`.cursor/skills/error-code-development-gate/SKILL.md`**——凡改离线安装/ansible/镜像站等易失败路径时，须同步 **emit `[ERROR-CODE]`**、`ft-backend/skills/builtin/error_codes.yaml` 根因条目与（如适用）`README`/`API`/`analyze code` 自检，保证能力覆盖面随迭代扩大。
 

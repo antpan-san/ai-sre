@@ -75,6 +75,8 @@
   --layout-sidebar-width: 216px;
   --layout-sidebar-collapsed-width: 64px;
   --layout-content-padding: 16px;
+  /* 主内容区外侧留白（与 page-shell 内边距分层，避免重复） */
+  --layout-content-gutter: 12px;
 
   /* 页面模板分级：仪表盘 / 向导 / 列表表单（纵向略收紧，把空间留给数据区） */
   --page-padding-y: 12px;
@@ -146,7 +148,7 @@
 body {
   margin: 0;
   padding: 0;
-  min-width: 1024px;
+  min-width: 768px;
   min-height: 100vh;
   overflow-x: auto;
 }
@@ -417,7 +419,6 @@ a:active,
 
 .sidebar,
 .header,
-.content-inner,
 .el-card,
 .el-card__body,
 .el-dialog,

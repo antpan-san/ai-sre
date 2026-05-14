@@ -163,7 +163,30 @@
 
     <div class="main-content" :class="{ 'sidebar-collapsed': isCollapse }">
       <header class="header">
-        <div class="header-spacer" aria-hidden="true" />
+        <div class="header-left">
+          <div class="header-breadcrumb-wrap">
+            <el-breadcrumb separator="/" class="custom-breadcrumb header-breadcrumb">
+              <template v-for="item in breadcrumbItems" :key="item.key">
+                <el-breadcrumb-item
+                  v-if="item.to && !item.current"
+                  :to="{ path: item.to }"
+                  class="breadcrumb-item"
+                >
+                  <el-icon v-if="item.icon" class="breadcrumb-icon">
+                    <component :is="item.icon" />
+                  </el-icon>
+                  <span>{{ item.title }}</span>
+                </el-breadcrumb-item>
+                <el-breadcrumb-item v-else class="breadcrumb-item breadcrumb-item--current">
+                  <el-icon v-if="item.icon" class="breadcrumb-icon">
+                    <component :is="item.icon" />
+                  </el-icon>
+                  <span>{{ item.title }}</span>
+                </el-breadcrumb-item>
+              </template>
+            </el-breadcrumb>
+          </div>
+        </div>
         <div class="header-right">
           <el-popover
             placement="bottom-end"
@@ -219,28 +242,6 @@
       </header>
 
       <main class="content">
-        <div class="breadcrumb-container">
-          <el-breadcrumb separator="/" class="custom-breadcrumb">
-            <template v-for="item in breadcrumbItems" :key="item.key">
-              <el-breadcrumb-item
-                v-if="item.to && !item.current"
-                :to="{ path: item.to }"
-                class="breadcrumb-item"
-              >
-                <el-icon v-if="item.icon" class="breadcrumb-icon">
-                  <component :is="item.icon" />
-                </el-icon>
-                <span>{{ item.title }}</span>
-              </el-breadcrumb-item>
-              <el-breadcrumb-item v-else class="breadcrumb-item breadcrumb-item--current">
-                <el-icon v-if="item.icon" class="breadcrumb-icon">
-                  <component :is="item.icon" />
-                </el-icon>
-                <span>{{ item.title }}</span>
-              </el-breadcrumb-item>
-            </template>
-          </el-breadcrumb>
-        </div>
         <div class="content-inner">
           <div class="content-route">
             <router-view />
@@ -684,18 +685,40 @@ const handleLogout = () => {
   background: var(--layout-header-bg);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border-bottom: 0;
+  border-bottom: 1px solid rgba(29, 29, 31, 0.08) !important;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  padding: 0 20px 0 24px;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px 0 20px;
   position: sticky;
   top: 0;
   z-index: 900;
 }
 
-.header-spacer {
+.header-left {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+}
+
+.header-breadcrumb-wrap {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
+.header-breadcrumb-wrap::-webkit-scrollbar {
+  height: 0;
+}
+
+.header-breadcrumb {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+  padding: 2px 0;
 }
 
 .header-right {
@@ -783,19 +806,14 @@ const handleLogout = () => {
   margin-right: 4px;
 }
 
-/* 内容 */
+/* 内容：外层仅保留一侧留白；页面内边距由各 page-shell 负责，避免双重 padding */
 .content {
   flex: 1;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  padding: 0 var(--layout-content-padding) var(--layout-content-padding);
+  padding: 0 var(--layout-content-gutter) var(--layout-content-gutter);
   min-height: 0;
-}
-
-.breadcrumb-container {
-  flex-shrink: 0;
-  padding: 8px 4px 8px;
 }
 
 .custom-breadcrumb {
@@ -845,11 +863,11 @@ const handleLogout = () => {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: var(--layout-content-surface);
+  background: transparent;
   border-radius: 0;
   border: 0;
   box-shadow: none;
-  padding: var(--layout-content-padding);
+  padding: 0;
 }
 
 /* 单一纵向滚动条：业务页根节点用 height:100% / page-shell--fill 时可铺满剩余视口 */
