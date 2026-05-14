@@ -82,62 +82,6 @@
       </el-card>
 
       <el-card
-        v-loading="dashboardStore.loading"
-        shadow="hover"
-        class="snapshot-card snapshot-card--static svc-card--kpi"
-        role="region"
-        aria-label="业务服务状态"
-      >
-        <div class="snapshot-label">业务服务状态</div>
-        <div class="svc-kpi-mid">
-          <div class="svc-stack-wrap">
-            <div v-if="svcTotal > 0" class="svc-stack-bar" role="img" :aria-label="svcStackAria">
-              <div
-                v-if="svcRunN > 0"
-                class="svc-stack-seg svc-stack-seg--run"
-                :style="svcSegStyle(svcRunN)"
-              />
-              <div
-                v-if="svcDepN > 0"
-                class="svc-stack-seg svc-stack-seg--deploy"
-                :style="svcSegStyle(svcDepN)"
-              />
-              <div
-                v-if="svcStopN > 0"
-                class="svc-stack-seg svc-stack-seg--stopped"
-                :style="svcSegStyle(svcStopN)"
-              />
-              <div
-                v-if="svcErrN > 0"
-                class="svc-stack-seg svc-stack-seg--error"
-                :style="svcSegStyle(svcErrN)"
-              />
-            </div>
-            <div v-else class="svc-stack-empty page-desc--muted">暂无台账</div>
-          </div>
-          <div class="svc-legends svc-legends--kpi">
-            <div class="svc-legend">
-              <span class="svc-dot svc-dot--run" />
-              <span>运行 {{ svcRunN }}</span>
-            </div>
-            <div class="svc-legend">
-              <span class="svc-dot svc-dot--deploy" />
-              <span>部署中 {{ svcDepN }}</span>
-            </div>
-            <div class="svc-legend">
-              <span class="svc-dot svc-dot--stopped" />
-              <span>停止 {{ svcStopN }}</span>
-            </div>
-            <div class="svc-legend">
-              <span class="svc-dot svc-dot--error" />
-              <span>异常 {{ svcErrN }}</span>
-            </div>
-          </div>
-        </div>
-        <div class="snapshot-foot">台账 {{ svcTotal }} · 运行态 {{ svcOperational }}</div>
-      </el-card>
-
-      <el-card
         v-if="isSuperAdmin"
         v-loading="dashboardStore.loading"
         shadow="hover"
@@ -385,7 +329,7 @@ const userRole = computed(() => {
 const isSuperAdmin = computed(() => userRole.value === 'super_admin')
 const isConsoleAdmin = computed(() => userRole.value === 'admin' || userRole.value === 'super_admin')
 
-const kpiColumnCount = computed(() => (isSuperAdmin.value ? 5 : 4))
+const kpiColumnCount = computed(() => (isSuperAdmin.value ? 4 : 3))
 
 const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
 
@@ -399,28 +343,6 @@ const hostRuntimeLine = computed(() => {
 })
 
 const diskRootHint = computed(() => '根分区使用率（Linux 为 /）')
-
-const svcTotal = computed(() => dash.value?.serviceStatusStats?.total ?? 0)
-const svcRunN = computed(() => dash.value?.serviceStatusStats?.running ?? 0)
-const svcDepN = computed(() => dash.value?.serviceStatusStats?.deploying ?? 0)
-const svcStopN = computed(() => dash.value?.serviceStatusStats?.stopped ?? 0)
-const svcErrN = computed(() => dash.value?.serviceStatusStats?.error ?? 0)
-const svcOperational = computed(
-  () => dash.value?.serviceStatusStats?.operational ?? svcRunN.value + svcDepN.value
-)
-
-const svcSegStyle = (n: number) => ({
-  flexGrow: Math.max(0, n),
-  flexShrink: 0,
-  flexBasis: 0,
-  minWidth: n > 0 ? '6px' : 0
-})
-
-const svcStackAria = computed(() => {
-  const t = svcTotal.value
-  if (!t) return '无台账'
-  return `运行 ${svcRunN.value}，部署中 ${svcDepN.value}，停止 ${svcStopN.value}，异常 ${svcErrN.value}，共 ${t} 条`
-})
 
 const exec24hFoot = computed(() => {
   const total = dash.value?.platformSummary?.executionsLast24h ?? 0
@@ -791,106 +713,6 @@ onBeforeUnmount(() => {
 .meter-progress :deep(.el-progress-bar__outer) {
   height: 8px !important;
   border-radius: 999px;
-}
-
-.svc-card--kpi :deep(.el-card__body) {
-  gap: 6px;
-}
-
-.svc-kpi-mid {
-  flex: 1;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-}
-
-.svc-legends--kpi {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 4px 6px;
-}
-
-.svc-legends--kpi .svc-legend {
-  font-size: 11px;
-  gap: 4px;
-}
-
-.svc-card--kpi .svc-stack-empty {
-  font-size: 11px;
-}
-
-.svc-stack-wrap {
-  min-height: 16px;
-}
-
-.svc-stack-bar {
-  display: flex;
-  width: 100%;
-  height: 14px;
-  border-radius: 7px;
-  overflow: hidden;
-  background: var(--apple-hairline, #ebeef5);
-}
-
-.svc-stack-seg {
-  height: 100%;
-  min-width: 0;
-}
-
-.svc-stack-seg--run {
-  background: #67c23a;
-}
-
-.svc-stack-seg--deploy {
-  background: #e6a23c;
-}
-
-.svc-stack-seg--stopped {
-  background: #c8c9cc;
-}
-
-.svc-stack-seg--error {
-  background: #f56c6c;
-}
-
-.svc-stack-empty {
-  font-size: 12px;
-}
-
-.svc-legends {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
-  gap: 8px 10px;
-  align-items: center;
-}
-
-.svc-legend {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: #606266;
-}
-
-.svc-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-
-.svc-dot--run {
-  background: #67c23a;
-}
-.svc-dot--deploy {
-  background: #e6a23c;
-}
-.svc-dot--stopped {
-  background: #c8c9cc;
-}
-.svc-dot--error {
-  background: #f56c6c;
 }
 
 .dash-tables-shell {
