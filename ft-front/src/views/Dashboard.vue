@@ -96,6 +96,27 @@
       </el-card>
     </div>
 
+    <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-exec-health">
+      <div class="dash-exec-health__inner">
+        <span class="dash-exec-health__title">近 24h 执行健康</span>
+        <div class="dash-exec-health__stats">
+          <span>
+            成功 <strong>{{ execSuccess24h }}</strong> · 已取消 <strong>{{ execCancelled24h }}</strong> · 失败
+            <strong>{{ execFailed24h }}</strong>
+            <template v-if="execTerminal24h > 0">
+              · 终态失败率 <strong>{{ execFailRateTerminalPct }}%</strong>
+            </template>
+          </span>
+          <span class="dash-exec-health__sep" aria-hidden="true">|</span>
+          <span class="dash-exec-health__by-src">
+            按来源 CLI <strong>{{ execSrc.cli }}</strong> · K8s <strong>{{ execSrc.k8s }}</strong> · Job
+            <strong>{{ execSrc.job }}</strong>
+          </span>
+          <el-link type="primary" :underline="false" class="dash-exec-health__link" @click="goExecRecords">执行记录</el-link>
+        </div>
+      </div>
+    </el-card>
+
     <div class="dash-grid dash-grid--main" :class="isSuperAdmin ? 'dash-grid--main--with-host' : 'dash-grid--main--no-host'">
       <template v-if="isSuperAdmin">
         <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
@@ -260,25 +281,34 @@
         </el-table>
       </el-card>
 
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card">
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card dash-table-card--span-full">
         <template #header>
           <div class="table-card-head">
             <span class="table-card-head__title">最近 Linux / 业务服务</span>
             <el-link type="primary" :underline="false" @click="navigateToServiceList">台账</el-link>
           </div>
         </template>
-        <el-table :data="dash?.recentDeployments ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无服务">
-          <el-table-column prop="name" label="服务名称" min-width="140" show-overflow-tooltip />
-          <el-table-column prop="image" label="镜像" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="replicas" label="副本" width="72" align="center" />
-          <el-table-column prop="status" label="状态" width="92" align="center">
+        <el-table
+          :data="dash?.recentDeployments ?? []"
+          stripe
+          border
+          size="small"
+          table-layout="fixed"
+          class="dash-table--dense"
+          :max-height="tableMaxPx"
+          empty-text="暂无服务"
+        >
+          <el-table-column prop="name" label="服务名称" min-width="100" show-overflow-tooltip />
+          <el-table-column prop="image" label="镜像" min-width="100" show-overflow-tooltip />
+          <el-table-column prop="replicas" label="副本" width="64" align="center" />
+          <el-table-column prop="status" label="状态" width="84" align="center">
             <template #default="scope">
               <el-tag :type="getStatusType(scope.row.status)" size="small">
                 {{ getStatusText(scope.row.status) }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="updateTime" label="更新时间" min-width="146">
+          <el-table-column prop="updateTime" label="更新时间" min-width="128" show-overflow-tooltip>
             <template #default="scope">
               {{ formatTs(scope.row.updateTime) }}
             </template>
@@ -286,31 +316,40 @@
         </el-table>
       </el-card>
 
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card">
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card dash-table-card--span-full">
         <template #header>
           <div class="table-card-head">
             <span class="table-card-head__title">最近执行记录</span>
             <el-link type="primary" :underline="false" @click="goExecRecords">全部</el-link>
           </div>
         </template>
-        <el-table :data="dash?.recentExecutions ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无记录">
-          <el-table-column prop="name" label="名称" min-width="160" show-overflow-tooltip />
-          <el-table-column prop="source" label="来源" width="80" show-overflow-tooltip />
-          <el-table-column prop="category" label="类别" width="100" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="92" align="center">
+        <el-table
+          :data="dash?.recentExecutions ?? []"
+          stripe
+          border
+          size="small"
+          table-layout="fixed"
+          class="dash-table--dense"
+          :max-height="tableMaxPx"
+          empty-text="暂无记录"
+        >
+          <el-table-column prop="name" label="名称" min-width="110" show-overflow-tooltip />
+          <el-table-column prop="source" label="来源" width="72" show-overflow-tooltip />
+          <el-table-column prop="category" label="类别" width="88" show-overflow-tooltip />
+          <el-table-column prop="status" label="状态" width="80" align="center">
             <template #default="scope">
               <el-tag :type="genericStatusType(scope.row.status)" size="small">
                 {{ scope.row.status || '—' }}
               </el-tag>
             </template>
           </el-table-column>
-          <el-table-column prop="targetHost" label="目标" min-width="112" show-overflow-tooltip />
-          <el-table-column prop="finishedAt" label="结束时间" min-width="146">
+          <el-table-column prop="targetHost" label="目标" min-width="96" show-overflow-tooltip />
+          <el-table-column prop="finishedAt" label="结束时间" min-width="128" show-overflow-tooltip>
             <template #default="scope">
               {{ formatTs(scope.row.finishedAt) }}
             </template>
           </el-table-column>
-          <el-table-column prop="durationMs" label="耗时" width="84" align="right">
+          <el-table-column prop="durationMs" label="耗时" width="72" align="right">
             <template #default="scope">
               {{ formatDuration(scope.row.durationMs) }}
             </template>
@@ -385,10 +424,34 @@ const svcStackAria = computed(() => {
 
 const exec24hFoot = computed(() => {
   const total = dash.value?.platformSummary?.executionsLast24h ?? 0
-  const fail = dash.value?.platformSummary?.executionsFailedLast24h ?? 0
   if (total <= 0) return '执行记录'
-  if (fail > 0) return `其中失败 ${fail} 条`
-  return '近 24h 无失败记录'
+  return `新建 ${total} 条（含进行中/排队）`
+})
+
+const platformS = computed(() => dash.value?.platformSummary)
+
+const execSuccess24h = computed(() => platformS.value?.executionsSuccessLast24h ?? 0)
+const execCancelled24h = computed(() => platformS.value?.executionsCancelledLast24h ?? 0)
+const execFailed24h = computed(() => platformS.value?.executionsFailedLast24h ?? 0)
+
+const execTerminal24h = computed(
+  () => execSuccess24h.value + execCancelled24h.value + execFailed24h.value
+)
+
+const execFailRateTerminalPct = computed(() => {
+  const t = execTerminal24h.value
+  if (t <= 0) return '0.0'
+  const f = execFailed24h.value
+  return ((f / t) * 100).toFixed(1)
+})
+
+const execSrc = computed(() => {
+  const b = platformS.value?.executionsBySourceLast24h
+  return {
+    cli: b?.cli ?? 0,
+    k8s: b?.k8s ?? 0,
+    job: b?.job ?? 0
+  }
 })
 
 const tableMaxPx = ref(240)
@@ -624,11 +687,11 @@ onBeforeUnmount(() => {
 }
 
 .dash-grid--main--with-host {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
 .dash-grid--main--with-host .svc-card {
-  grid-column: 1 / -1;
+  grid-column: auto;
 }
 
 .dash-grid {
@@ -836,6 +899,68 @@ onBeforeUnmount(() => {
   align-content: start;
 }
 
+.dash-table-card--span-full {
+  grid-column: 1 / -1;
+}
+
+.dash-exec-health {
+  flex-shrink: 0;
+}
+
+.dash-exec-health :deep(.el-card__body) {
+  padding: 10px 14px !important;
+}
+
+.dash-exec-health__inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.dash-exec-health__title {
+  font-weight: 600;
+  color: var(--apple-ink, #303133);
+  flex-shrink: 0;
+}
+
+.dash-exec-health__stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+  color: var(--el-text-color-regular);
+  font-size: 12px;
+  min-width: 0;
+  flex: 1;
+  width: 100%;
+}
+
+.dash-exec-health__stats strong {
+  font-weight: 600;
+  color: var(--apple-ink, #303133);
+}
+
+.dash-exec-health__sep {
+  color: var(--el-border-color);
+  user-select: none;
+}
+
+.dash-exec-health__by-src {
+  color: var(--el-text-color-secondary);
+}
+
+.dash-exec-health__link {
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.dash-table--dense :deep(.el-table__cell) {
+  padding: 6px 0;
+}
+
 .dash-table-card {
   min-width: 0;
 }
@@ -871,10 +996,6 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dash-grid--main--with-host .svc-card {
-    grid-column: 1 / -1;
-  }
-
   .dash-tables-grid {
     grid-template-columns: 1fr;
   }
@@ -887,10 +1008,6 @@ onBeforeUnmount(() => {
 
   .dash-grid--main--with-host {
     grid-template-columns: 1fr;
-  }
-
-  .dash-grid--main--with-host .svc-card {
-    grid-column: 1 / -1;
   }
 }
 </style>

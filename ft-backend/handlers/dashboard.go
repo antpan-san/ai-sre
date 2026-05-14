@@ -11,7 +11,18 @@ import (
 
 	"ft-backend/database"
 	"ft-backend/models"
+
+	"gorm.io/gorm"
 )
+
+func scopedExecutionRecords24h(tenantID uuid.UUID, since time.Time, role, username string) *gorm.DB {
+	return applyExecutionConsoleMemberScope(
+		database.DB.Model(&models.ExecutionRecord{}).
+			Where("tenant_id = ?", tenantID).
+			Where("created_at >= ?", since),
+		role, username,
+	)
+}
 
 func defaultTenantUUID() uuid.UUID {
 	return uuid.MustParse(models.DefaultTenantID)
@@ -94,16 +105,17 @@ func GetDashboardData(c *gin.Context) {
 		Where("status IN ?", []string{string(models.TaskStatusPending), string(models.TaskStatusDispatched), string(models.TaskStatusRunning)}).
 		Count(&tasksActive)
 
-	var executions24h, executionsFailed24h int64
+	var executions24h, executionsFailed24h, executionsSuccess24h, executionsCancelled24h int64
+	var execSrcCLI, execSrcK8s, execSrcJob int64
 	t24 := now.Add(-24 * time.Hour)
-	exec24 := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid).
-		Where("created_at >= ?", t24)
-	exec24 = applyExecutionConsoleMemberScope(exec24, role, username)
-	exec24.Count(&executions24h)
-	fail24 := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid).
-		Where("created_at >= ?", t24).Where("status = ?", models.ExecutionStatusFailed)
-	fail24 = applyExecutionConsoleMemberScope(fail24, role, username)
-	fail24.Count(&executionsFailed24h)
+	scopedExec24h := func() *gorm.DB { return scopedExecutionRecords24h(tid, t24, role, username) }
+	scopedExec24h().Count(&executions24h)
+	scopedExec24h().Where("status = ?", models.ExecutionStatusFailed).Count(&executionsFailed24h)
+	scopedExec24h().Where("status = ?", models.ExecutionStatusSuccess).Count(&executionsSuccess24h)
+	scopedExec24h().Where("status = ?", models.ExecutionStatusCancelled).Count(&executionsCancelled24h)
+	scopedExec24h().Where("source = ?", "cli").Count(&execSrcCLI)
+	scopedExec24h().Where("source = ?", "k8s").Count(&execSrcK8s)
+	scopedExec24h().Where("source = ?", "job").Count(&execSrcJob)
 
 	var totalUsers, totalOpLogs int64
 	if models.IsSuperAdminRole(role) {
@@ -172,9 +184,16 @@ func GetDashboardData(c *gin.Context) {
 			"pending": k8sPending,
 			"failed":  k8sFailed,
 		},
-		"tasksActive":             tasksActive,
-		"executionsLast24h":       executions24h,
-		"executionsFailedLast24h": executionsFailed24h,
+		"tasksActive":                tasksActive,
+		"executionsLast24h":          executions24h,
+		"executionsFailedLast24h":    executionsFailed24h,
+		"executionsSuccessLast24h":   executionsSuccess24h,
+		"executionsCancelledLast24h": executionsCancelled24h,
+		"executionsBySourceLast24h": gin.H{
+			"cli": execSrcCLI,
+			"k8s": execSrcK8s,
+			"job": execSrcJob,
+		},
 	}
 	if models.IsSuperAdminRole(role) {
 		platformSummary["usersTotal"] = totalUsers

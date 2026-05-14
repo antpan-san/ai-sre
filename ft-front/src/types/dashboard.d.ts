@@ -61,6 +61,16 @@ export interface PlatformSummary {
   executionsLast24h: number
   /** 近 24h 内状态为 failed 的执行条数（与 executionsLast24h 同一角色/用户范围） */
   executionsFailedLast24h?: number
+  /** 近 24h status=success，同一可见范围 */
+  executionsSuccessLast24h?: number
+  /** 近 24h status=cancelled */
+  executionsCancelledLast24h?: number
+  /** 近 24h 按 source 字段计数（任意状态） */
+  executionsBySourceLast24h?: {
+    cli: number
+    k8s: number
+    job: number
+  }
   /** 仅 super_admin 的仪表盘响应包含 */
   usersTotal?: number
   /** 仅 super_admin 的仪表盘响应包含 */
