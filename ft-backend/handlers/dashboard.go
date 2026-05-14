@@ -142,16 +142,18 @@ func GetDashboardData(c *gin.Context) {
 		Find(&recentSvcs)
 
 	recentDeployments := make([]gin.H, 0, len(recentSvcs))
-	for _, s := range recentSvcs {
+	for i := range recentSvcs {
+		s := &recentSvcs[i]
 		st := s.Status
 		recentDeployments = append(recentDeployments, gin.H{
-			"id":         s.ID.String(),
-			"name":       s.Name,
-			"image":      s.Image,
-			"replicas":   s.Replicas,
-			"status":     st,
-			"createTime": s.CreatedAt.Format(time.RFC3339),
-			"updateTime": s.UpdatedAt.Format(time.RFC3339),
+			"id":          s.ID.String(),
+			"name":        s.Name,
+			"productName": serviceProductNameForDashboard(s),
+			"resource":    serviceResourceSummaryForDashboard(s),
+			"replicas":    s.Replicas,
+			"status":      st,
+			"createTime":  s.CreatedAt.Format(time.RFC3339),
+			"updateTime":  s.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 

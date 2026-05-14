@@ -241,8 +241,9 @@
             :max-height="tableMaxPx"
             empty-text="暂无服务"
           >
-            <el-table-column prop="name" label="服务名称" min-width="100" show-overflow-tooltip />
-            <el-table-column prop="image" label="镜像" min-width="100" show-overflow-tooltip />
+            <el-table-column prop="name" label="服务名称" min-width="96" show-overflow-tooltip />
+            <el-table-column prop="productName" label="功能名称" min-width="108" show-overflow-tooltip />
+            <el-table-column prop="resource" label="资源" min-width="140" show-overflow-tooltip />
             <el-table-column prop="replicas" label="副本" width="64" align="center" />
             <el-table-column prop="status" label="状态" width="84" align="center">
               <template #default="scope">

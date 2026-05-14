@@ -36,7 +36,10 @@ export interface ServiceStatusStats {
 export interface RecentDeployment {
   id: string
   name: string
-  image: string
+  /** 平台部署/配置的产品或功能名（来自 config 约定键、description 或类型缺省文案） */
+  productName: string
+  /** 资源摘要：镜像、关联主机、端口等 */
+  resource: string
   replicas: number
   status: 'running' | 'stopped' | 'error' | 'deploying' | string
   createTime: string
