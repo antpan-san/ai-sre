@@ -18,6 +18,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+type aiSreInstallBind struct {
+	JWT      string
+	Username string
+}
+
 // publicAPIBaseFromRequest 构造浏览器访问的 API 基址（含 /ft-api），供安装脚本内 curl 使用。
 func publicAPIBaseFromRequest(c *gin.Context) string {
 	scheme := "http"
@@ -41,14 +46,26 @@ func publicAPIBaseFromRequest(c *gin.Context) string {
 	return fmt.Sprintf("%s://%s/ft-api", scheme, host)
 }
 
-// ServeAiSreInstallScript 公开：在控制机执行 curl 管道安装 ai-sre 到 /usr/local/bin。
-func ServeAiSreInstallScript(c *gin.Context) {
-	base := publicAPIBaseFromRequest(c)
-	body := fmt.Sprintf(`#!/usr/bin/env bash
+func buildAiSreInstallScriptBody(apiBase string, bind *aiSreInstallBind) string {
+	bindHeader := ""
+	bindFooter := ""
+	if bind != nil && strings.TrimSpace(bind.JWT) != "" {
+		bindHeader = fmt.Sprintf("OPSFLEET_BIND_JWT=%s\nOPSFLEET_BIND_USER=%s\n",
+			quoteShellSingleLine(bind.JWT), quoteShellSingleLine(strings.TrimSpace(bind.Username)))
+		bindFooter = `
+if [ -n "${OPSFLEET_BIND_JWT:-}" ]; then
+  printf '%s\n' "$OPSFLEET_BIND_JWT" > "$UHOME/.config/ai-sre/opsfleet_token" || true
+  chmod 0600 "$UHOME/.config/ai-sre/opsfleet_token" 2>/dev/null || true
+  printf '%s\n' "$OPSFLEET_BIND_USER" > "$UHOME/.config/ai-sre/opsfleet_username" || true
+  echo "已写入登录令牌：本机 ai-sre 调用 OpsFleet 服务端 AI 时将按当前控制台账号计费与限额；访问令牌过期后请在控制台重新复制安装命令。" >&2
+fi
+`
+	}
+	return fmt.Sprintf(`#!/usr/bin/env bash
 # OpsFleet：将 ai-sre 安装/升级到 /usr/local/bin，并保存 API 基址供本机后续每次执行 ai-sre 时联网比对版本并自升级。
 set -euo pipefail
 API_BASE=%s
-ARCH=$(uname -m)
+%sARCH=$(uname -m)
 case "$ARCH" in
   x86_64|amd64) UARCH=amd64 ;;
   aarch64|arm64) UARCH=arm64 ;;
@@ -94,14 +111,51 @@ else
 fi
 mkdir -p "$UHOME/.config/ai-sre"
 printf '%%s\n' "$API_BASE" > "$UHOME/.config/ai-sre/opsfleet_api_url" || true
+%s
 echo "已写入: $(command -v ai-sre)；已记录 OpsFleet 基址 $UHOME/.config/ai-sre/opsfleet_api_url（供自升级）"
 if ! ai-sre version; then
   echo "已写入 /usr/local/bin/ai-sre，但 version 未成功（多为架构与分发 ELF 不一致）。请让管理员在 OpsFort 配置与本机 $ARCH 一致的二进制。" >&2
 fi
-`, quoteShellSingleLine(base))
+`, quoteShellSingleLine(apiBase), bindHeader, bindFooter)
+}
+
+// bearerTokenFromAuthorization 从 Authorization: Bearer … 中取出原始 token（不做校验，由 JWT 中间件负责）。
+func bearerTokenFromAuthorization(c *gin.Context) string {
+	h := strings.TrimSpace(c.GetHeader("Authorization"))
+	if h == "" {
+		return ""
+	}
+	parts := strings.SplitN(h, " ", 3)
+	if len(parts) < 2 || !strings.EqualFold(parts[0], "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(parts[1])
+}
+
+// ServeAiSreInstallScript 公开：在控制机执行 curl 管道安装 ai-sre 到 /usr/local/bin（不绑定账号；服务端 AI 仍走匿名 IP 限额）。
+func ServeAiSreInstallScript(c *gin.Context) {
+	base := publicAPIBaseFromRequest(c)
+	body := buildAiSreInstallScriptBody(base, nil)
 
 	c.Header("Content-Type", "text/plain; charset=utf-8")
 	c.Header("Cache-Control", "public, max-age=120")
+	c.String(http.StatusOK, body)
+}
+
+// ServeAiSreInstallScriptForUser 需 JWT：生成与公开脚本相同的安装逻辑，并额外写入当前会话访问令牌与用户名，供本机 ai-sre 关联订阅与 AI 配额。
+func ServeAiSreInstallScriptForUser(c *gin.Context) {
+	tok := bearerTokenFromAuthorization(c)
+	if tok == "" {
+		response.Unauthorized(c, "缺少 Authorization Bearer token")
+		return
+	}
+	u, _ := c.Get("username")
+	username, _ := u.(string)
+	base := publicAPIBaseFromRequest(c)
+	body := buildAiSreInstallScriptBody(base, &aiSreInstallBind{JWT: tok, Username: username})
+
+	c.Header("Content-Type", "text/plain; charset=utf-8")
+	c.Header("Cache-Control", "private, no-store")
 	c.String(http.StatusOK, body)
 }
 

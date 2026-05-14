@@ -106,6 +106,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin := protected.Group("")
 		superAdmin.Use(middleware.RequireSuperAdmin())
 
+		// 已登录：个性化安装脚本（写入 opsfleet_token，关联订阅与 AI 配额）
+		protected.GET("/me/cli/install-ai-sre.sh", handlers.ServeAiSreInstallScriptForUser)
+
 		protected.GET("/billing/me", handlers.GetBillingMe)
 		protected.GET("/billing/capabilities", handlers.GetBillingCapabilities)
 		protected.GET("/billing/packages", handlers.ListBillingPackages)

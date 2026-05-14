@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -29,7 +28,7 @@ func attachOpsfleetAuth(req *http.Request) {
 	if req == nil {
 		return
 	}
-	if tok := strings.TrimSpace(os.Getenv("OPSFLEET_TOKEN")); tok != "" {
+	if tok := resolveOpsfleetToken(); tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
 	}
 }

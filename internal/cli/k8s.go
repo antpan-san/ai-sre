@@ -143,7 +143,7 @@ func k8sDownloadCmd() *cobra.Command {
 
 			tok := strings.TrimSpace(token)
 			if tok == "" {
-				tok = strings.TrimSpace(os.Getenv("OPSFLEET_TOKEN"))
+				tok = resolveOpsfleetToken()
 			}
 			if tok == "" {
 				u := strings.TrimSpace(username)
@@ -155,7 +155,7 @@ func k8sDownloadCmd() *cobra.Command {
 					p = os.Getenv("OPSFLEET_PASSWORD")
 				}
 				if u == "" || p == "" {
-					return errors.New("请提供 --token，或同时提供 --username/--password（或 OPSFLEET_TOKEN / OPSFLEET_USERNAME+OPSFLEET_PASSWORD）")
+					return errors.New("请提供 --token，或同时提供 --username/--password（或 OPSFLEET_TOKEN / 控制台安装写入的 ~/.config/ai-sre/opsfleet_token / OPSFLEET_USERNAME+OPSFLEET_PASSWORD）")
 				}
 				var err error
 				tok, err = opsfleetLogin(base, u, p)

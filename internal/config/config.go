@@ -244,3 +244,31 @@ func LoadOptionalOpsfleetAPIBase() string {
 	}
 	return strings.TrimRight(v, "/")
 }
+
+// LoadOptionalOpsfleetToken 读取 ~/.config/ai-sre/opsfleet_token（控制台「已登录」安装脚本写入），用于 ai-sre 调用 OpsFleet 服务端 AI 时等同 OPSFLEET_TOKEN。
+func LoadOptionalOpsfleetToken() string {
+	cfgDir, err := ResolveDir()
+	if err != nil {
+		return ""
+	}
+	p := filepath.Join(cfgDir, "opsfleet_token")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// LoadOptionalOpsfleetUsername 读取 ~/.config/ai-sre/opsfleet_username（可选，与令牌同属一次安装写入）。
+func LoadOptionalOpsfleetUsername() string {
+	cfgDir, err := ResolveDir()
+	if err != nil {
+		return ""
+	}
+	p := filepath.Join(cfgDir, "opsfleet_username")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}

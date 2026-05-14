@@ -216,7 +216,7 @@
             </template>
             <div class="install-ai-sre-panel">
               <p class="install-ai-sre-panel__desc">
-                在控制机执行，一键安装 <strong>ai-sre</strong> CLI（同源拉取引导脚本与二进制）。请妥善保管，勿泄露到公网。
+                在控制机执行，一键安装 <strong>ai-sre</strong> CLI；命令会携带当前登录令牌，安装后本机调用 OpsFleet 服务端 AI 将<strong>按你的账号</strong>计入订阅与每日限额。令牌过期后请重新复制执行。勿将命令粘贴到公网或不可信环境。
               </p>
               <el-input
                 class="install-ai-sre-panel__input"
@@ -226,7 +226,14 @@
                 readonly
               />
               <div class="install-ai-sre-panel__actions">
-                <el-button type="primary" size="small" @click="copyInstallAiSreCommand">复制命令</el-button>
+                <el-button
+                  type="primary"
+                  size="small"
+                  :disabled="!installAiSreCommandHasToken"
+                  @click="copyInstallAiSreCommand"
+                >
+                  复制命令
+                </el-button>
               </div>
             </div>
           </el-popover>
@@ -292,7 +299,7 @@ import {
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
-import { getInstallAiSreShellCurlLine } from '../../utils/installAiSre'
+import { getInstallAiSreShellCurlLine, getStoredAuthToken } from '../../utils/installAiSre'
 import { useMachineStore } from '../../stores/machine'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 
@@ -395,6 +402,7 @@ const userInitial = computed(() => {
 const brandShort = computed(() => 'OP')
 
 const installAiSreCommand = computed(() => getInstallAiSreShellCurlLine())
+const installAiSreCommandHasToken = computed(() => !!getStoredAuthToken())
 
 const featureVisible = (featureKey: string) => {
   const row = capabilityByFeature.value[featureKey]
@@ -420,7 +428,10 @@ const loadBillingCapabilities = async () => {
 
 const copyInstallAiSreCommand = async () => {
   const cmd = installAiSreCommand.value
-  if (!cmd?.trim()) return
+  if (!cmd?.trim() || !installAiSreCommandHasToken.value) {
+    ElMessage.warning('请先登录后再复制安装命令')
+    return
+  }
   try {
     await copyTextToClipboard(cmd)
     ElMessage.success('已复制安装 ai-sre 命令')
