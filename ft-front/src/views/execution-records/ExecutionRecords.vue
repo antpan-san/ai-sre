@@ -7,84 +7,94 @@
           <template #reference>
             <el-button text type="primary" size="small">说明</el-button>
           </template>
-          <p class="page-desc--muted" style="margin: 0">CLI、脚本副本、作业或 K8s 操作的统一历史。</p>
+          <p class="page-desc--muted" style="margin: 0">
+            CLI、脚本副本、作业或 K8s 操作的统一历史；开启 K8s 交付能力时可在「K8s 集群」查看已登记集群。
+          </p>
         </el-popover>
       </div>
     </header>
 
-    <section class="search-filters">
-      <el-input v-model="filters.keyword" placeholder="搜索命令 / 输出 / 名称" clearable :prefix-icon="Search" @keyup.enter="handleSearch" />
-      <el-input v-model="filters.target" placeholder="目标主机 / 资源" clearable :prefix-icon="Search" @keyup.enter="handleSearch" />
-      <el-select v-model="filters.source" placeholder="来源" clearable @change="handleSearch">
-        <el-option label="ai-sre CLI" value="cli" />
-        <el-option label="复制脚本" value="script" />
-        <el-option label="初始化工具" value="init-tools" />
-        <el-option label="作业中心" value="job" />
-        <el-option label="K8s" value="k8s" />
-        <el-option label="回滚" value="rollback" />
-      </el-select>
-      <el-select v-model="filters.status" placeholder="状态" clearable @change="handleSearch">
-        <el-option label="等待中" value="pending" />
-        <el-option label="执行中" value="running" />
-        <el-option label="成功" value="success" />
-        <el-option label="失败" value="failed" />
-        <el-option label="已取消" value="cancelled" />
-      </el-select>
-      <el-select v-model="filters.rollbackCapability" placeholder="回滚能力" clearable @change="handleSearch">
-        <el-option label="自动 / 半自动" value="auto" />
-        <el-option label="人工建议" value="manual" />
-        <el-option label="不可回滚" value="none" />
-      </el-select>
-      <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
-      <el-button :icon="RefreshRight" @click="handleReset">重置</el-button>
-    </section>
+    <el-tabs v-model="activePanel" class="exec-tabs" type="border-card" @tab-change="onTabChange">
+      <el-tab-pane label="历史列表" name="records">
+        <section class="search-filters">
+          <el-input v-model="filters.keyword" placeholder="搜索命令 / 输出 / 名称" clearable :prefix-icon="Search" @keyup.enter="handleSearch" />
+          <el-input v-model="filters.target" placeholder="目标主机 / 资源" clearable :prefix-icon="Search" @keyup.enter="handleSearch" />
+          <el-select v-model="filters.source" placeholder="来源" clearable @change="handleSearch">
+            <el-option label="ai-sre CLI" value="cli" />
+            <el-option label="复制脚本" value="script" />
+            <el-option label="初始化工具" value="init-tools" />
+            <el-option label="作业中心" value="job" />
+            <el-option label="K8s" value="k8s" />
+            <el-option label="回滚" value="rollback" />
+          </el-select>
+          <el-select v-model="filters.status" placeholder="状态" clearable @change="handleSearch">
+            <el-option label="等待中" value="pending" />
+            <el-option label="执行中" value="running" />
+            <el-option label="成功" value="success" />
+            <el-option label="失败" value="failed" />
+            <el-option label="已取消" value="cancelled" />
+          </el-select>
+          <el-select v-model="filters.rollbackCapability" placeholder="回滚能力" clearable @change="handleSearch">
+            <el-option label="自动 / 半自动" value="auto" />
+            <el-option label="人工建议" value="manual" />
+            <el-option label="不可回滚" value="none" />
+          </el-select>
+          <el-button type="primary" :icon="Search" @click="handleSearch">搜索</el-button>
+          <el-button :icon="RefreshRight" @click="handleReset">重置</el-button>
+        </section>
 
-    <el-table v-loading="loading" :data="records" border stripe class="records-table">
-      <el-table-column prop="created_at" label="时间" min-width="165">
-        <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
-      </el-table-column>
-      <el-table-column prop="name" label="执行项" min-width="220">
-        <template #default="{ row }">
-          <div class="record-name">{{ row.name }}</div>
-          <div class="record-command">{{ row.command || row.category }}</div>
-        </template>
-      </el-table-column>
-      <el-table-column prop="source" label="来源" width="110">
-        <template #default="{ row }"><el-tag size="small">{{ sourceLabel(row.source) }}</el-tag></template>
-      </el-table-column>
-      <el-table-column prop="target_host" label="目标" min-width="150">
-        <template #default="{ row }">{{ row.target_host || row.resource_name || row.resource_id || '-' }}</template>
-      </el-table-column>
-      <el-table-column prop="status" label="状态" width="100">
-        <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag></template>
-      </el-table-column>
-      <el-table-column prop="rollback_capability" label="回滚" width="130">
-        <template #default="{ row }">
-          <el-tag :type="rollbackType(row.rollback_capability)" size="small">{{ rollbackLabel(row.rollback_capability) }}</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="rollback_status" label="回滚状态" width="120">
-        <template #default="{ row }">{{ rollbackStatusLabel(row.rollback_status) }}</template>
-      </el-table-column>
-      <el-table-column label="操作" width="170" fixed="right">
-        <template #default="{ row }">
-          <el-button type="primary" link @click="openDetail(row)">详情</el-button>
-          <el-button type="warning" link :disabled="row.rollback_capability === 'none'" @click="previewRollback(row)">回滚</el-button>
-        </template>
-      </el-table-column>
-    </el-table>
+        <el-table v-loading="loading" :data="records" border stripe class="records-table">
+          <el-table-column prop="created_at" label="时间" min-width="165">
+            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column prop="name" label="执行项" min-width="220">
+            <template #default="{ row }">
+              <div class="record-name">{{ row.name }}</div>
+              <div class="record-command">{{ row.command || row.category }}</div>
+            </template>
+          </el-table-column>
+          <el-table-column prop="source" label="来源" width="110">
+            <template #default="{ row }"><el-tag size="small">{{ sourceLabel(row.source) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column prop="target_host" label="目标" min-width="150">
+            <template #default="{ row }">{{ row.target_host || row.resource_name || row.resource_id || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="status" label="状态" width="100">
+            <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column prop="rollback_capability" label="回滚" width="130">
+            <template #default="{ row }">
+              <el-tag :type="rollbackType(row.rollback_capability)" size="small">{{ rollbackLabel(row.rollback_capability) }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column prop="rollback_status" label="回滚状态" width="120">
+            <template #default="{ row }">{{ rollbackStatusLabel(row.rollback_status) }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="170" fixed="right">
+            <template #default="{ row }">
+              <el-button type="primary" link @click="openDetail(row)">详情</el-button>
+              <el-button type="warning" link :disabled="row.rollback_capability === 'none'" @click="previewRollback(row)">回滚</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
 
-    <div class="pagination">
-      <el-pagination
-        v-model:current-page="filters.page"
-        v-model:page-size="filters.pageSize"
-        :page-sizes="[10, 20, 50, 100]"
-        layout="total, sizes, prev, pager, next, jumper"
-        :total="total"
-        @size-change="fetchRecords"
-        @current-change="fetchRecords"
-      />
-    </div>
+        <div class="pagination">
+          <el-pagination
+            v-model:current-page="filters.page"
+            v-model:page-size="filters.pageSize"
+            :page-sizes="[10, 20, 50, 100]"
+            layout="total, sizes, prev, pager, next, jumper"
+            :total="total"
+            @size-change="fetchRecords"
+            @current-change="fetchRecords"
+          />
+        </div>
+      </el-tab-pane>
+
+      <el-tab-pane v-if="showClusterTab" label="K8s 集群" name="k8s" lazy>
+        <K8sClusterPanel ref="clusterPanelRef" />
+      </el-tab-pane>
+    </el-tabs>
 
     <el-drawer v-model="detailVisible" title="执行详情" size="58%">
       <template v-if="detail">
@@ -162,7 +172,8 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { RefreshRight, Search } from '@element-plus/icons-vue'
 import {
@@ -171,6 +182,62 @@ import {
   previewExecutionRollback,
   rollbackExecutionRecord,
 } from '../../api/execution-records'
+import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
+import K8sClusterPanel from '../../components/k8s/K8sClusterPanel.vue'
+
+const route = useRoute()
+const router = useRouter()
+
+const isAdminShell = computed(() => route.path.startsWith('/admin'))
+const capabilityByFeature = ref<Record<string, BillingCapabilityFeature>>({})
+
+const showClusterTab = computed(() => {
+  if (!isAdminShell.value) return false
+  const row = capabilityByFeature.value['feature.k8s_delivery']
+  return row ? row.visible_enabled && row.can_view !== false : true
+})
+
+const activePanel = ref<'records' | 'k8s'>('records')
+const clusterPanelRef = ref<InstanceType<typeof K8sClusterPanel> | null>(null)
+
+function syncTabFromRoute() {
+  if (route.query.tab === 'k8s' && showClusterTab.value) {
+    activePanel.value = 'k8s'
+  } else {
+    activePanel.value = 'records'
+  }
+}
+
+async function loadBillingCapabilities() {
+  try {
+    const data = await getBillingCapabilities()
+    const next: Record<string, BillingCapabilityFeature> = {}
+    ;(data.features || []).forEach((item) => {
+      next[item.feature_key] = item
+    })
+    capabilityByFeature.value = next
+  } catch {
+    capabilityByFeature.value = {}
+  }
+}
+
+function onTabChange(name: string | number) {
+  const n = String(name)
+  if (n === 'k8s') {
+    router.replace({ path: route.path, query: { ...route.query, tab: 'k8s' } })
+    void nextTick(() => clusterPanelRef.value?.loadClusters())
+    return
+  }
+  const { tab: _t, ...rest } = route.query
+  router.replace({ path: route.path, query: Object.keys(rest).length ? rest : undefined })
+}
+
+watch(
+  () => [route.query.tab, showClusterTab.value] as const,
+  () => {
+    syncTabFromRoute()
+  }
+)
 
 const loading = ref(false)
 const records = ref<any[]>([])
@@ -192,7 +259,11 @@ const filters = reactive({
   rollbackCapability: '',
 })
 
-onMounted(fetchRecords)
+onMounted(async () => {
+  await loadBillingCapabilities()
+  syncTabFromRoute()
+  void fetchRecords()
+})
 
 async function fetchRecords() {
   loading.value = true
@@ -280,6 +351,30 @@ function rollbackStatusLabel(value: string) {
   display: flex;
   flex-direction: column;
   gap: 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+.exec-tabs {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.exec-tabs :deep(.el-tabs__header) {
+  margin: 0;
+}
+
+.exec-tabs :deep(.el-tabs__content) {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.exec-tabs :deep(.el-tab-pane) {
+  min-height: 0;
 }
 
 .page-header {

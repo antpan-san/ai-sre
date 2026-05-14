@@ -175,7 +175,7 @@ const onOsChange = (osType: OsType | '') => {
 }
 
 const goMachineList = () => {
-  router.push('/service/k8s/clusters')
+  router.push({ path: '/admin/execution-records', query: { tab: 'k8s' } })
 }
 
 onMounted(async () => {

@@ -363,7 +363,7 @@ const clearLogs = () => {
 }
 
 const goToClusterList = () => {
-  router.push('/service/k8s-deploy')
+  router.push({ path: '/admin/execution-records', query: { tab: 'k8s' } })
 }
 
 const downloadKubeconfig = () => {

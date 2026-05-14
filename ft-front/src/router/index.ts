@@ -14,8 +14,10 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/service/deploy', redirect: '/admin/service/deploy' },
   { path: '/service/k8s-deploy/progress', redirect: '/admin/service/k8s-deploy/progress' },
   { path: '/service/k8s-deploy', redirect: '/admin/service/k8s-deploy' },
-  { path: '/service/k8s-mirror', redirect: '/admin/service/k8s-mirror' },
-  { path: '/service/k8s/clusters', redirect: '/admin/service/k8s/clusters' },
+  { path: '/service/k8s-mirror', redirect: '/admin/k8s-mirror' },
+  { path: '/admin/service/k8s-mirror', redirect: '/admin/k8s-mirror' },
+  { path: '/service/k8s/clusters', redirect: '/admin/execution-records?tab=k8s' },
+  { path: '/admin/service/k8s/clusters', redirect: '/admin/execution-records?tab=k8s' },
   { path: '/service/linux', redirect: '/admin/service/linux' },
   { path: '/service', redirect: '/admin/service/deploy' },
   { path: '/proxy/config', redirect: '/admin/proxy/config' },
@@ -47,6 +49,8 @@ const routes: Array<RouteRecordRaw> = [
     meta: { title: '控制台', requireAuth: true, roles: appRoles },
     redirect: '/admin/dashboard',
     children: [
+      { path: 'service/k8s-mirror', redirect: '/admin/k8s-mirror' },
+      { path: 'service/k8s/clusters', redirect: { path: '/admin/execution-records', query: { tab: 'k8s' } } },
       {
         path: 'dashboard',
         name: 'AdminDashboard',
@@ -101,16 +105,10 @@ const routes: Array<RouteRecordRaw> = [
         }
       },
       {
-        path: 'service/k8s-mirror',
+        path: 'k8s-mirror',
         name: 'AdminK8sMirrorCatalog',
         component: () => import('../views/service/k8s-mirror/K8sMirrorCatalog.vue'),
         meta: { title: '制品目录', requireAuth: true, roles: appRoles }
-      },
-      {
-        path: 'service/k8s/clusters',
-        name: 'AdminK8sClusterList',
-        component: () => import('../views/service/k8s-deploy/K8sClusterList.vue'),
-        meta: { title: '集群', requireAuth: true, roles: appRoles }
       },
       {
         path: 'service/linux',

@@ -388,7 +388,7 @@ const goJobCenter = () => {
 }
 const goK8sClusters = () => {
   if (!isConsoleAdmin.value) return
-  router.push('/admin/service/k8s/clusters')
+  router.push({ path: '/admin/execution-records', query: { tab: 'k8s' } })
 }
 const goExecRecords = () => {
   router.push(`${shellPrefix.value}/execution-records`)

@@ -76,14 +76,6 @@
                 <el-icon><Connection /></el-icon>
                 <template #title>Kubernetes<span v-if="featureBillingEnabled('feature.k8s_delivery')" class="menu-pack-tag">订阅</span></template>
               </el-menu-item>
-              <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/service/k8s/clusters">
-                <el-icon><Grid /></el-icon>
-                <template #title>集群</template>
-              </el-menu-item>
-              <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/service/k8s-mirror">
-                <el-icon><Download /></el-icon>
-                <template #title>制品目录</template>
-              </el-menu-item>
               <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/service/linux">
                 <el-icon><Cpu /></el-icon>
                 <template #title>Linux 主机</template>
@@ -92,6 +84,10 @@
             <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/proxy/config">
               <el-icon><Link /></el-icon>
               <template #title>出口代理</template>
+            </el-menu-item>
+            <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/k8s-mirror">
+              <el-icon><Download /></el-icon>
+              <template #title>制品目录<span v-if="featureBillingEnabled('feature.k8s_delivery')" class="menu-pack-tag">订阅</span></template>
             </el-menu-item>
             <el-sub-menu v-if="featureVisible('feature.monitoring')" index="asm-observe">
               <template #title>
@@ -290,7 +286,6 @@ import {
   Cpu,
   Link,
   Download,
-  Grid,
   Reading,
   Setting,
   List
@@ -319,8 +314,7 @@ const routeIconMap: Record<string, Component> = {
   '/service': Box,
   '/service/deploy': Operation,
   '/service/k8s-deploy': Connection,
-  '/service/k8s/clusters': Grid,
-  '/service/k8s-mirror': Download,
+  '/k8s-mirror': Download,
   '/service/linux': Cpu,
   '/proxy': Link,
   '/monitoring': Monitor,
