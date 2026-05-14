@@ -49,7 +49,10 @@
       >
         <div class="snapshot-label">业务服务（台账）</div>
         <div class="snapshot-value">{{ dash?.serviceStatusStats?.total ?? 0 }}</div>
-        <div class="snapshot-foot">运行 {{ dash?.serviceStatusStats?.running ?? 0 }} · 停止 {{ dash?.serviceStatusStats?.stopped ?? 0 }} · 异常 {{ dash?.serviceStatusStats?.error ?? 0 }}</div>
+        <div class="snapshot-foot">
+          运行 {{ dash?.serviceStatusStats?.running ?? 0 }} · 部署中 {{ dash?.serviceStatusStats?.deploying ?? 0 }} · 停止
+          {{ dash?.serviceStatusStats?.stopped ?? 0 }} · 异常 {{ dash?.serviceStatusStats?.error ?? 0 }}
+        </div>
       </el-card>
 
       <el-card
@@ -75,6 +78,7 @@
       >
         <div class="snapshot-label">近 24h 执行</div>
         <div class="snapshot-value">{{ dash?.platformSummary?.executionsLast24h ?? 0 }}</div>
+        <div class="snapshot-foot">{{ exec24hFoot }}</div>
       </el-card>
 
       <el-card
@@ -92,7 +96,7 @@
       </el-card>
     </div>
 
-    <div class="dash-grid dash-grid--main" :class="{ 'dash-grid--main--no-host': !isSuperAdmin }">
+    <div class="dash-grid dash-grid--main" :class="isSuperAdmin ? 'dash-grid--main--with-host' : 'dash-grid--main--no-host'">
       <template v-if="isSuperAdmin">
         <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
           <div class="meter-head">
@@ -142,27 +146,32 @@
         </el-card>
       </template>
 
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="svc-card">
+      <el-card v-loading="dashboardStore.loading" shadow="hover" class="svc-card" role="region" aria-label="业务服务状态">
         <div class="svc-card-head">
           <span class="svc-card-title">业务服务状态</span>
-          <span class="svc-card-meta">台账合计 {{ svcTotal }}</span>
+          <span class="svc-card-meta">台账 {{ svcTotal }} · 运行态 {{ svcOperational }}</span>
         </div>
-        <div class="svc-stack-wrap" aria-label="状态占比">
-          <div v-if="svcTotal > 0" class="svc-stack-bar">
+        <div class="svc-stack-wrap">
+          <div v-if="svcTotal > 0" class="svc-stack-bar" role="img" :aria-label="svcStackAria">
             <div
-              v-if="svcRunWidth > 0"
+              v-if="svcRunN > 0"
               class="svc-stack-seg svc-stack-seg--run"
-              :style="{ width: svcRunWidth + '%' }"
+              :style="svcSegStyle(svcRunN)"
             />
             <div
-              v-if="svcStopWidth > 0"
+              v-if="svcDepN > 0"
+              class="svc-stack-seg svc-stack-seg--deploy"
+              :style="svcSegStyle(svcDepN)"
+            />
+            <div
+              v-if="svcStopN > 0"
               class="svc-stack-seg svc-stack-seg--stopped"
-              :style="{ width: svcStopWidth + '%' }"
+              :style="svcSegStyle(svcStopN)"
             />
             <div
-              v-if="svcErrWidth > 0"
+              v-if="svcErrN > 0"
               class="svc-stack-seg svc-stack-seg--error"
-              :style="{ width: svcErrWidth + '%' }"
+              :style="svcSegStyle(svcErrN)"
             />
           </div>
           <div v-else class="svc-stack-empty page-desc--muted">暂无业务服务台账</div>
@@ -170,15 +179,19 @@
         <div class="svc-legends">
           <div class="svc-legend">
             <span class="svc-dot svc-dot--run" />
-            <span>运行 {{ dash?.serviceStatusStats?.running ?? 0 }}</span>
+            <span>运行 {{ svcRunN }}</span>
+          </div>
+          <div class="svc-legend">
+            <span class="svc-dot svc-dot--deploy" />
+            <span>部署中 {{ svcDepN }}</span>
           </div>
           <div class="svc-legend">
             <span class="svc-dot svc-dot--stopped" />
-            <span>停止 {{ dash?.serviceStatusStats?.stopped ?? 0 }}</span>
+            <span>停止 {{ svcStopN }}</span>
           </div>
           <div class="svc-legend">
             <span class="svc-dot svc-dot--error" />
-            <span>异常 {{ dash?.serviceStatusStats?.error ?? 0 }}</span>
+            <span>异常 {{ svcErrN }}</span>
           </div>
         </div>
       </el-card>
@@ -349,24 +362,33 @@ const hostRuntimeLine = computed(() => {
 const diskRootHint = computed(() => '根分区使用率（Linux 为 /）')
 
 const svcTotal = computed(() => dash.value?.serviceStatusStats?.total ?? 0)
+const svcRunN = computed(() => dash.value?.serviceStatusStats?.running ?? 0)
+const svcDepN = computed(() => dash.value?.serviceStatusStats?.deploying ?? 0)
+const svcStopN = computed(() => dash.value?.serviceStatusStats?.stopped ?? 0)
+const svcErrN = computed(() => dash.value?.serviceStatusStats?.error ?? 0)
+const svcOperational = computed(
+  () => dash.value?.serviceStatusStats?.operational ?? svcRunN.value + svcDepN.value
+)
 
-const svcRunWidth = computed(() => {
-  const t = svcTotal.value
-  if (!t) return 0
-  const n = dash.value?.serviceStatusStats?.running ?? 0
-  return Math.max(0, Math.round((n / t) * 1000) / 10)
+const svcSegStyle = (n: number) => ({
+  flexGrow: Math.max(0, n),
+  flexShrink: 0,
+  flexBasis: 0,
+  minWidth: n > 0 ? '6px' : 0
 })
-const svcStopWidth = computed(() => {
+
+const svcStackAria = computed(() => {
   const t = svcTotal.value
-  if (!t) return 0
-  const n = dash.value?.serviceStatusStats?.stopped ?? 0
-  return Math.max(0, Math.round((n / t) * 1000) / 10)
+  if (!t) return '无台账'
+  return `运行 ${svcRunN.value}，部署中 ${svcDepN.value}，停止 ${svcStopN.value}，异常 ${svcErrN.value}，共 ${t} 条`
 })
-const svcErrWidth = computed(() => {
-  const t = svcTotal.value
-  if (!t) return 0
-  const n = dash.value?.serviceStatusStats?.error ?? 0
-  return Math.max(0, Math.round((n / t) * 1000) / 10)
+
+const exec24hFoot = computed(() => {
+  const total = dash.value?.platformSummary?.executionsLast24h ?? 0
+  const fail = dash.value?.platformSummary?.executionsFailedLast24h ?? 0
+  if (total <= 0) return '执行记录'
+  if (fail > 0) return `其中失败 ${fail} 条`
+  return '近 24h 无失败记录'
 })
 
 const tableMaxPx = ref(240)
@@ -601,6 +623,14 @@ onBeforeUnmount(() => {
   grid-column: 1 / -1;
 }
 
+.dash-grid--main--with-host {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.dash-grid--main--with-host .svc-card {
+  grid-column: 1 / -1;
+}
+
 .dash-grid {
   display: grid;
   gap: 10px;
@@ -612,7 +642,6 @@ onBeforeUnmount(() => {
 }
 
 .dash-grid--main {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: stretch;
 }
 
@@ -702,9 +731,9 @@ onBeforeUnmount(() => {
   padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  justify-content: center;
-  min-height: 92px;
+  gap: 12px;
+  justify-content: flex-start;
+  min-height: 108px;
 }
 
 .svc-card-head {
@@ -726,14 +755,14 @@ onBeforeUnmount(() => {
 }
 
 .svc-stack-wrap {
-  min-height: 14px;
+  min-height: 16px;
 }
 
 .svc-stack-bar {
   display: flex;
   width: 100%;
-  height: 12px;
-  border-radius: 6px;
+  height: 14px;
+  border-radius: 7px;
   overflow: hidden;
   background: var(--apple-hairline, #ebeef5);
 }
@@ -745,6 +774,10 @@ onBeforeUnmount(() => {
 
 .svc-stack-seg--run {
   background: #67c23a;
+}
+
+.svc-stack-seg--deploy {
+  background: #e6a23c;
 }
 
 .svc-stack-seg--stopped {
@@ -760,9 +793,10 @@ onBeforeUnmount(() => {
 }
 
 .svc-legends {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px 16px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
+  gap: 8px 10px;
+  align-items: center;
 }
 
 .svc-legend {
@@ -782,6 +816,9 @@ onBeforeUnmount(() => {
 
 .svc-dot--run {
   background: #67c23a;
+}
+.svc-dot--deploy {
+  background: #e6a23c;
 }
 .svc-dot--stopped {
   background: #c8c9cc;
@@ -823,12 +860,12 @@ onBeforeUnmount(() => {
 }
 
 @media screen and (max-width: 1280px) {
-  .dash-grid--main:not(.dash-grid--main--no-host) {
+  .dash-grid--main--with-host {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dash-grid--main:not(.dash-grid--main--no-host) .svc-card {
-    grid-column: span 2;
+  .dash-grid--main--with-host .svc-card {
+    grid-column: 1 / -1;
   }
 
   .dash-tables-grid {
@@ -841,12 +878,12 @@ onBeforeUnmount(() => {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .dash-grid--main:not(.dash-grid--main--no-host) {
+  .dash-grid--main--with-host {
     grid-template-columns: 1fr;
   }
 
-  .dash-grid--main:not(.dash-grid--main--no-host) .svc-card {
-    grid-column: span 1;
+  .dash-grid--main--with-host .svc-card {
+    grid-column: 1 / -1;
   }
 }
 </style>

@@ -24,9 +24,12 @@ export interface KubernetesOverview {
 // 服务状态统计（Linux / Docker 等业务服务）
 export interface ServiceStatusStats {
   running: number
+  deploying: number
   stopped: number
   error: number
   total: number
+  /** 运行 + 部署中，与「健康台数」口径一致 */
+  operational?: number
 }
 
 // 最近部署的服务（台账）
@@ -56,6 +59,8 @@ export interface PlatformSummary {
   }
   tasksActive: number
   executionsLast24h: number
+  /** 近 24h 内状态为 failed 的执行条数（与 executionsLast24h 同一角色/用户范围） */
+  executionsFailedLast24h?: number
   /** 仅 super_admin 的仪表盘响应包含 */
   usersTotal?: number
   /** 仅 super_admin 的仪表盘响应包含 */

@@ -50,9 +50,6 @@ func GetDashboardData(c *gin.Context) {
 		Where("status IN ?", []string{"error", "failed"}).Count(&svcError)
 	database.DB.Model(&models.Service{}).Where("tenant_id = ?", tid).Count(&svcTotal)
 
-	// 「运行态」圆圈：running + deploying
-	runningPie := svcRunning + svcDeploying
-
 	var totalK8s, k8sRunning, k8sPending, k8sFailed int64
 	recentK8s := make([]gin.H, 0)
 	recentInstalls := make([]gin.H, 0)
@@ -97,12 +94,16 @@ func GetDashboardData(c *gin.Context) {
 		Where("status IN ?", []string{string(models.TaskStatusPending), string(models.TaskStatusDispatched), string(models.TaskStatusRunning)}).
 		Count(&tasksActive)
 
-	var executions24h int64
+	var executions24h, executionsFailed24h int64
 	t24 := now.Add(-24 * time.Hour)
 	exec24 := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid).
 		Where("created_at >= ?", t24)
 	exec24 = applyExecutionConsoleMemberScope(exec24, role, username)
 	exec24.Count(&executions24h)
+	fail24 := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid).
+		Where("created_at >= ?", t24).Where("status = ?", models.ExecutionStatusFailed)
+	fail24 = applyExecutionConsoleMemberScope(fail24, role, username)
+	fail24.Count(&executionsFailed24h)
 
 	var totalUsers, totalOpLogs int64
 	if models.IsSuperAdminRole(role) {
@@ -151,15 +152,15 @@ func GetDashboardData(c *gin.Context) {
 			fin = e.FinishedAt.Format(time.RFC3339)
 		}
 		recentExecutions = append(recentExecutions, gin.H{
-			"id":             e.ID.String(),
-			"name":           e.Name,
-			"status":         e.Status,
-			"category":       e.Category,
-			"source":         e.Source,
-			"targetHost":     e.TargetHost,
-			"resourceName":   e.ResourceName,
-			"finishedAt":     fin,
-			"durationMs":     e.DurationMs,
+			"id":           e.ID.String(),
+			"name":         e.Name,
+			"status":       e.Status,
+			"category":     e.Category,
+			"source":       e.Source,
+			"targetHost":   e.TargetHost,
+			"resourceName": e.ResourceName,
+			"finishedAt":   fin,
+			"durationMs":   e.DurationMs,
 		})
 	}
 
@@ -171,8 +172,9 @@ func GetDashboardData(c *gin.Context) {
 			"pending": k8sPending,
 			"failed":  k8sFailed,
 		},
-		"tasksActive":       tasksActive,
-		"executionsLast24h": executions24h,
+		"tasksActive":             tasksActive,
+		"executionsLast24h":       executions24h,
+		"executionsFailedLast24h": executionsFailed24h,
 	}
 	if models.IsSuperAdminRole(role) {
 		platformSummary["usersTotal"] = totalUsers
@@ -209,12 +211,19 @@ func GetDashboardData(c *gin.Context) {
 	data := gin.H{
 		"resourceUsage":      resourceUsage,
 		"kubernetesOverview": gin.H{"nodes": 0, "pods": totalK8s, "runningPods": 0, "services": svcTotal, "deployments": k8sRunning, "replicasets": tasksActive},
-		"serviceStatusStats": gin.H{"running": runningPie, "stopped": svcStopped, "error": svcError, "total": svcTotal},
-		"recentDeployments":  recentDeployments,
-		"platformSummary":    platformSummary,
-		"recentK8sClusters":    recentK8s,
+		"serviceStatusStats": gin.H{
+			"running":     svcRunning,
+			"deploying":   svcDeploying,
+			"stopped":     svcStopped,
+			"error":       svcError,
+			"total":       svcTotal,
+			"operational": svcRunning + svcDeploying, // 运行 + 部署中，供 KPI 等「健康台数」口径
+		},
+		"recentDeployments":     recentDeployments,
+		"platformSummary":       platformSummary,
+		"recentK8sClusters":     recentK8s,
 		"recentServiceInstalls": recentInstalls,
-		"recentExecutions":   recentExecutions,
+		"recentExecutions":      recentExecutions,
 	}
 	if hostRuntime != nil && len(hostRuntime) > 0 {
 		data["hostRuntime"] = hostRuntime
