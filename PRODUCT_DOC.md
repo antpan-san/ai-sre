@@ -357,6 +357,8 @@ Client（Master 节点 Agent）收到 install_k8s 命令
 
 统一能力接口为 `GET /api/billing/capabilities`。执行校验使用 `RequireCapability(featureKey, action)`，action 覆盖 `view`、`preview`、`execute`、`report`、`download`、`ai_call`。未订阅时统一返回 HTTP 403 与 `biz: "PAYWALL_<pack_key>"`，并包含 `feature_key`、`pack_key`、`reason`、`checkout_available`。
 
+顶栏安装 ai-sre 使用一次性安装会话和专用 CLI token：脚本绑定机器指纹后换取 token，服务端仅保存哈希；后续 AI 调用按绑定账号识别订阅和每日免费额度。执行记录页展示 AI 调用与安装 ai-sre 的结构化记录。
+
 详细付费设计见 `docs/advanced-feature-billing-design.md`。
 
 ---

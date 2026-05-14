@@ -20,6 +20,8 @@
           <el-input v-model="filters.keyword" placeholder="搜索命令 / 输出 / 名称" clearable :prefix-icon="Search" @keyup.enter="handleSearch" />
           <el-input v-model="filters.target" placeholder="目标主机 / 资源" clearable :prefix-icon="Search" @keyup.enter="handleSearch" />
           <el-select v-model="filters.source" placeholder="来源" clearable @change="handleSearch">
+            <el-option label="AI 调用" value="ai" />
+            <el-option label="安装 ai-sre" value="install" />
             <el-option label="ai-sre CLI" value="cli" />
             <el-option label="复制脚本" value="script" />
             <el-option label="初始化工具" value="init-tools" />
@@ -55,6 +57,12 @@
           </el-table-column>
           <el-table-column prop="source" label="来源" width="110">
             <template #default="{ row }"><el-tag size="small">{{ sourceLabel(row.source) }}</el-tag></template>
+          </el-table-column>
+          <el-table-column label="账号 / 功能包" min-width="170">
+            <template #default="{ row }">
+              <div class="record-user">{{ row.trigger_user || row.created_by || '-' }}</div>
+              <div class="record-pack">{{ packLabel(recordMeta(row).pack_key || recordMeta(row).skill_pack) }}</div>
+            </template>
           </el-table-column>
           <el-table-column prop="target_host" label="目标" min-width="150">
             <template #default="{ row }">{{ row.target_host || row.resource_name || row.resource_id || '-' }}</template>
@@ -103,6 +111,8 @@
           <el-descriptions-item label="状态">{{ statusLabel(detail.record.status) }}</el-descriptions-item>
           <el-descriptions-item label="来源">{{ sourceLabel(detail.record.source) }}</el-descriptions-item>
           <el-descriptions-item label="目标">{{ detail.record.target_host || detail.record.resource_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="账号">{{ detail.record.trigger_user || detail.record.created_by || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="类型">{{ recordKindLabel(recordMeta(detail.record).record_kind) }}</el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ formatTime(detail.record.started_at) }}</el-descriptions-item>
           <el-descriptions-item label="结束时间">{{ formatTime(detail.record.finished_at) }}</el-descriptions-item>
           <el-descriptions-item label="回滚能力">{{ rollbackLabel(detail.record.rollback_capability) }}</el-descriptions-item>
@@ -121,6 +131,29 @@
         <section class="detail-block">
           <h3>命令 / 脚本摘要</h3>
           <pre>{{ detail.record.command || '-' }}</pre>
+        </section>
+        <section v-if="recordMeta(detail.record).record_kind === 'ai_call'" class="detail-block detail-card">
+          <h3>AI 调用</h3>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="技能包">{{ packLabel(recordMeta(detail.record).skill_pack) }}</el-descriptions-item>
+            <el-descriptions-item label="权益来源">{{ entitlementLabel(recordMeta(detail.record).entitlement_source) }}</el-descriptions-item>
+            <el-descriptions-item label="消耗次数">{{ recordMeta(detail.record).quota_used ?? '-' }}</el-descriptions-item>
+            <el-descriptions-item label="剩余额度">{{ quotaRemainingText(recordMeta(detail.record).quota_remaining) }}</el-descriptions-item>
+            <el-descriptions-item label="认证">{{ authKindLabel(recordMeta(detail.record).auth_kind) }}</el-descriptions-item>
+            <el-descriptions-item label="客户端">{{ recordMeta(detail.record).client?.version || '-' }}</el-descriptions-item>
+          </el-descriptions>
+          <pre class="detail-pre--light">{{ pretty(recordMeta(detail.record).context) }}</pre>
+        </section>
+        <section v-if="recordMeta(detail.record).record_kind === 'cli_install'" class="detail-block detail-card">
+          <h3>安装信息</h3>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="绑定 ID">{{ recordMeta(detail.record).cli_binding_id || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="主机">{{ detail.record.target_host || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="系统">{{ recordMeta(detail.record).os || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="架构">{{ recordMeta(detail.record).arch || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="安装用户">{{ recordMeta(detail.record).install_user || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="版本">{{ recordMeta(detail.record).version || '-' }}</el-descriptions-item>
+          </el-descriptions>
         </section>
         <section class="detail-block">
           <h3>执行效果</h3>
@@ -321,8 +354,44 @@ function pretty(value: any) {
   return JSON.stringify(value, null, 2)
 }
 
+function recordMeta(row: any) {
+  return row?.metadata && typeof row.metadata === 'object' ? row.metadata : {}
+}
+
 function sourceLabel(value: string) {
-  return ({ cli: 'CLI', script: '脚本', 'init-tools': '初始化', job: '作业', k8s: 'K8s', rollback: '回滚' } as Record<string, string>)[value] || value || '-'
+  return ({ ai: 'AI', install: '安装', cli: 'CLI', script: '脚本', 'init-tools': '初始化', job: '作业', k8s: 'K8s', rollback: '回滚' } as Record<string, string>)[value] || value || '-'
+}
+
+function recordKindLabel(value: string) {
+  return ({ ai_call: 'AI 调用', cli_install: '安装 ai-sre', script: '脚本', task: '任务' } as Record<string, string>)[value] || value || '-'
+}
+
+function packLabel(value: string) {
+  return ({
+    'pack.k8s_delivery': 'K8s 交付',
+    'pack.node_ops': '节点运维',
+    'pack.monitoring': '可观测性',
+    'pack.backup_performance': '备份与性能',
+    'skillpack.k8s': 'K8s 技能包',
+    'skillpack.kafka': 'Kafka 技能包',
+    'skillpack.redis': 'Redis 技能包',
+    'skillpack.nginx': 'Nginx 技能包',
+    'skillpack.mysql': 'MySQL 技能包',
+    'skillpack.elasticsearch': 'Elasticsearch 技能包',
+  } as Record<string, string>)[value] || value || '-'
+}
+
+function entitlementLabel(value: string) {
+  return ({ free: '免费额度', entitlement: '权益', manual: '人工授权', stripe: '订阅', super_admin: '超级管理员' } as Record<string, string>)[value] || value || '-'
+}
+
+function authKindLabel(value: string) {
+  return ({ jwt: '控制台登录', cli: 'CLI 绑定', anonymous: '匿名' } as Record<string, string>)[value] || value || '-'
+}
+
+function quotaRemainingText(value: any) {
+  if (value === -1) return '不限'
+  return value ?? '-'
 }
 
 function statusLabel(value: string) {
@@ -446,8 +515,24 @@ function rollbackStatusLabel(value: string) {
   white-space: nowrap;
 }
 
+.record-user {
+  font-weight: 500;
+  color: #1f2937;
+}
+
+.record-pack {
+  margin-top: 4px;
+  color: #64748b;
+  font-size: 12px;
+}
+
 .detail-block {
   margin-top: 18px;
+}
+
+.detail-card {
+  background: #f5f5f7;
+  padding: 14px;
 }
 
 .detail-block h3,
@@ -467,6 +552,12 @@ pre {
   border-radius: 6px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.detail-pre--light {
+  margin-top: 12px;
+  background: #fff;
+  color: #1f2937;
 }
 
 .impact-table {

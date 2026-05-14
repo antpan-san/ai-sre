@@ -100,6 +100,8 @@ func Migrate() error {
 		&models.Subscription{},
 		&models.Entitlement{},
 		&models.AIUsage{},
+		&models.CLIInstallSession{},
+		&models.CLIBinding{},
 		// NOTE: Heartbeat is NOT included here – it is a partitioned table
 		// and must be created via the migration_pg.sql script.
 	)

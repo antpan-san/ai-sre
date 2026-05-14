@@ -8,11 +8,19 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/panshuai/ai-sre/internal/engine"
 )
+
+type opsfleetAIClientInfo struct {
+	Version         string `json:"version"`
+	BindingID       string `json:"binding_id,omitempty"`
+	FingerprintHash string `json:"fingerprint_hash,omitempty"`
+}
 
 // serverAIResult builds a minimal engine result for ask/runbook/analyze when served by OpsFleet.
 func serverAIResult(answer string) *engine.RunResult {
@@ -30,6 +38,18 @@ func attachOpsfleetAuth(req *http.Request) {
 	}
 	if tok := resolveOpsfleetToken(); tok != "" {
 		req.Header.Set("Authorization", "Bearer "+tok)
+		if fp := resolveOpsfleetFingerprint(); fp != "" {
+			req.Header.Set("X-OpsFleet-CLI-Fingerprint", fp)
+		}
+		req.Header.Set("X-OpsFleet-CLI-Version", Version)
+	}
+}
+
+func opsfleetAIClient() opsfleetAIClientInfo {
+	return opsfleetAIClientInfo{
+		Version:         Version,
+		BindingID:       resolveOpsfleetBindingID(),
+		FingerprintHash: resolveOpsfleetFingerprint(),
 	}
 }
 
@@ -90,8 +110,11 @@ func callServerAsk(ctx context.Context, question string, noRag bool) (string, er
 	}
 	endpoint := strings.TrimRight(base, "/") + "/api/ai/ask"
 	body, err := json.Marshal(map[string]interface{}{
-		"question": strings.TrimSpace(question),
-		"no_rag":   noRag,
+		"question":   strings.TrimSpace(question),
+		"no_rag":     noRag,
+		"command":    strings.Join(os.Args, " "),
+		"request_id": uuid.NewString(),
+		"client":     opsfleetAIClient(),
 	})
 	if err != nil {
 		return "", err
@@ -125,8 +148,11 @@ func callServerRunbook(ctx context.Context, scenario string, ctxMap map[string]s
 	}
 	endpoint := strings.TrimRight(base, "/") + "/api/ai/runbook"
 	body, err := json.Marshal(map[string]interface{}{
-		"scenario": strings.TrimSpace(scenario),
-		"context":  ctxMap,
+		"scenario":   strings.TrimSpace(scenario),
+		"context":    ctxMap,
+		"command":    strings.Join(os.Args, " "),
+		"request_id": uuid.NewString(),
+		"client":     opsfleetAIClient(),
 	})
 	if err != nil {
 		return "", err

@@ -31,10 +31,18 @@ Paywall 统一返回 HTTP `403`，并包含 `biz=PAYWALL_<pack_key>`、`feature_
 ## 执行边界
 
 - Web：菜单和页面显示订阅标签；执行按钮触发后端校验。
-- CLI：help 标注收费能力；AI 请求携带 `OPSFLEET_TOKEN` 时按账号识别。
+- CLI：help 标注收费能力；控制台顶栏生成一次性安装会话，安装脚本绑定机器指纹后写入专用 CLI token。`analyze` / `ask` / `runbook` 调用服务端 AI 时同时发送 CLI token、机器指纹和版本，后端按绑定账号识别订阅与免费额度；无效 token 或指纹不匹配返回 401，不降级为匿名。
 - K8s installRef：生成、bundle 下载、bootstrap 安装均实时校验 `pack.k8s_delivery`。
 - Agent：任务创建时写入功能包快照，心跳下发前再次校验订阅状态。
 
 ## AI 免费额度
 
 未购买对应 `skillpack.*` 时，每账号或请求来源每天免费 5 次，按 `Asia/Shanghai` 自然日重置。只有服务端 AI 成功返回后才扣次数；参数错误、鉴权失败、Paywall、模型失败不扣次数。
+
+## 安装绑定与执行记录
+
+- `POST /api/me/cli/install-session`：登录用户生成 15 分钟有效的一次性安装命令。
+- `GET /api/cli/install-ai-sre.sh`：通过 `X-OpsFleet-Install-Token` 获取安装脚本。
+- `POST /api/cli/install-bind`：脚本上报机器指纹并换取专用 CLI token；服务端仅保存 token 哈希和指纹哈希。
+- 公开 `GET /api/k8s/deploy/install-ai-sre.sh` 保持匿名安装入口，只写 API base，不绑定账号。
+- 安装成功或失败写入执行记录 `record_kind=cli_install`；AI 调用写入 `record_kind=ai_call`，仅保存摘要、上下文 key/大小、技能包、额度与权益来源。

@@ -272,3 +272,31 @@ func LoadOptionalOpsfleetUsername() string {
 	}
 	return strings.TrimSpace(string(b))
 }
+
+// LoadOptionalOpsfleetBindingID 读取安装绑定 ID，用于服务端 AI 调用记录关联。
+func LoadOptionalOpsfleetBindingID() string {
+	cfgDir, err := ResolveDir()
+	if err != nil {
+		return ""
+	}
+	p := filepath.Join(cfgDir, "opsfleet_binding_id")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}
+
+// LoadOptionalOpsfleetFingerprint 读取安装时保存的机器指纹哈希。
+func LoadOptionalOpsfleetFingerprint() string {
+	cfgDir, err := ResolveDir()
+	if err != nil {
+		return ""
+	}
+	p := filepath.Join(cfgDir, "opsfleet_fingerprint")
+	b, err := os.ReadFile(p)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(string(b))
+}

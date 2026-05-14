@@ -259,6 +259,12 @@ a:hover {
   line-height: 1.45;
 }
 
+.install-ai-sre-popover .install-ai-sre-panel__expires {
+  margin: 8px 0 0;
+  color: var(--apple-muted);
+  font-size: 12px;
+}
+
 .install-ai-sre-popover .install-ai-sre-panel__actions {
   margin-top: 12px;
   display: flex;

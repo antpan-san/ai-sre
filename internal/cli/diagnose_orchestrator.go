@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/panshuai/ai-sre/internal/config"
 	"github.com/panshuai/ai-sre/internal/loader"
 	"github.com/panshuai/ai-sre/internal/skill"
@@ -22,9 +23,11 @@ import (
 )
 
 type diagnoseRequest struct {
-	Topic   string            `json:"topic"`
-	Context map[string]string `json:"context,omitempty"`
-	Command string            `json:"command,omitempty"`
+	Topic     string               `json:"topic"`
+	Context   map[string]string    `json:"context,omitempty"`
+	Command   string               `json:"command,omitempty"`
+	RequestID string               `json:"request_id,omitempty"`
+	Client    opsfleetAIClientInfo `json:"client,omitempty"`
 }
 
 type diagnoseResponse struct {
@@ -92,10 +95,13 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 
 	base := strings.TrimSpace(resolveOpsfleetAPIBase())
 	if base != "" {
+		reqID := uuid.NewString()
 		resp, err := callServerDiagnose(ctx, diagnoseRequest{
-			Topic:   topic,
-			Context: kv,
-			Command: strings.Join(os.Args, " "),
+			Topic:     topic,
+			Context:   kv,
+			Command:   strings.Join(os.Args, " "),
+			RequestID: reqID,
+			Client:    opsfleetAIClient(),
 		})
 		if err == nil && resp != nil && strings.TrimSpace(resp.Answer) != "" {
 			if strings.EqualFold(topic, "k8s") && hasKubectlEvidence(kv) {
@@ -103,9 +109,11 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 				kv2["prior_answer_round1"] = truncateBytes(resp.Answer, 12000)
 				kv2["diagnosis_style"] = "evidence_root_cause_refine"
 				if r2, e2 := callServerDiagnose(ctx, diagnoseRequest{
-					Topic:   topic,
-					Context: kv2,
-					Command: strings.Join(os.Args, " "),
+					Topic:     topic,
+					Context:   kv2,
+					Command:   strings.Join(os.Args, " "),
+					RequestID: reqID,
+					Client:    opsfleetAIClient(),
 				}); e2 == nil && r2 != nil && strings.TrimSpace(r2.Answer) != "" {
 					resp = r2
 					resp.Metadata = ensureMap(resp.Metadata)

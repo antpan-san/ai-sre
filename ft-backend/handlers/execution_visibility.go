@@ -27,6 +27,11 @@ func executionCategoryUsesAICapability(category string) bool {
 	return false
 }
 
+func executionCategoryVisibleToOwner(category string) bool {
+	c := strings.ToLower(strings.TrimSpace(category))
+	return c == "install_ai_sre" || executionCategoryUsesAICapability(c)
+}
+
 func executionStatusFailedLike(status string) bool {
 	s := strings.ToLower(strings.TrimSpace(status))
 	return s == models.ExecutionStatusFailed || s == models.ExecutionStatusCancelled
@@ -42,14 +47,17 @@ func applyExecutionConsoleMemberScope(db *gorm.DB, role, username string) *gorm.
 		return db
 	}
 	term := []string{models.ExecutionStatusFailed, models.ExecutionStatusCancelled}
-	aiCats := []string{"analyze", "ask", "runbook", "skills", "doctor", "elasticsearch"}
+	ownerCats := []string{"analyze", "ask", "runbook", "skills", "doctor", "elasticsearch", "install_ai_sre"}
 	return db.Where("(created_by = ? OR trigger_user = ?)", u, u).
 		Where(
-			"(LOWER(status) IN ? OR LOWER(category) IN ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ?)",
+			"(LOWER(status) IN ? OR LOWER(category) IN ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(source) IN ?)",
 			term,
-			aiCats,
+			ownerCats,
 			"analyze%",
+			"ask%",
+			"runbook%",
 			"elasticsearch%",
+			[]string{"ai", "install"},
 		)
 }
 
@@ -72,7 +80,8 @@ func assertExecutionRecordVisibleToConsoleMember(c *gin.Context, rec models.Exec
 		response.Forbidden(c, "无权查看该执行记录")
 		return false
 	}
-	if executionStatusFailedLike(rec.Status) || executionCategoryUsesAICapability(rec.Category) {
+	if executionStatusFailedLike(rec.Status) || executionCategoryVisibleToOwner(rec.Category) ||
+		strings.EqualFold(rec.Source, "ai") || strings.EqualFold(rec.Source, "install") {
 		return true
 	}
 	response.Forbidden(c, "无权查看该执行记录")

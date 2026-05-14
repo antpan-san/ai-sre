@@ -216,23 +216,27 @@
             </template>
             <div class="install-ai-sre-panel">
               <p class="install-ai-sre-panel__desc">
-                在控制机执行，一键安装 <strong>ai-sre</strong> CLI；命令会携带当前登录令牌，安装后本机调用 OpsFleet 服务端 AI 将<strong>按你的账号</strong>计入订阅与每日限额。令牌过期后请重新复制执行。勿将命令粘贴到公网或不可信环境。
+                生成一次性安装命令，15 分钟内在控制机执行。安装后写入专用 CLI token，并绑定当前账号与机器指纹。
               </p>
               <el-input
                 class="install-ai-sre-panel__input"
                 type="textarea"
-                :model-value="installAiSreCommand"
+                :model-value="installAiSreCommand || INSTALL_AI_SRE_PLACEHOLDER"
                 :autosize="{ minRows: 3, maxRows: 6 }"
                 readonly
               />
+              <p v-if="installAiSreExpiresAt" class="install-ai-sre-panel__expires">
+                有效期至 {{ formatInstallExpiresAt(installAiSreExpiresAt) }}
+              </p>
               <div class="install-ai-sre-panel__actions">
                 <el-button
                   type="primary"
                   size="small"
+                  :loading="installAiSreGenerating"
                   :disabled="!installAiSreCommandHasToken"
                   @click="copyInstallAiSreCommand"
                 >
-                  复制命令
+                  生成并复制命令
                 </el-button>
               </div>
             </div>
@@ -299,9 +303,10 @@ import {
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
-import { getInstallAiSreShellCurlLine, getStoredAuthToken } from '../../utils/installAiSre'
+import { INSTALL_AI_SRE_PLACEHOLDER, getStoredAuthToken } from '../../utils/installAiSre'
 import { useMachineStore } from '../../stores/machine'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
+import { createCLIInstallSession } from '../../api/cli'
 
 type BreadcrumbMetaItem = {
   title: string
@@ -401,7 +406,9 @@ const userInitial = computed(() => {
 
 const brandShort = computed(() => 'OP')
 
-const installAiSreCommand = computed(() => getInstallAiSreShellCurlLine())
+const installAiSreCommand = ref('')
+const installAiSreExpiresAt = ref('')
+const installAiSreGenerating = ref(false)
 const installAiSreCommandHasToken = computed(() => !!getStoredAuthToken())
 
 const featureVisible = (featureKey: string) => {
@@ -427,17 +434,27 @@ const loadBillingCapabilities = async () => {
 }
 
 const copyInstallAiSreCommand = async () => {
-  const cmd = installAiSreCommand.value
-  if (!cmd?.trim() || !installAiSreCommandHasToken.value) {
-    ElMessage.warning('请先登录后再复制安装命令')
+  if (!installAiSreCommandHasToken.value) {
+    ElMessage.warning('请先登录后再生成安装命令')
     return
   }
+  installAiSreGenerating.value = true
   try {
-    await copyTextToClipboard(cmd)
-    ElMessage.success('已复制安装 ai-sre 命令')
+    const data = await createCLIInstallSession()
+    installAiSreCommand.value = data.command
+    installAiSreExpiresAt.value = data.expires_at
+    await copyTextToClipboard(data.command)
+    ElMessage.success('已生成并复制安装命令')
   } catch {
-    ElMessage.error('复制失败，请手动全选复制')
+    ElMessage.error('生成或复制失败，请稍后重试')
+  } finally {
+    installAiSreGenerating.value = false
   }
+}
+
+const formatInstallExpiresAt = (value: string) => {
+  if (!value) return '-'
+  return new Date(value).toLocaleString()
 }
 
 const machineStore = useMachineStore()

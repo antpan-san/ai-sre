@@ -3,22 +3,16 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 	"time"
 
-	"ft-backend/common/config"
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
-	"ft-backend/database"
 	"ft-backend/models"
 	"ft-backend/services"
-	"ft-backend/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
-	"gorm.io/gorm"
 )
 
 type aiDiagnoseRequest struct {
@@ -26,6 +20,7 @@ type aiDiagnoseRequest struct {
 	Context   map[string]string `json:"context"`
 	Command   string            `json:"command"`
 	RequestID string            `json:"request_id"`
+	Client    aiClientInfo      `json:"client"`
 }
 
 type aiSkillPack struct {
@@ -69,8 +64,14 @@ func AIDiagnose(c *gin.Context) {
 		response.BadRequest(c, "topic 不能为空")
 		return
 	}
-	commitQuota, ok := beginAIQuota(c, skillPackForTopic(topic))
+	ident, ok := resolveAIIdentity(c)
 	if !ok {
+		return
+	}
+	packKey := skillPackForTopic(topic)
+	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, packKey, ident)
+	if !quotaOK {
+		recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, packKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
 		return
 	}
 	reg := services.DefaultSkillRegistry()
@@ -80,6 +81,7 @@ func AIDiagnose(c *gin.Context) {
 	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
 	if err != nil {
 		logger.Error("AIDiagnose deepseek failed: %v", err)
+		recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, packKey, models.ExecutionStatusFailed, "", err.Error(), req.Context, req.Client, quotaDecision)
 		response.ServerError(c, "服务端 AI 诊断失败: "+err.Error())
 		return
 	}
@@ -112,6 +114,7 @@ func AIDiagnose(c *gin.Context) {
 			meta["diagnosis_style"] = s
 		}
 	}
+	recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), reqID, packKey, models.ExecutionStatusSuccess, answer, "", req.Context, req.Client, quotaDecision)
 
 	// Fire-and-forget sample logging for self-iteration. Never block the response.
 	go func(topic, name, requestID, answer string, ctxKV map[string]string) {
@@ -170,13 +173,19 @@ func AISkillsEvolve(c *gin.Context) {
 }
 
 type aiAskRequest struct {
-	Question string `json:"question" binding:"required"`
-	NoRAG    bool   `json:"no_rag"`
+	Question  string       `json:"question" binding:"required"`
+	NoRAG     bool         `json:"no_rag"`
+	Command   string       `json:"command"`
+	RequestID string       `json:"request_id"`
+	Client    aiClientInfo `json:"client"`
 }
 
 type aiRunbookRequest struct {
-	Scenario string            `json:"scenario" binding:"required"`
-	Context  map[string]string `json:"context"`
+	Scenario  string            `json:"scenario" binding:"required"`
+	Context   map[string]string `json:"context"`
+	Command   string            `json:"command"`
+	RequestID string            `json:"request_id"`
+	Client    aiClientInfo      `json:"client"`
 }
 
 // AIAsk runs server-side Q&A for ai-sre `ask` when the client has no local LLM key.
@@ -186,18 +195,26 @@ func AIAsk(c *gin.Context) {
 		response.BadRequest(c, "无效参数: "+err.Error())
 		return
 	}
-	commitQuota, ok := beginAIQuota(c, skillPackForText(req.Question))
+	ident, ok := resolveAIIdentity(c)
 	if !ok {
+		return
+	}
+	packKey := skillPackForText(req.Question)
+	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, packKey, ident)
+	if !quotaOK {
+		recordAIExecution(ident, "ask", "AI 问答", defaultString(req.Command, "ai-sre ask"), req.RequestID, packKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", map[string]string{"question": req.Question}, req.Client, quotaDecision)
 		return
 	}
 	prompt := buildServerAskPrompt(req.Question, req.NoRAG)
 	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
 	if err != nil {
 		logger.Error("AIAsk deepseek failed: %v", err)
+		recordAIExecution(ident, "ask", "AI 问答", defaultString(req.Command, "ai-sre ask"), req.RequestID, packKey, models.ExecutionStatusFailed, "", err.Error(), map[string]string{"question": req.Question}, req.Client, quotaDecision)
 		response.ServerError(c, "服务端 AI 失败: "+err.Error())
 		return
 	}
 	commitQuota(true)
+	recordAIExecution(ident, "ask", "AI 问答", defaultString(req.Command, "ai-sre ask"), req.RequestID, packKey, models.ExecutionStatusSuccess, answer, "", map[string]string{"question": req.Question}, req.Client, quotaDecision)
 	response.OK(c, gin.H{
 		"answer": answer,
 		"source": "server-ai",
@@ -211,18 +228,26 @@ func AIRunbook(c *gin.Context) {
 		response.BadRequest(c, "无效参数: "+err.Error())
 		return
 	}
-	commitQuota, ok := beginAIQuota(c, skillPackForText(req.Scenario))
+	ident, ok := resolveAIIdentity(c)
 	if !ok {
+		return
+	}
+	packKey := skillPackForText(req.Scenario)
+	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, packKey, ident)
+	if !quotaOK {
+		recordAIExecution(ident, "runbook", "AI Runbook", defaultString(req.Command, "ai-sre runbook"), req.RequestID, packKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
 		return
 	}
 	prompt := buildServerRunbookPrompt(req.Scenario, req.Context)
 	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
 	if err != nil {
 		logger.Error("AIRunbook deepseek failed: %v", err)
+		recordAIExecution(ident, "runbook", "AI Runbook", defaultString(req.Command, "ai-sre runbook"), req.RequestID, packKey, models.ExecutionStatusFailed, "", err.Error(), req.Context, req.Client, quotaDecision)
 		response.ServerError(c, "服务端 AI 失败: "+err.Error())
 		return
 	}
 	commitQuota(true)
+	recordAIExecution(ident, "runbook", "AI Runbook", defaultString(req.Command, "ai-sre runbook"), req.RequestID, packKey, models.ExecutionStatusSuccess, answer, "", req.Context, req.Client, quotaDecision)
 	response.OK(c, gin.H{
 		"answer": answer,
 		"source": "server-ai",
@@ -266,81 +291,6 @@ func skillPackForText(text string) string {
 	default:
 		return models.SkillPackK8s
 	}
-}
-
-func beginAIQuota(c *gin.Context, packKey string) (func(bool), bool) {
-	subject, uid, role := aiQuotaSubject(c)
-	if uid != uuid.Nil {
-		if models.IsSuperAdminRole(role) {
-			return func(bool) {}, true
-		}
-		var ent models.Entitlement
-		if err := database.DB.Where("user_id = ? AND feature_key = ?", uid, packKey).
-			Where("valid_until IS NULL OR valid_until > ?", time.Now().UTC()).
-			First(&ent).Error; err == nil {
-			return func(bool) {}, true
-		}
-	}
-	date := aiQuotaDate()
-	var usage models.AIUsage
-	err := database.DB.Where("subject = ? AND pack_key = ? AND usage_date = ?", subject, packKey, date).First(&usage).Error
-	if err == gorm.ErrRecordNotFound {
-		usage = models.AIUsage{ID: uuid.New(), Subject: subject, PackKey: packKey, UsageDate: date, Count: 0}
-		if err := database.DB.Create(&usage).Error; err != nil {
-			logger.Error("ai quota create: %v", err)
-			response.ServerError(c, "AI 免费额度检查失败")
-			return nil, false
-		}
-	} else if err != nil {
-		logger.Error("ai quota lookup: %v", err)
-		response.ServerError(c, "AI 免费额度检查失败")
-		return nil, false
-	}
-	if usage.Count >= aiFreeDailyLimit {
-		c.JSON(http.StatusForbidden, gin.H{
-			"code":               403,
-			"msg":                "今日免费 AI 诊断次数已用完，请订阅对应技能包",
-			"biz":                "PAYWALL_" + packKey,
-			"feature_key":        models.FeatureKeyAIDiagnosis,
-			"pack_key":           packKey,
-			"reason":             "ai_free_quota_exhausted",
-			"checkout_available": true,
-			"ai_quota": gin.H{
-				"free_daily_limit": aiFreeDailyLimit,
-				"used":             usage.Count,
-				"remaining":        0,
-				"usage_date":       date,
-				"timezone":         "Asia/Shanghai",
-			},
-		})
-		return nil, false
-	}
-	return func(success bool) {
-		if !success {
-			return
-		}
-		if err := database.DB.Model(&models.AIUsage{}).
-			Where("id = ?", usage.ID).
-			UpdateColumn("count", gorm.Expr("count + 1")).Error; err != nil {
-			logger.Error("ai quota increment: %v", err)
-		}
-	}, true
-}
-
-func aiQuotaSubject(c *gin.Context) (string, uuid.UUID, string) {
-	cfgVal, _ := c.Get("config")
-	cfg, _ := cfgVal.(*config.Config)
-	auth := strings.TrimSpace(c.GetHeader("Authorization"))
-	if cfg != nil && strings.HasPrefix(auth, "Bearer ") {
-		claims, err := utils.ValidateToken(strings.TrimSpace(strings.TrimPrefix(auth, "Bearer ")), cfg.JWT.SecretKey)
-		if err == nil {
-			uid, _ := uuid.Parse(claims.UserID)
-			if uid != uuid.Nil {
-				return "user:" + uid.String(), uid, claims.Role
-			}
-		}
-	}
-	return "ip:" + c.ClientIP(), uuid.Nil, ""
 }
 
 func aiQuotaDate() string {

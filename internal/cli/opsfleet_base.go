@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/panshuai/ai-sre/internal/config"
@@ -31,4 +34,88 @@ func resolveOpsfleetToken() string {
 		return v
 	}
 	return strings.TrimSpace(config.LoadOptionalOpsfleetToken())
+}
+
+func resolveOpsfleetBindingID() string {
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_BINDING_ID")); v != "" {
+		return v
+	}
+	return strings.TrimSpace(config.LoadOptionalOpsfleetBindingID())
+}
+
+func resolveOpsfleetFingerprint() string {
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_CLI_FINGERPRINT")); v != "" {
+		return strings.ToLower(v)
+	}
+	if v := strings.TrimSpace(config.LoadOptionalOpsfleetFingerprint()); v != "" {
+		return strings.ToLower(v)
+	}
+	fp := computeOpsfleetFingerprint()
+	if fp == "" {
+		return ""
+	}
+	return fp
+}
+
+func computeOpsfleetFingerprint() string {
+	machineID := strings.TrimSpace(readFirstExistingFile("/etc/machine-id", "/var/lib/dbus/machine-id"))
+	if machineID == "" {
+		return ""
+	}
+	host, _ := os.Hostname()
+	osID, osVersion := readOSRelease()
+	payload := "machine_id=" + machineID +
+		"\nhostname=" + strings.TrimSpace(host) +
+		"\nos_id=" + osID +
+		"\nos_version=" + osVersion +
+		"\narch=" + opsfleetArch()
+	sum := sha256.Sum256([]byte(payload))
+	return hex.EncodeToString(sum[:])
+}
+
+func opsfleetArch() string {
+	switch runtime.GOARCH {
+	case "amd64":
+		return "amd64"
+	case "arm64":
+		return "arm64"
+	default:
+		return runtime.GOARCH
+	}
+}
+
+func readFirstExistingFile(paths ...string) string {
+	for _, p := range paths {
+		b, err := os.ReadFile(p)
+		if err == nil {
+			if v := strings.TrimSpace(string(b)); v != "" {
+				return v
+			}
+		}
+	}
+	return ""
+}
+
+func readOSRelease() (string, string) {
+	b, err := os.ReadFile("/etc/os-release")
+	if err != nil {
+		return "unknown", "unknown"
+	}
+	values := map[string]string{}
+	for _, line := range strings.Split(string(b), "\n") {
+		key, value, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		values[key] = strings.Trim(strings.TrimSpace(value), `"'`)
+	}
+	id := strings.TrimSpace(values["ID"])
+	if id == "" {
+		id = "unknown"
+	}
+	version := strings.TrimSpace(values["VERSION_ID"])
+	if version == "" {
+		version = "unknown"
+	}
+	return id, version
 }

@@ -138,6 +138,9 @@ export {
   rollbackExecutionRecord,
 } from './execution-records'
 
+// CLI 安装绑定
+export { createCLIInstallSession } from './cli'
+
 // 初始化工具相关
 export {
   getSystemParams,

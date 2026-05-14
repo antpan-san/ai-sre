@@ -217,7 +217,11 @@ func FinishExecutionRecord(c *gin.Context) {
 		updates["effects"] = rawJSONOrObject(req.Effects)
 	}
 	if len(req.Metadata) > 0 {
-		updates["metadata"] = rawJSONOrObject(req.Metadata)
+		merged := decodeJSONMap(rec.Metadata)
+		for k, v := range decodeJSONMap(rawJSONOrObject(req.Metadata)) {
+			merged[k] = v
+		}
+		updates["metadata"] = models.NewJSONBFromMap(merged)
 	}
 	tx := database.DB.Begin()
 	if err := tx.Model(&models.ExecutionRecord{}).Where("id = ?", rec.ID).Updates(updates).Error; err != nil {

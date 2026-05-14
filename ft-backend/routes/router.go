@@ -53,6 +53,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/k8s/deploy/bundle-invite/:id/zip", handlers.DownloadK8sBundleInviteZip)
 		public.GET("/k8s/deploy/bootstrap.sh", handlers.ServeK8sInstallBootstrap)
 		public.GET("/k8s/deploy/install-ai-sre.sh", handlers.ServeAiSreInstallScript)
+		public.GET("/cli/install-ai-sre.sh", middleware.RateLimit("cli-install-script", 120, time.Minute), handlers.ServeAiSreInstallScriptForSession)
+		public.POST("/cli/install-bind", middleware.RateLimit("cli-install-bind", 60, time.Minute), handlers.BindCLIInstallSession)
 		public.GET("/k8s/deploy/cli/ai-sre/version", handlers.GetAiSreCLIVersion)
 		public.GET("/k8s/deploy/cli/ai-sre", handlers.DownloadAiSreCLI)
 		public.GET("/service-deploy/deployments/:id/bootstrap.sh", handlers.ServeServiceDeploymentBootstrap)
@@ -107,6 +109,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.Use(middleware.RequireSuperAdmin())
 
 		// 已登录：个性化安装脚本（写入 opsfleet_token，关联订阅与 AI 配额）
+		protected.POST("/me/cli/install-session", handlers.CreateCLIInstallSession)
 		protected.GET("/me/cli/install-ai-sre.sh", handlers.ServeAiSreInstallScriptForUser)
 
 		protected.GET("/billing/me", handlers.GetBillingMe)
