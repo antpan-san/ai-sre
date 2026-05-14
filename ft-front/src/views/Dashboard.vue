@@ -218,144 +218,140 @@
       </el-card>
     </div>
 
-    <div class="dash-tables-grid">
-      <el-card
-        v-if="isConsoleAdmin"
-        v-loading="dashboardStore.loading"
-        shadow="hover"
-        class="dash-table-card"
-      >
-        <template #header>
-          <div class="table-card-head">
-            <span class="table-card-head__title">最近 K8s 集群</span>
-            <el-link type="primary" :underline="false" @click="goK8sClusters">列表</el-link>
-          </div>
-        </template>
-        <el-table :data="dash?.recentK8sClusters ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无记录">
-          <el-table-column prop="clusterName" label="名称" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="version" label="版本" width="90" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="96" align="center">
-            <template #default="scope">
-              <el-tag :type="clusterStatusType(scope.row.status)" size="small">
-                {{ scope.row.status || '—' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="masterNode" label="主节点" min-width="120" show-overflow-tooltip />
-          <el-table-column prop="updatedAt" label="更新" min-width="146">
-            <template #default="scope">
-              {{ formatTs(scope.row.updatedAt) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
+    <div
+      v-loading="dashboardStore.loading"
+      class="dash-tables-shell"
+      element-loading-background="rgba(255,255,255,0.6)"
+    >
+      <div class="dash-tables-grid">
+        <el-card v-if="isConsoleAdmin" shadow="always" class="dash-table-card">
+          <template #header>
+            <div class="table-card-head">
+              <span class="table-card-head__title">最近 K8s 集群</span>
+              <el-link type="primary" :underline="false" @click="goK8sClusters">列表</el-link>
+            </div>
+          </template>
+          <el-table :data="dash?.recentK8sClusters ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无记录">
+            <el-table-column prop="clusterName" label="名称" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="version" label="版本" width="90" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="96" align="center">
+              <template #default="scope">
+                <el-tag :type="clusterStatusType(scope.row.status)" size="small">
+                  {{ scope.row.status || '—' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="masterNode" label="主节点" min-width="120" show-overflow-tooltip />
+            <el-table-column prop="updatedAt" label="更新" min-width="146">
+              <template #default="scope">
+                {{ formatTs(scope.row.updatedAt) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
 
-      <el-card
-        v-if="isConsoleAdmin"
-        v-loading="dashboardStore.loading"
-        shadow="hover"
-        class="dash-table-card"
-      >
-        <template #header>
-          <div class="table-card-head">
-            <span class="table-card-head__title">最近 ai-sre 安装</span>
-            <el-link type="primary" :underline="false" @click="goServiceDeploy">服务部署</el-link>
-          </div>
-        </template>
-        <el-table :data="dash?.recentServiceInstalls ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无记录">
-          <el-table-column prop="service" label="组件" width="110" show-overflow-tooltip />
-          <el-table-column prop="profile" label="配置" width="100" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="92" align="center">
-            <template #default="scope">
-              <el-tag :type="genericStatusType(scope.row.status)" size="small">
-                {{ scope.row.status || '—' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="currentStep" label="步骤" min-width="136" show-overflow-tooltip />
-          <el-table-column prop="updatedAt" label="更新" min-width="146">
-            <template #default="scope">
-              {{ formatTs(scope.row.updatedAt) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
+        <el-card v-if="isConsoleAdmin" shadow="always" class="dash-table-card">
+          <template #header>
+            <div class="table-card-head">
+              <span class="table-card-head__title">最近 ai-sre 安装</span>
+              <el-link type="primary" :underline="false" @click="goServiceDeploy">服务部署</el-link>
+            </div>
+          </template>
+          <el-table :data="dash?.recentServiceInstalls ?? []" stripe border size="small" :max-height="tableMaxPx" empty-text="暂无记录">
+            <el-table-column prop="service" label="组件" width="110" show-overflow-tooltip />
+            <el-table-column prop="profile" label="配置" width="100" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="92" align="center">
+              <template #default="scope">
+                <el-tag :type="genericStatusType(scope.row.status)" size="small">
+                  {{ scope.row.status || '—' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="currentStep" label="步骤" min-width="136" show-overflow-tooltip />
+            <el-table-column prop="updatedAt" label="更新" min-width="146">
+              <template #default="scope">
+                {{ formatTs(scope.row.updatedAt) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
 
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card dash-table-card--span-full">
-        <template #header>
-          <div class="table-card-head">
-            <span class="table-card-head__title">最近 Linux / 业务服务</span>
-            <el-link type="primary" :underline="false" @click="navigateToServiceList">台账</el-link>
-          </div>
-        </template>
-        <el-table
-          :data="dash?.recentDeployments ?? []"
-          stripe
-          border
-          size="small"
-          table-layout="fixed"
-          class="dash-table--dense"
-          :max-height="tableMaxPx"
-          empty-text="暂无服务"
-        >
-          <el-table-column prop="name" label="服务名称" min-width="100" show-overflow-tooltip />
-          <el-table-column prop="image" label="镜像" min-width="100" show-overflow-tooltip />
-          <el-table-column prop="replicas" label="副本" width="64" align="center" />
-          <el-table-column prop="status" label="状态" width="84" align="center">
-            <template #default="scope">
-              <el-tag :type="getStatusType(scope.row.status)" size="small">
-                {{ getStatusText(scope.row.status) }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="updateTime" label="更新时间" min-width="128" show-overflow-tooltip>
-            <template #default="scope">
-              {{ formatTs(scope.row.updateTime) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
+        <el-card shadow="always" class="dash-table-card">
+          <template #header>
+            <div class="table-card-head">
+              <span class="table-card-head__title">最近 Linux / 业务服务</span>
+              <el-link type="primary" :underline="false" @click="navigateToServiceList">台账</el-link>
+            </div>
+          </template>
+          <el-table
+            :data="dash?.recentDeployments ?? []"
+            stripe
+            border
+            size="small"
+            table-layout="fixed"
+            class="dash-table--dense"
+            :max-height="tableMaxPx"
+            empty-text="暂无服务"
+          >
+            <el-table-column prop="name" label="服务名称" min-width="100" show-overflow-tooltip />
+            <el-table-column prop="image" label="镜像" min-width="100" show-overflow-tooltip />
+            <el-table-column prop="replicas" label="副本" width="64" align="center" />
+            <el-table-column prop="status" label="状态" width="84" align="center">
+              <template #default="scope">
+                <el-tag :type="getStatusType(scope.row.status)" size="small">
+                  {{ getStatusText(scope.row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="updateTime" label="更新时间" min-width="128" show-overflow-tooltip>
+              <template #default="scope">
+                {{ formatTs(scope.row.updateTime) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
 
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="dash-table-card dash-table-card--span-full">
-        <template #header>
-          <div class="table-card-head">
-            <span class="table-card-head__title">最近执行记录</span>
-            <el-link type="primary" :underline="false" @click="goExecRecords">全部</el-link>
-          </div>
-        </template>
-        <el-table
-          :data="dash?.recentExecutions ?? []"
-          stripe
-          border
-          size="small"
-          table-layout="fixed"
-          class="dash-table--dense"
-          :max-height="tableMaxPx"
-          empty-text="暂无记录"
-        >
-          <el-table-column prop="name" label="名称" min-width="110" show-overflow-tooltip />
-          <el-table-column prop="source" label="来源" width="72" show-overflow-tooltip />
-          <el-table-column prop="category" label="类别" width="88" show-overflow-tooltip />
-          <el-table-column prop="status" label="状态" width="80" align="center">
-            <template #default="scope">
-              <el-tag :type="genericStatusType(scope.row.status)" size="small">
-                {{ scope.row.status || '—' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column prop="targetHost" label="目标" min-width="96" show-overflow-tooltip />
-          <el-table-column prop="finishedAt" label="结束时间" min-width="128" show-overflow-tooltip>
-            <template #default="scope">
-              {{ formatTs(scope.row.finishedAt) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="durationMs" label="耗时" width="72" align="right">
-            <template #default="scope">
-              {{ formatDuration(scope.row.durationMs) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-card>
+        <el-card shadow="always" class="dash-table-card">
+          <template #header>
+            <div class="table-card-head">
+              <span class="table-card-head__title">最近执行记录</span>
+              <el-link type="primary" :underline="false" @click="goExecRecords">全部</el-link>
+            </div>
+          </template>
+          <el-table
+            :data="dash?.recentExecutions ?? []"
+            stripe
+            border
+            size="small"
+            table-layout="fixed"
+            class="dash-table--dense"
+            :max-height="tableMaxPx"
+            empty-text="暂无记录"
+          >
+            <el-table-column prop="name" label="名称" min-width="110" show-overflow-tooltip />
+            <el-table-column prop="source" label="来源" width="72" show-overflow-tooltip />
+            <el-table-column prop="category" label="类别" width="88" show-overflow-tooltip />
+            <el-table-column prop="status" label="状态" width="80" align="center">
+              <template #default="scope">
+                <el-tag :type="genericStatusType(scope.row.status)" size="small">
+                  {{ scope.row.status || '—' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="targetHost" label="目标" min-width="96" show-overflow-tooltip />
+            <el-table-column prop="finishedAt" label="结束时间" min-width="128" show-overflow-tooltip>
+              <template #default="scope">
+                {{ formatTs(scope.row.finishedAt) }}
+              </template>
+            </el-table-column>
+            <el-table-column prop="durationMs" label="耗时" width="72" align="right">
+              <template #default="scope">
+                {{ formatDuration(scope.row.durationMs) }}
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </div>
     </div>
   </div>
 </template>
@@ -890,17 +886,42 @@ onBeforeUnmount(() => {
   background: #f56c6c;
 }
 
+.dash-tables-shell {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+
 .dash-tables-grid {
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 10px;
   align-content: start;
 }
 
-.dash-table-card--span-full {
-  grid-column: 1 / -1;
+.dash-table-card.el-card {
+  min-width: 0;
+  overflow: hidden;
+  background-color: var(--of-surface, #ffffff) !important;
+  box-shadow:
+    0 0 0 1px rgba(29, 29, 31, 0.06),
+    0 4px 24px rgba(0, 0, 0, 0.06) !important;
+}
+
+.dash-table-card :deep(.el-card__header) {
+  padding: 12px 14px !important;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+  background-color: var(--of-surface, #ffffff) !important;
+}
+
+.dash-table-card :deep(.el-card__body) {
+  padding: 12px 14px !important;
+  background-color: var(--of-surface, #ffffff) !important;
 }
 
 .dash-exec-health {
@@ -961,20 +982,6 @@ onBeforeUnmount(() => {
   padding: 6px 0;
 }
 
-.dash-table-card {
-  min-width: 0;
-}
-
-/* 与概览 KPI / meter 卡片内边距一致，避免表格区被全局 el-card 大留白 + 本页窄 padding 夹成「两种卡片」 */
-.dash-table-card :deep(.el-card__header) {
-  padding: 12px 14px !important;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
-}
-
-.dash-table-card :deep(.el-card__body) {
-  padding: 12px 14px !important;
-}
-
 .table-card-head {
   display: flex;
   justify-content: space-between;
@@ -994,10 +1001,6 @@ onBeforeUnmount(() => {
 @media screen and (max-width: 1280px) {
   .dash-grid--main--with-host {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dash-tables-grid {
-    grid-template-columns: 1fr;
   }
 }
 
