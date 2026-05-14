@@ -97,8 +97,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 	protected := r.Group("/api")
 	protected.Use(middleware.JWTAuth(cfg.JWT.SecretKey))
 	{
-		admin := protected.Group("")
-		admin.Use(middleware.RequireAdmin())
+		console := protected.Group("")
+		console.Use(middleware.RequireConsoleMember())
+
+		adminOnly := protected.Group("")
+		adminOnly.Use(middleware.RequireAdmin())
+
 		superAdmin := protected.Group("")
 		superAdmin.Use(middleware.RequireSuperAdmin())
 
@@ -109,40 +113,40 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// ---- Dashboard ----
 		protected.GET("/dashboard/data", handlers.GetDashboardData)
 
-		// ---- User Management ----
+		// ---- User Management（仅管理员） ----
 		protected.GET("/auth/info", handlers.GetUserProfile)
 		protected.PUT("/users/profile", handlers.UpdateUserProfile)
-		admin.GET("/user", handlers.GetUserList)
-		admin.GET("/user/:id", handlers.GetUserDetail)
-		admin.POST("/user", handlers.AddUser)
-		admin.PUT("/user/:id", handlers.UpdateUser)
-		admin.DELETE("/user/:id", handlers.DeleteUser)
-		admin.DELETE("/user/batch", handlers.BatchDeleteUser)
-		admin.PATCH("/user/:id/role", handlers.UpdateUserRole)
+		adminOnly.GET("/user", handlers.GetUserList)
+		adminOnly.GET("/user/:id", handlers.GetUserDetail)
+		adminOnly.POST("/user", handlers.AddUser)
+		adminOnly.PUT("/user/:id", handlers.UpdateUser)
+		adminOnly.DELETE("/user/:id", handlers.DeleteUser)
+		adminOnly.DELETE("/user/batch", handlers.BatchDeleteUser)
+		adminOnly.PATCH("/user/:id/role", handlers.UpdateUserRole)
 		superAdmin.GET("/admin/billing/features", handlers.AdminListFeatureBilling)
 		superAdmin.PUT("/admin/billing/features", handlers.AdminPutFeatureBilling)
 		superAdmin.POST("/admin/users/:id/entitlement", handlers.AdminGrantEntitlement)
 
-		// ---- Machine Management ----
-		admin.GET("/machine", handlers.GetMachineList)
-		admin.GET("/machine/:id", handlers.GetMachineDetail)
-		admin.POST("/machine", handlers.AddMachine)
-		admin.PUT("/machine/:id", handlers.UpdateMachine)
-		admin.DELETE("/machine/:id", handlers.DeleteMachine)
-		admin.DELETE("/machine/batch", handlers.BatchDeleteMachine)
-		admin.PATCH("/machine/:id/status", handlers.UpdateMachineStatus)
-		admin.POST("/machine/:id/register-workers", handlers.RegisterWorkerNodes)
+		// ---- Machine Management（普通登录用户可查，变更仅管理员） ----
+		console.GET("/machine", handlers.GetMachineList)
+		console.GET("/machine/:id", handlers.GetMachineDetail)
+		adminOnly.POST("/machine", handlers.AddMachine)
+		adminOnly.PUT("/machine/:id", handlers.UpdateMachine)
+		adminOnly.DELETE("/machine/:id", handlers.DeleteMachine)
+		adminOnly.DELETE("/machine/batch", handlers.BatchDeleteMachine)
+		adminOnly.PATCH("/machine/:id/status", handlers.UpdateMachineStatus)
+		adminOnly.POST("/machine/:id/register-workers", handlers.RegisterWorkerNodes)
 
 		// ---- Task System (core) ----
-		admin.POST("/task", handlers.CreateTask)
+		adminOnly.POST("/task", handlers.CreateTask)
 		protected.GET("/task", handlers.GetTaskList)
 		protected.GET("/task/:id", handlers.GetTaskDetail)
-		admin.POST("/task/:id/cancel", handlers.CancelTask)
+		adminOnly.POST("/task/:id/cancel", handlers.CancelTask)
 		protected.GET("/task/:id/logs", handlers.GetTaskLogs)
 
 		// ---- Job Center ----
 		protected.GET("/job/machines", handlers.GetJobMachines)
-		admin.POST("/job/execute", handlers.ExecuteJob)
+		adminOnly.POST("/job/execute", handlers.ExecuteJob)
 		protected.GET("/job/result/:jobId", handlers.GetJobResult)
 
 		// ---- Execution Records ----
@@ -151,11 +155,11 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/execution-records/:id", handlers.GetExecutionRecordDetail)
 		protected.GET("/execution-records/:id/events", handlers.GetExecutionRecordEvents)
 		protected.GET("/execution-records/:id/dependencies", handlers.GetExecutionRecordDependencies)
-		admin.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
-		admin.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
+		adminOnly.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
+		adminOnly.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
 
 		// ---- Service Management（计费开启时需 feature.service_ops） ----
-		svcAdmin := admin.Group("")
+		svcAdmin := console.Group("")
 		svcAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyServiceOps))
 		svcAdmin.POST("/service/deploy", handlers.DeployService)
 		svcAdmin.GET("/service/list", handlers.GetServiceList)
@@ -178,7 +182,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		k8sPaid.GET("/k8s/deploy/progress", handlers.GetK8sDeployProgress)
 		k8sPaid.GET("/k8s/deploy/logs", handlers.GetK8sDeployLogs)
 		k8sPaid.GET("/k8s/mirror/catalog", handlers.GetK8sMirrorCatalog)
-		k8sAdminPaid := admin.Group("")
+		k8sAdminPaid := console.Group("")
 		k8sAdminPaid.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyK8sOps))
 		k8sAdminPaid.GET("/k8s/deploy/machines", handlers.GetK8sDeployMachines)
 		k8sAdminPaid.GET("/k8s/deploy/check-name", handlers.CheckClusterName)
@@ -191,7 +195,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		k8sAdminPaid.POST("/k8s/deploy/relay/warm", handlers.PostK8sRelayWarm)
 
 		// ---- Proxy / Monitoring / Init Tools（计费开启时需 feature.infra_ops） ----
-		infraAdmin := admin.Group("")
+		infraAdmin := console.Group("")
 		infraAdmin.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyInfraOps))
 		infraAdmin.GET("/proxy/config/list", handlers.GetProxyConfigList)
 		infraAdmin.GET("/proxy/config/detail", handlers.GetProxyConfigDetail)
@@ -213,17 +217,17 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		infraAdmin.PUT("/monitoring/alert-rules/:id", handlers.UpdateAlertRule)
 		infraAdmin.DELETE("/monitoring/alert-rules/:id", handlers.DeleteAlertRule)
 
-		// ---- Security & Audit ----
-		admin.GET("/security-audit/operation-logs", handlers.GetOperationLogs)
-		admin.GET("/security-audit/operation-logs/:id", handlers.GetOperationLogDetail)
-		admin.GET("/security-audit/permissions", handlers.GetPermissions)
-		admin.GET("/security-audit/permissions/:id", handlers.GetPermissionDetail)
-		admin.POST("/security-audit/permissions", handlers.AddPermission)
-		admin.PUT("/security-audit/permissions/:id", handlers.UpdatePermission)
-		admin.DELETE("/security-audit/permissions/:id", handlers.DeletePermission)
-		admin.DELETE("/security-audit/permissions/batch", handlers.BatchDeletePermissions)
-		admin.GET("/security-audit/roles/:role/permissions", handlers.GetRolePermissions)
-		admin.POST("/security-audit/roles/:role/permissions", handlers.AssignRolePermissions)
+		// ---- Security & Audit（读：租户成员；写：管理员） ----
+		console.GET("/security-audit/operation-logs", handlers.GetOperationLogs)
+		console.GET("/security-audit/operation-logs/:id", handlers.GetOperationLogDetail)
+		console.GET("/security-audit/permissions", handlers.GetPermissions)
+		console.GET("/security-audit/permissions/:id", handlers.GetPermissionDetail)
+		adminOnly.POST("/security-audit/permissions", handlers.AddPermission)
+		adminOnly.PUT("/security-audit/permissions/:id", handlers.UpdatePermission)
+		adminOnly.DELETE("/security-audit/permissions/:id", handlers.DeletePermission)
+		adminOnly.DELETE("/security-audit/permissions/batch", handlers.BatchDeletePermissions)
+		console.GET("/security-audit/roles/:role/permissions", handlers.GetRolePermissions)
+		adminOnly.POST("/security-audit/roles/:role/permissions", handlers.AssignRolePermissions)
 
 		adv := protected.Group("")
 		adv.Use(middleware.RequireEntitlementOrSuperAdmin(models.FeatureKeyAdvanced))

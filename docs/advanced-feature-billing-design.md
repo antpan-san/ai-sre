@@ -20,7 +20,7 @@
 
 | 角色 | `super_admin` | `admin` / `user`（计费启用时） |
 |------|----------------|--------------------------------|
-| 管理端 / 工作台 | super_admin：全豁免 | `user`：`/admin` 不可用；按需走各路由 |
+| 管理端路由 | super_admin：全豁免 | `admin` / `user`：均可进入 **`/admin/...`** 浏览与操作（以 JWT + 计费权益 + `RequireAdmin()` 危险行为为准）；`/app` 为兼容入口 |
 | 四门 paywall | 永久绕过 | **非 super_admin** 均须具备对应 `entitlement`，或该功能计费未开启 |
 
 `super_admin` 与 `billing_exempt`、`GET /billing/me` 中的 `feature_access`／`billing_exempt` 一致。

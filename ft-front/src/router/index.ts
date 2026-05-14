@@ -2,21 +2,13 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import { ElMessage } from 'element-plus'
 
-function redirectByRole(adminPath: string, appPath: string) {
-  return () => {
-    const s = localStorage.getItem('userInfo')
-    try {
-      const u = JSON.parse(s || '{}') as { role?: string }
-      return u.role === 'admin' ? adminPath : appPath
-    } catch {
-      return '/login'
-    }
-  }
-}
+const adminRoles = ['admin', 'super_admin']
+const superAdminRoles = ['super_admin']
+const appRoles = ['admin', 'super_admin', 'user']
 
 const routes: Array<RouteRecordRaw> = [
-  { path: '/', redirect: redirectByRole('/admin/dashboard', '/app/dashboard') },
-  { path: '/dashboard', redirect: redirectByRole('/admin/dashboard', '/app/dashboard') },
+  { path: '/', redirect: '/admin/dashboard' },
+  { path: '/dashboard', redirect: '/admin/dashboard' },
   { path: '/user', redirect: '/admin/user/list' },
   { path: '/user/list', redirect: '/admin/user/list' },
   { path: '/service/deploy', redirect: '/admin/service/deploy' },
@@ -35,12 +27,12 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/monitoring/mongodb-exporter', redirect: '/admin/monitoring/mongodb-exporter' },
   { path: '/monitoring/blackbox-exporter', redirect: '/admin/monitoring/blackbox-exporter' },
   { path: '/monitoring', redirect: '/admin/monitoring/prometheus' },
-  { path: '/job', redirect: '/app/job/center' },
-  { path: '/job/center', redirect: '/app/job/center' },
-  { path: '/init-tools', redirect: '/app/init-tools' },
+  { path: '/job', redirect: '/admin/job/center' },
+  { path: '/job/center', redirect: '/admin/job/center' },
+  { path: '/init-tools', redirect: '/admin/init-tools' },
   { path: '/execution-records', redirect: '/admin/execution-records' },
-  { path: '/help', redirect: '/app/help/error-codes' },
-  { path: '/help/error-codes', redirect: '/app/help/error-codes' },
+  { path: '/help', redirect: '/admin/help/error-codes' },
+  { path: '/help/error-codes', redirect: '/admin/help/error-codes' },
   { path: '/security-audit/operation-logs', redirect: '/admin/security-audit/operation-logs' },
   { path: '/security-audit/permission-management', redirect: '/admin/security-audit/permission-management' },
   { path: '/security-audit', redirect: '/admin/security-audit/operation-logs' },
@@ -52,32 +44,32 @@ const routes: Array<RouteRecordRaw> = [
     path: '/admin',
     name: 'AdminShell',
     component: () => import('../components/layout/MainLayout.vue'),
-    meta: { title: '管理端', requireAuth: true, roles: ['admin'] },
+    meta: { title: '管理端', requireAuth: true, roles: appRoles },
     redirect: '/admin/dashboard',
     children: [
       {
         path: 'dashboard',
         name: 'AdminDashboard',
         component: () => import('../views/Dashboard.vue'),
-        meta: { title: '仪表盘', requireAuth: true, roles: ['admin'] }
+        meta: { title: '仪表盘', requireAuth: true, roles: appRoles }
       },
       {
         path: 'user/list',
         name: 'AdminUserList',
         component: () => import('../views/user/UserList.vue'),
-        meta: { title: '用户列表', requireAuth: true, roles: ['admin'] }
+        meta: { title: '用户列表', requireAuth: true, roles: adminRoles }
       },
       {
         path: 'billing/features',
         name: 'AdminBillingFeatures',
         component: () => import('../views/admin/FeatureBilling.vue'),
-        meta: { title: '功能与计费', requireAuth: true, roles: ['admin'] }
+        meta: { title: '功能与计费', requireAuth: true, roles: superAdminRoles }
       },
       {
         path: 'service/deploy',
         name: 'AdminServiceDeploy',
         component: () => import('../views/service/ServiceDeploy.vue'),
-        meta: { title: '服务部署', requireAuth: true, roles: ['admin'] }
+        meta: { title: '服务部署', requireAuth: true, roles: appRoles }
       },
       {
         path: 'service/k8s-deploy',
@@ -86,7 +78,7 @@ const routes: Array<RouteRecordRaw> = [
         meta: {
           title: 'Kubernetes 部署',
           requireAuth: true,
-          roles: ['admin'],
+          roles: appRoles,
           breadcrumb: [
             { title: '服务与交付', path: '/admin/service/deploy' },
             { title: 'Kubernetes 部署', path: '/admin/service/k8s-deploy' }
@@ -100,7 +92,7 @@ const routes: Array<RouteRecordRaw> = [
         meta: {
           title: 'Kubernetes 部署进度',
           requireAuth: true,
-          roles: ['admin'],
+          roles: appRoles,
           breadcrumb: [
             { title: '服务与交付', path: '/admin/service/deploy' },
             { title: 'Kubernetes 部署', path: '/admin/service/k8s-deploy' },
@@ -112,79 +104,79 @@ const routes: Array<RouteRecordRaw> = [
         path: 'service/k8s-mirror',
         name: 'AdminK8sMirrorCatalog',
         component: () => import('../views/service/k8s-mirror/K8sMirrorCatalog.vue'),
-        meta: { title: 'K8s 制品镜像', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'K8s 制品镜像', requireAuth: true, roles: appRoles }
       },
       {
         path: 'service/k8s/clusters',
         name: 'AdminK8sClusterList',
         component: () => import('../views/service/k8s-deploy/K8sClusterList.vue'),
-        meta: { title: 'Kubernetes 集群列表', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'Kubernetes 集群列表', requireAuth: true, roles: appRoles }
       },
       {
         path: 'service/linux',
         name: 'AdminLinuxServiceManagement',
         component: () => import('../views/service/LinuxServiceManagement.vue'),
-        meta: { title: 'Linux服务管理', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'Linux服务管理', requireAuth: true, roles: appRoles }
       },
       {
         path: 'proxy/config',
         name: 'AdminProxyConfig',
         component: () => import('../views/proxy/ProxyConfig.vue'),
-        meta: { title: '代理配置管理', requireAuth: true, roles: ['admin'] }
+        meta: { title: '代理配置管理', requireAuth: true, roles: appRoles }
       },
       {
         path: 'monitoring/prometheus',
         name: 'AdminPrometheus',
         component: () => import('../views/monitoring/PrometheusConfig.vue'),
-        meta: { title: 'Prometheus', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'Prometheus', requireAuth: true, roles: appRoles }
       },
       {
         path: 'monitoring/node-exporter',
         name: 'AdminNodeExporter',
         component: () => import('../views/monitoring/NodeExporterConfig.vue'),
-        meta: { title: 'Node Exporter', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'Node Exporter', requireAuth: true, roles: appRoles }
       },
       {
         path: 'monitoring/jmx-exporter',
         name: 'AdminJmxExporter',
         component: () => import('../views/monitoring/JmxExporterConfig.vue'),
-        meta: { title: 'JMX Exporter', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'JMX Exporter', requireAuth: true, roles: appRoles }
       },
       {
         path: 'monitoring/redis-exporter',
         name: 'AdminRedisExporter',
         component: () => import('../views/monitoring/RedisExporterConfig.vue'),
-        meta: { title: 'Redis Exporter', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'Redis Exporter', requireAuth: true, roles: appRoles }
       },
       {
         path: 'monitoring/mongodb-exporter',
         name: 'AdminMongoDBExporter',
         component: () => import('../views/monitoring/MongoDBExporterConfig.vue'),
-        meta: { title: 'MongoDB Exporter', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'MongoDB Exporter', requireAuth: true, roles: appRoles }
       },
       {
         path: 'monitoring/blackbox-exporter',
         name: 'AdminBlackboxExporter',
         component: () => import('../views/monitoring/BlackboxExporterConfig.vue'),
-        meta: { title: 'Blackbox Exporter', requireAuth: true, roles: ['admin'] }
+        meta: { title: 'Blackbox Exporter', requireAuth: true, roles: appRoles }
       },
       {
         path: 'job/center',
         name: 'AdminJobCenter',
         component: () => import('../views/job/JobCenter.vue'),
-        meta: { title: '作业中心', requireAuth: true, roles: ['admin'] }
+        meta: { title: '作业中心', requireAuth: true, roles: appRoles }
       },
       {
         path: 'init-tools',
         name: 'AdminInitTools',
         component: () => import('../views/init-tools/InitToolsHome.vue'),
-        meta: { title: '初始化工具', requireAuth: true, roles: ['admin'] }
+        meta: { title: '初始化工具', requireAuth: true, roles: appRoles }
       },
       {
         path: 'execution-records',
         name: 'AdminExecutionRecords',
         component: () => import('../views/execution-records/ExecutionRecords.vue'),
-        meta: { title: '执行记录', requireAuth: true, roles: ['admin'] }
+        meta: { title: '执行记录', requireAuth: true, roles: appRoles }
       },
       {
         path: 'help/error-codes',
@@ -193,7 +185,7 @@ const routes: Array<RouteRecordRaw> = [
         meta: {
           title: '部署错误码查询',
           requireAuth: true,
-          roles: ['admin'],
+          roles: appRoles,
           breadcrumb: [{ title: '帮助中心' }, { title: '部署错误码查询' }]
         }
       },
@@ -201,25 +193,25 @@ const routes: Array<RouteRecordRaw> = [
         path: 'security-audit/operation-logs',
         name: 'AdminOperationLogs',
         component: () => import('../views/security-audit/OperationLogs.vue'),
-        meta: { title: '操作日志', requireAuth: true, roles: ['admin'] }
+        meta: { title: '操作日志', requireAuth: true, roles: appRoles }
       },
       {
         path: 'security-audit/permission-management',
         name: 'AdminPermissionManagement',
         component: () => import('../views/security-audit/PermissionManagement.vue'),
-        meta: { title: '权限管理', requireAuth: true, roles: ['admin'] }
+        meta: { title: '权限管理', requireAuth: true, roles: adminRoles }
       },
       {
         path: 'advanced/backup-restore',
         name: 'AdminBackupRestore',
         component: () => import('../views/advanced/BackupRestore.vue'),
-        meta: { title: '备份与恢复', requireAuth: true, roles: ['admin'] }
+        meta: { title: '备份与恢复', requireAuth: true, roles: appRoles }
       },
       {
         path: 'advanced/performance-analysis',
         name: 'AdminPerformanceAnalysis',
         component: () => import('../views/advanced/PerformanceAnalysis.vue'),
-        meta: { title: '性能分析', requireAuth: true, roles: ['admin'] }
+        meta: { title: '性能分析', requireAuth: true, roles: appRoles }
       }
     ]
   },
@@ -228,26 +220,38 @@ const routes: Array<RouteRecordRaw> = [
     path: '/app',
     name: 'AppShell',
     component: () => import('../components/layout/MainLayout.vue'),
-    meta: { title: '工作台', requireAuth: true, roles: ['admin', 'user'] },
+    meta: { title: '工作台', requireAuth: true, roles: appRoles },
     redirect: '/app/dashboard',
     children: [
       {
         path: 'dashboard',
         name: 'AppDashboard',
         component: () => import('../views/Dashboard.vue'),
-        meta: { title: '仪表盘', requireAuth: true, roles: ['admin', 'user'] }
+        meta: { title: '仪表盘', requireAuth: true, roles: appRoles }
       },
       {
         path: 'job/center',
         name: 'AppJobCenter',
         component: () => import('../views/job/JobCenter.vue'),
-        meta: { title: '作业中心', requireAuth: true, roles: ['admin', 'user'] }
+        meta: { title: '作业中心', requireAuth: true, roles: appRoles }
       },
       {
         path: 'init-tools',
         name: 'AppInitTools',
         component: () => import('../views/init-tools/InitToolsHome.vue'),
-        meta: { title: '初始化工具', requireAuth: true, roles: ['admin', 'user'] }
+        meta: { title: '初始化工具', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'advanced/backup-restore',
+        name: 'AppBackupRestore',
+        component: () => import('../views/advanced/BackupRestore.vue'),
+        meta: { title: '备份与恢复', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'advanced/performance-analysis',
+        name: 'AppPerformanceAnalysis',
+        component: () => import('../views/advanced/PerformanceAnalysis.vue'),
+        meta: { title: '性能分析', requireAuth: true, roles: appRoles }
       },
       {
         path: 'help/error-codes',
@@ -256,7 +260,7 @@ const routes: Array<RouteRecordRaw> = [
         meta: {
           title: '部署错误码查询',
           requireAuth: true,
-          roles: ['admin', 'user'],
+          roles: appRoles,
           breadcrumb: [{ title: '帮助中心' }, { title: '部署错误码查询' }]
         }
       }
@@ -277,7 +281,7 @@ const routes: Array<RouteRecordRaw> = [
   },
   {
     path: '/init-tools/:legacy(system-param|time-sync|security-hardening|disk-partition)',
-    redirect: '/app/init-tools'
+    redirect: '/admin/init-tools'
   }
 ]
 
@@ -299,12 +303,6 @@ router.beforeEach((to, _from, next) => {
           localStorage.removeItem('token')
           localStorage.removeItem('userInfo')
           next('/login')
-          return
-        }
-
-        if (to.path.startsWith('/admin') && user?.role !== 'admin') {
-          ElMessage.error('没有权限访问管理端')
-          next('/app/dashboard')
           return
         }
 

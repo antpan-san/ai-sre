@@ -218,8 +218,7 @@ const handleLogin = async () => {
           localStorage.removeItem('rememberedUsername')
         }
         ElMessage.success('登录成功')
-        const role = (result as { user?: { role?: string } })?.user?.role
-        router.push(role === 'admin' ? '/admin/dashboard' : '/app/dashboard')
+        router.push('/admin/dashboard')
         return
       }
       loginError.value = '用户名或密码错误，请重试'

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"ft-backend/models"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -78,6 +80,14 @@ func RequireRoles(roles ...string) gin.HandlerFunc {
 	}
 }
 
+func RequireConsoleMember() gin.HandlerFunc {
+	return RequireRoles(models.RoleUser, models.RoleAdmin, models.RoleSuperAdmin)
+}
+
 func RequireAdmin() gin.HandlerFunc {
-	return RequireRoles("admin")
+	return RequireRoles(models.RoleAdmin, models.RoleSuperAdmin)
+}
+
+func RequireSuperAdmin() gin.HandlerFunc {
+	return RequireRoles(models.RoleSuperAdmin)
 }
