@@ -27,8 +27,9 @@ export type JobResultPayload = {
  * 获取当前用户权限下的可用机器列表
  * @returns 机器列表
  */
-export const getAvailableMachines = (): Promise<Machine[]> => {
-  return request.get('/api/job/machines')
+export async function getAvailableMachines(): Promise<Machine[]> {
+  const rows = await request.get<Machine[] | null | undefined>('/api/job/machines')
+  return Array.isArray(rows) ? rows : []
 }
 
 /**

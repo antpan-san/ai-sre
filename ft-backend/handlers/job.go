@@ -32,7 +32,7 @@ func GetJobMachines(c *gin.Context) {
 		IP     string `json:"ip"`
 		Status string `json:"status"`
 	}
-	var list []MachineItem
+	list := make([]MachineItem, 0, len(machines))
 	for _, m := range machines {
 		list = append(list, MachineItem{
 			ID:     m.ID.String(),
@@ -186,7 +186,7 @@ func GetJobResult(c *gin.Context) {
 		Error       string `json:"error"`
 	}
 
-	var results []ResultItem
+	results := make([]ResultItem, 0, len(subTasks))
 	for _, st := range subTasks {
 		var machine models.Machine
 		database.DB.Where("id = ?", st.MachineID).First(&machine)
