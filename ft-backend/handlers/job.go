@@ -64,6 +64,13 @@ func ExecuteJob(c *gin.Context) {
 	if req.Timeout <= 0 {
 		req.Timeout = 60
 	}
+	const minTimeout, maxTimeout = 10, 3600
+	if req.Timeout < minTimeout {
+		req.Timeout = minTimeout
+	}
+	if req.Timeout > maxTimeout {
+		req.Timeout = maxTimeout
+	}
 
 	username, _ := c.Get("username")
 	payload, _ := json.Marshal(map[string]interface{}{

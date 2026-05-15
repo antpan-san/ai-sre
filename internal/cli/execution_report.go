@@ -140,6 +140,9 @@ func executionCategory(args []string) string {
 	if args[0] == "k8s" && len(args) > 1 {
 		return "k8s_" + args[1]
 	}
+	if args[0] == "job" && len(args) > 1 {
+		return "job_" + args[1]
+	}
 	if args[0] == "node" && len(args) > 2 {
 		return "node_" + strings.Join(args[1:3], "_")
 	}

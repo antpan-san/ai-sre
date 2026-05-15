@@ -101,7 +101,7 @@ func newRoot(programName string) *cobra.Command {
 	if programName == "opsfleet-executor" {
 		short = "OpsFleet 本地执行器 — 与 ai-sre 相同的技能包与执行语义"
 		long = fmt.Sprintf(`在需要部署或运维的受管机器上运行；与 ai-sre 共用同一套技能包（YAML）、Prompt、轻量 RAG 与 LLM 编排（需凭据）。
-子命令与 flag 与 ai-sre 一致：analyze / ask / runbook / skills / doctor / version / k8s。
+子命令与 flag 与 ai-sre 一致：analyze / ask / runbook / skills / doctor / version / k8s / job。
 示例:
   %s analyze kafka --lag 100000
   %s analyze k8s --pod pending
@@ -139,7 +139,7 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
 
-	cmds := []*cobra.Command{analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(), kafkaCmd(), redisCmd(), mysqlCmd(), nginxCmd(), elasticsearchCmd(), nodeCmd()}
+	cmds := []*cobra.Command{analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(), kafkaCmd(), redisCmd(), mysqlCmd(), nginxCmd(), elasticsearchCmd(), nodeCmd(), jobCmd()}
 	if programName == "ai-sre" {
 		cmds = append(cmds, uninstallCmd())
 	}

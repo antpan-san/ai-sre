@@ -10,7 +10,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 **当前版本**：以运行环境为准，执行 `./ai-sre version`（与源码中 `internal/cli/version.go` 的 `Version` 变量对齐）。**自升级默认基址**：内建 `http://192.168.56.11:9080/ft-api`（代码常量 `internal/cli/EmbeddedOpsfleetAPIBase`）；若设置 **`OPSFLEET_API_URL`** 则优先生效。未关闭时，**每次**执行子命令前（含 `uninstall k8s` 前）会拉 `GET .../api/k8s/deploy/cli/ai-sre/version` 比对，较新则覆盖本机 `ai-sre` 后 **re-exec** 同一命令（非 Windows）。`curl` 安装脚本写入的 **`~/.config/ai-sre/opsfleet_api_url`** 或 **`config.yaml` 的 `opsfleet_api_url`** 亦可作为覆盖来源。关闭：`OPSFLEET_NO_AUTO_UPGRADE=1`；关自动后仅提示：`OPSFLEET_UPGRADE_HINT=1`。**显式一次升级**：`sudo ai-sre upgrade -y`。
 
-本仓库为 **单一 Git 仓库**：根目录 **CLI（ai-sre）**、**OpsFleet 本地执行器（`opsfleet-executor`）** 与 **OpsFleetPilot（Web + API）** 并排共存。**OpsFleetPilot** 包含 `ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`；**`opsfleet-executor`** 与 `ai-sre` **共用同一套技能包与执行语义**（`analyze` / `ask` / `runbook` 等），用于部署在**受管机**上本地执行。产品总览见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)，历史说明见 [`docs/opsfleet-README.md`](docs/opsfleet-README.md)。控制台构建：`make build-opsfleet`（产物 `bin/opsfleet-backend`、`dist/web/`）。
+本仓库为 **单一 Git 仓库**：根目录 **CLI（ai-sre）**、**OpsFleet 本地执行器（`opsfleet-executor`）** 与 **OpsFleetPilot（Web + API）** 并排共存。**OpsFleetPilot** 包含 `ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`；**`opsfleet-executor`** 与 `ai-sre` **共用同一套技能包与执行语义**（`analyze` / `ask` / `runbook` / `job run` 等），用于部署在**受管机**上本地执行。产品总览见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)，历史说明见 [`docs/opsfleet-README.md`](docs/opsfleet-README.md)。控制台构建：`make build-opsfleet`（产物 `bin/opsfleet-backend`、`dist/web/`）。
 
 ---
 
@@ -41,6 +41,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `ai-sre elasticsearch update` | 同上，作用于 Elasticsearch；自动复跑 system-tune（vm.max_map_count）、写 `elasticsearch.yml` + `jvm.options.d/heap.options`（包安装时另加 systemd drop-in；**binary** 方式则配置在 `install_prefix/config` 且 `ES_PATH_CONF` 指向该目录）、轮询 `_cluster/health` |
 | `ai-sre elasticsearch uninstall` | 默认停服并移除 ai-sre 管理的 systemd/配置痕迹；`--purge-package` 在 **package** 下卸载发行版包，在 **binary** 下删除 `install_prefix` 目录；`--purge-data` 清理 data/log；`-f/--force` 端到端清理（容器、包、二进制目录、配置、数据、日志、apt/yum 仓库与 GPG 密钥） |
 | `ai-sre k8s …` | 离线包下载、控制机 `install` / `cleanup` / `diagnose` 等（见 `ai-sre k8s --help`） |
+| `ai-sre job run --machines <uuid,…> -c '…'` | **（0.5.10）** 经 OpsFleet `POST /api/job/execute` 在多台已在线 Agent 上批量执行命令或脚本；`--timeout`、`--wait` / `--max-wait`、`--print-console-url`（打开带 `?jobId=` 的控制台与同页「执行结果」对齐）；需 `OPSFLEET_API_URL` + 令牌。**`opsfleet-executor`** 亦含该子命令 |
 | `ai-sre node tune time-sync …` | 与控制台「初始化工具 → 时间同步」等价的 CLI；本机构建 inventory + chrony / timesyncd playbook 并调用 `ansible-playbook`；缺失 ansible 时按 apt/dnf/yum 自动安装；未填 `--clients` 仅对 localhost 执行 |
 | `ai-sre node tune sys-param …` | 与「系统参数优化」等价：sysctl + br_netfilter/overlay 内核模块 + ulimit + 关闭 swap；可用 `--sysctl key=value`（多次）扩展或 `--extra-only` 只用显式提供的项 |
 | `ai-sre k8s diagnose` | 本机自检 K8s 常见抖动根因：**时钟跳变 / etcd 慢盘 / kubelet SandboxChanged / 预检缺项（swap/br_netfilter/sysctl）**；`--preflight` 只跑部署前预检，`--json` 输出可直接喂给 `ai-sre analyze k8s --issue instability` |
@@ -330,7 +331,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 完成所需项后点顶部「返回 K8s 部署」回到折叠配置页。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
 
-**机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 仍用于台账与拓扑。**作业中心**（`/admin/job/center`）机器列表取自 **`GET /api/job/machines`**（仅在线）；下发 **`POST /api/job/execute`** 后控制台轮询 **`GET /api/job/result/:jobId`** 直至各子任务进入终态或超时提示（任务仍在时请到「执行记录」查看）。详见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)。
+**机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 仍用于台账与拓扑。**作业中心**（`/admin/job/center`、`/app/job/center`）支持：**目标文本框**（UUID / IP / 名称解析到在线 Agent）、**穿梭框**、折叠 **「执行选项」（超时秒数等）**、**命令或脚本**，以及 **一键脚本**（推荐 `ai-sre job run --machines … -c … --print-console-url`）。页面 **URL `?jobId=<uuid>`** 或 **`ai-sre job run --print-console-url` 输出的链接** 可把同一任务的各机输出拉回「执行结果」区。API：**`POST /api/job/execute`**（JSON：`machine_ids`、`command`、`timeout`，超时由后端夹在 10～3600 秒）；**`GET /api/job/result/:jobId`** 轮询子任务。**CLI**：`ai-sre job run --machines uuid1,uuid2 -c '…' [--timeout 120] [--wait] [--max-wait 15m] [--print-console-url]`（需 `OPSFLEET_API_URL` + `OPSFLEET_TOKEN`/文件令牌）；**executor** 亦注册同一子命令。详见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)。
 
 ---
 

@@ -3,12 +3,13 @@
     <div class="page-header">
       <div class="page-header__titles">
         <h2>作业中心</h2>
-        <p class="page-header__sub">在在线机器上批量执行 shell；结果由 Agent 回传，可能需要数秒至一分钟。</p>
+        <p class="page-header__sub">
+          选择一个或多个<strong>在线</strong> Agent 机器，下发 shell；也可在装有 ai-sre 的控制机执行
+          <code>ai-sre job run … --print-console-url</code>
+          ，用浏览器打开控制台链接在此处查看同源结果。
+        </p>
       </div>
       <div class="page-header__actions">
-        <el-tooltip content="选择目标机 → 输入命令 → 执行；Ctrl+Enter 快捷执行" placement="bottom-end">
-          <el-button text type="primary" size="small">说明</el-button>
-        </el-tooltip>
         <el-tooltip content="刷新在线机器列表" placement="bottom-end">
           <button
             type="button"
@@ -26,21 +27,36 @@
     </div>
 
     <el-card class="job-card" shadow="hover">
-      <!-- 机器 -->
+      <!-- ① 目标机器 -->
       <section class="job-section">
         <div class="section-head">
           <h3>目标机器</h3>
           <span class="section-meta">{{ machines.length }} 台在线 · 已选 {{ selectedMachines.length }} 台</span>
         </div>
+        <p class="field-hint">
+          在下方文本框填入 <strong>UUID</strong>、<strong>IP</strong> 或<strong>主机名</strong>（空格 / 逗号 / 换行分隔），点击「应用到已选」；也可在穿梭框勾选。
+        </p>
+        <el-input
+          v-model="machineTargetsRaw"
+          type="textarea"
+          :autosize="{ minRows: 2, maxRows: 6 }"
+          placeholder="示例：550e8400-e29b… &#10;192.168.1.10&#10;k8s-worker-02"
+          class="targets-textarea"
+        />
+        <div class="targets-actions">
+          <el-button type="primary" size="small" @click="applyTargetsFromInput">应用到已选</el-button>
+          <el-button size="small" @click="clearTargets">清空目标</el-button>
+        </div>
+
         <div class="transfer-wrap" v-loading="machinesLoading">
           <el-transfer
             v-model="transferValue"
             :data="transferData"
-            :titles="['待选', '已选']"
+            :titles="['待选在线', '已选']"
             :filterable="true"
-            filter-placeholder="搜索 ID / IP / 名称"
+            filter-placeholder="筛选 ID / IP / 名称"
             :format="{ noMatch: '无匹配', noData: '暂无在线机器', all: '全部', confirm: '确认' }"
-            @change="handleTransferChange"
+            @change="onTransferChange"
           >
             <template #default="{ option }">
               <div class="transfer-row">
@@ -53,22 +69,48 @@
         </div>
       </section>
 
+      <!-- ③ 选项 -->
+      <el-collapse v-model="optionsOpen" class="job-collapse">
+        <el-collapse-item title="执行选项" name="opt">
+          <div class="opt-grid">
+            <div class="opt-field">
+              <span class="opt-label">单任务超时（秒）</span>
+              <el-select v-model="jobTimeoutSec" placeholder="超时" style="width: 160px">
+                <el-option label="60" :value="60" />
+                <el-option label="120" :value="120" />
+                <el-option label="300（5min）" :value="300" />
+                <el-option label="600（10min）" :value="600" />
+                <el-option label="1800（30min）" :value="1800" />
+                <el-option label="3600（1h）" :value="3600" />
+              </el-select>
+            </div>
+            <div class="opt-field opt-field--switch">
+              <el-switch v-model="confirmDangerPatterns" />
+              <span class="opt-label-inline">检测到 rm -rf / 交互命令等时再二次确认（建议开启）</span>
+            </div>
+            <div class="opt-field opt-field--switch">
+              <el-switch v-model="blockIfUnresolvedTargets" />
+              <span class="opt-label-inline">「应用到已选」时若有无法识别的 token 则阻止执行按钮（直到改正）</span>
+            </div>
+          </div>
+        </el-collapse-item>
+      </el-collapse>
+
       <el-divider class="job-divider" />
 
       <div class="job-split">
-        <!-- 命令 -->
+        <!-- ② 指令 -->
         <section class="job-section job-section--cmd">
           <div class="section-head">
-            <h3>命令</h3>
+            <h3>命令 / 脚本</h3>
           </div>
           <div class="cmd-shell">
             <span class="cmd-shell__prompt" aria-hidden="true">$</span>
             <el-input
               v-model="commandText"
               type="textarea"
-              :rows="10"
               :autosize="{ minRows: 10, maxRows: 22 }"
-              placeholder="每行一条命令；避免 vim/top 等交互式命令"
+              placeholder="多行 shell；避免 vim / top 等需 TTY 的交互命令"
               clearable
               class="cmd-shell__input"
             />
@@ -101,24 +143,28 @@
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
-            <el-button
-              type="primary"
-              :disabled="selectedMachines.length === 0 || !commandText.trim() || executing"
-              :loading="executing"
-              @click="executeCommands"
-            >
+            <el-button type="primary" :disabled="executeDisabled" :loading="executing" @click="executeCommands">
               <el-icon><CirclePlus /></el-icon>
               执行
             </el-button>
-            <el-button @click="clearCommand">清空</el-button>
+            <el-button @click="clearCommand">清空命令</el-button>
+            <el-button @click="openScriptDialog" :disabled="!canGenerateScript">
+              <el-icon><DocumentCopy /></el-icon>
+              一键脚本
+            </el-button>
           </div>
-          <p class="job-hint">Ctrl+Enter 执行 · Ctrl+K 清空命令 · Ctrl+R 刷新机器 · Ctrl+L 清空结果</p>
+          <div v-if="lastJobId" class="job-id-bar">
+            <span class="job-id-bar__label">最近一次 jobId:</span>
+            <code class="job-id-bar__code">{{ lastJobId }}</code>
+            <el-button link type="primary" size="small" @click="copyText(lastJobLink)">复制控制台链接</el-button>
+          </div>
+          <p class="job-hint">Ctrl+Enter 执行 · Ctrl+K 清空命令 · Ctrl+R 刷新列表 · Ctrl+L 清空右侧结果</p>
         </section>
 
-        <!-- 结果 -->
+        <!-- ④⑤ 输出 -->
         <section class="job-section job-section--out">
           <div class="section-head">
-            <h3>输出</h3>
+            <h3>执行结果</h3>
             <div class="section-head__tools">
               <el-select v-model="resultFilter" placeholder="筛选" size="small" class="filter-select">
                 <el-option label="全部" value="all" />
@@ -134,30 +180,36 @@
 
           <div v-if="polling" class="poll-banner">
             <el-icon class="poll-banner__icon"><Loading /></el-icon>
-            正在等待 Agent 回传…
+            等待 Agent 回传中…（与 ai-sre <code>job run --wait</code> 数据源相同）
           </div>
 
           <div class="out-scroll">
             <div v-if="resultFilter !== 'all'" class="out-filter-tip">
-              当前：{{ resultFilter === 'success' ? '成功' : '失败' }} · {{ filteredResults.length }} 条
+              筛选：{{ resultFilter === 'success' ? '成功' : '失败' }} · {{ filteredResults.length }} 条
             </div>
             <div v-if="!filteredResults.length" class="out-empty">
-              {{ executionResults.length ? '无匹配结果' : '执行后在此查看每台机器输出' }}
+              {{
+                executionResults.length
+                  ? '无筛选匹配'
+                  : '从本页发起执行或通过 ?jobId= / ai-sre 链接导入后在此查看'
+              }}
             </div>
 
             <article
               v-for="(result, index) in filteredResults"
-              :key="result.machineId + '-' + index + '-' + result.executionTime"
+              :key="result.machineId + '-' + index + '-' + result.executionTime + '-' + (result.jobId || '')"
               class="out-card"
             >
               <header class="out-card__head">
                 <div class="out-card__title">
+                  <el-tag v-if="result.sourceLabel" size="small" effect="dark" type="info">{{ result.sourceLabel }}</el-tag>
                   <span class="out-card__name">{{ result.machineName }}</span>
                   <span class="out-card__id">{{ result.machineIP || result.machineId }}</span>
                   <el-tag :type="tagType(result)" size="small">{{ statusLabel(result) }}</el-tag>
                   <el-tag v-if="result.exitCode != null" size="small" effect="plain" type="info">
                     exit {{ result.exitCode }}
                   </el-tag>
+                  <el-tag v-if="result.jobId" size="small" effect="plain">{{ result.jobId.slice(0, 8) }}…</el-tag>
                 </div>
                 <div class="out-card__meta">
                   <span class="out-card__time">{{ formatDate(result.executionTime) }}</span>
@@ -177,38 +229,63 @@
         </section>
       </div>
     </el-card>
+
+    <el-dialog v-model="scriptDialogVisible" title="一键脚本（需在控制机上设置令牌）" width="640px" destroy-on-close>
+      <p class="script-dialog-help">
+        将下方脚本保存为 <code>job-run.sh</code>，在已安装 ai-sre 或已配置令牌的环境运行；依赖 <code>curl</code>、<code>python3</code>（解析 JSON）。
+        勿把含令牌的脚本提交到 Git。
+      </p>
+      <el-input v-model="generatedScriptText" type="textarea" readonly :autosize="{ minRows: 16, maxRows: 26 }" class="script-ta" />
+      <template #footer>
+        <el-button @click="scriptDialogVisible = false">关闭</el-button>
+        <el-button type="primary" @click="copyGeneratedScript">复制脚本</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   RefreshRight,
   CirclePlus,
-  Delete,
   Clock,
   ArrowDown,
   Warning,
-  Loading
+  Loading,
+  DocumentCopy
 } from '@element-plus/icons-vue'
 import { executeCommand, getExecutionResult, getAvailableMachines } from '../../api/job'
 import type { JobSubTaskResult } from '../../api/job'
 import { copyTextToClipboard } from '../../utils/clipboard'
 import type { Machine } from '../../types'
 
+const route = useRoute()
+const router = useRouter()
+
 const COMMAND_HISTORY_KEY = 'jobCenterCommandHistory'
 const MAX_HISTORY = 20
 const POLL_MS = 900
-const MAX_WAIT_MS = 120_000
+const MAX_WAIT_MS = 180_000
 
 const executing = ref(false)
 const polling = ref(false)
 const machinesLoading = ref(false)
 const machines = ref<Machine[]>([])
 
+const machineTargetsRaw = ref('')
 const selectedMachines = ref<Machine[]>([])
 const transferValue = ref<string[]>([])
+const unresolvedTokens = ref<string[]>([])
+const optionsOpen = ref(['opt'])
+
+const jobTimeoutSec = ref(120)
+const confirmDangerPatterns = ref(true)
+const blockIfUnresolvedTargets = ref(true)
+
+const lastJobId = ref('')
 
 const transferData = computed(() =>
   machines.value.map((m) => ({
@@ -235,6 +312,8 @@ interface ExecutionResult {
   executionTime: string
   status: string
   exitCode?: number | null
+  jobId?: string
+  sourceLabel?: string
 }
 
 const executionResults = ref<ExecutionResult[]>([])
@@ -245,6 +324,89 @@ const filteredResults = computed(() => {
   if (resultFilter.value === 'success') return executionResults.value.filter((r) => r.success)
   return executionResults.value.filter((r) => !r.success)
 })
+
+const shellJobBasePath = computed(() => (route.path.startsWith('/app') ? '/app' : '/admin'))
+
+const lastJobLink = computed(() => {
+  if (!lastJobId.value) return ''
+  return `${window.location.origin}${shellJobBasePath.value}/job/center?jobId=${encodeURIComponent(lastJobId.value)}`
+})
+
+const hasBlockingUnresolved = computed(() => blockIfUnresolvedTargets.value && unresolvedTokens.value.length > 0)
+
+const executeDisabled = computed(
+  () =>
+    selectedMachines.value.length === 0 ||
+    !commandText.value.trim() ||
+    executing.value ||
+    hasBlockingUnresolved.value
+)
+
+const canGenerateScript = computed(
+  () => selectedMachines.value.length > 0 && commandText.value.trim().length > 0
+)
+
+const scriptDialogVisible = ref(false)
+const generatedScriptText = ref('')
+
+function tokenizeTargets(s: string): string[] {
+  return s
+    .split(/[\s,;，；]+/)
+    .map((t) => t.trim())
+    .filter(Boolean)
+}
+
+function findMachineByToken(t: string): Machine | undefined {
+  const tl = t.toLowerCase()
+  return machines.value.find(
+    (m) => m.id === t || m.id.toLowerCase() === tl || m.ip === t || (m.name && m.name.toLowerCase() === tl)
+  )
+}
+
+function applyTargetsFromInput() {
+  const tokens = tokenizeTargets(machineTargetsRaw.value)
+  unresolvedTokens.value = []
+  const ids: string[] = []
+  const seen = new Set<string>()
+  for (const t of tokens) {
+    const m = findMachineByToken(t)
+    if (m && !seen.has(m.id)) {
+      seen.add(m.id)
+      ids.push(m.id)
+    } else if (!m) {
+      unresolvedTokens.value.push(t)
+    }
+  }
+  transferValue.value = ids
+  selectedMachines.value = machines.value.filter((m) => ids.includes(m.id))
+  if (unresolvedTokens.value.length) {
+    ElMessage.warning(`未识别的目标（请核对在线 UUID / IP / 名称）：${unresolvedTokens.value.join(', ')}`)
+  } else if (tokens.length) {
+    ElMessage.success(`已选 ${ids.length} 台机器`)
+  }
+}
+
+function syncTargetsTextFromSelection() {
+  if (!selectedMachines.value.length) {
+    machineTargetsRaw.value = ''
+    return
+  }
+  machineTargetsRaw.value = selectedMachines.value.map((m) => `${m.ip}  ${m.name}  ${m.id}`).join('\n')
+  unresolvedTokens.value = []
+}
+
+function onTransferChange(value: string[]) {
+  transferValue.value = value
+  selectedMachines.value = machines.value.filter((machine) => value.includes(machine.id))
+  syncTargetsTextFromSelection()
+}
+
+function clearTargets() {
+  transferValue.value = []
+  selectedMachines.value = []
+  machineTargetsRaw.value = ''
+  unresolvedTokens.value = []
+}
 
 const checkCommandSyntax = (command: string) => {
   const errors: string[] = []
@@ -258,8 +420,9 @@ const checkCommandSyntax = (command: string) => {
     dangerous.forEach((d) => {
       if (t.includes(d)) errors.push(`第 ${index + 1} 行：含高风险片段「${d}」`)
     })
+    const firstTok = t.split(/\s+/)[0] || ''
     interactive.forEach((c) => {
-      if (t.startsWith(c)) errors.push(`第 ${index + 1} 行：交互命令「${c}」无法在作业中心执行`)
+      if (firstTok === c || t.startsWith(c + ' ')) errors.push(`第 ${index + 1} 行：可能需要 TTY 的交互命令「${c}」`)
     })
   })
   commandErrors.value = errors
@@ -317,11 +480,16 @@ async function waitForJobResults(jobId: string): Promise<JobSubTaskResult[]> {
     if (latest.every((r) => isTerminal(r.status))) return latest
     await sleep(POLL_MS)
   }
-  ElMessage.warning('等待结果超时，任务可能仍在执行，请在「执行记录」中查看')
+  ElMessage.warning('等待结果超时（任务仍在跑时可刷新或去「执行记录」查看）')
   return latest
 }
 
-function mapRows(rows: JobSubTaskResult[], finishedAt: string): ExecutionResult[] {
+function mapRows(
+  rows: JobSubTaskResult[],
+  finishedAt: string,
+  jobId: string,
+  sourceLabel: string
+): ExecutionResult[] {
   return rows.map((r) => {
     const ok = r.status === 'success'
     const errParts = [r.error?.trim(), r.exit_code != null && !ok ? `exit_code=${r.exit_code}` : ''].filter(
@@ -336,7 +504,9 @@ function mapRows(rows: JobSubTaskResult[], finishedAt: string): ExecutionResult[
       stderr: errParts.join('\n').trim(),
       executionTime: finishedAt,
       status: r.status,
-      exitCode: r.exit_code
+      exitCode: r.exit_code,
+      jobId,
+      sourceLabel
     }
   })
 }
@@ -355,25 +525,31 @@ const statusLabel = (r: ExecutionResult) => {
   if (r.status === 'failed') return '失败'
   if (r.status === 'cancelled') return '已取消'
   if (r.status === 'timeout') return '超时'
-  return r.status || '未知'
+  return r.status || '进行中'
 }
 
 const tagType = (r: ExecutionResult) => {
   if (r.success) return 'success'
   if (r.status === 'cancelled') return 'info'
+  if (r.status === 'pending' || r.status === 'running' || r.status === 'dispatched') return 'warning'
   return 'danger'
+}
+
+const copyText = async (s: string) => {
+  if (!s) return
+  try {
+    await copyTextToClipboard(s)
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.error('复制失败')
+  }
 }
 
 const copyOneResult = async (r: ExecutionResult) => {
   const text = [`# ${r.machineName} (${r.machineIP || r.machineId})`, r.stdout && `--- stdout ---\n${r.stdout}`, r.stderr && `--- stderr ---\n${r.stderr}`]
     .filter(Boolean)
     .join('\n\n')
-  try {
-    await copyTextToClipboard(text)
-    ElMessage.success('已复制')
-  } catch {
-    ElMessage.error('复制失败')
-  }
+  await copyText(text)
 }
 
 const copyAllResults = async () => {
@@ -383,20 +559,19 @@ const copyAllResults = async () => {
     const body = [r.stdout && `stdout:\n${r.stdout}`, r.stderr && `stderr:\n${r.stderr}`].filter(Boolean).join('\n\n')
     return `${head}\n${body}`
   })
-  try {
-    await copyTextToClipboard(parts.join('\n\n---\n\n'))
-    ElMessage.success('已复制全部输出')
-  } catch {
-    ElMessage.error('复制失败')
-  }
+  await copyText(parts.join('\n\n---\n\n'))
+  ElMessage.success('已复制全部输出')
 }
 
 const loadMachineList = async () => {
+  const prev = new Set(transferValue.value)
   machinesLoading.value = true
   try {
     machines.value = await getAvailableMachines()
-    transferValue.value = []
-    selectedMachines.value = []
+    const nextIds = machines.value.filter((m) => prev.has(m.id)).map((m) => m.id)
+    transferValue.value = nextIds
+    selectedMachines.value = machines.value.filter((m) => nextIds.includes(m.id))
+    syncTargetsTextFromSelection()
   } catch (e: any) {
     ElMessage.error('获取机器列表失败: ' + (e?.message || e?.msg || '未知错误'))
   } finally {
@@ -406,12 +581,11 @@ const loadMachineList = async () => {
 
 const refreshMachines = () => void loadMachineList()
 
-const handleTransferChange = (value: string[]) => {
-  transferValue.value = value
-  selectedMachines.value = machines.value.filter((m) => value.includes(m.id))
-}
-
 const executeCommands = async () => {
+  if (hasBlockingUnresolved.value) {
+    ElMessage.error('请先修正无法识别的目标，或关闭「未识别则阻止执行」')
+    return
+  }
   if (!selectedMachines.value.length) {
     ElMessage.warning('请至少选择一台机器')
     return
@@ -422,9 +596,9 @@ const executeCommands = async () => {
   }
 
   const errors = checkCommandSyntax(commandText.value)
-  if (errors.length) {
+  if (errors.length && confirmDangerPatterns.value) {
     try {
-      await ElMessageBox.confirm(`检测到 ${errors.length} 条提示，仍要执行？\n\n${errors.join('\n')}`, '确认执行', {
+      await ElMessageBox.confirm(`检测到 ${errors.length} 条风险提示，仍要执行？\n\n${errors.join('\n')}`, '确认执行', {
         confirmButtonText: '继续',
         cancelButtonText: '取消',
         type: 'warning'
@@ -441,10 +615,12 @@ const executeCommands = async () => {
   try {
     const { jobId } = await executeCommand({
       machine_ids: selectedMachines.value.map((m) => m.id),
-      command: commandText.value.trim()
+      command: commandText.value.trim(),
+      timeout: jobTimeoutSec.value
     })
+    lastJobId.value = jobId
     const rows = await waitForJobResults(jobId)
-    const mapped = mapRows(rows, finishedAt)
+    const mapped = mapRows(rows, finishedAt, jobId, '控制台')
     executionResults.value.unshift(...mapped)
     const ok = mapped.filter((x) => x.success).length
     const bad = mapped.length - ok
@@ -457,6 +633,24 @@ const executeCommands = async () => {
   }
 }
 
+async function importResultsForJob(jobId: string, sourceLabel: string) {
+  const id = jobId.trim()
+  if (!id) return
+  try {
+    const data = await getExecutionResult(id)
+    const mapped = mapRows(data.results ?? [], new Date().toISOString(), id, sourceLabel)
+    if (!mapped.length) {
+      ElMessage.info('尚未有子任务结果，请稍后刷新本页或通过 ?jobId= 再次打开')
+      return
+    }
+    executionResults.value.unshift(...mapped)
+    lastJobId.value = id
+    ElMessage.success(`已载入任务 ${id.slice(0, 8)}… 的输出`)
+  } catch (e: any) {
+    ElMessage.error('载入任务结果失败: ' + (e?.message || ''))
+  }
+}
+
 const clearCommand = () => {
   commandText.value = ''
 }
@@ -465,12 +659,57 @@ const clearResult = () => {
   executionResults.value = []
 }
 
+function utf8ToB64(s: string): string {
+  return btoa(unescape(encodeURIComponent(s)))
+}
+
+function buildExecutePayloadObject() {
+  return {
+    machine_ids: selectedMachines.value.map((m) => m.id),
+    command: commandText.value.trim(),
+    timeout: jobTimeoutSec.value
+  }
+}
+
+function openScriptDialog() {
+  const b64 = utf8ToB64(JSON.stringify(buildExecutePayloadObject()))
+  const ids = selectedMachines.value.map((m) => m.id).join(',')
+  const escaped = commandText.value.trim().replace(/\\/g, '\\\\').replace(/'/g, "'\\''")
+
+  generatedScriptText.value = `#!/usr/bin/env bash
+# OpsFleet 作业中心 — 在控制机保存执行；请勿提交含令牌的内容到 Git。
+set -euo pipefail
+
+# export OPSFLEET_API_URL="https://控制台:端口/ft-api"
+# export OPSFLEET_TOKEN="登录令牌（与 ~/.config/ai-sre/opsfleet_token 一致）"
+
+if ! command -v ai-sre >/dev/null 2>&1; then
+  echo "未找到 ai-sre，请先安装或改用注释中的 curl 示例" >&2
+  exit 1
+fi
+
+ai-sre job run --machines "${ids}" --timeout ${jobTimeoutSec.value} --print-console-url --wait -c '${escaped}'
+
+# ─── 备选：curl + base64 请求体（BODY_B64 为当前页面生成的 JSON 经 base64）───
+# BODY_B64='${b64}'
+# BODY=$(printf '%s' "$BODY_B64" | base64 -d)
+# RESP=$(curl -fsS "$API_BASE/api/job/execute" -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -d "$BODY")
+# echo "$RESP" | python3 -c "import json,sys; print(json.load(sys.stdin)['data']['jobId'])"
+`
+  scriptDialogVisible.value = true
+}
+
+async function copyGeneratedScript() {
+  await copyText(generatedScriptText.value)
+  ElMessage.success('脚本已复制')
+}
+
 const setupKeyboardShortcuts = () => {
   const onKey = (e: KeyboardEvent) => {
     if (!e.ctrlKey) return
     if (e.key === 'Enter') {
       e.preventDefault()
-      if (selectedMachines.value.length && commandText.value.trim() && !executing.value) void executeCommands()
+      if (!executeDisabled.value) void executeCommands()
     }
     if (e.key === 'k') {
       e.preventDefault()
@@ -490,6 +729,22 @@ const setupKeyboardShortcuts = () => {
 }
 
 let offKeys: (() => void) | null = null
+const importedJobIds = new Set<string>()
+
+watch(
+  () => route.query.jobId,
+  async (jid) => {
+    const raw = typeof jid === 'string' ? jid : Array.isArray(jid) ? jid[0] : ''
+    const id = (raw || '').trim()
+    if (!id || importedJobIds.has(id)) return
+    importedJobIds.add(id)
+    await importResultsForJob(id, '链接/CLI')
+    const q = { ...route.query } as Record<string, unknown>
+    delete q.jobId
+    router.replace({ path: route.path, query: q })
+  },
+  { immediate: true }
+)
 
 onMounted(() => {
   loadCommandHistory()
@@ -504,7 +759,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 勿使用 page-shell--fill：该模式需子级 flex:1+min-height:0，否则主卡片在 overflow:hidden 下会被压没 */
 .job-center {
   width: 100%;
   box-sizing: border-box;
@@ -533,7 +787,14 @@ onUnmounted(() => {
   font-size: 13px;
   color: var(--el-text-color-secondary);
   line-height: 1.45;
-  max-width: 52ch;
+  max-width: 62ch;
+}
+
+.page-header__sub code {
+  font-size: 12px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--el-fill-color-light);
 }
 
 .page-header__actions {
@@ -580,6 +841,70 @@ onUnmounted(() => {
   margin: 0;
 }
 
+.field-hint {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.45;
+}
+
+.targets-textarea {
+  margin-bottom: 8px;
+}
+
+.targets-textarea :deep(.el-textarea__inner) {
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.targets-actions {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.job-collapse {
+  margin: 12px 0 0;
+  border: none;
+  --el-collapse-header-height: 40px;
+}
+
+.job-collapse :deep(.el-collapse-item__header) {
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.opt-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.opt-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.opt-field--switch {
+  align-items: flex-start;
+}
+
+.opt-label {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+  min-width: 120px;
+}
+
+.opt-label-inline {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  flex: 1;
+  line-height: 1.45;
+}
+
 .section-head {
   display: flex;
   align-items: center;
@@ -592,7 +917,6 @@ onUnmounted(() => {
   margin: 0;
   font-size: 15px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
 }
 
 .section-meta {
@@ -612,12 +936,12 @@ onUnmounted(() => {
 }
 
 .job-divider {
-  margin: 16px 0;
+  margin: 18px 0;
 }
 
 .job-split {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.1fr);
+  grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.05fr);
   gap: 20px;
   align-items: start;
 }
@@ -638,8 +962,6 @@ onUnmounted(() => {
 .transfer-wrap :deep(.el-transfer) {
   display: flex;
   width: 100%;
-  justify-content: space-between;
-  align-items: stretch;
   gap: 8px;
 }
 
@@ -649,69 +971,59 @@ onUnmounted(() => {
 }
 
 .transfer-wrap :deep(.el-transfer-panel__body) {
-  height: 260px;
+  height: 240px;
 }
 
 .transfer-wrap :deep(.el-transfer__buttons) {
-  display: flex;
   flex-direction: column;
   justify-content: center;
   gap: 6px;
-  padding: 0 4px;
 }
 
 .transfer-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-width: 0;
   font-size: 13px;
+  min-width: 0;
 }
 
 .transfer-row__name {
   font-weight: 500;
-  color: var(--el-text-color-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 0 1 auto;
-  max-width: 42%;
 }
 
 .transfer-row__ip {
   color: var(--el-text-color-secondary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-family: ui-monospace, monospace;
   font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .cmd-shell {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
   border: 1px solid var(--el-border-color);
   border-radius: 10px;
-  padding: 10px 10px 10px 8px;
+  padding: 10px;
   background: var(--el-fill-color-light);
-  min-height: 200px;
+  min-height: 180px;
 }
 
 .cmd-shell:focus-within {
   border-color: var(--el-color-primary-light-5);
-  box-shadow: 0 0 0 1px var(--el-color-primary-light-7);
 }
 
 .cmd-shell__prompt {
-  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+  font-family: ui-monospace, monospace;
   font-weight: 700;
   color: var(--el-color-primary);
   line-height: 22px;
-  padding-top: 2px;
-  flex-shrink: 0;
 }
 
 .cmd-shell__input {
@@ -720,15 +1032,13 @@ onUnmounted(() => {
 }
 
 .cmd-shell__input :deep(.el-textarea__inner) {
-  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+  font-family: ui-monospace, monospace;
   font-size: 13px;
   line-height: 1.55;
   background: transparent;
-  box-shadow: none !important;
   border: none !important;
-  padding: 2px 4px;
-  resize: vertical;
-  min-height: 180px;
+  box-shadow: none !important;
+  min-height: 160px;
 }
 
 .cmd-warn {
@@ -742,18 +1052,9 @@ onUnmounted(() => {
 .cmd-warn__line {
   display: flex;
   gap: 8px;
-  align-items: flex-start;
   font-size: 12px;
   color: var(--el-color-danger-dark-2);
   margin-bottom: 4px;
-}
-.cmd-warn__line:last-child {
-  margin-bottom: 0;
-}
-
-.cmd-warn__icon {
-  flex-shrink: 0;
-  margin-top: 1px;
 }
 
 .cmd-actions {
@@ -761,6 +1062,23 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
+}
+
+.job-id-bar {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-id-bar__code {
+  font-size: 11px;
+  background: var(--el-fill-color);
+  padding: 2px 6px;
+  border-radius: 4px;
 }
 
 .job-hint {
@@ -776,7 +1094,6 @@ onUnmounted(() => {
   overflow: auto;
   font-size: 12px;
   white-space: pre-wrap;
-  word-break: break-all;
 }
 
 .poll-banner {
@@ -806,12 +1123,11 @@ onUnmounted(() => {
   color: var(--el-text-color-secondary);
   text-align: center;
   padding: 6px;
-  margin-bottom: 6px;
 }
 
 .out-empty {
   text-align: center;
-  padding: 36px 12px;
+  padding: 32px 12px;
   color: var(--el-text-color-placeholder);
   font-size: 13px;
 }
@@ -822,17 +1138,11 @@ onUnmounted(() => {
   border-radius: 10px;
   padding: 12px;
   margin-bottom: 10px;
-  box-shadow: var(--el-box-shadow-lighter);
-}
-
-.out-card:last-child {
-  margin-bottom: 0;
 }
 
 .out-card__head {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
   gap: 10px;
   margin-bottom: 8px;
   padding-bottom: 8px;
@@ -844,26 +1154,17 @@ onUnmounted(() => {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  min-width: 0;
 }
 
 .out-card__name {
   font-weight: 600;
   font-size: 14px;
-  color: var(--el-text-color-primary);
 }
 
 .out-card__id {
   font-size: 12px;
   color: var(--el-text-color-secondary);
-  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
-}
-
-.out-card__meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  font-family: ui-monospace, monospace;
 }
 
 .out-card__time {
@@ -874,8 +1175,6 @@ onUnmounted(() => {
 .out-block__label {
   font-size: 11px;
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   color: var(--el-text-color-secondary);
   margin-bottom: 4px;
 }
@@ -894,13 +1193,23 @@ onUnmounted(() => {
 
 .out-block--stdout pre {
   background: var(--el-fill-color-light);
-  color: var(--el-text-color-primary);
   border-left: 3px solid var(--el-color-primary);
 }
 
 .out-block--stderr pre {
   background: var(--el-color-danger-light-9);
-  color: var(--el-color-danger-dark-2);
   border-left: 3px solid var(--el-color-danger);
+}
+
+.script-dialog-help {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+.script-ta :deep(.el-textarea__inner) {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
 }
 </style>
