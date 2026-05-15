@@ -1,15 +1,31 @@
 <template>
-  <div class="main-layout">
-    <aside class="sidebar" :class="{ 'sidebar-collapsed': isCollapse }">
-      <div class="sidebar-header">
-        <div class="sidebar-brand">
-          <div class="sidebar-brand-mark" aria-hidden="true">{{ brandShort }}</div>
-          <div v-show="!isCollapse" class="sidebar-brand-text">
-            <span class="sidebar-brand-title">OpsFleetPilot</span>
-            <span class="sidebar-brand-sub">{{ isAdminShell ? '控制台' : '工作台' }}</span>
+  <div
+    class="main-layout flex h-screen overflow-hidden bg-[var(--layout-page-bg)] font-sans text-[#1d1d1f] antialiased leading-[1.47] tracking-[-0.01em]"
+  >
+    <aside
+      class="sidebar fixed bottom-0 left-0 top-0 z-[9980] flex flex-col overflow-hidden border-r border-black/[0.04] bg-white transition-[width] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+      :class="isCollapse ? 'w-[var(--layout-sidebar-collapsed-width)]' : 'w-[var(--layout-sidebar-width)]'"
+    >
+      <div
+        class="sidebar-header flex h-[var(--layout-header-height)] shrink-0 items-center justify-between gap-2 border-b border-black/[0.04] px-3.5 backdrop-blur-sm bg-white/90"
+      >
+        <div class="sidebar-brand flex min-w-0 flex-1 items-center gap-2.5">
+          <div
+            class="sidebar-brand-mark flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#0066CC] text-xs font-semibold tracking-tight text-white shadow-none"
+            aria-hidden="true"
+          >
+            {{ brandShort }}
+          </div>
+          <div v-show="!isCollapse" class="sidebar-brand-text flex min-w-0 flex-col gap-0.5">
+            <span class="sidebar-brand-title truncate text-[15px] font-semibold leading-snug tracking-tight"
+              >OpsFleetPilot</span
+            >
+            <span class="sidebar-brand-sub truncate text-[11px] font-normal leading-snug opacity-90">{{
+              isAdminShell ? '控制台' : '工作台'
+            }}</span>
           </div>
         </div>
-        <el-button type="primary" link class="collapse-btn" @click="isCollapse = !isCollapse">
+        <el-button type="primary" link class="collapse-btn shrink-0 -mr-1 h-auto rounded-lg p-2" @click="isCollapse = !isCollapse">
           <el-icon :size="18">
             <svg
               v-if="isCollapse"
@@ -164,10 +180,19 @@
       </el-scrollbar>
     </aside>
 
-    <div class="main-content" :class="{ 'sidebar-collapsed': isCollapse }">
-      <header class="header">
-        <div class="header-left">
-          <div class="header-breadcrumb-wrap">
+    <div
+      class="main-content flex flex-col overflow-hidden transition-[margin-left,width] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
+      :class="
+        isCollapse
+          ? 'ml-[var(--layout-sidebar-collapsed-width)] w-[calc(100%-var(--layout-sidebar-collapsed-width))]'
+          : 'ml-[var(--layout-sidebar-width)] w-[calc(100%-var(--layout-sidebar-width))]'
+      "
+    >
+      <header
+        class="header sticky top-0 z-[10050] flex h-[var(--layout-header-height)] shrink-0 items-center justify-between gap-4 border-b border-black/[0.06] bg-white/70 px-5 shadow-apple-nav backdrop-blur-xl supports-[backdrop-filter]:bg-white/55"
+      >
+        <div class="header-left flex min-w-0 flex-1 items-center">
+          <div class="header-breadcrumb-wrap min-w-0 max-w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:h-0">
             <el-breadcrumb separator="/" class="custom-breadcrumb header-breadcrumb">
               <template v-for="item in breadcrumbItems" :key="item.key">
                 <el-breadcrumb-item
@@ -190,10 +215,10 @@
             </el-breadcrumb>
           </div>
         </div>
-        <div class="header-right">
+        <div class="header-right flex shrink-0 items-center gap-2.5">
           <router-link
             :to="{ path: errorCodesPath }"
-            class="header-quick-codes"
+            class="header-quick-codes rounded-full px-3 py-1.5 text-sm font-medium tracking-tight text-[#1d1d1f]"
             :aria-current="route.path.endsWith('/help/error-codes') ? 'page' : undefined"
           >
             <el-icon :size="18"><Reading /></el-icon>
@@ -264,10 +289,18 @@
         </div>
       </header>
 
-      <main class="content">
-        <div class="content-inner">
-          <div class="content-route">
-            <router-view />
+      <main
+        class="content flex flex-1 min-h-0 flex-col pb-[var(--layout-content-gutter)] pl-0 pr-[var(--layout-content-gutter)] pt-2"
+      >
+        <div class="content-inner flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent p-0">
+          <div
+            class="content-route flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]"
+          >
+            <router-view v-slot="{ Component }">
+              <transition name="page-apple-fade-rise" mode="out-in">
+                <component :is="Component" :key="route.fullPath" />
+              </transition>
+            </router-view>
           </div>
         </div>
       </main>
@@ -584,108 +617,7 @@ const handleLogout = () => {
 </script>
 
 <style scoped>
-.main-layout {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background-color: var(--layout-page-bg);
-}
-
-.sidebar {
-  width: var(--layout-sidebar-width);
-  background-color: var(--layout-sidebar-bg);
-  color: var(--layout-sidebar-text-strong);
-  overflow: hidden;
-  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-  position: fixed;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  z-index: 1000;
-  border-right: 0;
-  box-shadow: none;
-  display: flex;
-  flex-direction: column;
-}
-
-.sidebar.sidebar-collapsed {
-  width: var(--layout-sidebar-collapsed-width);
-}
-
-.sidebar-header {
-  flex-shrink: 0;
-  height: var(--layout-header-height);
-  padding: 0 12px 0 14px;
-  border-bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  background: var(--apple-canvas, #ffffff);
-}
-
-.sidebar-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex: 1;
-}
-
-.sidebar-brand-mark {
-  flex-shrink: 0;
-  width: 36px;
-  height: 36px;
-  border-radius: 10px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0;
-  color: #fff;
-  background: var(--apple-primary, #0066cc);
-  box-shadow: none;
-}
-
-.sidebar-brand-text {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.sidebar-brand-title {
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0;
-  color: var(--layout-sidebar-text-strong);
-  line-height: 1.25;
-  white-space: nowrap;
-}
-
-.sidebar-brand-sub {
-  font-size: 11px;
-  font-weight: 400;
-  color: var(--layout-sidebar-text);
-  letter-spacing: 0;
-  opacity: 0.92;
-}
-
-.collapse-btn {
-  flex-shrink: 0;
-  padding: 6px;
-  margin: 0 -4px 0 0;
-  height: auto;
-  color: var(--layout-sidebar-text);
-  border-radius: 8px;
-}
-
-.collapse-btn:hover {
-  color: var(--el-color-primary);
-  background-color: var(--layout-sidebar-hover-bg);
-}
-
+/* Sidebar scroll + Element Plus（Tailwind :deep 难覆盖的细节） */
 .sidebar-scroll {
   flex: 1;
   min-height: 0;
@@ -707,56 +639,14 @@ const handleLogout = () => {
   width: 100%;
 }
 
-/* 顶栏 */
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  margin-left: var(--layout-sidebar-width);
-  transition: margin-left 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-  width: calc(100% - var(--layout-sidebar-width));
-}
-
-.main-content.sidebar-collapsed {
-  margin-left: var(--layout-sidebar-collapsed-width);
-  width: calc(100% - var(--layout-sidebar-collapsed-width));
-}
-
-.header {
+.collapse-btn {
   flex-shrink: 0;
-  height: var(--layout-header-height);
-  background: var(--layout-header-bg);
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border-bottom: 0 !important;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 0 16px 0 20px;
-  position: sticky;
-  top: 0;
-  z-index: 900;
+  color: var(--layout-sidebar-text);
 }
 
-.header-left {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  align-items: center;
-}
-
-.header-breadcrumb-wrap {
-  min-width: 0;
-  max-width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-}
-
-.header-breadcrumb-wrap::-webkit-scrollbar {
-  height: 0;
+.collapse-btn:hover {
+  color: var(--el-color-primary);
+  background-color: var(--layout-sidebar-hover-bg);
 }
 
 .header-breadcrumb {
@@ -765,136 +655,14 @@ const handleLogout = () => {
   padding: 2px 0;
 }
 
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-shrink: 0;
-}
-
-.header-quick-codes {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: transparent;
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--layout-sidebar-text-strong);
-  text-decoration: none;
-  white-space: nowrap;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-}
-
-.header-quick-codes:hover {
-  background-color: var(--apple-canvas-parchment, #f5f5f7);
-  color: var(--apple-primary, #0066cc);
-}
-
-.header-quick-codes.router-link-active {
-  background-color: var(--apple-canvas-parchment, #f5f5f7);
-  color: var(--apple-primary, #0066cc);
-  font-weight: 600;
-}
-
-.install-ai-sre-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  padding: 6px 12px;
-  border: 0;
-  border-radius: 999px;
-  background: var(--apple-canvas-parchment, #f5f5f7);
-  font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--apple-primary, #0066cc);
-  cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-}
-
-.install-ai-sre-trigger:hover {
-  background-color: var(--apple-canvas-parchment, #f5f5f7);
-  color: var(--apple-primary, #0066cc);
-}
-
-.install-ai-sre-trigger__text {
-  max-width: 200px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.install-ai-sre-trigger__caret {
-  color: var(--layout-sidebar-text);
-  margin-left: -2px;
-}
-
-.user-trigger {
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  padding: 4px 6px 4px 4px;
-  border-radius: 999px;
-  border: 0;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-  outline: none;
-}
-
-.user-trigger:hover {
-  background-color: var(--apple-canvas-parchment, #f5f5f7);
-}
-
-.user-avatar {
-  flex-shrink: 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  background: var(--apple-primary, #0066cc) !important;
-}
-
-.user-trigger-name {
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--layout-sidebar-text-strong);
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.user-trigger-chevron {
-  font-size: 12px;
-  color: var(--layout-sidebar-text);
-  margin-right: 4px;
-}
-
-/* 内容：外层仅保留一侧留白；页面内边距由各 page-shell 负责，避免双重 padding */
-.content {
-  flex: 1;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  padding: 0 var(--layout-content-gutter) var(--layout-content-gutter);
-  min-height: 0;
-}
-
 .custom-breadcrumb {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 2px 0;
   font-size: 13px;
+  font-weight: 400;
+  line-height: 1.35;
   color: var(--layout-sidebar-text);
 }
 
@@ -904,8 +672,8 @@ const handleLogout = () => {
   padding: 2px 4px;
   border-radius: 6px;
   transition:
-    color 0.15s ease,
-    background-color 0.15s ease;
+    color 0.18s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .breadcrumb-item:hover {
@@ -926,43 +694,135 @@ const handleLogout = () => {
 
 .custom-breadcrumb :deep(.el-breadcrumb__separator) {
   margin: 0 8px;
-  color: #d0d0d0;
+  color: #d2d2d7;
   font-weight: 500;
 }
 
-.content-inner {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  background: transparent;
-  border-radius: 0;
+.header-quick-codes {
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+}
+
+.header-quick-codes:hover {
+  background-color: var(--apple-canvas-parchment, #f5f5f7);
+  color: #0071e3;
+}
+
+.header-quick-codes.router-link-active {
+  background-color: var(--apple-canvas-parchment, #f5f5f7);
+  color: #0071e3;
+  font-weight: 600;
+}
+
+.install-ai-sre-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  padding: 6px 14px;
   border: 0;
-  box-shadow: none;
-  padding: 0;
+  border-radius: 980px;
+  background: rgba(0, 113, 227, 0.08);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.29;
+  color: #0071e3;
+  cursor: pointer;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
 }
 
-/* 单一纵向滚动条：业务页根节点用 height:100% / page-shell--fill 时可铺满剩余视口 */
-.content-route {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
-  -webkit-overflow-scrolling: touch;
+.install-ai-sre-trigger:hover {
+  background-color: rgba(0, 113, 227, 0.14);
 }
 
-/* Element Plus 菜单：浅色侧栏 */
+.install-ai-sre-trigger__text {
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.install-ai-sre-trigger__caret {
+  color: var(--layout-sidebar-text);
+  margin-left: -2px;
+}
+
+.user-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 8px 4px 4px;
+  border-radius: 999px;
+  border: 0;
+  transition:
+    background-color 0.2s ease,
+    color 0.2s ease;
+  outline: none;
+}
+
+.user-trigger:hover {
+  background-color: rgba(0, 0, 0, 0.045);
+}
+
+.user-avatar {
+  flex-shrink: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+  background: #0071e3 !important;
+}
+
+.user-trigger-name {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.29;
+  color: var(--layout-sidebar-text-strong);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-trigger-chevron {
+  font-size: 12px;
+  color: var(--layout-sidebar-text);
+  margin-right: 2px;
+}
+
+.page-apple-fade-rise-enter-active,
+.page-apple-fade-rise-leave-active {
+  transition:
+    opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
+    transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.page-apple-fade-rise-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.page-apple-fade-rise-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
 .sidebar-menu :deep(.el-sub-menu__title),
 .sidebar-menu :deep(.el-menu-item) {
   border-radius: 10px;
   margin: 2px 0;
   font-weight: 500;
+  letter-spacing: -0.015em;
+  font-family: var(--apple-font-text), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
 }
 
 .sidebar-menu :deep(.el-sub-menu__title:hover),
 .sidebar-menu :deep(.el-menu-item:hover) {
-  background-color: var(--layout-sidebar-hover-bg) !important;
+  background: linear-gradient(90deg, rgba(245, 245, 247, 0.98) 0%, rgba(255, 255, 255, 0.35) 65%, transparent 100%) !important;
 }
 
 .sidebar-menu :deep(.el-menu-item.is-active) {
@@ -1016,7 +876,7 @@ const handleLogout = () => {
   padding: 0 5px;
   border-radius: 4px;
   background: var(--apple-canvas-parchment, #f5f5f7);
-  color: var(--apple-primary, #0066cc);
+  color: #0071e3;
   font-size: 11px;
   font-weight: 600;
 }

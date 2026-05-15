@@ -44,9 +44,8 @@ echo "==> go build ai-sre CLI (linux/arm64) -> bin/ai-sre.arm64（供 ARM 控制
 echo "==> npm build ft-front -> dist/web"
 (
   cd ft-front
-  if [[ ! -d node_modules ]]; then
-    npm ci
-  fi
+  # 远端不 rsync node_modules：须按 lockfile 全量重装，否则会缺新依赖
+  npm ci
   npm run build
   rm -rf "$ROOT/dist/web"/*
   cp -r dist/* "$ROOT/dist/web/"
