@@ -1,21 +1,17 @@
 <template>
-  <div class="job-center page-shell">
+  <div class="job-center page-shell page-shell--fill">
     <div class="page-header">
       <div class="page-header__titles">
         <h2>作业中心</h2>
-        <p class="page-header__sub">
-          选择一个或多个<strong>在线</strong> Agent 机器，下发 shell；也可在装有 ai-sre 的控制机执行
-          <code>ai-sre job run … --print-console-url</code>
-          ，用浏览器打开控制台链接在此处查看同源结果。
-        </p>
+        <p class="page-header__sub">对在线 Agent 执行 shell；CLI：<code>ai-sre job run</code>，<code>?jobId=</code> 可同步结果。</p>
       </div>
       <div class="page-header__actions">
-        <el-tooltip content="刷新在线列表（文本解析目标的快照）" placement="bottom-end">
+        <el-tooltip content="刷新在线列表" placement="bottom-end">
           <button
             type="button"
             class="job-icon-btn"
             :disabled="machinesLoading"
-            aria-label="刷新机器列表"
+            aria-label="刷新"
             @click="refreshMachines"
           >
             <el-icon class="job-icon-btn__icon" :class="{ 'job-icon-btn__icon--spin': machinesLoading }">
@@ -26,200 +22,172 @@
       </div>
     </div>
 
-    <el-card class="job-card" shadow="hover">
-      <!-- ① 目标机器 -->
-      <section class="job-section">
-        <div class="section-head">
-          <h3>目标机器</h3>
-          <span class="section-meta">{{ machines.length }} 台在线 · 已选 {{ selectedMachines.length }} 台</span>
-        </div>
-        <p class="field-hint">
-          在下方文本框填入 <strong>UUID</strong>、<strong>IP</strong> 或<strong>主机名</strong>（空格 / 逗号 / 换行分隔），系统将按<strong>当前在线</strong>快照自动解析<strong>已选</strong>；可先点顶栏旁刷新以保持列表最新。确认执行时会再次即时解析一遍。
-        </p>
-        <div class="targets-body" v-loading="machinesLoading">
-          <el-input
-            v-model="machineTargetsRaw"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 8 }"
-            placeholder="示例：550e8400-e29b… &#10;192.168.1.10&#10;k8s-worker-02"
-            class="targets-textarea"
-          />
-          <div class="targets-actions">
-            <el-button size="small" @click="clearTargets">清空目标</el-button>
-          </div>
-        </div>
-      </section>
-
-      <!-- ③ 选项 -->
-      <el-collapse v-model="optionsOpen" class="job-collapse">
-        <el-collapse-item title="执行选项" name="opt">
-          <div class="opt-grid">
-            <div class="opt-field">
-              <span class="opt-label">单任务超时（秒）</span>
-              <el-select v-model="jobTimeoutSec" placeholder="超时" style="width: 160px">
-                <el-option label="60" :value="60" />
-                <el-option label="120" :value="120" />
-                <el-option label="300（5min）" :value="300" />
-                <el-option label="600（10min）" :value="600" />
-                <el-option label="1800（30min）" :value="1800" />
-                <el-option label="3600（1h）" :value="3600" />
-              </el-select>
-            </div>
-            <div class="opt-field opt-field--switch">
-              <el-switch v-model="confirmDangerPatterns" />
-              <span class="opt-label-inline">检测到 rm -rf / 交互命令等时再二次确认（建议开启）</span>
-            </div>
-            <div class="opt-field opt-field--switch">
-              <el-switch v-model="blockIfUnresolvedTargets" />
-              <span class="opt-label-inline">文本目标中存在无法识别的 token 时阻止执行（直到改正）</span>
-            </div>
-          </div>
-        </el-collapse-item>
-      </el-collapse>
-
-      <el-divider class="job-divider" />
-
-      <div class="job-split">
-        <!-- ② 指令 -->
-        <section class="job-section job-section--cmd">
+    <el-card class="job-card" shadow="never">
+      <div class="job-card-inner">
+        <section class="job-section job-section--targets">
           <div class="section-head">
-            <h3>命令 / 脚本</h3>
+            <h3>目标</h3>
+            <span class="section-meta">{{ machines.length }} 在线 · {{ selectedMachines.length }} 已选</span>
           </div>
-          <div class="cmd-shell">
-            <span class="cmd-shell__prompt" aria-hidden="true">$</span>
+          <p class="field-hint">UUID / IP / 主机名，空格或换行分隔；执行前自动解析。</p>
+          <div class="targets-body" v-loading="machinesLoading">
             <el-input
-              v-model="commandText"
+              v-model="machineTargetsRaw"
               type="textarea"
-              :autosize="{ minRows: 10, maxRows: 22 }"
-              placeholder="多行 shell；避免 vim / top 等需 TTY 的交互命令"
-              clearable
-              class="cmd-shell__input"
+              :autosize="{ minRows: 1, maxRows: 2 }"
+              placeholder="每行一台"
+              class="targets-textarea"
             />
-          </div>
-
-          <div v-if="commandErrors.length" class="cmd-warn" role="alert">
-            <div v-for="(error, index) in commandErrors" :key="index" class="cmd-warn__line">
-              <el-icon class="cmd-warn__icon"><Warning /></el-icon>
-              <span>{{ error }}</span>
-            </div>
-          </div>
-
-          <div class="cmd-actions">
-            <el-dropdown v-if="commandHistory.length" trigger="click" :max-height="280">
-              <el-button size="default">
-                <el-icon><Clock /></el-icon>
-                历史
-                <el-icon class="el-icon--right"><ArrowDown /></el-icon>
-              </el-button>
-              <template #dropdown>
-                <el-dropdown-menu>
-                  <el-dropdown-item
-                    v-for="(command, index) in commandHistory"
-                    :key="index"
-                    class="history-dd"
-                    @click="selectFromHistory(command)"
-                  >
-                    <pre class="history-dd__pre">{{ command }}</pre>
-                  </el-dropdown-item>
-                </el-dropdown-menu>
-              </template>
-            </el-dropdown>
-            <el-button type="primary" :disabled="executeDisabled" :loading="executing" @click="executeCommands">
-              <el-icon><CirclePlus /></el-icon>
-              执行
-            </el-button>
-            <el-button @click="clearCommand">清空命令</el-button>
-            <el-button @click="openScriptDialog" :disabled="!canGenerateScript">
-              <el-icon><DocumentCopy /></el-icon>
-              一键脚本
-            </el-button>
-          </div>
-          <div v-if="lastJobId" class="job-id-bar">
-            <span class="job-id-bar__label">最近一次 jobId:</span>
-            <code class="job-id-bar__code">{{ lastJobId }}</code>
-            <el-button link type="primary" size="small" @click="copyText(lastJobLink)">复制控制台链接</el-button>
-          </div>
-          <p class="job-hint">Ctrl+Enter 执行 · Ctrl+K 清空命令 · Ctrl+R 刷新在线快照 · Ctrl+L 清空右侧结果</p>
-        </section>
-
-        <!-- ④⑤ 输出 -->
-        <section class="job-section job-section--out">
-          <div class="section-head">
-            <h3>执行结果</h3>
-            <div class="section-head__tools">
-              <el-select v-model="resultFilter" placeholder="筛选" size="small" class="filter-select">
-                <el-option label="全部" value="all" />
-                <el-option label="成功" value="success" />
-                <el-option label="失败" value="failed" />
-              </el-select>
-              <el-button size="small" text type="primary" :disabled="!filteredResults.length" @click="copyAllResults">
-                复制全部
-              </el-button>
-              <el-button size="small" @click="clearResult">清空</el-button>
-            </div>
-          </div>
-
-          <div v-if="polling" class="poll-banner">
-            <el-icon class="poll-banner__icon"><Loading /></el-icon>
-            等待 Agent 回传中…（与 ai-sre <code>job run --wait</code> 数据源相同）
-          </div>
-
-          <div class="out-scroll">
-            <div v-if="resultFilter !== 'all'" class="out-filter-tip">
-              筛选：{{ resultFilter === 'success' ? '成功' : '失败' }} · {{ filteredResults.length }} 条
-            </div>
-            <div v-if="!filteredResults.length" class="out-empty">
-              {{
-                executionResults.length
-                  ? '无筛选匹配'
-                  : '从本页发起执行或通过 ?jobId= / ai-sre 链接导入后在此查看'
-              }}
-            </div>
-
-            <article
-              v-for="(result, index) in filteredResults"
-              :key="result.machineId + '-' + index + '-' + result.executionTime + '-' + (result.jobId || '')"
-              class="out-card"
-            >
-              <header class="out-card__head">
-                <div class="out-card__title">
-                  <el-tag v-if="result.sourceLabel" size="small" effect="dark" type="info">{{ result.sourceLabel }}</el-tag>
-                  <span class="out-card__name">{{ result.machineName }}</span>
-                  <span class="out-card__id">{{ result.machineIP || result.machineId }}</span>
-                  <el-tag :type="tagType(result)" size="small">{{ statusLabel(result) }}</el-tag>
-                  <el-tag v-if="result.exitCode != null" size="small" effect="plain" type="info">
-                    exit {{ result.exitCode }}
-                  </el-tag>
-                  <el-tag v-if="result.jobId" size="small" effect="plain">{{ result.jobId.slice(0, 8) }}…</el-tag>
-                </div>
-                <div class="out-card__meta">
-                  <span class="out-card__time">{{ formatDate(result.executionTime) }}</span>
-                  <el-button text type="primary" size="small" @click="copyOneResult(result)">复制</el-button>
-                </div>
-              </header>
-              <div v-if="result.stdout" class="out-block out-block--stdout">
-                <div class="out-block__label">stdout</div>
-                <pre>{{ result.stdout }}</pre>
-              </div>
-              <div v-if="result.stderr" class="out-block out-block--stderr">
-                <div class="out-block__label">stderr / 错误</div>
-                <pre>{{ result.stderr }}</pre>
-              </div>
-            </article>
+            <el-button size="small" @click="clearTargets">清空</el-button>
           </div>
         </section>
+
+        <div class="opt-toolbar">
+          <span class="opt-label">超时(s)</span>
+          <el-select v-model="jobTimeoutSec" size="small" class="opt-timeout">
+            <el-option label="60" :value="60" />
+            <el-option label="120" :value="120" />
+            <el-option label="300" :value="300" />
+            <el-option label="600" :value="600" />
+            <el-option label="1800" :value="1800" />
+            <el-option label="3600" :value="3600" />
+          </el-select>
+          <el-switch v-model="confirmDangerPatterns" size="small" />
+          <span class="opt-inline">危险命令确认</span>
+          <el-switch v-model="blockIfUnresolvedTargets" size="small" />
+          <span class="opt-inline">未识别拦截</span>
+        </div>
+
+        <el-divider class="job-divider" />
+
+        <div class="job-split">
+          <section class="job-section job-section--cmd">
+            <div class="section-head">
+              <h3>命令</h3>
+            </div>
+            <div class="cmd-shell">
+              <span class="cmd-shell__prompt" aria-hidden="true">$</span>
+              <el-input
+                v-model="commandText"
+                type="textarea"
+                :autosize="{ minRows: 4, maxRows: 4 }"
+                placeholder="shell 一行或多行"
+                clearable
+                class="cmd-shell__input"
+              />
+            </div>
+
+            <div v-if="commandErrors.length" class="cmd-warn" role="alert">
+              <div v-for="(error, index) in commandErrors" :key="index" class="cmd-warn__line">
+                <el-icon class="cmd-warn__icon"><Warning /></el-icon>
+                <span>{{ error }}</span>
+              </div>
+            </div>
+
+            <div class="cmd-actions">
+              <el-dropdown v-if="commandHistory.length" trigger="click" :max-height="200">
+                <el-button size="small">
+                  <el-icon><Clock /></el-icon>
+                  历史
+                  <el-icon class="el-icon--right"><ArrowDown /></el-icon>
+                </el-button>
+                <template #dropdown>
+                  <el-dropdown-menu>
+                    <el-dropdown-item
+                      v-for="(command, index) in commandHistory"
+                      :key="index"
+                      class="history-dd"
+                      @click="selectFromHistory(command)"
+                    >
+                      <pre class="history-dd__pre">{{ command }}</pre>
+                    </el-dropdown-item>
+                  </el-dropdown-menu>
+                </template>
+              </el-dropdown>
+              <el-button type="primary" size="small" :disabled="executeDisabled" :loading="executing" @click="executeCommands">
+                <el-icon><CirclePlus /></el-icon>
+                执行
+              </el-button>
+              <el-button size="small" @click="clearCommand">清空</el-button>
+              <el-button size="small" @click="openScriptDialog" :disabled="!canGenerateScript">
+                <el-icon><DocumentCopy /></el-icon>
+                脚本
+              </el-button>
+            </div>
+            <div v-if="lastJobId" class="job-id-bar">
+              <code class="job-id-bar__code">{{ lastJobId }}</code>
+              <el-button link type="primary" size="small" @click="copyText(lastJobLink)">复制链接</el-button>
+            </div>
+            <p class="job-hint">Ctrl+Enter 执行 · Ctrl+K 清空 · Ctrl+R 刷新 · Ctrl+L 清结果</p>
+          </section>
+
+          <section class="job-section job-section--out">
+            <div class="section-head">
+              <h3>结果</h3>
+              <div class="section-head__tools">
+                <el-select v-model="resultFilter" size="small" class="filter-select">
+                  <el-option label="全部" value="all" />
+                  <el-option label="成功" value="success" />
+                  <el-option label="失败" value="failed" />
+                </el-select>
+                <el-button size="small" text type="primary" :disabled="!filteredResults.length" @click="copyAllResults">
+                  复制
+                </el-button>
+                <el-button size="small" text @click="clearResult">清空</el-button>
+              </div>
+            </div>
+
+            <div v-if="polling" class="poll-banner">
+              <el-icon class="poll-banner__icon"><Loading /></el-icon>
+              回传中…
+            </div>
+
+            <div class="out-panel">
+              <div v-if="resultFilter !== 'all'" class="out-filter-tip">
+                {{ resultFilter === 'success' ? '成功' : '失败' }} · {{ filteredResults.length }} 条
+              </div>
+              <div v-if="!filteredResults.length" class="out-empty">
+                {{ executionResults.length ? '无匹配' : '执行或 ?jobId=' }}
+              </div>
+
+              <article
+                v-for="(result, index) in filteredResults"
+                :key="result.machineId + '-' + index + '-' + result.executionTime + '-' + (result.jobId || '')"
+                class="out-card"
+              >
+                <header class="out-card__head">
+                  <div class="out-card__title">
+                    <el-tag v-if="result.sourceLabel" size="small" type="info">{{ result.sourceLabel }}</el-tag>
+                    <span class="out-card__name">{{ result.machineName }}</span>
+                    <span class="out-card__id">{{ result.machineIP || result.machineId }}</span>
+                    <el-tag :type="tagType(result)" size="small">{{ statusLabel(result) }}</el-tag>
+                    <el-tag v-if="result.exitCode != null" size="small" effect="plain" type="info">exit {{ result.exitCode }}</el-tag>
+                  </div>
+                  <div class="out-card__meta">
+                    <el-button text type="primary" size="small" @click="copyOneResult(result)">复制</el-button>
+                  </div>
+                </header>
+                <div v-if="result.stdout" class="out-block out-block--stdout">
+                  <div class="out-block__label">stdout</div>
+                  <pre>{{ result.stdout }}</pre>
+                </div>
+                <div v-if="result.stderr" class="out-block out-block--stderr">
+                  <div class="out-block__label">stderr</div>
+                  <pre>{{ result.stderr }}</pre>
+                </div>
+              </article>
+            </div>
+          </section>
+        </div>
       </div>
     </el-card>
 
-    <el-dialog v-model="scriptDialogVisible" title="一键脚本（需在控制机上设置令牌）" width="640px" destroy-on-close>
-      <p class="script-dialog-help">
-        将下方脚本保存为 <code>job-run.sh</code>，在已安装 ai-sre 或已配置令牌的环境运行；依赖 <code>curl</code>、<code>python3</code>（解析 JSON）。
-        勿把含令牌的脚本提交到 Git。
-      </p>
-      <el-input v-model="generatedScriptText" type="textarea" readonly :autosize="{ minRows: 16, maxRows: 26 }" class="script-ta" />
+    <el-dialog v-model="scriptDialogVisible" title="一键脚本" width="560px" destroy-on-close>
+      <p class="script-dialog-help">控制机运行；勿提交含令牌内容。</p>
+      <el-input v-model="generatedScriptText" type="textarea" readonly :autosize="{ minRows: 12, maxRows: 12 }" class="script-ta" />
       <template #footer>
         <el-button @click="scriptDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="copyGeneratedScript">复制脚本</el-button>
+        <el-button type="primary" @click="copyGeneratedScript">复制</el-button>
       </template>
     </el-dialog>
   </div>
@@ -259,7 +227,6 @@ const machines = ref<Machine[]>([])
 const machineTargetsRaw = ref('')
 const selectedMachines = ref<Machine[]>([])
 const unresolvedTokens = ref<string[]>([])
-const optionsOpen = ref(['opt'])
 
 const jobTimeoutSec = ref(120)
 const confirmDangerPatterns = ref(true)
@@ -569,7 +536,7 @@ const refreshMachines = () => void loadMachineList()
 const executeCommands = async () => {
   flushTargetReconcile()
   if (hasBlockingUnresolved.value) {
-    ElMessage.error('请先修正无法识别的目标，或关闭上方「文本目标中存在无法识别的 token 时阻止执行」')
+    ElMessage.error('请修正未识别目标，或关闭「未识别拦截」')
     return
   }
   if (!selectedMachines.value.length) {
@@ -746,48 +713,57 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 作业中心：紧凑、无内部滚动条（溢出裁剪；完整输出用「复制」） */
 .job-center {
-  width: 100%;
-  box-sizing: border-box;
-  padding: var(--page-padding-y) var(--page-padding-x) 24px;
-  max-width: 1440px;
-  margin: 0 auto;
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 10px 6px;
+  max-width: none;
+  margin: 0;
+  overflow: hidden;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.job-center::-webkit-scrollbar,
+.job-center *::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+  display: none;
 }
 
 .page-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 8px;
+  margin-bottom: 6px;
+  flex-shrink: 0;
 }
 
 .page-header__titles h2 {
-  margin: 0 0 4px;
-  font-size: var(--page-header-title-max);
+  margin: 0;
+  font-size: 16px;
   font-weight: 600;
-  color: var(--apple-ink);
+  color: var(--el-text-color-primary);
 }
 
 .page-header__sub {
-  margin: 0;
-  font-size: 13px;
+  margin: 2px 0 0;
+  font-size: 12px;
   color: var(--el-text-color-secondary);
-  line-height: 1.45;
-  max-width: 62ch;
+  line-height: 1.35;
 }
 
 .page-header__sub code {
-  font-size: 12px;
-  padding: 1px 4px;
-  border-radius: 4px;
-  background: var(--el-fill-color-light);
+  font-size: 11px;
+  padding: 0 3px;
 }
 
 .page-header__actions {
   display: flex;
-  align-items: center;
-  gap: 4px;
   flex-shrink: 0;
 }
 
@@ -795,25 +771,29 @@ onUnmounted(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
+  width: 30px;
+  height: 30px;
   border: 1px solid var(--el-border-color);
-  border-radius: 10px;
+  border-radius: var(--el-border-radius-base);
   background: var(--el-fill-color-blank);
   cursor: pointer;
   color: var(--el-text-color-regular);
 }
+
 .job-icon-btn:hover:not(:disabled) {
   border-color: var(--el-color-primary);
   color: var(--el-color-primary);
 }
+
 .job-icon-btn:disabled {
   opacity: 0.55;
   cursor: not-allowed;
 }
+
 .job-icon-btn__icon--spin {
   animation: job-spin 0.9s linear infinite;
 }
+
 @keyframes job-spin {
   to {
     transform: rotate(360deg);
@@ -821,116 +801,100 @@ onUnmounted(() => {
 }
 
 .job-card {
-  border-radius: 12px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border-radius: var(--el-border-radius-base);
 }
 
-.job-section {
-  margin: 0;
+.job-card :deep(.el-card__body) {
+  flex: 1;
+  min-height: 0;
+  padding: 8px 10px !important;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.job-card-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow: hidden;
+}
+
+.job-section--targets {
+  flex-shrink: 0;
 }
 
 .field-hint {
-  margin: 0 0 8px;
-  font-size: 12px;
+  margin: 0 0 4px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
-  line-height: 1.45;
+  line-height: 1.3;
+}
+
+.targets-body {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-height: 0;
 }
 
 .targets-textarea {
-  margin-bottom: 8px;
+  flex: 1;
+  min-width: 0;
 }
 
 .targets-textarea :deep(.el-textarea__inner) {
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: 11px;
+  line-height: 1.35;
+  padding: 4px 8px;
+  overflow-y: hidden !important;
+  resize: none !important;
 }
 
-.targets-actions {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.job-collapse {
-  margin: 12px 0 0;
-  border: none;
-  --el-collapse-header-height: 40px;
-}
-
-.job-collapse :deep(.el-collapse-item__header) {
-  font-weight: 600;
-  font-size: 13px;
-}
-
-.opt-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 4px 0 8px;
-}
-
-.opt-field {
+.opt-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
-}
-
-.opt-field--switch {
-  align-items: flex-start;
+  gap: 6px 10px;
+  padding: 4px 0;
+  flex-shrink: 0;
+  border-top: 1px solid var(--el-border-color-lighter);
+  border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
 .opt-label {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--el-text-color-regular);
-  min-width: 120px;
 }
 
-.opt-label-inline {
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  flex: 1;
-  line-height: 1.45;
+.opt-timeout {
+  width: 88px;
 }
 
-.section-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 10px;
-}
-
-.section-head h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-}
-
-.section-meta {
+.opt-inline {
   font-size: 12px;
   color: var(--el-text-color-secondary);
 }
 
-.section-head__tools {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.filter-select {
-  width: 100px;
-}
-
 .job-divider {
-  margin: 18px 0;
+  margin: 4px 0;
+  flex-shrink: 0;
 }
 
 .job-split {
+  flex: 1;
+  min-height: 0;
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.05fr);
-  gap: 20px;
-  align-items: start;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  overflow: hidden;
 }
 
 @media (max-width: 1024px) {
@@ -939,152 +903,200 @@ onUnmounted(() => {
   }
 }
 
-.targets-body {
-  min-height: 48px;
-  border-radius: 10px;
+.job-section {
+  margin: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
+}
+
+.section-head h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.section-meta {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
+.section-head__tools {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.filter-select {
+  width: 72px;
 }
 
 .cmd-shell {
   display: flex;
-  gap: 8px;
+  gap: 6px;
+  flex: 1;
+  min-height: 0;
   border: 1px solid var(--el-border-color);
-  border-radius: 10px;
-  padding: 10px;
+  border-radius: var(--el-border-radius-base);
+  padding: 6px;
   background: var(--el-fill-color-light);
-  min-height: 180px;
-}
-
-.cmd-shell:focus-within {
-  border-color: var(--el-color-primary-light-5);
+  overflow: hidden;
 }
 
 .cmd-shell__prompt {
   font-family: ui-monospace, monospace;
   font-weight: 700;
+  font-size: 12px;
   color: var(--el-color-primary);
-  line-height: 22px;
+  line-height: 20px;
+  flex-shrink: 0;
 }
 
 .cmd-shell__input {
   flex: 1;
   min-width: 0;
+  min-height: 0;
 }
 
 .cmd-shell__input :deep(.el-textarea__inner) {
   font-family: ui-monospace, monospace;
-  font-size: 13px;
-  line-height: 1.55;
+  font-size: 11px;
+  line-height: 1.4;
   background: transparent;
   border: none !important;
   box-shadow: none !important;
-  min-height: 160px;
+  min-height: 4.2rem !important;
+  max-height: 4.2rem !important;
+  padding: 2px 4px;
+  overflow-y: hidden !important;
 }
 
 .cmd-warn {
-  margin-top: 10px;
-  padding: 8px 12px;
-  border-radius: 8px;
+  margin-top: 4px;
+  padding: 4px 8px;
+  border-radius: var(--el-border-radius-base);
   background: var(--el-color-danger-light-9);
   border: 1px solid var(--el-color-danger-light-5);
+  flex-shrink: 0;
+  max-height: 3.6em;
+  overflow: hidden;
 }
 
 .cmd-warn__line {
   display: flex;
-  gap: 8px;
-  font-size: 12px;
+  gap: 6px;
+  font-size: 11px;
   color: var(--el-color-danger-dark-2);
-  margin-bottom: 4px;
 }
 
 .cmd-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 6px;
+  margin-top: 6px;
+  flex-shrink: 0;
 }
 
 .job-id-bar {
-  margin-top: 10px;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+  margin-top: 4px;
+  font-size: 11px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  flex-shrink: 0;
 }
 
 .job-id-bar__code {
-  font-size: 11px;
+  font-size: 10px;
   background: var(--el-fill-color);
-  padding: 2px 6px;
-  border-radius: 4px;
+  padding: 1px 4px;
+  border-radius: 3px;
 }
 
 .job-hint {
-  margin: 8px 0 0;
-  font-size: 12px;
+  margin: 4px 0 0;
+  font-size: 10px;
   color: var(--el-text-color-placeholder);
+  flex-shrink: 0;
 }
 
 .history-dd__pre {
   margin: 0;
-  max-width: 360px;
-  max-height: 72px;
-  overflow: auto;
-  font-size: 12px;
-  white-space: pre-wrap;
+  max-width: 280px;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .poll-banner {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 13px;
+  gap: 6px;
+  font-size: 12px;
   color: var(--el-color-primary);
-  margin-bottom: 10px;
+  margin-bottom: 4px;
+  flex-shrink: 0;
 }
 
 .poll-banner__icon {
   animation: job-spin 1s linear infinite;
 }
 
-.out-scroll {
-  max-height: min(62vh, 720px);
-  overflow-y: auto;
-  padding: 4px 2px 8px;
+.out-panel {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 4px;
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
+  border-radius: var(--el-border-radius-base);
   background: var(--el-fill-color-lighter);
 }
 
 .out-filter-tip {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
   text-align: center;
-  padding: 6px;
+  padding: 2px;
+  flex-shrink: 0;
 }
 
 .out-empty {
   text-align: center;
-  padding: 32px 12px;
+  padding: 12px 8px;
   color: var(--el-text-color-placeholder);
-  font-size: 13px;
+  font-size: 12px;
 }
 
 .out-card {
   background: var(--el-bg-color);
   border: 1px solid var(--el-border-color-lighter);
-  border-radius: 10px;
-  padding: 12px;
-  margin-bottom: 10px;
+  border-radius: var(--el-border-radius-base);
+  padding: 6px;
+  margin-bottom: 6px;
+}
+
+.out-card:last-child {
+  margin-bottom: 0;
 }
 
 .out-card__head {
   display: flex;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-  padding-bottom: 8px;
+  gap: 6px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
   border-bottom: 1px solid var(--el-border-color-extra-light);
 }
 
@@ -1092,63 +1104,59 @@ onUnmounted(() => {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
+  min-width: 0;
 }
 
 .out-card__name {
   font-weight: 600;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .out-card__id {
-  font-size: 12px;
+  font-size: 11px;
   color: var(--el-text-color-secondary);
   font-family: ui-monospace, monospace;
 }
 
-.out-card__time {
-  font-size: 12px;
-  color: var(--el-text-color-placeholder);
-}
-
 .out-block__label {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--el-text-color-secondary);
-  margin-bottom: 4px;
+  margin-bottom: 2px;
 }
 
 .out-block pre {
   margin: 0;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 12px;
-  line-height: 1.5;
+  padding: 4px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  line-height: 1.35;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 280px;
-  overflow: auto;
+  max-height: 3.6em;
+  overflow: hidden;
 }
 
 .out-block--stdout pre {
   background: var(--el-fill-color-light);
-  border-left: 3px solid var(--el-color-primary);
+  border-left: 2px solid var(--el-color-primary);
 }
 
 .out-block--stderr pre {
   background: var(--el-color-danger-light-9);
-  border-left: 3px solid var(--el-color-danger);
+  border-left: 2px solid var(--el-color-danger);
 }
 
 .script-dialog-help {
-  font-size: 13px;
+  font-size: 12px;
   color: var(--el-text-color-secondary);
-  margin: 0 0 10px;
-  line-height: 1.5;
+  margin: 0 0 8px;
 }
 
 .script-ta :deep(.el-textarea__inner) {
   font-family: ui-monospace, monospace;
-  font-size: 11px;
+  font-size: 10px;
+  overflow-y: hidden !important;
 }
 </style>
