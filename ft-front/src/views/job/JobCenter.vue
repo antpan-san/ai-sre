@@ -22,24 +22,41 @@
       </div>
     </div>
 
-    <el-card class="job-card" shadow="never">
+    <div class="job-workbench">
       <div class="job-card-inner">
         <section class="job-section job-section--targets">
           <div class="section-head">
             <h3>目标</h3>
             <span class="section-meta">{{ machines.length }} 在线 · {{ selectedMachines.length }} 已选</span>
           </div>
-          <p class="field-hint">UUID / IP / 主机名，空格或换行分隔；执行前自动解析。</p>
+          <div class="target-quick-list" v-loading="machinesLoading">
+            <button
+              v-for="machine in machines"
+              :key="machine.id"
+              type="button"
+              class="target-chip"
+              :class="{ 'target-chip--active': isMachineSelected(machine.id) }"
+              @click="toggleMachine(machine)"
+            >
+              <span class="target-chip__name">{{ machine.name || machine.ip || machine.id }}</span>
+              <span class="target-chip__meta">{{ machine.ip || machine.id }}</span>
+            </button>
+            <span v-if="!machinesLoading && !machines.length" class="target-empty">暂无在线 Agent</span>
+          </div>
           <div class="targets-body" v-loading="machinesLoading">
             <el-input
               v-model="machineTargetsRaw"
               type="textarea"
               :autosize="{ minRows: 1, maxRows: 2 }"
-              placeholder="每行一台"
+              placeholder="UUID / IP / 主机名，空格或换行分隔"
               class="targets-textarea"
             />
-            <el-button size="small" @click="clearTargets">清空</el-button>
+            <div class="targets-actions">
+              <el-button size="small" @click="selectAllMachines" :disabled="!machines.length">全选</el-button>
+              <el-button size="small" @click="clearTargets">清空</el-button>
+            </div>
           </div>
+          <p v-if="unresolvedTokens.length" class="target-warning">未识别：{{ unresolvedTokens.join('、') }}</p>
         </section>
 
         <div class="opt-toolbar">
@@ -57,8 +74,6 @@
           <el-switch v-model="blockIfUnresolvedTargets" size="small" />
           <span class="opt-inline">未识别拦截</span>
         </div>
-
-        <el-divider class="job-divider" />
 
         <div class="job-split">
           <section class="job-section job-section--cmd">
@@ -125,6 +140,7 @@
             <div class="section-head">
               <h3>结果</h3>
               <div class="section-head__tools">
+                <span class="result-summary">{{ executionResults.length }} 条 · {{ successCount }} 成功 · {{ failedCount }} 异常</span>
                 <el-select v-model="resultFilter" size="small" class="filter-select">
                   <el-option label="全部" value="all" />
                   <el-option label="成功" value="success" />
@@ -180,7 +196,7 @@
           </section>
         </div>
       </div>
-    </el-card>
+    </div>
 
     <el-dialog v-model="scriptDialogVisible" title="一键脚本" width="560px" destroy-on-close>
       <p class="script-dialog-help">控制机运行；勿提交含令牌内容。</p>
@@ -260,6 +276,8 @@ const filteredResults = computed(() => {
   if (resultFilter.value === 'success') return executionResults.value.filter((r) => r.success)
   return executionResults.value.filter((r) => !r.success)
 })
+const successCount = computed(() => executionResults.value.filter((r) => r.success).length)
+const failedCount = computed(() => executionResults.value.length - successCount.value)
 
 const shellJobBasePath = computed(() => (route.path.startsWith('/app') ? '/app' : '/admin'))
 
@@ -345,8 +363,26 @@ function syncTargetsTextFromSelection() {
     machineTargetsRaw.value = ''
     return
   }
-  machineTargetsRaw.value = selectedMachines.value.map((m) => `${m.ip}  ${m.name}  ${m.id}`).join('\n')
+  machineTargetsRaw.value = selectedMachines.value.map((m) => m.ip || m.name || m.id).join('\n')
   unresolvedTokens.value = []
+}
+
+function isMachineSelected(id: string) {
+  return selectedMachines.value.some((m) => m.id === id)
+}
+
+function toggleMachine(machine: Machine) {
+  if (isMachineSelected(machine.id)) {
+    selectedMachines.value = selectedMachines.value.filter((m) => m.id !== machine.id)
+  } else {
+    selectedMachines.value = [...selectedMachines.value, machine]
+  }
+  syncTargetsTextFromSelection()
+}
+
+function selectAllMachines() {
+  selectedMachines.value = [...machines.value]
+  syncTargetsTextFromSelection()
 }
 
 function clearTargets() {
@@ -713,84 +749,85 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* 作业中心：紧凑、无内部滚动条（溢出裁剪；完整输出用「复制」） */
 .job-center {
-  height: 100%;
-  min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 4px 10px 6px;
+  gap: 12px;
+  min-height: 0;
+  height: 100%;
   max-width: none;
   margin: 0;
+  padding: 10px 14px 14px;
+  background: #f5f5f7;
   overflow: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.job-center::-webkit-scrollbar,
-.job-center *::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
 }
 
 .page-header {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
+  gap: 16px;
   flex-shrink: 0;
 }
 
 .page-header__titles h2 {
   margin: 0;
-  font-size: 16px;
+  color: #1d1d1f;
+  font-size: 19px;
   font-weight: 600;
-  color: var(--el-text-color-primary);
+  line-height: 1.2;
 }
 
 .page-header__sub {
-  margin: 2px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.35;
+  margin: 4px 0 0;
+  color: #6e6e73;
+  font-size: 13px;
+  line-height: 1.42;
 }
 
 .page-header__sub code {
-  font-size: 11px;
-  padding: 0 3px;
+  padding: 1px 4px;
+  color: #1d1d1f;
+  font-size: 12px;
+  background: #fff;
 }
 
 .page-header__actions {
-  display: flex;
   flex-shrink: 0;
+}
+
+.job-center :deep(.el-button),
+.job-icon-btn,
+.target-chip {
+  transition: transform 120ms ease, color 120ms ease, background-color 120ms ease;
+}
+
+.job-center :deep(.el-button:active),
+.job-icon-btn:active,
+.target-chip:active {
+  transform: scale(0.95);
 }
 
 .job-icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-fill-color-blank);
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 999px;
+  color: #0066cc;
+  background: #fff;
   cursor: pointer;
-  color: var(--el-text-color-regular);
-}
-
-.job-icon-btn:hover:not(:disabled) {
-  border-color: var(--el-color-primary);
-  color: var(--el-color-primary);
 }
 
 .job-icon-btn:disabled {
-  opacity: 0.55;
+  opacity: 0.45;
   cursor: not-allowed;
 }
 
-.job-icon-btn__icon--spin {
+.job-icon-btn__icon--spin,
+.poll-banner__icon {
   animation: job-spin 0.9s linear infinite;
 }
 
@@ -800,21 +837,13 @@ onUnmounted(() => {
   }
 }
 
-.job-card {
+.job-workbench {
   flex: 1;
   min-height: 0;
   display: flex;
   flex-direction: column;
-  border-radius: var(--el-border-radius-base);
-}
-
-.job-card :deep(.el-card__body) {
-  flex: 1;
-  min-height: 0;
-  padding: 8px 10px !important;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
+  padding: 14px;
+  background: #fff;
 }
 
 .job-card-inner {
@@ -822,269 +851,320 @@ onUnmounted(() => {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  overflow: hidden;
-}
-
-.job-section--targets {
-  flex-shrink: 0;
-}
-
-.field-hint {
-  margin: 0 0 4px;
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  line-height: 1.3;
-}
-
-.targets-body {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-height: 0;
-}
-
-.targets-textarea {
-  flex: 1;
-  min-width: 0;
-}
-
-.targets-textarea :deep(.el-textarea__inner) {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 11px;
-  line-height: 1.35;
-  padding: 4px 8px;
-  overflow-y: hidden !important;
-  resize: none !important;
-}
-
-.opt-toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 10px;
-  padding: 4px 0;
-  flex-shrink: 0;
-  border-top: 1px solid var(--el-border-color-lighter);
-  border-bottom: 1px solid var(--el-border-color-lighter);
-}
-
-.opt-label {
-  font-size: 12px;
-  color: var(--el-text-color-regular);
-}
-
-.opt-timeout {
-  width: 88px;
-}
-
-.opt-inline {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-}
-
-.job-divider {
-  margin: 4px 0;
-  flex-shrink: 0;
-}
-
-.job-split {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  overflow: hidden;
-}
-
-@media (max-width: 1024px) {
-  .job-split {
-    grid-template-columns: 1fr;
-  }
+  gap: 12px;
 }
 
 .job-section {
-  margin: 0;
   min-height: 0;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
+  margin: 0;
+}
+
+.job-section--targets,
+.opt-toolbar {
+  flex-shrink: 0;
+}
+
+.job-section--targets {
+  padding: 12px;
+  background: #f5f5f7;
 }
 
 .section-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 4px;
+  gap: 12px;
+  margin-bottom: 8px;
   flex-shrink: 0;
 }
 
 .section-head h3 {
   margin: 0;
-  font-size: 13px;
+  color: #1d1d1f;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.section-meta,
+.result-summary {
+  color: #6e6e73;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.target-quick-list {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 10px;
+  min-height: 40px;
+}
+
+.target-chip {
+  display: inline-flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 132px;
+  max-width: 180px;
+  height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 999px;
+  color: #1d1d1f;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.target-chip--active {
+  color: #fff;
+  background: #0066cc;
+}
+
+.target-chip__name,
+.target-chip__meta {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.target-chip__name {
+  font-size: 12px;
   font-weight: 600;
 }
 
-.section-meta {
+.target-chip__meta {
+  margin-top: 1px;
+  color: inherit;
+  opacity: 0.72;
   font-size: 11px;
-  color: var(--el-text-color-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.target-empty {
+  align-self: center;
+  color: #86868b;
+  font-size: 12px;
+}
+
+.targets-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: start;
+}
+
+.targets-textarea :deep(.el-textarea__inner),
+.cmd-shell__input :deep(.el-textarea__inner),
+.script-ta :deep(.el-textarea__inner) {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.targets-textarea :deep(.el-textarea__inner) {
+  min-height: 38px !important;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.42;
+  resize: vertical;
+}
+
+.targets-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.target-warning {
+  margin: 8px 0 0;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.opt-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 0 2px;
+}
+
+.opt-label,
+.opt-inline {
+  color: #6e6e73;
+  font-size: 12px;
+}
+
+.opt-timeout {
+  width: 94px;
+}
+
+.job-split {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(360px, 0.82fr) minmax(420px, 1.18fr);
+  gap: 14px;
+}
+
+.job-section--cmd,
+.job-section--out {
+  min-height: 0;
+  padding: 12px;
+  background: #f5f5f7;
 }
 
 .section-head__tools {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
+  min-width: 0;
 }
 
 .filter-select {
-  width: 72px;
+  width: 82px;
+  flex-shrink: 0;
 }
 
 .cmd-shell {
-  display: flex;
-  gap: 6px;
   flex: 1;
-  min-height: 0;
-  border: 1px solid var(--el-border-color);
-  border-radius: var(--el-border-radius-base);
-  padding: 6px;
-  background: var(--el-fill-color-light);
+  min-height: 146px;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 8px;
+  padding: 10px;
+  background: #fff;
   overflow: hidden;
 }
 
 .cmd-shell__prompt {
-  font-family: ui-monospace, monospace;
+  color: #0066cc;
+  font-size: 13px;
   font-weight: 700;
-  font-size: 12px;
-  color: var(--el-color-primary);
-  line-height: 20px;
-  flex-shrink: 0;
+  line-height: 22px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 .cmd-shell__input {
-  flex: 1;
   min-width: 0;
   min-height: 0;
 }
 
 .cmd-shell__input :deep(.el-textarea__inner) {
-  font-family: ui-monospace, monospace;
-  font-size: 11px;
-  line-height: 1.4;
+  height: 100% !important;
+  min-height: 128px !important;
+  border: 0 !important;
   background: transparent;
-  border: none !important;
   box-shadow: none !important;
-  min-height: 4.2rem !important;
-  max-height: 4.2rem !important;
-  padding: 2px 4px;
-  overflow-y: hidden !important;
+  font-size: 12px;
+  line-height: 1.45;
+  padding: 0;
+  resize: none;
 }
 
 .cmd-warn {
-  margin-top: 4px;
-  padding: 4px 8px;
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-color-danger-light-9);
-  border: 1px solid var(--el-color-danger-light-5);
   flex-shrink: 0;
-  max-height: 3.6em;
-  overflow: hidden;
+  margin-top: 10px;
+  padding: 8px 10px;
+  background: #fff;
 }
 
 .cmd-warn__line {
   display: flex;
   gap: 6px;
-  font-size: 11px;
-  color: var(--el-color-danger-dark-2);
+  color: #b42318;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.cmd-warn__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
 .cmd-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
+  gap: 8px;
+  margin-top: 10px;
   flex-shrink: 0;
 }
 
 .job-id-bar {
-  margin-top: 4px;
-  font-size: 11px;
   display: flex;
-  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
   flex-shrink: 0;
 }
 
 .job-id-bar__code {
-  font-size: 10px;
-  background: var(--el-fill-color);
-  padding: 1px 4px;
-  border-radius: 3px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  padding: 4px 7px;
+  color: #1d1d1f;
+  background: #fff;
+  font-size: 11px;
 }
 
 .job-hint {
-  margin: 4px 0 0;
-  font-size: 10px;
-  color: var(--el-text-color-placeholder);
+  margin: 8px 0 0;
+  color: #86868b;
+  font-size: 11px;
+  line-height: 1.35;
   flex-shrink: 0;
 }
 
 .history-dd__pre {
   margin: 0;
-  max-width: 280px;
-  font-size: 11px;
-  white-space: nowrap;
+  max-width: 320px;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
 }
 
 .poll-banner {
   display: flex;
   align-items: center;
   gap: 6px;
+  color: #0066cc;
   font-size: 12px;
-  color: var(--el-color-primary);
-  margin-bottom: 4px;
+  margin-bottom: 8px;
   flex-shrink: 0;
-}
-
-.poll-banner__icon {
-  animation: job-spin 1s linear infinite;
 }
 
 .out-panel {
   flex: 1;
   min-height: 0;
-  overflow: hidden;
-  padding: 4px;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
-  background: var(--el-fill-color-lighter);
+  overflow: auto;
+  padding: 8px;
+  background: #fff;
 }
 
 .out-filter-tip {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  text-align: center;
-  padding: 2px;
-  flex-shrink: 0;
+  color: #6e6e73;
+  font-size: 12px;
+  padding: 4px 2px 8px;
 }
 
 .out-empty {
-  text-align: center;
-  padding: 12px 8px;
-  color: var(--el-text-color-placeholder);
-  font-size: 12px;
+  display: flex;
+  min-height: 180px;
+  align-items: center;
+  justify-content: center;
+  color: #86868b;
+  font-size: 13px;
 }
 
 .out-card {
-  background: var(--el-bg-color);
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: var(--el-border-radius-base);
-  padding: 6px;
-  margin-bottom: 6px;
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #f5f5f7;
 }
 
 .out-card:last-child {
@@ -1094,69 +1174,107 @@ onUnmounted(() => {
 .out-card__head {
   display: flex;
   justify-content: space-between;
-  gap: 6px;
-  margin-bottom: 4px;
-  padding-bottom: 4px;
-  border-bottom: 1px solid var(--el-border-color-extra-light);
+  gap: 10px;
+  margin-bottom: 8px;
 }
 
 .out-card__title {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
 }
 
 .out-card__name {
+  color: #1d1d1f;
+  font-size: 13px;
   font-weight: 600;
-  font-size: 12px;
 }
 
 .out-card__id {
-  font-size: 11px;
-  color: var(--el-text-color-secondary);
-  font-family: ui-monospace, monospace;
+  color: #6e6e73;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 12px;
+}
+
+.out-card__meta {
+  flex-shrink: 0;
+}
+
+.out-block + .out-block {
+  margin-top: 8px;
 }
 
 .out-block__label {
-  font-size: 10px;
+  margin-bottom: 4px;
+  color: #6e6e73;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--el-text-color-secondary);
-  margin-bottom: 2px;
 }
 
 .out-block pre {
   margin: 0;
-  padding: 4px 6px;
-  border-radius: 4px;
-  font-size: 10px;
-  line-height: 1.35;
+  max-height: 260px;
+  overflow: auto;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 3.6em;
-  overflow: hidden;
-}
-
-.out-block--stdout pre {
-  background: var(--el-fill-color-light);
-  border-left: 2px solid var(--el-color-primary);
+  padding: 9px 10px;
+  color: #1d1d1f;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .out-block--stderr pre {
-  background: var(--el-color-danger-light-9);
-  border-left: 2px solid var(--el-color-danger);
+  color: #b42318;
 }
 
 .script-dialog-help {
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
-  margin: 0 0 8px;
+  margin: 0 0 10px;
+  color: #6e6e73;
+  font-size: 13px;
 }
 
 .script-ta :deep(.el-textarea__inner) {
-  font-family: ui-monospace, monospace;
-  font-size: 10px;
-  overflow-y: hidden !important;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+@media (max-width: 1180px) {
+  .job-center {
+    overflow: auto;
+  }
+
+  .job-workbench {
+    min-height: 760px;
+  }
+
+  .job-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .job-center {
+    padding: 8px;
+  }
+
+  .page-header {
+    align-items: flex-start;
+  }
+
+  .targets-body,
+  .section-head,
+  .out-card__head {
+    grid-template-columns: 1fr;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .section-head__tools,
+  .targets-actions {
+    flex-wrap: wrap;
+  }
 }
 </style>
