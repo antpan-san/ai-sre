@@ -98,6 +98,9 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 	if base == "" || token == "" || fingerprint == "" {
 		return fmt.Errorf("Go runtime 诊断需要当前 ai-sre 已绑定用户 token；请从控制台重新生成并执行「安装 ai-sre」命令")
 	}
+	if err := checkGoRuntimeAuth(ctx, base, token, fingerprint); err != nil {
+		return fmt.Errorf("Go runtime 诊断鉴权失败: %w", err)
+	}
 
 	const smartSamples = 4
 	const smartInterval = 10 * time.Second

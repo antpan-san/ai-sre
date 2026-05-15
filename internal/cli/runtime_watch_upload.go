@@ -61,6 +61,43 @@ type goRuntimeReportUploadResult struct {
 	RuntimeWatchSampleID  string `json:"runtime_watch_sample_id"`
 }
 
+func checkGoRuntimeAuth(ctx context.Context, apiBase, token, fingerprint string) error {
+	if strings.TrimSpace(apiBase) == "" || strings.TrimSpace(token) == "" || strings.TrimSpace(fingerprint) == "" {
+		return fmt.Errorf("缺少 OpsFleet API、CLI token 或机器指纹")
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, strings.TrimRight(apiBase, "/")+"/api/cli/go-runtime/auth-check", nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(token))
+	req.Header.Set("X-OpsFleet-CLI-Fingerprint", strings.TrimSpace(fingerprint))
+	req.Header.Set("X-OpsFleet-CLI-Version", Version)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	b, _ := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(b)))
+	}
+	var envelope struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+	}
+	if err := json.Unmarshal(b, &envelope); err != nil {
+		return err
+	}
+	if envelope.Code != 0 && envelope.Code != 200 {
+		if strings.TrimSpace(envelope.Msg) == "" {
+			envelope.Msg = "Go runtime 鉴权失败"
+		}
+		return errors.New(envelope.Msg)
+	}
+	return nil
+}
+
 func postGoRuntimeReport(ctx context.Context, apiBase, token, fingerprint, command string, watch *goruntime.WatchReport) (goRuntimeReportUploadResult, error) {
 	var out goRuntimeReportUploadResult
 	if strings.TrimSpace(apiBase) == "" || strings.TrimSpace(token) == "" || strings.TrimSpace(fingerprint) == "" {

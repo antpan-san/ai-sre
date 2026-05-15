@@ -24,6 +24,36 @@ type goRuntimeReportBody struct {
 	Client  aiClientInfo    `json:"client"`
 }
 
+func CheckCLIGoRuntimeAuth(c *gin.Context) {
+	ident, ok := resolveCLIBearerIdentity(c)
+	if !ok {
+		return
+	}
+	allowed, payload := middleware.CheckCapability(ident.UserID, ident.Role, models.FeatureKeyRuntimeObserve, middleware.CapabilityActionExecute)
+	if !allowed {
+		code, _ := payload["code"].(int)
+		if code == 0 {
+			code = http.StatusForbidden
+		}
+		c.JSON(code, payload)
+		return
+	}
+	bindingID := ""
+	if ident.CLIBindingID != nil {
+		bindingID = ident.CLIBindingID.String()
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": gin.H{
+		"user_id":             ident.UserID,
+		"username":            ident.Username,
+		"role":                ident.Role,
+		"auth_kind":           ident.AuthKind,
+		"cli_binding_id":      bindingID,
+		"feature_key":         models.FeatureKeyRuntimeObserve,
+		"pack_key":            models.PackKeyRuntimeObserve,
+		"fingerprint_matched": true,
+	}})
+}
+
 func PostCLIGoRuntimeReport(c *gin.Context) {
 	ident, ok := resolveCLIBearerIdentity(c)
 	if !ok {
