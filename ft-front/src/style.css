@@ -1,165 +1,64 @@
+/**
+ * 全局基础样式：以 Element Plus 默认主题为主，不做大范围组件覆写。
+ */
+
 :root {
-  /* Apple design tokens from DESIGN.md */
-  font-family:
-    "SF Pro Text",
-    -apple-system,
-    BlinkMacSystemFont,
-    system-ui,
-    sans-serif;
-  line-height: 1.47;
-  font-weight: 400;
-  color: #1d1d1f;
-  background-color: #ffffff;
-
-  --apple-primary: #0066cc;
-  --apple-primary-focus: #0071e3;
-  --apple-ink: #1d1d1f;
-  --apple-ink-muted: #7a7a7a;
-  --apple-canvas: #ffffff;
-  --apple-canvas-parchment: #f5f5f7;
-  --apple-pill: 9999px;
-  --apple-font-text: "SF Pro Text", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --apple-font-display: "SF Pro Display", -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-  --apple-display-lg: 40px;
-  --apple-display-md: 28px;
-  --apple-title-lg: 24px;
-  --apple-title-md: 19px;
-  --apple-title-sm: 16px;
-  --apple-body-size: 15px;
-  --apple-body-large: 17px;
-  --apple-ui-size: 14px;
-  --apple-caption-size: 12px;
-  --apple-body-line: 1.47;
-  --apple-ui-line: 1.35;
-  --apple-title-tracking: 0;
-
-  /* Element Plus: single Action Blue interactive color */
-  --el-color-primary: #0066cc;
-  --el-color-primary-light-3: #0071e3;
-  --el-color-primary-light-5: #0066cc;
-  --el-color-primary-light-7: #0066cc;
-  --el-color-primary-light-8: #0066cc;
-  --el-color-primary-light-9: #f5f5f7;
-  --el-color-primary-dark-2: #0066cc;
-  --el-color-success: #0066cc;
-  --el-color-warning: #0066cc;
-  --el-color-danger: #0066cc;
-  --el-color-info: #7a7a7a;
-
-  --mi-surface-warm-a: #ffffff;
-  --mi-surface-warm-b: #f5f5f7;
-  --mi-brand-rgb: 0, 102, 204;
-
-  /* 布局壳层 */
-  --layout-page-bg: #f5f5f7;
-  --layout-sidebar-bg: #ffffff;
-  --layout-sidebar-border: transparent;
-  --layout-sidebar-text: #7a7a7a;
-  --layout-sidebar-text-strong: #1d1d1f;
-  --layout-sidebar-active-bg: #f5f5f7;
-  --layout-sidebar-hover-bg: #f5f5f7;
-  --layout-sidebar-sub-bg: #f5f5f7;
-  --layout-header-bg: #ffffff;
-  --layout-header-border: transparent;
-  --layout-content-surface: #ffffff;
-  --layout-shadow-soft: none;
-
-  --el-text-color-primary: #1d1d1f;
-  --el-text-color-regular: #1d1d1f;
-  --el-text-color-secondary: #7a7a7a;
-  --el-text-color-placeholder: #7a7a7a;
-  --el-bg-color: #ffffff;
-  --el-bg-color-page: #f5f5f7;
-  --el-fill-color: #f5f5f7;
-  --el-fill-color-light: #f5f5f7;
-  --el-fill-color-lighter: #f5f5f7;
-  --el-fill-color-blank: #ffffff;
-  --el-border-color: transparent;
-  --el-border-color-light: transparent;
-  --el-border-color-lighter: transparent;
-  --el-border-color-extra-light: transparent;
-
-  /* 布局变量 */
-  --layout-header-height: 52px;
-  --layout-sidebar-width: 216px;
+  /* 主布局（MainLayout）尺寸 */
+  --layout-header-height: 56px;
+  --layout-sidebar-width: 220px;
   --layout-sidebar-collapsed-width: 64px;
-  --layout-content-padding: 16px;
-  /* 主内容区外侧留白（与 page-shell 内边距分层，避免重复） */
-  --layout-content-gutter: 12px;
+  --layout-content-gutter: 16px;
+  --layout-page-bg: var(--el-bg-color-page);
 
-  /* 页面模板分级：仪表盘 / 向导 / 列表表单（纵向略收紧，把空间留给数据区） */
-  --page-padding-y: 10px;
-  --page-padding-x: 20px;
-  /* 页眉主标题上限（数据页忌过大） */
-  --page-header-title-max: 20px;
-  --page-header-desc-size: 13px;
+  /* 旧页面 scoped 中曾引用的 token → 映射到 Element 变量，便于渐进替换 */
+  --apple-ink: var(--el-text-color-primary);
+  --apple-ink-muted: var(--el-text-color-secondary);
+  --apple-muted: var(--el-text-color-secondary);
+  --apple-canvas-parchment: var(--el-fill-color-light);
+  --apple-canvas: var(--el-bg-color);
+  --apple-primary: var(--el-color-primary);
+  --apple-font-text: var(--el-font-family);
+  --apple-font-display: var(--el-font-family);
+  --apple-body-size: var(--el-font-size-base);
+  --apple-body-line: 1.5;
+  --apple-ui-size: var(--el-font-size-base);
+  --apple-ui-line: 1.5;
+  --apple-caption-size: 12px;
+  --apple-body-large: 16px;
+  --apple-display-lg: 28px;
+  --apple-display-md: 22px;
+  --apple-title-lg: 20px;
+  --apple-title-md: 18px;
+  --apple-title-sm: 16px;
+  --apple-title-tracking: 0;
+  --apple-pill: var(--el-border-radius-round);
+  --apple-primary-focus: var(--el-color-primary-light-3);
+  --of-surface: var(--el-bg-color);
 }
 
-/* 页面壳层：与设计分层一致，内容居中、留白可控 */
-.page-shell {
-  width: 100%;
-  box-sizing: border-box;
-}
-
-.page-shell--dashboard {
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: var(--page-padding-y) var(--page-padding-x) 20px;
-}
-
-/* 填满主内容区（content-inner 内 flex 子项），避免页内再套一层整页滚动 */
-.page-shell.page-shell--fill {
-  height: 100%;
-  min-height: 0;
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  box-sizing: border-box;
-  max-width: 1440px;
-  margin: 0 auto;
-  padding: 6px var(--page-padding-x) 10px;
-}
-
-.page-shell--wizard {
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: var(--page-padding-y) var(--page-padding-x) 40px;
-}
-
-.page-shell--crud {
-  max-width: 1000px;
-  margin: 0 auto;
-  padding: 16px var(--page-padding-x) 32px;
-}
-
-/* 宽表管理页：占满 content-inner 可用宽度（不限制 1000px） */
-.page-shell.page-shell--crud-wide {
-  max-width: none;
-  width: 100%;
-  margin: 0;
-  padding: 16px var(--page-padding-x) 28px;
-  box-sizing: border-box;
-}
-
-.page-shell--crud .el-card {
-  border-radius: 0;
-  box-shadow: none;
-}
-
-/* 基础重置 */
-* {
-  margin: 0;
-  padding: 0;
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  padding: 0;
-  min-width: 768px;
   min-height: 100vh;
-  overflow-x: auto;
+  min-width: 768px;
+  color: var(--el-text-color-primary);
+  background-color: var(--el-bg-color-page);
+  font-family:
+    var(--el-font-family),
+    'Helvetica Neue',
+    Helvetica,
+    'PingFang SC',
+    'Hiragino Sans GB',
+    'Microsoft YaHei',
+    Arial,
+    sans-serif;
+  font-size: var(--el-font-size-base);
+  line-height: 1.5;
 }
 
 #app {
@@ -168,100 +67,76 @@ body {
   overflow: hidden;
 }
 
-/* 通用链接样式 */
 a {
   color: var(--el-color-primary);
   text-decoration: none;
-  transition: color 0.3s;
 }
 
 a:hover {
   color: var(--el-color-primary-light-3);
 }
 
-/* 通用滚动条样式 */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* 页面壳（各业务页仍可挂 class，仅用默认留白） */
+.page-shell {
+  width: 100%;
+  box-sizing: border-box;
 }
 
-::-webkit-scrollbar-track {
-  background: #f1f1f1;
-  border-radius: 4px;
+.page-shell--dashboard,
+.page-shell--wizard,
+.page-shell--crud {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px 20px 24px;
 }
 
-::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+.page-shell.page-shell--fill {
+  height: 100%;
+  min-height: 0;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  max-width: none;
+  margin: 0;
+  padding: 12px 16px 16px;
+  box-sizing: border-box;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: #a8a8a8;
+.page-shell.page-shell--crud-wide {
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 16px 20px 24px;
+  box-sizing: border-box;
 }
 
-/* 顶栏用户下拉（挂载在 body，与 MainLayout 配套） */
+/* 顶栏挂载在 body 的下拉与 Popover：轻量排版，不flatten 边框阴影 */
 .layout-user-dropdown.el-popper {
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none;
-  padding: 6px !important;
+  padding: 4px 0;
 }
 
-.layout-user-dropdown .el-dropdown-menu__item {
-  border-radius: 8px;
-  padding: 10px 14px;
-  font-size: 14px;
-  color: var(--layout-sidebar-text-strong);
-}
-
-.layout-user-dropdown .el-dropdown-menu__item:not(.is-disabled):focus {
-  background-color: var(--layout-sidebar-hover-bg);
-  color: var(--layout-sidebar-text-strong);
-}
-
-.layout-user-dropdown .el-dropdown-menu__item .el-icon {
-  margin-right: 8px;
-  vertical-align: -2px;
-  color: var(--layout-sidebar-text);
-}
-
-/* 顶栏「安装 ai-sre」悬浮层（挂载在 body） */
 .install-ai-sre-popover.el-popper.is-light,
 .install-ai-sre-popover.el-popper {
-  padding: 16px !important;
-  border: 0 !important;
-  border-radius: 0 !important;
-  box-shadow: none;
+  max-width: min(440px, 96vw);
 }
 
 .install-ai-sre-popover .install-ai-sre-panel__desc {
   margin: 0 0 12px;
   font-size: 13px;
   line-height: 1.55;
-  color: var(--layout-sidebar-text);
-}
-
-.install-ai-sre-popover .install-ai-sre-panel__desc strong {
-  color: var(--layout-sidebar-text-strong);
-  font-weight: 600;
+  color: var(--el-text-color-regular);
 }
 
 .install-ai-sre-popover .install-ai-sre-panel__input textarea {
-  font-family:
-    ui-monospace,
-    SFMono-Regular,
-    Menlo,
-    Monaco,
-    Consolas,
-    'Liberation Mono',
-    monospace;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
   font-size: 12px;
   line-height: 1.45;
 }
 
 .install-ai-sre-popover .install-ai-sre-panel__expires {
   margin: 8px 0 0;
-  color: var(--apple-muted);
+  color: var(--el-text-color-secondary);
   font-size: 12px;
 }
 
@@ -269,597 +144,4 @@ a:hover {
   margin-top: 12px;
   display: flex;
   justify-content: flex-end;
-}
-
-/* Apple flat system theme */
-*,
-*::before,
-*::after {
-  letter-spacing: 0 !important;
-  box-shadow: none !important;
-  background-image: none !important;
-}
-
-html,
-body,
-#app {
-  background: var(--apple-canvas-parchment) !important;
-  color: var(--apple-ink) !important;
-  font-family: var(--apple-font-text) !important;
-  font-size: var(--apple-body-size) !important;
-  line-height: var(--apple-body-line) !important;
-}
-
-body {
-  color: var(--apple-ink);
-}
-
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-.page-title,
-.user-page-title,
-.register-title,
-.login-title,
-.sidebar-brand-title,
-.card-title,
-.section-title,
-.stats-title,
-.module-title,
-.el-dialog__title,
-.el-card__header {
-  font-family: var(--apple-font-display) !important;
-  font-weight: 600 !important;
-  letter-spacing: var(--apple-title-tracking) !important;
-  color: var(--apple-ink) !important;
-}
-
-h1,
-.login-title,
-.register-title {
-  font-size: var(--apple-display-lg) !important;
-  line-height: 1.08 !important;
-}
-
-h2,
-.page-title,
-.user-page-title {
-  font-size: var(--apple-display-md) !important;
-  line-height: 1.12 !important;
-}
-
-h3,
-.section-title,
-.stats-title,
-.module-title {
-  font-size: var(--apple-title-md) !important;
-  line-height: 1.2 !important;
-}
-
-h4,
-h5,
-h6,
-.card-title,
-.el-card__header,
-.el-dialog__title {
-  font-size: var(--apple-title-sm) !important;
-  line-height: 1.25 !important;
-}
-
-p,
-li,
-.el-message-box__message,
-.el-dialog__body {
-  font-family: var(--apple-font-text) !important;
-  font-size: var(--apple-body-size);
-  line-height: var(--apple-body-line);
-}
-
-label,
-.el-form-item__label,
-.el-input__inner,
-.el-textarea__inner,
-.el-select-dropdown__item,
-.el-menu,
-.el-table,
-.el-table th,
-.el-table td,
-.el-table .cell,
-.el-tabs__item,
-.el-dropdown-menu__item,
-.el-pagination,
-.el-breadcrumb {
-  font-family: var(--apple-font-text) !important;
-  font-size: var(--apple-ui-size) !important;
-  line-height: var(--apple-ui-line) !important;
-}
-
-.el-table th,
-.el-table td,
-.el-table .cell,
-.el-tag,
-.menu-pack-tag,
-.el-pagination button,
-.el-pagination span:not([class*="suffix"]) {
-  font-size: 13px !important;
-}
-
-.page-sub,
-.page-desc,
-.page-description,
-.user-page-sub,
-.register-desc,
-.el-empty__description,
-.el-alert__description {
-  font-size: var(--apple-body-size) !important;
-  line-height: var(--apple-body-line) !important;
-  color: var(--apple-ink-muted) !important;
-}
-
-.login-hero-lead {
-  font-size: var(--apple-body-large) !important;
-  line-height: var(--apple-body-line) !important;
-  color: var(--apple-ink-muted) !important;
-}
-
-.meta,
-.desc,
-.hint,
-.tip,
-.muted,
-.caption,
-.el-form-item__error,
-.el-input__count,
-.el-textarea .el-input__count {
-  font-size: var(--apple-caption-size) !important;
-  line-height: 1.35 !important;
-}
-
-a,
-.el-link,
-.el-button.is-link,
-.el-button--text,
-.register-link,
-.breadcrumb-item:hover,
-.sidebar-menu .el-menu-item.is-active,
-.sidebar-menu .el-sub-menu__title:hover {
-  color: var(--apple-primary) !important;
-}
-
-button,
-.el-button,
-.el-switch,
-.el-link,
-a,
-[role="button"] {
-  transition:
-    transform 0.14s ease,
-    background-color 0.18s ease,
-    color 0.18s ease !important;
-}
-
-button:active,
-.el-button:active,
-.el-switch:active,
-.el-link:active,
-a:active,
-[role="button"]:active {
-  transform: scale(0.95) !important;
-}
-
-.el-button {
-  min-height: 34px;
-  border: 0 !important;
-  border-radius: var(--apple-pill) !important;
-  background: var(--apple-canvas-parchment) !important;
-  color: var(--apple-primary) !important;
-  font-family: var(--apple-font-text) !important;
-  font-size: var(--apple-ui-size) !important;
-  font-weight: 500 !important;
-  line-height: 1.2 !important;
-  padding: 8px 16px !important;
-}
-
-.el-button--primary {
-  background: var(--apple-primary) !important;
-  color: #ffffff !important;
-}
-
-.el-button--success,
-.el-button--warning,
-.el-button--danger,
-.el-button--info,
-.el-button--default,
-.el-button.is-plain {
-  background: var(--apple-canvas-parchment) !important;
-  color: var(--apple-primary) !important;
-}
-
-.el-button:not(.is-link):not(.el-button--text).el-button--default:hover,
-.el-button:not(.is-link):not(.el-button--text).is-plain:hover,
-.el-button--success:hover,
-.el-button--warning:hover,
-.el-button--danger:hover,
-.el-button--info:hover {
-  background: #e8e8ed !important;
-  color: var(--apple-primary) !important;
-}
-
-.el-button--primary:not(.is-link):not(.el-button--text) {
-  background: var(--apple-primary) !important;
-  color: #ffffff !important;
-}
-
-.el-button--primary:hover {
-  background: var(--apple-primary-focus) !important;
-  color: #ffffff !important;
-}
-
-.el-button--large {
-  min-height: 44px !important;
-  padding: 12px 24px !important;
-  font-size: var(--apple-body-large) !important;
-}
-
-.el-button--small {
-  min-height: 30px !important;
-  padding: 6px 12px !important;
-  font-size: 13px !important;
-}
-
-.el-button.is-link,
-.el-button--text {
-  min-height: auto !important;
-  padding: 0 2px !important;
-  background: transparent !important;
-  color: var(--apple-primary) !important;
-}
-
-.el-button.is-disabled,
-.el-button.is-disabled:hover {
-  background: var(--apple-canvas-parchment) !important;
-  color: var(--apple-ink-muted) !important;
-  opacity: 0.65;
-}
-
-.el-button + .el-button {
-  margin-left: 8px !important;
-}
-
-.el-button .el-icon {
-  font-size: 15px !important;
-}
-
-.el-input__wrapper,
-.el-select__wrapper,
-.el-date-editor,
-.el-textarea__inner,
-.el-input-number {
-  min-height: 36px !important;
-  border-radius: 12px !important;
-  color: var(--apple-ink) !important;
-}
-
-.el-input__inner,
-.el-textarea__inner {
-  color: var(--apple-ink) !important;
-}
-
-.el-input__inner::placeholder,
-.el-textarea__inner::placeholder {
-  color: var(--apple-ink-muted) !important;
-}
-
-.el-form-item {
-  margin-bottom: 18px !important;
-}
-
-.el-form-item__label {
-  color: var(--apple-ink) !important;
-  font-weight: 500 !important;
-}
-
-.el-card__header {
-  padding: 18px 20px 10px !important;
-}
-
-.el-card__body {
-  padding: 18px 20px !important;
-}
-
-.el-table {
-  border-radius: 0 !important;
-}
-
-.el-table th.el-table__cell {
-  color: var(--apple-ink-muted) !important;
-  font-weight: 600 !important;
-}
-
-.el-table td.el-table__cell {
-  color: var(--apple-ink) !important;
-}
-
-.el-table .cell {
-  padding: 9px 12px !important;
-}
-
-.el-tag {
-  min-height: 22px !important;
-  padding: 0 8px !important;
-  border-radius: var(--apple-pill) !important;
-  font-weight: 500 !important;
-  color: var(--apple-ink-muted) !important;
-}
-
-.el-tag--primary,
-.menu-pack-tag {
-  color: var(--apple-primary) !important;
-}
-
-.el-switch.is-checked .el-switch__core {
-  background: var(--apple-primary) !important;
-  border-color: transparent !important;
-}
-
-.el-switch__core {
-  background: var(--apple-canvas-parchment) !important;
-  border-color: transparent !important;
-}
-
-.el-radio__input.is-checked .el-radio__inner,
-.el-checkbox__input.is-checked .el-checkbox__inner {
-  background: var(--apple-primary) !important;
-  border-color: var(--apple-primary) !important;
-}
-
-.main-layout,
-.content,
-.content-route,
-.page-shell,
-.login-page,
-.register-page,
-.dashboard-page,
-.backup-restore,
-.performance-analysis {
-  background: var(--apple-canvas-parchment) !important;
-}
-
-.sidebar,
-.header,
-.el-card,
-.el-card__body,
-.el-dialog,
-.el-dialog__body,
-.el-message-box,
-.el-popover.el-popper,
-.el-popper.is-light,
-.el-dropdown-menu,
-.el-table,
-.el-table__inner-wrapper,
-.el-table__body,
-.el-table__header,
-.el-table__footer,
-.el-tabs__content,
-.el-collapse,
-.el-collapse-item__header,
-.el-collapse-item__wrap,
-.search-filters,
-.filter-bar,
-.toolbar,
-.page-head,
-.user-page-head,
-.stats-card,
-.stat-card,
-.resource-card,
-.snapshot-card,
-.overview-card,
-.table-card,
-.catalog-card,
-.chart-card,
-.data-table-card,
-.recent-deployments-card,
-.user-data-card,
-.feature-billing,
-.backup-table,
-.data-table-container,
-.charts-container,
-.form-section,
-.config-section,
-.section-card,
-.config-card,
-.info-card,
-.panel,
-.card,
-.register-card,
-.login-card {
-  background: var(--apple-canvas) !important;
-  border: 0 !important;
-  box-shadow: none;
-}
-
-.el-card:nth-of-type(even),
-.stats-cards > :nth-child(even),
-.search-filters,
-.batch-actions,
-.chart-placeholder,
-.empty-state,
-.preview-box,
-.script-preview,
-.code-block,
-pre,
-code,
-.el-table__row:nth-child(even) > td,
-.el-table tr:nth-child(even) > td,
-.el-table th.el-table__cell,
-.el-table__header-wrapper,
-.el-alert,
-.el-tag,
-.menu-pack-tag,
-.el-input__wrapper,
-.el-textarea__inner,
-.el-select__wrapper,
-.el-date-editor,
-.el-input-number,
-.el-upload-dragger {
-  background: var(--apple-canvas-parchment) !important;
-  border: 0 !important;
-  box-shadow: none;
-}
-
-.el-table__row:nth-child(odd) > td,
-.el-table tr:nth-child(odd) > td,
-.el-table td.el-table__cell {
-  background: var(--apple-canvas) !important;
-  border: 0 !important;
-}
-
-.el-table::before,
-.el-table__inner-wrapper::before,
-.el-table__border-left-patch,
-.el-card,
-.el-input__wrapper,
-.el-textarea__inner,
-.el-select__wrapper,
-.el-date-editor,
-.el-popper,
-.el-dialog,
-.el-message-box,
-.el-table--border,
-.el-table--group,
-.el-tabs__nav-wrap::after,
-.el-collapse {
-  border: 0 !important;
-  box-shadow: none;
-}
-
-.el-input__wrapper.is-focus,
-.el-select__wrapper.is-focused,
-.el-textarea__inner:focus,
-.el-date-editor.is-active {
-  outline: 2px solid var(--apple-primary) !important;
-  outline-offset: 2px;
-}
-
-.el-alert,
-.el-tag,
-.menu-pack-tag {
-  color: var(--apple-ink-muted) !important;
-}
-
-.el-tag--primary,
-.menu-pack-tag {
-  color: var(--apple-primary) !important;
-}
-
-.el-menu,
-.el-menu-item,
-.el-sub-menu__title {
-  background: transparent !important;
-  border: 0 !important;
-}
-
-.el-menu-item:hover,
-.el-sub-menu__title:hover,
-.el-menu-item.is-active {
-  background: var(--apple-canvas-parchment) !important;
-  color: var(--apple-primary) !important;
-}
-
-.el-scrollbar__thumb,
-::-webkit-scrollbar-thumb {
-  background: var(--apple-canvas-parchment) !important;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--apple-canvas) !important;
-}
-
-.el-progress-bar__outer {
-  background: var(--apple-canvas-parchment) !important;
-}
-
-.el-progress-bar__inner,
-#nprogress .bar {
-  background: var(--apple-primary) !important;
-}
-
-.login-page-bg,
-.register-page-bg {
-  background: var(--apple-canvas-parchment) !important;
-}
-
-.page-header,
-.section-header,
-.card-header,
-.table-header,
-.panel-header,
-.dialog-header {
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-}
-
-.card-value,
-.snapshot-value,
-.stat-value,
-.metric-value,
-.summary-value,
-.count-value,
-.overview-value,
-.data-value,
-.number-value {
-  font-family: var(--apple-font-display) !important;
-  font-size: var(--apple-title-lg) !important;
-  line-height: 1.1 !important;
-  font-weight: 600 !important;
-  color: var(--apple-ink) !important;
-}
-
-.chart-icon,
-.tool-card-icon,
-.login-hero-mark,
-.sidebar-brand-mark,
-.user-avatar,
-.module-icon,
-.stat-icon,
-.card-icon,
-.section-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.chart-icon,
-.tool-card-icon,
-.login-hero-mark,
-.sidebar-brand-mark,
-.user-avatar,
-.module-icon,
-.stat-icon,
-.card-icon,
-.section-icon {
-  background: var(--apple-primary) !important;
-  color: #ffffff !important;
-}
-
-.chart-icon,
-.tool-card-icon,
-.login-hero-mark,
-.module-icon,
-.stat-icon,
-.card-icon,
-.section-icon {
-  width: 40px !important;
-  height: 40px !important;
-  border-radius: 12px !important;
-  font-size: 20px !important;
-}
-
-.error-message,
-.el-form-item__error {
-  color: #b42318 !important;
 }

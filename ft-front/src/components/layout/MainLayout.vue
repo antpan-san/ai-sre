@@ -1,31 +1,15 @@
 <template>
-  <div
-    class="main-layout flex h-screen overflow-hidden bg-[var(--layout-page-bg)] font-sans text-[#1d1d1f] antialiased leading-[1.47] tracking-[-0.01em]"
-  >
-    <aside
-      class="sidebar fixed bottom-0 left-0 top-0 z-[9980] flex flex-col overflow-hidden border-r border-black/[0.04] bg-white transition-[width] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-      :class="isCollapse ? 'w-[var(--layout-sidebar-collapsed-width)]' : 'w-[var(--layout-sidebar-width)]'"
-    >
-      <div
-        class="sidebar-header flex h-[var(--layout-header-height)] shrink-0 items-center justify-between gap-2 border-b border-black/[0.04] px-3.5 backdrop-blur-sm bg-white/90"
-      >
-        <div class="sidebar-brand flex min-w-0 flex-1 items-center gap-2.5">
-          <div
-            class="sidebar-brand-mark flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#0066CC] text-xs font-semibold tracking-tight text-white shadow-none"
-            aria-hidden="true"
-          >
-            {{ brandShort }}
-          </div>
-          <div v-show="!isCollapse" class="sidebar-brand-text flex min-w-0 flex-col gap-0.5">
-            <span class="sidebar-brand-title truncate text-[15px] font-semibold leading-snug tracking-tight"
-              >OpsFleetPilot</span
-            >
-            <span class="sidebar-brand-sub truncate text-[11px] font-normal leading-snug opacity-90">{{
-              isAdminShell ? '控制台' : '工作台'
-            }}</span>
+  <div class="main-layout">
+    <aside class="sidebar" :class="{ 'sidebar-collapsed': isCollapse }">
+      <div class="sidebar-header">
+        <div class="sidebar-brand">
+          <div class="sidebar-brand-mark" aria-hidden="true">{{ brandShort }}</div>
+          <div v-show="!isCollapse" class="sidebar-brand-text">
+            <span class="sidebar-brand-title">OpsFleetPilot</span>
+            <span class="sidebar-brand-sub">{{ isAdminShell ? '控制台' : '工作台' }}</span>
           </div>
         </div>
-        <el-button type="primary" link class="collapse-btn shrink-0 -mr-1 h-auto rounded-lg p-2" @click="isCollapse = !isCollapse">
+        <el-button type="primary" link class="collapse-btn" @click="isCollapse = !isCollapse">
           <el-icon :size="18">
             <svg
               v-if="isCollapse"
@@ -61,9 +45,6 @@
           :default-openeds="menuDefaultOpeneds"
           class="sidebar-menu"
           @select="handleMenuSelect"
-          background-color="transparent"
-          :text-color="menuTextColor"
-          :active-text-color="menuActiveColor"
           :collapse="isCollapse"
           :collapse-transition="true"
         >
@@ -180,19 +161,10 @@
       </el-scrollbar>
     </aside>
 
-    <div
-      class="main-content flex flex-col overflow-hidden transition-[margin-left,width] duration-[280ms] ease-[cubic-bezier(0.4,0,0.2,1)]"
-      :class="
-        isCollapse
-          ? 'ml-[var(--layout-sidebar-collapsed-width)] w-[calc(100%-var(--layout-sidebar-collapsed-width))]'
-          : 'ml-[var(--layout-sidebar-width)] w-[calc(100%-var(--layout-sidebar-width))]'
-      "
-    >
-      <header
-        class="header sticky top-0 z-[10050] flex h-[var(--layout-header-height)] shrink-0 items-center justify-between gap-4 border-b border-black/[0.06] bg-white/70 px-5 shadow-apple-nav backdrop-blur-xl supports-[backdrop-filter]:bg-white/55"
-      >
-        <div class="header-left flex min-w-0 flex-1 items-center">
-          <div class="header-breadcrumb-wrap min-w-0 max-w-full overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:h-0">
+    <div class="main-shell" :class="{ 'main-shell--collapsed': isCollapse }">
+      <header class="layout-header">
+        <div class="layout-header-left">
+          <div class="breadcrumb-wrap">
             <el-breadcrumb separator="/" class="custom-breadcrumb header-breadcrumb">
               <template v-for="item in breadcrumbItems" :key="item.key">
                 <el-breadcrumb-item
@@ -215,10 +187,10 @@
             </el-breadcrumb>
           </div>
         </div>
-        <div class="header-right flex shrink-0 items-center gap-2.5">
+        <div class="layout-header-right">
           <router-link
             :to="{ path: errorCodesPath }"
-            class="header-quick-codes rounded-full px-3 py-1.5 text-sm font-medium tracking-tight text-[#1d1d1f]"
+            class="header-quick-codes"
             :aria-current="route.path.endsWith('/help/error-codes') ? 'page' : undefined"
           >
             <el-icon :size="18"><Reading /></el-icon>
@@ -289,15 +261,11 @@
         </div>
       </header>
 
-      <main
-        class="content flex flex-1 min-h-0 flex-col pb-[var(--layout-content-gutter)] pl-0 pr-[var(--layout-content-gutter)] pt-2"
-      >
-        <div class="content-inner flex min-h-0 flex-1 flex-col overflow-hidden bg-transparent p-0">
-          <div
-            class="content-route flex min-h-0 flex-1 flex-col overflow-y-auto overflow-x-hidden [-webkit-overflow-scrolling:touch]"
-          >
+      <main class="layout-main">
+        <div class="layout-main-inner">
+          <div class="layout-main-scroll">
             <router-view v-slot="{ Component }">
-              <transition name="page-apple-fade-rise" mode="out-in">
+              <transition name="fade" mode="out-in">
                 <component :is="Component" :key="route.fullPath" />
               </transition>
             </router-view>
@@ -410,9 +378,6 @@ const isAdminUser = computed(() => ['admin', 'super_admin'].includes(String(curr
 
 const isCollapse = ref(false)
 const capabilityByFeature = ref<Record<string, BillingCapabilityFeature>>({})
-
-const menuTextColor = 'var(--layout-sidebar-text)'
-const menuActiveColor = 'var(--el-color-primary)'
 
 const menuDefaultOpeneds = computed(() => {
   const p = route.path
@@ -617,22 +582,96 @@ const handleLogout = () => {
 </script>
 
 <style scoped>
-/* Sidebar scroll + Element Plus（Tailwind :deep 难覆盖的细节） */
+.main-layout {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--el-bg-color-page);
+}
+
+.sidebar {
+  position: fixed;
+  inset: 0 auto 0 0;
+  z-index: 1001;
+  width: var(--layout-sidebar-width);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--el-bg-color);
+  border-right: 1px solid var(--el-border-color-light);
+  transition: width 0.25s ease;
+}
+
+.sidebar.sidebar-collapsed {
+  width: var(--layout-sidebar-collapsed-width);
+}
+
+.sidebar-header {
+  flex-shrink: 0;
+  height: var(--layout-header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+}
+
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sidebar-brand-mark {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--el-border-radius-base);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--el-color-primary);
+}
+
+.sidebar-brand-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sidebar-brand-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sidebar-brand-sub {
+  font-size: 11px;
+  color: var(--el-text-color-secondary);
+}
+
 .sidebar-scroll {
   flex: 1;
   min-height: 0;
 }
 
 .sidebar-scroll :deep(.el-scrollbar__view) {
-  padding-bottom: 16px;
+  padding-bottom: 12px;
 }
 
 .sidebar-menu {
   border-right: none !important;
-  padding: 10px 8px 16px;
-  --el-menu-base-level-padding: 14px;
-  --el-menu-icon-width: 22px;
-  --el-menu-item-height: 44px;
 }
 
 .sidebar-menu:not(.el-menu--collapse) {
@@ -641,12 +680,53 @@ const handleLogout = () => {
 
 .collapse-btn {
   flex-shrink: 0;
-  color: var(--layout-sidebar-text);
 }
 
-.collapse-btn:hover {
-  color: var(--el-color-primary);
-  background-color: var(--layout-sidebar-hover-bg);
+.main-shell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-left: var(--layout-sidebar-width);
+  width: calc(100% - var(--layout-sidebar-width));
+  min-width: 0;
+  transition:
+    margin-left 0.25s ease,
+    width 0.25s ease;
+}
+
+.main-shell--collapsed {
+  margin-left: var(--layout-sidebar-collapsed-width);
+  width: calc(100% - var(--layout-sidebar-collapsed-width));
+}
+
+.layout-header {
+  flex-shrink: 0;
+  height: var(--layout-header-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 0 16px;
+  background: var(--el-bg-color);
+  border-bottom: 1px solid var(--el-border-color-light);
+}
+
+.layout-header-left {
+  flex: 1;
+  min-width: 0;
+}
+
+.breadcrumb-wrap {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.layout-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .header-breadcrumb {
@@ -661,58 +741,47 @@ const handleLogout = () => {
   flex-wrap: wrap;
   gap: 2px 0;
   font-size: 13px;
-  font-weight: 400;
-  line-height: 1.35;
-  color: var(--layout-sidebar-text);
+  color: var(--el-text-color-regular);
 }
 
 .breadcrumb-item {
   display: inline-flex;
   align-items: center;
-  padding: 2px 4px;
-  border-radius: 6px;
-  transition:
-    color 0.18s cubic-bezier(0.4, 0, 0.2, 1),
-    background-color 0.18s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.breadcrumb-item:hover {
-  color: var(--el-color-primary);
 }
 
 .breadcrumb-item--current {
-  color: var(--layout-sidebar-text-strong);
-  font-weight: 600;
-  cursor: default;
+  color: var(--el-text-color-primary);
+  font-weight: 500;
 }
 
 .breadcrumb-icon {
   margin-right: 4px;
   font-size: 14px;
-  color: currentColor;
 }
 
 .custom-breadcrumb :deep(.el-breadcrumb__separator) {
   margin: 0 8px;
-  color: #d2d2d7;
-  font-weight: 500;
 }
 
 .header-quick-codes {
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
+  text-decoration: none;
+  border-radius: var(--el-border-radius-base);
 }
 
 .header-quick-codes:hover {
-  background-color: var(--apple-canvas-parchment, #f5f5f7);
-  color: #0071e3;
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
 }
 
 .header-quick-codes.router-link-active {
-  background-color: var(--apple-canvas-parchment, #f5f5f7);
-  color: #0071e3;
-  font-weight: 600;
+  color: var(--el-color-primary);
+  font-weight: 500;
 }
 
 .install-ai-sre-trigger {
@@ -720,23 +789,18 @@ const handleLogout = () => {
   align-items: center;
   gap: 6px;
   margin: 0;
-  padding: 6px 14px;
-  border: 0;
-  border-radius: 980px;
-  background: rgba(0, 113, 227, 0.08);
+  padding: 6px 12px;
+  border: 1px solid var(--el-border-color);
+  border-radius: var(--el-border-radius-base);
+  background: var(--el-fill-color-blank);
   font: inherit;
-  font-size: 14px;
-  font-weight: 500;
-  line-height: 1.29;
-  color: #0071e3;
+  font-size: 13px;
+  color: var(--el-color-primary);
   cursor: pointer;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
 }
 
 .install-ai-sre-trigger:hover {
-  background-color: rgba(0, 113, 227, 0.14);
+  border-color: var(--el-color-primary-light-5);
 }
 
 .install-ai-sre-trigger__text {
@@ -747,125 +811,67 @@ const handleLogout = () => {
 }
 
 .install-ai-sre-trigger__caret {
-  color: var(--layout-sidebar-text);
-  margin-left: -2px;
+  color: var(--el-text-color-secondary);
 }
 
 .user-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
-  padding: 4px 8px 4px 4px;
-  border-radius: 999px;
-  border: 0;
-  transition:
-    background-color 0.2s ease,
-    color 0.2s ease;
-  outline: none;
+  padding: 4px 8px;
+  border-radius: var(--el-border-radius-base);
 }
 
 .user-trigger:hover {
-  background-color: rgba(0, 0, 0, 0.045);
+  background: var(--el-fill-color-light);
 }
 
 .user-avatar {
   flex-shrink: 0;
   font-size: 14px;
   font-weight: 600;
-  color: #fff;
-  background: #0071e3 !important;
 }
 
 .user-trigger-name {
   font-size: 14px;
-  font-weight: 500;
-  line-height: 1.29;
-  color: var(--layout-sidebar-text-strong);
+  color: var(--el-text-color-primary);
   max-width: 140px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.user-trigger-chevron {
-  font-size: 12px;
-  color: var(--layout-sidebar-text);
-  margin-right: 2px;
+.layout-main {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 8px var(--layout-content-gutter) var(--layout-content-gutter);
 }
 
-.page-apple-fade-rise-enter-active,
-.page-apple-fade-rise-leave-active {
-  transition:
-    opacity 0.42s cubic-bezier(0.4, 0, 0.2, 1),
-    transform 0.42s cubic-bezier(0.4, 0, 0.2, 1);
+.layout-main-inner {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
-.page-apple-fade-rise-enter-from {
+.layout-main-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
   opacity: 0;
-  transform: translateY(12px);
-}
-
-.page-apple-fade-rise-leave-to {
-  opacity: 0;
-  transform: translateY(-8px);
-}
-
-.sidebar-menu :deep(.el-sub-menu__title),
-.sidebar-menu :deep(.el-menu-item) {
-  border-radius: 10px;
-  margin: 2px 0;
-  font-weight: 500;
-  letter-spacing: -0.015em;
-  font-family: var(--apple-font-text), -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
-}
-
-.sidebar-menu :deep(.el-sub-menu__title:hover),
-.sidebar-menu :deep(.el-menu-item:hover) {
-  background: linear-gradient(90deg, rgba(245, 245, 247, 0.98) 0%, rgba(255, 255, 255, 0.35) 65%, transparent 100%) !important;
-}
-
-.sidebar-menu :deep(.el-menu-item.is-active) {
-  background-color: var(--layout-sidebar-active-bg) !important;
-  color: var(--el-color-primary) !important;
-  font-weight: 600;
-}
-
-.sidebar-menu :deep(.el-sub-menu.is-active > .el-sub-menu__title) {
-  color: var(--layout-sidebar-text-strong);
-}
-
-.sidebar-menu :deep(.el-menu-item .el-icon),
-.sidebar-menu :deep(.el-sub-menu__title .el-icon) {
-  font-size: 18px;
-}
-
-.sidebar-menu :deep(.el-sub-menu .el-menu) {
-  background-color: transparent !important;
-}
-
-.sidebar-menu :deep(.el-sub-menu .el-menu-item) {
-  min-height: 40px;
-  height: auto;
-  line-height: 1.35;
-  padding-top: 9px !important;
-  padding-bottom: 9px !important;
-  padding-right: 12px !important;
-  margin: 1px 0;
-  font-weight: 400;
-  font-size: 13px;
-}
-
-.sidebar-menu :deep(.el-sub-menu .el-menu-item.is-active) {
-  font-weight: 600;
-}
-
-.sidebar-menu.el-menu--collapse :deep(.el-sub-menu__title) {
-  padding: 0 calc(var(--el-menu-base-level-padding) + 2px) !important;
-}
-
-.sidebar-menu.el-menu--collapse :deep(.el-tooltip__trigger) {
-  justify-content: center;
 }
 
 .menu-pack-tag {
@@ -874,10 +880,10 @@ const handleLogout = () => {
   height: 18px;
   margin-left: 6px;
   padding: 0 5px;
-  border-radius: 4px;
-  background: var(--apple-canvas-parchment, #f5f5f7);
-  color: #0071e3;
+  border-radius: var(--el-border-radius-small);
+  background: var(--el-fill-color-light);
+  color: var(--el-color-primary);
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
 }
 </style>
