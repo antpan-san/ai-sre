@@ -1,5 +1,5 @@
 <template>
-  <div class="job-center page-shell page-shell--fill">
+  <div class="job-center page-shell">
     <div class="page-header">
       <div class="page-header__titles">
         <h2>作业中心</h2>
@@ -504,9 +504,13 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 勿使用 page-shell--fill：该模式需子级 flex:1+min-height:0，否则主卡片在 overflow:hidden 下会被压没 */
 .job-center {
-  padding: 0 var(--page-padding-x) 20px;
+  width: 100%;
   box-sizing: border-box;
+  padding: var(--page-padding-y) var(--page-padding-x) 24px;
+  max-width: 1440px;
+  margin: 0 auto;
 }
 
 .page-header {
