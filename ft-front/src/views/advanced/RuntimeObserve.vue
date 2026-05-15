@@ -5,7 +5,7 @@
     </div>
     <p v-if="billingAlertTitle" class="billing-strip page-desc--muted">{{ billingAlertTitle }}</p>
     <p class="page-desc--muted">
-      在 Pod 所在节点运行 <code>ai-sre diagnose go-process</code>，将多采样结果上报到本平台。用于持续观察 RSS、FD、CPU
+      运行 <code>ai-sre diagnose --pod namespace/pod/container</code>，CLI 自动采样、输出结论并上传报告。用于观察 RSS、FD、CPU
       时间等信号（非侵入式，仅读 procfs/cgroup）。
     </p>
 
@@ -74,7 +74,7 @@
         <el-descriptions-item label="上报 URL">{{ uploadURLHint }}</el-descriptions-item>
         <el-descriptions-item label="令牌">{{ created?.sample_write_token }}</el-descriptions-item>
       </el-descriptions>
-      <p style="margin-top: 12px"><strong>示例命令</strong>（在 Pod 所在节点执行）：</p>
+      <p style="margin-top: 12px"><strong>示例命令</strong>：</p>
       <el-input type="textarea" :rows="5" readonly :model-value="cliExample" />
       <template #footer>
         <el-button type="primary" @click="copyCli">复制命令</el-button>
@@ -142,12 +142,7 @@ const cliExample = computed(() => {
   const c = created.value
   if (!c) return ''
   return [
-    `ai-sre diagnose go-process \\`,
-    `  --namespace ${c.namespace} --pod ${c.pod}${c.container ? ` --container ${c.container}` : ''} \\`,
-    `  --watch-samples 12 --watch-interval ${c.interval_sec}s \\`,
-    `  --upload-url "${uploadURLHint.value}" \\`,
-    `  --session-id ${c.id} \\`,
-    `  --sample-token ${c.sample_write_token}`
+    `ai-sre diagnose --pod ${c.namespace}/${c.pod}${c.container ? `/${c.container}` : ''}`
   ].join('\n')
 })
 

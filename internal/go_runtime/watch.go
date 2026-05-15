@@ -53,6 +53,41 @@ func CollectWatch(ctx context.Context, opts Options, interval time.Duration, cou
 	wr.GeneratedAt = time.Now()
 	wr.SampleCount = len(wr.Samples)
 	wr.TrendFindings = AnalyzeTrend(wr.Samples)
+	wr.Summary = SummarizeWatchReport(wr)
+	return wr, nil
+}
+
+func CollectWatchWith(ctx context.Context, interval time.Duration, count int, collect func() (*Report, error)) (*WatchReport, error) {
+	if count < 1 {
+		count = 1
+	}
+	wr := &WatchReport{}
+	if count > 1 && interval > 0 {
+		wr.IntervalSeconds = interval.Seconds()
+	}
+	for i := 0; i < count; i++ {
+		if i > 0 && interval > 0 {
+			select {
+			case <-ctx.Done():
+				return wr, ctx.Err()
+			case <-time.After(interval):
+			}
+		}
+		rep, err := collect()
+		if err != nil {
+			return wr, err
+		}
+		wr.Samples = append(wr.Samples, rep)
+	}
+	if len(wr.Samples) == 0 {
+		wr.GeneratedAt = time.Now()
+		return wr, nil
+	}
+	wr.GeneratedAt = time.Now()
+	wr.SampleCount = len(wr.Samples)
+	wr.Target = wr.Samples[len(wr.Samples)-1].Target
+	wr.TrendFindings = AnalyzeTrend(wr.Samples)
+	wr.Summary = SummarizeWatchReport(wr)
 	return wr, nil
 }
 
@@ -90,6 +125,19 @@ func AnalyzeTrend(samples []*Report) []Finding {
 			Verify:   "延长观测窗口并结合 heap/pprof 或业务指标确认",
 		})
 	}
+	if monotonicIncreasing(len(clean), func(i int) uint64 {
+		return clean[i].Snapshot.SmapsRollup.AnonymousBytes
+	}, true) {
+		out = append(out, Finding{
+			Severity: severityWarn,
+			Title:    "匿名内存在采样窗口内持续上升",
+			Evidence: formatUintSeries("anonymous_bytes", clean, func(r *Report) uint64 {
+				return r.Snapshot.SmapsRollup.AnonymousBytes
+			}),
+			Cause:  "匿名内存持续增长常见于 Go heap、mmap 或缓存增长",
+			Verify: "延长观测窗口，并结合业务请求量、GC 指标或后续分配热点确认",
+		})
+	}
 	if monotonicIncreasing(len(clean), func(i int) uint64 { return uint64(fd(clean[i])) }, true) {
 		out = append(out, Finding{
 			Severity: severityWarn,
@@ -97,6 +145,19 @@ func AnalyzeTrend(samples []*Report) []Finding {
 			Evidence: formatIntSeries("open_fd", clean, fd),
 			Cause:    "FD 单调上升常见于连接或句柄未关闭",
 			Verify:   "检查连接池、泄漏的 TLS/HTTP 客户端与文件句柄",
+		})
+	}
+	if monotonicIncreasing(len(clean), func(i int) uint64 {
+		return uint64(maxInt(clean[i].Snapshot.Status.Threads, clean[i].Snapshot.Stat.NumThreads))
+	}, true) {
+		out = append(out, Finding{
+			Severity: severityWarn,
+			Title:    "线程数在采样窗口内持续上升",
+			Evidence: formatIntSeries("threads", clean, func(r *Report) int {
+				return maxInt(r.Snapshot.Status.Threads, r.Snapshot.Stat.NumThreads)
+			}),
+			Cause:  "Go 线程增长常见于阻塞系统调用、cgo 或调度压力",
+			Verify: "继续观察 /proc/<pid>/task 与后续 goroutine 趋势",
 		})
 	}
 

@@ -13,6 +13,7 @@ func TestExecutionCategoryUsesAICapability(t *testing.T) {
 		{"skills", true},
 		{"doctor", true},
 		{"elasticsearch", true},
+		{"go_runtime", true},
 		{"k8s_install", false},
 		{"install_ai_sre", false},
 		{"version", false},
@@ -33,6 +34,7 @@ func TestExecutionCategoryVisibleToOwner(t *testing.T) {
 	}{
 		{"analyze", true},
 		{"ask_nginx", true},
+		{"go_runtime", true},
 		{"install_ai_sre", true},
 		{"k8s_install", false},
 	}

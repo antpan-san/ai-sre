@@ -252,6 +252,9 @@ func GetExecutionRecords(c *gin.Context) {
 	if source := strings.TrimSpace(c.Query("source")); source != "" {
 		db = db.Where("source = ?", source)
 	}
+	if category := strings.TrimSpace(c.Query("category")); category != "" {
+		db = db.Where("category = ?", category)
+	}
 	if status := strings.TrimSpace(c.Query("status")); status != "" {
 		db = db.Where("status = ?", status)
 	}

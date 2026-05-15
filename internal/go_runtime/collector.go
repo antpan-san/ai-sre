@@ -78,6 +78,7 @@ func Collect(opts Options) (*Report, error) {
 		Errors:   append(errs, cg.Errors...),
 	}
 	report.Findings = Analyze(report)
+	report.Summary = SummarizeReport(report, nil)
 	report.Next = nextSteps(report)
 	return report, nil
 }

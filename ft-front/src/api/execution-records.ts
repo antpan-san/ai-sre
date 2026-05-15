@@ -4,6 +4,7 @@ export interface ExecutionRecordParams {
   page?: number
   pageSize?: number
   source?: string
+  category?: string
   status?: string
   rollbackCapability?: string
   target?: string

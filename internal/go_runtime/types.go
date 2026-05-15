@@ -13,13 +13,17 @@ type Options struct {
 }
 
 type ProcessIdentity struct {
-	PID       int    `json:"pid"`
-	Comm      string `json:"comm,omitempty"`
-	State     string `json:"state,omitempty"`
-	Exe       string `json:"exe,omitempty"`
-	Namespace string `json:"namespace,omitempty"`
-	Pod       string `json:"pod,omitempty"`
-	Container string `json:"container,omitempty"`
+	PID         int    `json:"pid"`
+	Comm        string `json:"comm,omitempty"`
+	State       string `json:"state,omitempty"`
+	Exe         string `json:"exe,omitempty"`
+	Namespace   string `json:"namespace,omitempty"`
+	Pod         string `json:"pod,omitempty"`
+	Container   string `json:"container,omitempty"`
+	Node        string `json:"node,omitempty"`
+	ContainerID string `json:"container_id,omitempty"`
+	Target      string `json:"target,omitempty"`
+	Source      string `json:"source,omitempty"`
 }
 
 type ProcSnapshot struct {
@@ -106,9 +110,32 @@ type Finding struct {
 	Verify   string `json:"verify"`
 }
 
+type ReportSummary struct {
+	Level       string `json:"level"`
+	Title       string `json:"title"`
+	Evidence    string `json:"evidence,omitempty"`
+	Action      string `json:"action,omitempty"`
+	RSSBytes    uint64 `json:"rss_bytes,omitempty"`
+	AnonBytes   uint64 `json:"anonymous_bytes,omitempty"`
+	FDOpen      int    `json:"fd_open,omitempty"`
+	Threads     int    `json:"threads,omitempty"`
+	MemoryLevel string `json:"memory_level,omitempty"`
+}
+
+type ProcessCandidate struct {
+	PID      int    `json:"pid"`
+	Name     string `json:"name,omitempty"`
+	Cmdline  string `json:"cmdline,omitempty"`
+	Exe      string `json:"exe,omitempty"`
+	RSSBytes uint64 `json:"rss_bytes,omitempty"`
+	IsGo     bool   `json:"is_go"`
+	Match    string `json:"match,omitempty"`
+}
+
 type Report struct {
 	GeneratedAt time.Time       `json:"generated_at"`
 	Target      ProcessIdentity `json:"target"`
+	Summary     ReportSummary   `json:"summary"`
 	Snapshot    ProcSnapshot    `json:"snapshot"`
 	Cgroup      CgroupMetrics   `json:"cgroup"`
 	Findings    []Finding       `json:"findings"`
@@ -118,11 +145,13 @@ type Report struct {
 
 // WatchReport aggregates multiple Collect snapshots for trend-style analysis.
 type WatchReport struct {
-	GeneratedAt     time.Time         `json:"generated_at"`
-	Target          ProcessIdentity   `json:"target"`
-	IntervalSeconds float64           `json:"interval_seconds,omitempty"`
-	SampleCount     int               `json:"sample_count"`
-	Samples         []*Report         `json:"samples"`
-	TrendFindings   []Finding         `json:"trend_findings"`
-	Errors          []string          `json:"errors,omitempty"`
+	GeneratedAt     time.Time          `json:"generated_at"`
+	Target          ProcessIdentity    `json:"target"`
+	Summary         ReportSummary      `json:"summary"`
+	IntervalSeconds float64            `json:"interval_seconds,omitempty"`
+	SampleCount     int                `json:"sample_count"`
+	Samples         []*Report          `json:"samples"`
+	TrendFindings   []Finding          `json:"trend_findings"`
+	Candidates      []ProcessCandidate `json:"candidates,omitempty"`
+	Errors          []string           `json:"errors,omitempty"`
 }

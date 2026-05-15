@@ -28,9 +28,21 @@ func WriteText(w io.Writer, r *Report) error {
 		return nil
 	}
 	fmt.Fprintf(w, "Go Runtime 诊断报告\n")
+	if r.Summary.Level != "" {
+		fmt.Fprintf(w, "结论: [%s] %s\n", r.Summary.Level, dash(r.Summary.Title))
+		if r.Summary.Evidence != "" {
+			fmt.Fprintf(w, "证据: %s\n", r.Summary.Evidence)
+		}
+		if r.Summary.Action != "" {
+			fmt.Fprintf(w, "建议: %s\n", r.Summary.Action)
+		}
+	}
 	fmt.Fprintf(w, "目标: pid=%d comm=%s state=%s\n", r.Target.PID, dash(r.Target.Comm), dash(r.Target.State))
 	if r.Target.Namespace != "" || r.Target.Pod != "" || r.Target.Container != "" {
 		fmt.Fprintf(w, "Kubernetes: namespace=%s pod=%s container=%s\n", dash(r.Target.Namespace), dash(r.Target.Pod), dash(r.Target.Container))
+	}
+	if r.Target.Node != "" || r.Target.ContainerID != "" {
+		fmt.Fprintf(w, "节点: %s  ContainerID: %s\n", dash(r.Target.Node), dash(shortID(r.Target.ContainerID)))
 	}
 	fmt.Fprintf(w, "\n指标快照:\n")
 	fmt.Fprintf(w, "- RSS: %s (HWM %s, VmSize %s)\n", humanBytes(maxU64(r.Snapshot.Status.VmRSSBytes, r.Snapshot.SmapsRollup.RSSBytes)), humanBytes(r.Snapshot.Status.VmHWMBytes), humanBytes(r.Snapshot.Status.VmSizeBytes))
@@ -60,6 +72,91 @@ func WriteText(w io.Writer, r *Report) error {
 		}
 	}
 	return nil
+}
+
+func SummarizeWatchReport(wr *WatchReport) ReportSummary {
+	if wr == nil || len(wr.Samples) == 0 {
+		return ReportSummary{Level: "UNKNOWN", Title: "没有采集到样本"}
+	}
+	last := wr.Samples[len(wr.Samples)-1]
+	return SummarizeReport(last, wr.TrendFindings)
+}
+
+func SummarizeReport(r *Report, trend []Finding) ReportSummary {
+	if r == nil {
+		return ReportSummary{Level: "UNKNOWN", Title: "没有诊断报告"}
+	}
+	rss := maxU64(r.Snapshot.Status.VmRSSBytes, r.Snapshot.SmapsRollup.RSSBytes)
+	anon := r.Snapshot.SmapsRollup.AnonymousBytes
+	fd := r.Snapshot.FD.Open
+	threads := maxInt(r.Snapshot.Status.Threads, r.Snapshot.Stat.NumThreads)
+	all := make([]Finding, 0, len(trend)+len(r.Findings))
+	all = append(all, trend...)
+	all = append(all, r.Findings...)
+	top := topFinding(all)
+	level := "OK"
+	title := "未发现明显运行时异常"
+	evidence := fmt.Sprintf("rss=%s anonymous=%s fd=%d threads=%d", humanBytes(rss), humanBytes(anon), fd, threads)
+	action := "保持观测；如业务仍异常，延长采样窗口或结合日志继续排查"
+	if top != nil {
+		switch strings.ToLower(top.Severity) {
+		case severityCrit:
+			level = "CRITICAL"
+		case severityWarn:
+			level = "WARN"
+		default:
+			level = "OK"
+		}
+		title = top.Title
+		if top.Evidence != "" {
+			evidence = top.Evidence
+		}
+		if top.Verify != "" {
+			action = top.Verify
+		}
+	}
+	return ReportSummary{
+		Level:     level,
+		Title:     title,
+		Evidence:  evidence,
+		Action:    action,
+		RSSBytes:  rss,
+		AnonBytes: anon,
+		FDOpen:    fd,
+		Threads:   threads,
+	}
+}
+
+func topFinding(findings []Finding) *Finding {
+	if len(findings) == 0 {
+		return nil
+	}
+	best := -1
+	bestScore := -1
+	for i := range findings {
+		score := severityScore(findings[i].Severity)
+		if score > bestScore {
+			best = i
+			bestScore = score
+		}
+	}
+	if best < 0 {
+		return nil
+	}
+	return &findings[best]
+}
+
+func severityScore(s string) int {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case severityCrit:
+		return 3
+	case severityWarn:
+		return 2
+	case severityInfo:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func humanBytes(v uint64) string {
@@ -101,4 +198,15 @@ func dash(s string) string {
 		return "-"
 	}
 	return strings.TrimSpace(s)
+}
+
+func shortID(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "containerd://")
+	s = strings.TrimPrefix(s, "docker://")
+	s = strings.TrimPrefix(s, "cri-o://")
+	if len(s) > 18 {
+		return s[:18]
+	}
+	return s
 }

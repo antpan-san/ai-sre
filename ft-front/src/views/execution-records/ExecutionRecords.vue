@@ -36,6 +36,12 @@
             <el-option label="失败" value="failed" />
             <el-option label="已取消" value="cancelled" />
           </el-select>
+          <el-select v-model="filters.category" placeholder="类型" clearable @change="handleSearch">
+            <el-option label="Go Runtime" value="go_runtime" />
+            <el-option label="AI 诊断" value="analyze" />
+            <el-option label="AI 问答" value="ask" />
+            <el-option label="Runbook" value="runbook" />
+          </el-select>
           <el-select v-model="filters.rollbackCapability" placeholder="回滚能力" clearable @change="handleSearch">
             <el-option label="自动 / 半自动" value="auto" />
             <el-option label="人工建议" value="manual" />
@@ -154,6 +160,22 @@
             <el-descriptions-item label="安装用户">{{ recordMeta(detail.record).install_user || '-' }}</el-descriptions-item>
             <el-descriptions-item label="版本">{{ recordMeta(detail.record).version || '-' }}</el-descriptions-item>
           </el-descriptions>
+        </section>
+        <section v-if="recordMeta(detail.record).record_kind === 'go_runtime'" class="detail-block detail-card">
+          <h3>Go Runtime</h3>
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="结论">{{ runtimeSummary(detail.record).level || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="标题">{{ runtimeSummary(detail.record).title || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="目标">{{ runtimeTarget(detail.record).target || detail.record.resource_name || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="Host PID">{{ runtimeTarget(detail.record).pid || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="节点">{{ runtimeTarget(detail.record).node || detail.record.target_host || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="容器">{{ runtimeTarget(detail.record).container || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="RSS">{{ bytesText(runtimeSummary(detail.record).rss_bytes) }}</el-descriptions-item>
+            <el-descriptions-item label="FD">{{ runtimeSummary(detail.record).fd_open ?? '-' }}</el-descriptions-item>
+            <el-descriptions-item label="线程">{{ runtimeSummary(detail.record).threads ?? '-' }}</el-descriptions-item>
+            <el-descriptions-item label="观测会话">{{ recordMeta(detail.record).runtime_watch_session_id || '-' }}</el-descriptions-item>
+          </el-descriptions>
+          <pre class="detail-pre--light">{{ pretty(recordMeta(detail.record).summary) }}</pre>
         </section>
         <section class="detail-block">
           <h3>执行效果</h3>
@@ -289,6 +311,7 @@ const filters = reactive({
   target: '',
   source: '',
   status: '',
+  category: '',
   rollbackCapability: '',
 })
 
@@ -315,7 +338,7 @@ function handleSearch() {
 }
 
 function handleReset() {
-  Object.assign(filters, { page: 1, pageSize: 20, keyword: '', target: '', source: '', status: '', rollbackCapability: '' })
+  Object.assign(filters, { page: 1, pageSize: 20, keyword: '', target: '', source: '', status: '', category: '', rollbackCapability: '' })
   fetchRecords()
 }
 
@@ -363,7 +386,7 @@ function sourceLabel(value: string) {
 }
 
 function recordKindLabel(value: string) {
-  return ({ ai_call: 'AI 调用', cli_install: '安装 ai-sre', script: '脚本', task: '任务' } as Record<string, string>)[value] || value || '-'
+  return ({ ai_call: 'AI 调用', cli_install: '安装 ai-sre', go_runtime: 'Go Runtime', script: '脚本', task: '任务' } as Record<string, string>)[value] || value || '-'
 }
 
 function packLabel(value: string) {
@@ -372,6 +395,7 @@ function packLabel(value: string) {
     'pack.node_ops': '节点运维',
     'pack.monitoring': '可观测性',
     'pack.backup_performance': '备份与性能',
+    'pack.runtime_observe': '进程观测',
     'skillpack.k8s': 'K8s 技能包',
     'skillpack.kafka': 'Kafka 技能包',
     'skillpack.redis': 'Redis 技能包',
@@ -379,6 +403,25 @@ function packLabel(value: string) {
     'skillpack.mysql': 'MySQL 技能包',
     'skillpack.elasticsearch': 'Elasticsearch 技能包',
   } as Record<string, string>)[value] || value || '-'
+}
+
+function runtimeSummary(row: any) {
+  const meta = recordMeta(row)
+  return meta.summary && typeof meta.summary === 'object' ? meta.summary : {}
+}
+
+function runtimeTarget(row: any) {
+  const meta = recordMeta(row)
+  return meta.target && typeof meta.target === 'object' ? meta.target : {}
+}
+
+function bytesText(value: any) {
+  const n = Number(value)
+  if (!Number.isFinite(n) || n <= 0) return '-'
+  if (n >= 1024 * 1024 * 1024) return `${(n / 1024 / 1024 / 1024).toFixed(1)} GiB`
+  if (n >= 1024 * 1024) return `${(n / 1024 / 1024).toFixed(1)} MiB`
+  if (n >= 1024) return `${(n / 1024).toFixed(1)} KiB`
+  return `${n} B`
 }
 
 function entitlementLabel(value: string) {
@@ -481,7 +524,7 @@ function rollbackStatusLabel(value: string) {
 
 .search-filters {
   display: grid;
-  grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 1fr) 130px 130px 150px auto auto;
+  grid-template-columns: minmax(220px, 1.3fr) minmax(180px, 1fr) 120px 120px 130px 140px auto auto;
   gap: 12px;
   padding: 16px;
   background: #fff;

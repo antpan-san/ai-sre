@@ -18,7 +18,7 @@ func executionCategoryUsesAICapability(category string) bool {
 	if c == "" {
 		return false
 	}
-	bases := []string{"analyze", "ask", "runbook", "skills", "doctor", "elasticsearch"}
+	bases := []string{"analyze", "ask", "runbook", "skills", "doctor", "elasticsearch", "go_runtime"}
 	for _, b := range bases {
 		if c == b || strings.HasPrefix(c, b+"_") {
 			return true
@@ -47,7 +47,7 @@ func applyExecutionConsoleMemberScope(db *gorm.DB, role, username string) *gorm.
 		return db
 	}
 	term := []string{models.ExecutionStatusFailed, models.ExecutionStatusCancelled}
-	ownerCats := []string{"analyze", "ask", "runbook", "skills", "doctor", "elasticsearch", "install_ai_sre"}
+	ownerCats := []string{"analyze", "ask", "runbook", "skills", "doctor", "elasticsearch", "go_runtime", "install_ai_sre"}
 	return db.Where("(created_by = ? OR trigger_user = ?)", u, u).
 		Where(
 			"(LOWER(status) IN ? OR LOWER(category) IN ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(source) IN ?)",
@@ -57,6 +57,7 @@ func applyExecutionConsoleMemberScope(db *gorm.DB, role, username string) *gorm.
 			"ask%",
 			"runbook%",
 			"elasticsearch%",
+			"go_runtime%",
 			[]string{"ai", "install"},
 		)
 }

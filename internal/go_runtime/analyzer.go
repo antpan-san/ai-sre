@@ -122,7 +122,7 @@ func Analyze(r *Report) []Finding {
 func nextSteps(r *Report) []string {
 	return []string{
 		"间隔 1-5 分钟重复采样，确认 RSS、Anonymous、FD、Threads 是否持续增长",
-		"Kubernetes 场景后续可用 namespace/pod/container 解析宿主机 PID 后复用同一采集器",
+		"Kubernetes 场景优先使用 ai-sre diagnose --pod namespace/pod/container 自动解析宿主机 PID",
 		"CPU 热点、mallocgc 分配热点与 goroutine 趋势预留给 eBPF/perf 阶段实现",
 	}
 }
