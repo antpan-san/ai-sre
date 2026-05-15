@@ -53,6 +53,7 @@ func defaultBillingPackages() []config.BillingPackage {
 		{ID: models.PackKeyNodeOps, DisplayName: "节点运维包", FeatureKeys: []string{models.FeatureKeyNodeOps, models.FeatureKeyServiceOps, models.FeatureKeyInfraOps}},
 		{ID: models.PackKeyMonitoring, DisplayName: "监控包", FeatureKeys: []string{models.FeatureKeyMonitoring}},
 		{ID: models.PackKeyBackupPerformance, DisplayName: "备份与性能包", FeatureKeys: []string{models.FeatureKeyBackupPerformance, models.FeatureKeyAdvanced}},
+		{ID: models.PackKeyRuntimeObserve, DisplayName: "进程观测包", FeatureKeys: []string{models.FeatureKeyRuntimeObserve}},
 		{ID: models.SkillPackK8s, DisplayName: "K8s AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
 		{ID: models.SkillPackKafka, DisplayName: "Kafka AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
 		{ID: models.SkillPackRedis, DisplayName: "Redis AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
@@ -219,6 +220,8 @@ func firstFeatureForPackage(packKey string) string {
 		return models.FeatureKeyMonitoring
 	case models.PackKeyBackupPerformance:
 		return models.FeatureKeyBackupPerformance
+	case models.PackKeyRuntimeObserve:
+		return models.FeatureKeyRuntimeObserve
 	default:
 		return models.FeatureKeyAIDiagnosis
 	}

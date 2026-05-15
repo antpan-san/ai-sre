@@ -51,7 +51,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 `analyze` / `ask` / `runbook`：在默认内建 OpsFleet 基址（或 `OPSFLEET_API_URL`）可用时，**优先调用控制台公开接口** `POST /ft-api/api/ai/diagnose`、`/api/ai/ask`、`/api/ai/runbook`，**不要求本机配置 DeepSeek api_key**；仅当服务端不可用且本机已配置凭据时才回退到本地 LLM。回退若出现 HTTP 500，多为控制台未配置 **`OPSFLEET_AI_API_KEY`** 或无法访问 DeepSeek；在 **`/etc/opsfleet/backend.env`**（或 systemd 环境）补齐并 **`systemctl restart opsfleet-backend`**，或在运行 `ai-sre` 的机器配置 **`~/.config/ai-sre/config.yaml`** 的 **`api_key`** 作为回退。`analyze k8s` 在能执行 `kubectl` 时会把采集结果一并 POST 给服务端；自 **0.5.0** 起，**所有 topic** 都走「证据驱动」管道——`analyze kafka/redis/mysql/nginx/elasticsearch` 在用户传入 `-d bootstrap=…`、`-d target=host:port`、`-d dsn=…`、`-d access_log=…`、`-d base_url=…` 等参数时，会**就近调用本地** `ai-sre <topic> diagnose --json` 子命令采集指标，作为 `kafka_diagnose_json` / `redis_diagnose_json` / `mysql_diagnose_json` / `nginx_diagnose_json` / `es_diagnose_json` 一并 POST 给服务端，再由服务端提示词约束为「根因 + 证据摘录 + 修复要点」，减少泛泛命令清单；`--pod` 为**具体 Pod 名**时会额外附带该 Pod 的 describe/events/logs（含 previous）并优先参与推理。
 
-**Go runtime 非侵入式快诊（MVP）**：`ai-sre analyze go-runtime --pid <pid>` 与 `ai-sre diagnose go-process --pid <pid>` 等价，均不要求业务代码暴露 pprof、不改镜像、不重建进程；当前读取 `/proc/<pid>/status`、`smaps_rollup`、`stat`、`limits`、`fd`、`maps` 以及 cgroup v1/v2 的 memory/cpu 指标，输出 RSS、匿名内存、FD、线程数、cgroup memory/CPU throttling 风险。Pod 到宿主机 PID 定位接口已预留：`--namespace` / `--pod` / `--container` 暂会返回未实现提示；后续可接 CRI / nsenter / privileged DaemonSet / eBPF 采样器。测试或离线分析可用 `--proc-root`、`--cgroup-root` 指向采样目录。
+**Go runtime 非侵入式快诊**：`ai-sre analyze go-runtime --pid <pid>` 与 `ai-sre diagnose go-process --pid <pid>` 等价，均不要求业务代码暴露 pprof、不改镜像、不重建进程；读取 `/proc/<pid>/status`、`smaps_rollup`、`stat`（含 utime/stime）、`limits`、`fd`、`maps` 以及 cgroup v1/v2 的 memory/cpu 指标；支持 **`--watch-samples` / `--watch-interval`** 多采样与 **趋势结论**（RSS/FD 单调上升、CPU 时间占比偏高等）。在 Pod 所在节点可用 **`--namespace` / `--pod` / `--container`** 通过 **crictl** 解析宿主机 PID。可选 **`--upload-url` + `--session-id` + `--sample-token`** 将观测 JSON 上报 OpsFleet（与控制台「数据 → 进程观测」会话配套）。测试或离线分析可用 `--proc-root`、`--cgroup-root` 指向采样目录。
 
 **诊断结束后的反馈闭环**：TTY 下 `analyze` 答完会追加一行 `本次诊断是否帮你定位了根因？输入 y / n / 自由备注；空行跳过。`；按需写一行后将通过 `POST /api/ai/skills/feedback` 落到服务端 `feedback/<topic>.jsonl`，参与下次 `ai-sre skills refine`。非 TTY、`-o json` 或显式 `--no-feedback` 会自动跳过。
 
@@ -164,7 +164,8 @@ go build -o ai-sre .
 ./ai-sre nginx diagnose --access-log /var/log/nginx/access.log --tail 10000
 ./ai-sre diagnose go-process --pid "$(pgrep -n my-go-service)"
 ./ai-sre analyze go-runtime --pid 1234 -o json
-./ai-sre diagnose go-process --namespace default --pod api-0 --container app   # MVP 阶段提示 Pod PID 定位未实现
+./ai-sre diagnose go-process --namespace default --pod api-0 --container app   # 节点上需 crictl
+./ai-sre diagnose go-process --pid 1 --watch-samples 5 --watch-interval 10s -o json
 ./ai-sre service install --api-url http://192.168.56.11:9080/ft-api --deploy-id <id> --token <token>
 sudo ai-sre nginx update
 sudo ai-sre nginx uninstall

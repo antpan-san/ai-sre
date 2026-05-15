@@ -57,6 +57,9 @@ type ProcStat struct {
 	State      string `json:"state,omitempty"`
 	NumThreads int    `json:"num_threads,omitempty"`
 	StartTime  uint64 `json:"start_time,omitempty"`
+	// UtimeTicks and StimeTicks are jiffies from /proc/<pid>/stat (fields 14–15).
+	UtimeTicks uint64 `json:"utime_ticks,omitempty"`
+	StimeTicks uint64 `json:"stime_ticks,omitempty"`
 }
 
 type ProcLimits struct {
@@ -111,4 +114,15 @@ type Report struct {
 	Findings    []Finding       `json:"findings"`
 	Errors      []string        `json:"errors,omitempty"`
 	Next        []string        `json:"next,omitempty"`
+}
+
+// WatchReport aggregates multiple Collect snapshots for trend-style analysis.
+type WatchReport struct {
+	GeneratedAt     time.Time         `json:"generated_at"`
+	Target          ProcessIdentity   `json:"target"`
+	IntervalSeconds float64           `json:"interval_seconds,omitempty"`
+	SampleCount     int               `json:"sample_count"`
+	Samples         []*Report         `json:"samples"`
+	TrendFindings   []Finding         `json:"trend_findings"`
+	Errors          []string          `json:"errors,omitempty"`
 }

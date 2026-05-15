@@ -118,15 +118,26 @@
                 >权限</el-menu-item
               >
             </el-sub-menu>
-            <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="asm-advanced">
+            <el-sub-menu
+              v-if="featureVisible('feature.backup_performance') || featureVisible('feature.runtime_observe')"
+              index="asm-advanced"
+            >
               <template #title>
                 <el-icon><DocumentCopy /></el-icon>
-                <span
-                  >数据<span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span
-                >
+                <span>
+                  数据
+                  <span
+                    v-if="featureBillingEnabled('feature.backup_performance') || featureBillingEnabled('feature.runtime_observe')"
+                    class="menu-pack-tag"
+                  >订阅</span>
+                </span>
               </template>
-              <el-menu-item index="/admin/advanced/backup-restore">备份</el-menu-item>
-              <el-menu-item index="/admin/advanced/performance-analysis">性能</el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/admin/advanced/backup-restore"
+                >备份</el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/admin/advanced/performance-analysis"
+                >性能</el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/admin/advanced/runtime-observe"
+                >进程观测</el-menu-item>
             </el-sub-menu>
           </template>
           <template v-else>
@@ -146,15 +157,26 @@
               <el-icon><Tools /></el-icon>
               <template #title>节点初始化</template>
             </el-menu-item>
-            <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="app-advanced">
+            <el-sub-menu
+              v-if="featureVisible('feature.backup_performance') || featureVisible('feature.runtime_observe')"
+              index="app-advanced"
+            >
               <template #title>
                 <el-icon><DocumentCopy /></el-icon>
-                <span
-                  >数据<span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span></span
-                >
+                <span>
+                  数据
+                  <span
+                    v-if="featureBillingEnabled('feature.backup_performance') || featureBillingEnabled('feature.runtime_observe')"
+                    class="menu-pack-tag"
+                  >订阅</span>
+                </span>
               </template>
-              <el-menu-item index="/app/advanced/backup-restore">备份</el-menu-item>
-              <el-menu-item index="/app/advanced/performance-analysis">性能</el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/app/advanced/backup-restore"
+                >备份</el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/app/advanced/performance-analysis"
+                >性能</el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/app/advanced/runtime-observe"
+                >进程观测</el-menu-item>
             </el-sub-menu>
           </template>
         </el-menu>

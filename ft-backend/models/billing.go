@@ -17,12 +17,14 @@ const (
 	FeatureKeyNodeOps           = "feature.node_ops"           // 节点初始化、Shell、文件分发、Linux 服务
 	FeatureKeyMonitoring        = "feature.monitoring"         // exporter/监控告警安装配置
 	FeatureKeyBackupPerformance = "feature.backup_performance" // 备份、性能分析、报告
+	FeatureKeyRuntimeObserve     = "feature.runtime_observe"     // K8s Pod 进程持续观测与上报
 	FeatureKeyAIDiagnosis       = "feature.ai_diagnosis"       // AI 诊断、问答、Runbook
 
 	PackKeyK8sDelivery       = "pack.k8s_delivery"
 	PackKeyNodeOps           = "pack.node_ops"
 	PackKeyMonitoring        = "pack.monitoring"
 	PackKeyBackupPerformance = "pack.backup_performance"
+	PackKeyRuntimeObserve    = "pack.runtime_observe"
 
 	SkillPackK8s           = "skillpack.k8s"
 	SkillPackKafka         = "skillpack.kafka"
@@ -41,6 +43,7 @@ var knownFeatureKeys = map[string]struct{}{
 	FeatureKeyNodeOps:           {},
 	FeatureKeyMonitoring:        {},
 	FeatureKeyBackupPerformance: {},
+	FeatureKeyRuntimeObserve:    {},
 	FeatureKeyAIDiagnosis:       {},
 }
 
@@ -49,6 +52,7 @@ var knownPackKeys = map[string]struct{}{
 	PackKeyNodeOps:           {},
 	PackKeyMonitoring:        {},
 	PackKeyBackupPerformance: {},
+	PackKeyRuntimeObserve:    {},
 	SkillPackK8s:             {},
 	SkillPackKafka:           {},
 	SkillPackRedis:           {},
@@ -79,6 +83,7 @@ func AllFeatureKeysStable() []string {
 		FeatureKeyNodeOps,
 		FeatureKeyMonitoring,
 		FeatureKeyBackupPerformance,
+		FeatureKeyRuntimeObserve,
 		FeatureKeyAIDiagnosis,
 		FeatureKeyK8sOps,
 		FeatureKeyServiceOps,
@@ -93,6 +98,7 @@ func AllPackKeysStable() []string {
 		PackKeyNodeOps,
 		PackKeyMonitoring,
 		PackKeyBackupPerformance,
+		PackKeyRuntimeObserve,
 		SkillPackK8s,
 		SkillPackKafka,
 		SkillPackRedis,
@@ -112,6 +118,8 @@ func DefaultPackKeyForFeature(featureKey string) string {
 		return PackKeyMonitoring
 	case FeatureKeyBackupPerformance, FeatureKeyAdvanced:
 		return PackKeyBackupPerformance
+	case FeatureKeyRuntimeObserve:
+		return PackKeyRuntimeObserve
 	case FeatureKeyAIDiagnosis:
 		return SkillPackK8s
 	default:
@@ -129,6 +137,8 @@ func DefaultFeatureDescription(featureKey string) string {
 		return "监控包（Prometheus 与各类 exporter 安装、配置、下发）"
 	case FeatureKeyBackupPerformance:
 		return "备份与性能包（备份恢复、性能分析、真实报告生成）"
+	case FeatureKeyRuntimeObserve:
+		return "进程观测包（K8s Pod 持续采样、平台上报与回放）"
 	case FeatureKeyAIDiagnosis:
 		return "AI 诊断技能包（未购买时每日免费 5 次）"
 	case FeatureKeyK8sOps:

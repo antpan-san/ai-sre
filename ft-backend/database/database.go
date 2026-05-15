@@ -102,6 +102,8 @@ func Migrate() error {
 		&models.AIUsage{},
 		&models.CLIInstallSession{},
 		&models.CLIBinding{},
+		&models.RuntimeWatchSession{},
+		&models.RuntimeWatchSample{},
 		// NOTE: Heartbeat is NOT included here – it is a partitioned table
 		// and must be created via the migration_pg.sql script.
 	)
@@ -336,6 +338,7 @@ func seedFeatureBillingDefaults() {
 		{FeatureKey: models.FeatureKeyNodeOps, PackKey: models.PackKeyNodeOps, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyNodeOps)},
 		{FeatureKey: models.FeatureKeyMonitoring, PackKey: models.PackKeyMonitoring, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyMonitoring)},
 		{FeatureKey: models.FeatureKeyBackupPerformance, PackKey: models.PackKeyBackupPerformance, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyBackupPerformance)},
+		{FeatureKey: models.FeatureKeyRuntimeObserve, PackKey: models.PackKeyRuntimeObserve, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyRuntimeObserve)},
 		{FeatureKey: models.FeatureKeyAIDiagnosis, PackKey: models.SkillPackK8s, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyAIDiagnosis)},
 		{FeatureKey: models.FeatureKeyK8sOps, PackKey: models.PackKeyK8sDelivery, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyK8sOps)},
 		{FeatureKey: models.FeatureKeyServiceOps, PackKey: models.PackKeyNodeOps, VisibleEnabled: true, ExecutionEnabled: true, BillingEnabled: false, Description: models.DefaultFeatureDescription(models.FeatureKeyServiceOps)},

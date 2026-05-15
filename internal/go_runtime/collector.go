@@ -166,6 +166,10 @@ func parseStat(path string) (ProcStat, error) {
 		out.NumThreads = atoi(fields[17])
 		out.StartTime = atou64(fields[19])
 	}
+	if len(fields) > 12 {
+		out.UtimeTicks = atou64(fields[11])
+		out.StimeTicks = atou64(fields[12])
+	}
 	return out, nil
 }
 

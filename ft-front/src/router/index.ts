@@ -40,6 +40,7 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/security-audit', redirect: '/admin/security-audit/operation-logs' },
   { path: '/advanced/backup-restore', redirect: '/admin/advanced/backup-restore' },
   { path: '/advanced/performance-analysis', redirect: '/admin/advanced/performance-analysis' },
+  { path: '/advanced/runtime-observe', redirect: '/admin/advanced/runtime-observe' },
   { path: '/advanced', redirect: '/admin/advanced/backup-restore' },
 
   {
@@ -210,6 +211,17 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AdminPerformanceAnalysis',
         component: () => import('../views/advanced/PerformanceAnalysis.vue'),
         meta: { title: '性能', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'advanced/runtime-observe',
+        name: 'AdminRuntimeObserve',
+        component: () => import('../views/advanced/RuntimeObserve.vue'),
+        meta: {
+          title: '进程观测',
+          requireAuth: true,
+          roles: appRoles,
+          breadcrumb: [{ title: '数据' }, { title: '进程观测' }]
+        }
       }
     ]
   },
@@ -256,6 +268,17 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AppPerformanceAnalysis',
         component: () => import('../views/advanced/PerformanceAnalysis.vue'),
         meta: { title: '性能', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'advanced/runtime-observe',
+        name: 'AppRuntimeObserve',
+        component: () => import('../views/advanced/RuntimeObserve.vue'),
+        meta: {
+          title: '进程观测',
+          requireAuth: true,
+          roles: appRoles,
+          breadcrumb: [{ title: '数据' }, { title: '进程观测' }]
+        }
       },
       {
         path: 'help/error-codes',

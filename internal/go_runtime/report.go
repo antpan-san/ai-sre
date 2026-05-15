@@ -14,9 +14,13 @@ const (
 )
 
 func WriteJSON(w io.Writer, report *Report) error {
+	return writeJSONGeneric(w, report)
+}
+
+func writeJSONGeneric(w io.Writer, v interface{}) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
-	return enc.Encode(report)
+	return enc.Encode(v)
 }
 
 func WriteText(w io.Writer, r *Report) error {

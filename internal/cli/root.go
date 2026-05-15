@@ -169,7 +169,7 @@ k8s 场景 --pod 可填：
 			if isGoRuntimeAnalyzeTopic(topic) {
 				goRuntimeOpts.Namespace = namespace
 				goRuntimeOpts.Pod = pod
-				return runGoRuntimeAnalyze(topic, goRuntimeOpts)
+				return runGoRuntimeAnalyze(cmd.Context(), topic, goRuntimeOpts)
 			}
 			for k, v := range gatherTopicEvidence(cmd.Context(), topic, ctx) {
 				ctx[k] = v

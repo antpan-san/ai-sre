@@ -64,6 +64,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/execution-records/report/start", handlers.StartExecutionRecord)
 		public.POST("/execution-records/report/event", handlers.PostExecutionEvent)
 		public.POST("/execution-records/report/finish", handlers.FinishExecutionRecord)
+		public.POST("/runtime-watch/sample", middleware.RateLimit("runtime-watch-sample", 3000, time.Minute), handlers.PostRuntimeWatchSample)
 		// AI diagnosis/evolution public endpoints for ai-sre runtime fallback
 		aiPublic := public.Group("/ai")
 		aiPublic.Use(middleware.RateLimit("public-ai", 30, time.Minute))
@@ -250,6 +251,12 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		adv.POST("/advanced/performance/report/generate", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GeneratePerformanceReport)
 		// Legacy path
 		adv.POST("/advanced/performance/report", middleware.RequireCapability(models.FeatureKeyBackupPerformance, middleware.CapabilityActionReport), handlers.GeneratePerformanceReport)
+
+		runtimeWatch := protected.Group("")
+		runtimeWatch.GET("/runtime-watch/sessions", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionReport), handlers.ListRuntimeWatchSessions)
+		runtimeWatch.POST("/runtime-watch/sessions", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionExecute), handlers.CreateRuntimeWatchSession)
+		runtimeWatch.GET("/runtime-watch/sessions/:id/samples", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionReport), handlers.GetRuntimeWatchSamples)
+		runtimeWatch.POST("/runtime-watch/sessions/:id/stop", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionExecute), handlers.StopRuntimeWatchSession)
 
 		// ---- File Management ----
 		protected.POST("/files/upload", handlers.UploadFile)
