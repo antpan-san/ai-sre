@@ -1,113 +1,91 @@
 <template>
-  <div class="job-center">
+  <div class="job-center page-shell page-shell--fill">
     <div class="page-header">
-      <div class="page-header__row">
+      <div class="page-header__titles">
         <h2>作业中心</h2>
-        <el-popover placement="bottom-start" :width="280" trigger="click">
-          <template #reference>
-            <el-button text type="primary" size="small">说明</el-button>
-          </template>
-          <p class="page-desc--muted" style="margin: 0">选择目标机、下发命令或技能；结果在下方终端查看。</p>
-        </el-popover>
+        <p class="page-header__sub">在在线机器上批量执行 shell；结果由 Agent 回传，可能需要数秒至一分钟。</p>
+      </div>
+      <div class="page-header__actions">
+        <el-tooltip content="选择目标机 → 输入命令 → 执行；Ctrl+Enter 快捷执行" placement="bottom-end">
+          <el-button text type="primary" size="small">说明</el-button>
+        </el-tooltip>
+        <el-tooltip content="刷新在线机器列表" placement="bottom-end">
+          <button
+            type="button"
+            class="job-icon-btn"
+            :disabled="machinesLoading"
+            aria-label="刷新机器列表"
+            @click="refreshMachines"
+          >
+            <el-icon class="job-icon-btn__icon" :class="{ 'job-icon-btn__icon--spin': machinesLoading }">
+              <RefreshRight />
+            </el-icon>
+          </button>
+        </el-tooltip>
       </div>
     </div>
 
-    <el-card class="main-card">
-      <!-- 机器列表区域 -->
-      <div class="machine-section">
-        <div class="section-header">
-            <h3>机器列表</h3>
-            <el-button
-              type="primary"
-              size="small"
-              @click="refreshMachines"
-              :loading="machineStore.loading"
-            >
-              <el-icon><RefreshRight /></el-icon>
-              刷新
-            </el-button>
-          </div>
-        
-        <div class="machine-list-container">
+    <el-card class="job-card" shadow="hover">
+      <!-- 机器 -->
+      <section class="job-section">
+        <div class="section-head">
+          <h3>目标机器</h3>
+          <span class="section-meta">{{ machines.length }} 台在线 · 已选 {{ selectedMachines.length }} 台</span>
+        </div>
+        <div class="transfer-wrap" v-loading="machinesLoading">
           <el-transfer
-            v-loading="machineStore.loading"
             v-model="transferValue"
             :data="transferData"
-            :titles="['待选机器', '已选机器']"
+            :titles="['待选', '已选']"
             :filterable="true"
-            filter-placeholder="搜索机器ID或IP"
-            :format="{
-              noMatch: '无匹配数据',
-              noData: '无数据',
-              all: '全部',
-              confirm: '确认'
-            }"
+            filter-placeholder="搜索 ID / IP / 名称"
+            :format="{ noMatch: '无匹配', noData: '暂无在线机器', all: '全部', confirm: '确认' }"
             @change="handleTransferChange"
           >
             <template #default="{ option }">
-              <div 
-              class="transfer-item" 
-              :class="{
-                'status-online': option.status === 'online',
-                'status-offline': option.status === 'offline',
-                'status-maintenance': option.status === 'maintenance'
-              }"
-            >
-                <span class="item-id">ID: {{ option.id }}</span>
-                <span class="item-ip">IP: {{ option.ip }}</span>
-                <el-tag
-                  v-if="option.status"
-                  :type="option.status === 'online' ? 'success' : option.status === 'offline' ? 'danger' : 'warning'"
-                  size="small"
-                  class="item-status"
-                >
-                  {{ option.status === 'online' ? '在线' : option.status === 'offline' ? '离线' : '维护中' }}
-                </el-tag>
+              <div class="transfer-row">
+                <span class="transfer-row__name">{{ option.name }}</span>
+                <span class="transfer-row__ip">{{ option.ip }}</span>
+                <el-tag type="success" size="small" effect="plain">在线</el-tag>
               </div>
             </template>
           </el-transfer>
         </div>
-        
-        <div class="selection-info">
-          <span>已选择 {{ selectedMachines.length }} 台机器</span>
-        </div>
-      </div>
+      </section>
 
-      <!-- 执行命令和结果区域（左右结构） -->
-      <div class="command-result-container">
-        <!-- 命令输入区域（左） -->
-        <div class="command-section">
-          <div class="section-header">
-            <h3>执行命令</h3>
+      <el-divider class="job-divider" />
+
+      <div class="job-split">
+        <!-- 命令 -->
+        <section class="job-section job-section--cmd">
+          <div class="section-head">
+            <h3>命令</h3>
           </div>
-          
-          <div class="command-input-container">
-            <div class="terminal-content">
-              <div class="terminal-prompt">$</div>
-              <el-input
-                v-model="commandText"
-                type="textarea"
-                :rows="12"
-                placeholder="请输入要执行的命令，多条命令请用换行分隔"
-                clearable
-                class="command-textarea"
-              />
-            </div>
+          <div class="cmd-shell">
+            <span class="cmd-shell__prompt" aria-hidden="true">$</span>
+            <el-input
+              v-model="commandText"
+              type="textarea"
+              :rows="10"
+              :autosize="{ minRows: 10, maxRows: 22 }"
+              placeholder="每行一条命令；避免 vim/top 等交互式命令"
+              clearable
+              class="cmd-shell__input"
+            />
           </div>
-          
-          <!-- 命令语法检查错误显示 -->
-          <div v-if="commandErrors.length > 0" class="command-errors-container">
-            <div v-for="(error, index) in commandErrors" :key="index" class="command-error-item">
-              <el-icon class="error-icon"><Warning /></el-icon>
+
+          <div v-if="commandErrors.length" class="cmd-warn" role="alert">
+            <div v-for="(error, index) in commandErrors" :key="index" class="cmd-warn__line">
+              <el-icon class="cmd-warn__icon"><Warning /></el-icon>
               <span>{{ error }}</span>
             </div>
           </div>
-          
-          <div class="command-actions">
-            <el-dropdown v-if="commandHistory.length > 0" trigger="click">
-              <el-button type="info">
+
+          <div class="cmd-actions">
+            <el-dropdown v-if="commandHistory.length" trigger="click" :max-height="280">
+              <el-button size="default">
                 <el-icon><Clock /></el-icon>
-                命令历史
+                历史
                 <el-icon class="el-icon--right"><ArrowDown /></el-icon>
               </el-button>
               <template #dropdown>
@@ -115,95 +93,88 @@
                   <el-dropdown-item
                     v-for="(command, index) in commandHistory"
                     :key="index"
+                    class="history-dd"
                     @click="selectFromHistory(command)"
-                    class="history-item"
                   >
-                    <pre>{{ command }}</pre>
+                    <pre class="history-dd__pre">{{ command }}</pre>
                   </el-dropdown-item>
                 </el-dropdown-menu>
               </template>
             </el-dropdown>
             <el-button
               type="primary"
-              :disabled="selectedMachines.length === 0 || !commandText.trim()"
-              @click="executeCommands"
+              :disabled="selectedMachines.length === 0 || !commandText.trim() || executing"
               :loading="executing"
+              @click="executeCommands"
             >
               <el-icon><CirclePlus /></el-icon>
-              执行命令
+              执行
             </el-button>
-            <el-button @click="clearCommand">
-              <el-icon><Delete /></el-icon>
-              清空
-            </el-button>
+            <el-button @click="clearCommand">清空</el-button>
           </div>
-        </div>
+          <p class="job-hint">Ctrl+Enter 执行 · Ctrl+K 清空命令 · Ctrl+R 刷新机器 · Ctrl+L 清空结果</p>
+        </section>
 
-        <!-- 执行结果区域（右） -->
-        <div class="result-section">
-          <div class="section-header">
-            <h3>执行结果</h3>
-            <div class="result-header-actions">
-              <el-select 
-                v-model="resultFilter"
-                placeholder="过滤结果"
-                size="small"
-                style="width: 120px; margin-right: 10px;"
-              >
+        <!-- 结果 -->
+        <section class="job-section job-section--out">
+          <div class="section-head">
+            <h3>输出</h3>
+            <div class="section-head__tools">
+              <el-select v-model="resultFilter" placeholder="筛选" size="small" class="filter-select">
                 <el-option label="全部" value="all" />
                 <el-option label="成功" value="success" />
                 <el-option label="失败" value="failed" />
               </el-select>
-              <el-button
-                type="info"
-                size="small"
-                @click="clearResult"
-              >
-                <el-icon><Delete /></el-icon>
-                清空结果
+              <el-button size="small" text type="primary" :disabled="!filteredResults.length" @click="copyAllResults">
+                复制全部
               </el-button>
+              <el-button size="small" @click="clearResult">清空</el-button>
             </div>
           </div>
-          
-          <div class="result-container">
-            <div class="filter-status" v-if="resultFilter !== 'all'">
-              当前显示: {{ resultFilter === 'success' ? '成功' : '失败' }} 的执行结果 (共 {{ filteredResults.length }} 条)
+
+          <div v-if="polling" class="poll-banner">
+            <el-icon class="poll-banner__icon"><Loading /></el-icon>
+            正在等待 Agent 回传…
+          </div>
+
+          <div class="out-scroll">
+            <div v-if="resultFilter !== 'all'" class="out-filter-tip">
+              当前：{{ resultFilter === 'success' ? '成功' : '失败' }} · {{ filteredResults.length }} 条
             </div>
-            <div v-if="!filteredResults.length" class="empty-result">
-              {{ executionResults.length > 0 ? '没有匹配的执行结果' : '执行结果将显示在这里' }}
+            <div v-if="!filteredResults.length" class="out-empty">
+              {{ executionResults.length ? '无匹配结果' : '执行后在此查看每台机器输出' }}
             </div>
-            
-            <div
+
+            <article
               v-for="(result, index) in filteredResults"
-              :key="index"
-              class="execution-result-item"
+              :key="result.machineId + '-' + index + '-' + result.executionTime"
+              class="out-card"
             >
-              <div class="result-header">
-                <div>
-                  <span class="machine-name">{{ result.machineName }} ({{ result.machineId }})</span>
-                  <el-tag
-                    :type="result.success ? 'success' : 'danger'"
-                    size="small"
-                  >
-                    {{ result.success ? '执行成功' : '执行失败' }}
+              <header class="out-card__head">
+                <div class="out-card__title">
+                  <span class="out-card__name">{{ result.machineName }}</span>
+                  <span class="out-card__id">{{ result.machineIP || result.machineId }}</span>
+                  <el-tag :type="tagType(result)" size="small">{{ statusLabel(result) }}</el-tag>
+                  <el-tag v-if="result.exitCode != null" size="small" effect="plain" type="info">
+                    exit {{ result.exitCode }}
                   </el-tag>
                 </div>
-                <span class="execution-time">{{ formatDate(result.executionTime) }}</span>
-              </div>
-              
-              <div class="result-content">
-                <div v-if="result.stdout" class="stdout">
-                  <div class="content-label">标准输出:</div>
-                  <pre>{{ result.stdout }}</pre>
+                <div class="out-card__meta">
+                  <span class="out-card__time">{{ formatDate(result.executionTime) }}</span>
+                  <el-button text type="primary" size="small" @click="copyOneResult(result)">复制</el-button>
                 </div>
-                <div v-if="result.stderr" class="stderr">
-                  <div class="content-label">错误输出:</div>
-                  <pre>{{ result.stderr }}</pre>
-                </div>
+              </header>
+              <div v-if="result.stdout" class="out-block out-block--stdout">
+                <div class="out-block__label">stdout</div>
+                <pre>{{ result.stdout }}</pre>
               </div>
-            </div>
+              <div v-if="result.stderr" class="out-block out-block--stderr">
+                <div class="out-block__label">stderr / 错误</div>
+                <pre>{{ result.stderr }}</pre>
+              </div>
+            </article>
           </div>
-        </div>
+        </section>
       </div>
     </el-card>
   </div>
@@ -212,1213 +183,720 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { RefreshRight, CirclePlus, Delete, Clock, ArrowDown, Warning } from '@element-plus/icons-vue'
-import { executeCommand } from '../../api/index'
-import { useMachineStore } from '../../stores/machine'
+import {
+  RefreshRight,
+  CirclePlus,
+  Delete,
+  Clock,
+  ArrowDown,
+  Warning,
+  Loading
+} from '@element-plus/icons-vue'
+import { executeCommand, getExecutionResult, getAvailableMachines } from '../../api/job'
+import type { JobSubTaskResult } from '../../api/job'
+import { copyTextToClipboard } from '../../utils/clipboard'
 import type { Machine } from '../../types'
 
-// 页面状态
+const COMMAND_HISTORY_KEY = 'jobCenterCommandHistory'
+const MAX_HISTORY = 20
+const POLL_MS = 900
+const MAX_WAIT_MS = 120_000
+
 const executing = ref(false)
+const polling = ref(false)
+const machinesLoading = ref(false)
+const machines = ref<Machine[]>([])
 
-// 初始化机器Store
-const machineStore = useMachineStore()
-
-// 机器列表数据
 const selectedMachines = ref<Machine[]>([])
 const transferValue = ref<string[]>([])
 
-// 穿梭框数据转换
-const transferData = computed(() => {
-  return machineStore.machineList.map(machine => {
-    const isOnline = machine.status === 'online'
-    return {
-      key: machine.id,
-      label: `${machine.id} - ${machine.ip} (${isOnline ? '在线' : machine.status === 'offline' ? '离线' : '维护中'})`,
-      id: machine.id,
-      ip: machine.ip,
-      status: machine.status,
-      // 只有在线机器可选择
-      disabled: !isOnline
-    }
-  })
-})
+const transferData = computed(() =>
+  machines.value.map((m) => ({
+    key: m.id,
+    label: `${m.name} · ${m.ip}`,
+    id: m.id,
+    name: m.name,
+    ip: m.ip,
+    status: m.status
+  }))
+)
 
-// 命令输入
 const commandText = ref('')
 const commandErrors = ref<string[]>([])
-
-// 命令语法检查
-const checkCommandSyntax = (command: string) => {
-  const errors: string[] = []
-  const lines = command.trim().split('\n')
-  
-  // 基本语法检查规则
-  lines.forEach((line, index) => {
-    const trimmedLine = line.trim()
-    
-    // 检查空行
-    if (trimmedLine === '') return
-    
-    // 检查危险命令
-    const dangerousCommands = ['rm -rf', 'format', 'mkfs', 'dd if=/dev/zero']
-    dangerousCommands.forEach(dangerousCmd => {
-      if (trimmedLine.includes(dangerousCmd)) {
-        errors.push(`第${index + 1}行: 检测到危险命令 "${dangerousCmd}"，请谨慎执行`)
-      }
-    })
-    
-    // 检查不支持的命令类型
-    const unsupportedCommands = ['vi', 'vim', 'nano', 'emacs', 'top', 'htop']
-    unsupportedCommands.forEach(cmd => {
-      if (trimmedLine.startsWith(cmd)) {
-        errors.push(`第${index + 1}行: 交互式命令 "${cmd}" 不被支持，请使用非交互式命令`)
-      }
-    })
-  })
-  
-  commandErrors.value = errors
-  return errors
-}
-
-// 命令历史记录
 const commandHistory = ref<string[]>([])
-const MAX_HISTORY_COUNT = 20
 
-// 从localStorage加载命令历史
-const loadCommandHistory = () => {
-  const history = localStorage.getItem('commandHistory')
-  if (history) {
-    try {
-      commandHistory.value = JSON.parse(history)
-    } catch (error) {
-      console.error('Failed to parse command history:', error)
-      commandHistory.value = []
-    }
-  }
-}
-
-// 保存命令历史到localStorage
-const saveCommandHistory = () => {
-  localStorage.setItem('commandHistory', JSON.stringify(commandHistory.value))
-}
-
-// 添加命令到历史记录
-const addToHistory = (command: string) => {
-  if (!command.trim()) return
-  
-  // 移除重复的命令
-  const index = commandHistory.value.indexOf(command)
-  if (index > -1) {
-    commandHistory.value.splice(index, 1)
-  }
-  
-  // 添加到历史记录开头
-  commandHistory.value.unshift(command)
-  
-  // 限制历史记录数量
-  if (commandHistory.value.length > MAX_HISTORY_COUNT) {
-    commandHistory.value.pop()
-  }
-  
-  // 保存到localStorage
-  saveCommandHistory()
-}
-
-// 从历史记录中选择命令
-const selectFromHistory = (command: string) => {
-  commandText.value = command
-}
-
-// 监听命令输入变化，自动进行语法检查
-watch(commandText, (newValue) => {
-  checkCommandSyntax(newValue)
-})
-
-// 执行结果
 interface ExecutionResult {
-  machineId: number
+  machineId: string
   machineName: string
+  machineIP: string
   success: boolean
   stdout: string
   stderr: string
   executionTime: string
+  status: string
+  exitCode?: number | null
 }
 
 const executionResults = ref<ExecutionResult[]>([])
-const resultFilter = ref<string>('all')
+const resultFilter = ref('all')
 
-// 过滤后的执行结果
 const filteredResults = computed(() => {
-  if (resultFilter.value === 'all') {
-    return executionResults.value
-  } else if (resultFilter.value === 'success') {
-    return executionResults.value.filter(result => result.success)
-  } else if (resultFilter.value === 'failed') {
-    return executionResults.value.filter(result => !result.success)
-  }
-  return executionResults.value
+  if (resultFilter.value === 'all') return executionResults.value
+  if (resultFilter.value === 'success') return executionResults.value.filter((r) => r.success)
+  return executionResults.value.filter((r) => !r.success)
 })
 
-// 键盘快捷键
-const setupKeyboardShortcuts = () => {
-  const handleKeydown = (e: KeyboardEvent) => {
-    // Ctrl+Enter 执行命令
-    if (e.ctrlKey && e.key === 'Enter') {
-      e.preventDefault()
-      if (selectedMachines.value.length > 0 && commandText.value.trim()) {
-        executeCommands()
-      }
+const checkCommandSyntax = (command: string) => {
+  const errors: string[] = []
+  const lines = command.trim().split('\n')
+  const dangerous = ['rm -rf', 'format', 'mkfs', 'dd if=/dev/zero']
+  const interactive = ['vi', 'vim', 'nano', 'emacs', 'top', 'htop']
+
+  lines.forEach((line, index) => {
+    const t = line.trim()
+    if (!t) return
+    dangerous.forEach((d) => {
+      if (t.includes(d)) errors.push(`第 ${index + 1} 行：含高风险片段「${d}」`)
+    })
+    interactive.forEach((c) => {
+      if (t.startsWith(c)) errors.push(`第 ${index + 1} 行：交互命令「${c}」无法在作业中心执行`)
+    })
+  })
+  commandErrors.value = errors
+  return errors
+}
+
+watch(commandText, (v) => checkCommandSyntax(v))
+
+const loadCommandHistory = () => {
+  try {
+    let raw = localStorage.getItem(COMMAND_HISTORY_KEY)
+    if (!raw) {
+      raw = localStorage.getItem('commandHistory')
+      if (raw) localStorage.setItem(COMMAND_HISTORY_KEY, raw)
     }
-    
-    // Ctrl+K 清空命令
-    if (e.ctrlKey && e.key === 'k') {
-      e.preventDefault()
-      clearCommand()
-    }
-    
-    // Ctrl+R 刷新机器列表
-    if (e.ctrlKey && e.key === 'r') {
-      e.preventDefault()
-      refreshMachines()
-    }
-    
-    // Ctrl+L 清空结果
-    if (e.ctrlKey && e.key === 'l') {
-      e.preventDefault()
-      clearResult()
-    }
-  }
-  
-  window.addEventListener('keydown', handleKeydown)
-  
-  return () => {
-    window.removeEventListener('keydown', handleKeydown)
+    commandHistory.value = raw ? JSON.parse(raw) : []
+  } catch {
+    commandHistory.value = []
   }
 }
 
-// 存放键盘快捷键清理函数
-let cleanupKeyboardShortcuts: (() => void) | null = null
+const saveCommandHistory = () => {
+  localStorage.setItem(COMMAND_HISTORY_KEY, JSON.stringify(commandHistory.value))
+}
 
-// 初始化数据
-onMounted(() => {
-  loadMachineList()
-  loadCommandHistory()
-  cleanupKeyboardShortcuts = setupKeyboardShortcuts()
-})
+const addToHistory = (command: string) => {
+  const c = command.trim()
+  if (!c) return
+  const i = commandHistory.value.indexOf(c)
+  if (i > -1) commandHistory.value.splice(i, 1)
+  commandHistory.value.unshift(c)
+  if (commandHistory.value.length > MAX_HISTORY) commandHistory.value.pop()
+  saveCommandHistory()
+}
 
-// 组件卸载时清理事件监听器，防止内存泄漏
-onUnmounted(() => {
-  if (cleanupKeyboardShortcuts) {
-    cleanupKeyboardShortcuts()
-    cleanupKeyboardShortcuts = null
+const selectFromHistory = (command: string) => {
+  commandText.value = command
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
+
+async function waitForJobResults(jobId: string): Promise<JobSubTaskResult[]> {
+  const start = Date.now()
+  let latest: JobSubTaskResult[] = []
+  const isTerminal = (s: string) =>
+    s === 'success' || s === 'failed' || s === 'cancelled' || s === 'timeout'
+
+  while (Date.now() - start < MAX_WAIT_MS) {
+    const data = await getExecutionResult(jobId)
+    latest = data.results ?? []
+    if (latest.length === 0) {
+      await sleep(320)
+      continue
+    }
+    if (latest.every((r) => isTerminal(r.status))) return latest
+    await sleep(POLL_MS)
   }
-})
+  ElMessage.warning('等待结果超时，任务可能仍在执行，请在「执行记录」中查看')
+  return latest
+}
 
-// 加载机器列表
-const loadMachineList = async () => {
+function mapRows(rows: JobSubTaskResult[], finishedAt: string): ExecutionResult[] {
+  return rows.map((r) => {
+    const ok = r.status === 'success'
+    const errParts = [r.error?.trim(), r.exit_code != null && !ok ? `exit_code=${r.exit_code}` : ''].filter(
+      Boolean
+    ) as string[]
+    return {
+      machineId: r.machine_id,
+      machineName: r.machine_name?.trim() || `机器 ${r.machine_id}`,
+      machineIP: r.machine_ip?.trim() || '',
+      success: ok,
+      stdout: (r.output || '').trimEnd(),
+      stderr: errParts.join('\n').trim(),
+      executionTime: finishedAt,
+      status: r.status,
+      exitCode: r.exit_code
+    }
+  })
+}
+
+const formatDate = (iso: string) => {
+  if (!iso) return ''
   try {
-    await machineStore.fetchMachineList({ page: 1, pageSize: 1000 })
-    
-    // 清空已选机器，防止加载新数据后选中状态不正确
+    return new Date(iso).toLocaleString('zh-CN', { hour12: false })
+  } catch {
+    return iso
+  }
+}
+
+const statusLabel = (r: ExecutionResult) => {
+  if (r.status === 'success') return '成功'
+  if (r.status === 'failed') return '失败'
+  if (r.status === 'cancelled') return '已取消'
+  if (r.status === 'timeout') return '超时'
+  return r.status || '未知'
+}
+
+const tagType = (r: ExecutionResult) => {
+  if (r.success) return 'success'
+  if (r.status === 'cancelled') return 'info'
+  return 'danger'
+}
+
+const copyOneResult = async (r: ExecutionResult) => {
+  const text = [`# ${r.machineName} (${r.machineIP || r.machineId})`, r.stdout && `--- stdout ---\n${r.stdout}`, r.stderr && `--- stderr ---\n${r.stderr}`]
+    .filter(Boolean)
+    .join('\n\n')
+  try {
+    await copyTextToClipboard(text)
+    ElMessage.success('已复制')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+const copyAllResults = async () => {
+  if (!filteredResults.value.length) return
+  const parts = filteredResults.value.map((r, i) => {
+    const head = `## ${i + 1}. ${r.machineName} (${r.machineIP || r.machineId}) [${statusLabel(r)}]`
+    const body = [r.stdout && `stdout:\n${r.stdout}`, r.stderr && `stderr:\n${r.stderr}`].filter(Boolean).join('\n\n')
+    return `${head}\n${body}`
+  })
+  try {
+    await copyTextToClipboard(parts.join('\n\n---\n\n'))
+    ElMessage.success('已复制全部输出')
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+const loadMachineList = async () => {
+  machinesLoading.value = true
+  try {
+    machines.value = await getAvailableMachines()
     transferValue.value = []
     selectedMachines.value = []
-  } catch (error: any) {
-    ElMessage.error('获取机器列表失败: ' + (error.msg || error.message))
+  } catch (e: any) {
+    ElMessage.error('获取机器列表失败: ' + (e?.message || e?.msg || '未知错误'))
+  } finally {
+    machinesLoading.value = false
   }
 }
 
-// 刷新机器列表
-const refreshMachines = () => {
-  loadMachineList()
-}
+const refreshMachines = () => void loadMachineList()
 
-// 处理穿梭框选择变化
 const handleTransferChange = (value: string[]) => {
   transferValue.value = value
-  selectedMachines.value = machineStore.machineList.filter(machine => 
-    value.includes(machine.id)
-  )
+  selectedMachines.value = machines.value.filter((m) => value.includes(m.id))
 }
 
-// 执行命令
 const executeCommands = async () => {
-  if (selectedMachines.value.length === 0) {
+  if (!selectedMachines.value.length) {
     ElMessage.warning('请至少选择一台机器')
     return
   }
-  
   if (!commandText.value.trim()) {
-    ElMessage.warning('请输入要执行的命令')
+    ElMessage.warning('请输入命令')
     return
   }
-  
-  // 执行命令前进行语法检查
+
   const errors = checkCommandSyntax(commandText.value)
-  if (errors.length > 0) {
-    // 显示确认对话框
-    const confirmResult = await ElMessageBox.confirm(
-      `检测到${errors.length}个潜在问题，是否继续执行？\n\n${errors.join('\n')}`,
-      '命令执行警告',
-      {
-        confirmButtonText: '继续执行',
+  if (errors.length) {
+    try {
+      await ElMessageBox.confirm(`检测到 ${errors.length} 条提示，仍要执行？\n\n${errors.join('\n')}`, '确认执行', {
+        confirmButtonText: '继续',
         cancelButtonText: '取消',
         type: 'warning'
-      }
-    )
-    
-    if (confirmResult !== 'confirm') {
+      })
+    } catch {
       return
     }
   }
-  
-  // 保存命令到历史记录
+
   addToHistory(commandText.value.trim())
-  
   executing.value = true
+  polling.value = true
+  const finishedAt = new Date().toISOString()
   try {
-    // 响应拦截器已解包，response 即为 data 部分
-    const response = await executeCommand({
-      machine_ids: selectedMachines.value.map(machine => machine.id),
+    const { jobId } = await executeCommand({
+      machine_ids: selectedMachines.value.map((m) => m.id),
       command: commandText.value.trim()
-    }) as any
-    
-    // 处理执行结果
-    const results = response?.results || []
-    const newResults: ExecutionResult[] = results.map((result: any) => ({
-      machineId: result.machineId,
-      machineName: selectedMachines.value.find(m => m.id === result.machineId)?.name || `机器${result.machineId}`,
-      success: result.success,
-      stdout: result.stdout || '',
-      stderr: result.stderr || '',
-      executionTime: new Date().toISOString()
-    }))
-    
-    executionResults.value.unshift(...newResults)
-    ElMessage.success(`命令已在${selectedMachines.value.length}台机器上执行`)
-  } catch (error: any) {
-    ElMessage.error('执行命令失败: ' + (error.msg || error.message))
+    })
+    const rows = await waitForJobResults(jobId)
+    const mapped = mapRows(rows, finishedAt)
+    executionResults.value.unshift(...mapped)
+    const ok = mapped.filter((x) => x.success).length
+    const bad = mapped.length - ok
+    ElMessage.success(`已完成：${ok} 成功${bad ? `，${bad} 台异常` : ''}`)
+  } catch (e: any) {
+    ElMessage.error('执行失败: ' + (e?.message || e?.msg || '未知错误'))
   } finally {
+    polling.value = false
     executing.value = false
   }
 }
 
-// 清空命令
 const clearCommand = () => {
   commandText.value = ''
 }
 
-// 清空结果
 const clearResult = () => {
   executionResults.value = []
 }
 
-// 格式化日期
-const formatDate = (dateString: string): string => {
-  if (!dateString) return ''
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN')
+const setupKeyboardShortcuts = () => {
+  const onKey = (e: KeyboardEvent) => {
+    if (!e.ctrlKey) return
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (selectedMachines.value.length && commandText.value.trim() && !executing.value) void executeCommands()
+    }
+    if (e.key === 'k') {
+      e.preventDefault()
+      clearCommand()
+    }
+    if (e.key === 'r') {
+      e.preventDefault()
+      void loadMachineList()
+    }
+    if (e.key === 'l') {
+      e.preventDefault()
+      clearResult()
+    }
+  }
+  window.addEventListener('keydown', onKey)
+  return () => window.removeEventListener('keydown', onKey)
 }
+
+let offKeys: (() => void) | null = null
+
+onMounted(() => {
+  loadCommandHistory()
+  void loadMachineList()
+  offKeys = setupKeyboardShortcuts()
+})
+
+onUnmounted(() => {
+  offKeys?.()
+  offKeys = null
+})
 </script>
 
 <style scoped>
 .job-center {
-  padding: 0 var(--page-padding-x) 16px;
+  padding: 0 var(--page-padding-x) 20px;
   box-sizing: border-box;
 }
 
 .page-header {
-  margin-bottom: 12px;
-}
-
-.page-header__row {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
-.page-header h2 {
-  margin: 0;
+.page-header__titles h2 {
+  margin: 0 0 4px;
   font-size: var(--page-header-title-max);
   font-weight: 600;
   color: var(--apple-ink);
 }
 
-.main-card {
-  max-width: 100%;
-}
-
-.section-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.result-header-actions {
-  display: flex;
-  align-items: center;
-}
-
-.section-header h3 {
+.page-header__sub {
   margin: 0;
-  color: #374151;
-  font-size: 16px;
-  font-weight: 600;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.45;
+  max-width: 52ch;
 }
 
-/* 机器列表区域 */
-.machine-section {
-  margin-bottom: 20px;
-}
-
-.machine-list-container {
-  background-color: #ffffff;
-  border-radius: 8px;
-  padding: 10px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  min-height: 250px;
-  width: 100%;
-}
-
-/* 最彻底的Element Plus样式重置 */
-.machine-list-container :deep(.el-transfer) {
-  width: 100%;
-}
-
-.machine-list-container :deep(.el-transfer-panel) {
-  height: auto !important;
-}
-
-.machine-list-container :deep(.el-transfer-panel__header) {
-  padding: 8px 12px !important;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body-wrapper) {
-  overflow: hidden;
-}
-
-/* 完全重置列表项的所有间距 */
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox) {
-  position: relative;
-  display: block;
-  height: 28px !important;
-  line-height: 28px !important;
-  margin: 0 !important;
-  padding: 0 12px !important;
-  cursor: pointer;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox__input) {
-  float: left;
-  margin-top: 5px !important;
-  margin-right: 8px !important;
-  vertical-align: middle;
-  line-height: 1;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox__label) {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  height: 28px !important;
-  line-height: 28px !important;
-  margin-left: 28px !important;
-  vertical-align: middle;
-}
-
-/* 无数据状态居中显示 */
-.machine-list-container :deep(.el-transfer-panel__empty) {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 100%;
-  min-height: 200px;
-  margin: 0;
-  padding: 0;
-  font-size: 14px;
-  color: #909399;
-}
-
-/* 当无数据时隐藏滚动条 */
-.machine-list-container :deep(.el-transfer-panel) {
-  position: relative;
-}
-
-/* 无数据状态时移除所有滚动条 */
-.machine-list-container :deep(.el-transfer-panel__empty) {
-  overflow: hidden !important;
-}
-
-.machine-list-container :deep(.el-transfer-panel__empty) + .el-scrollbar {
-  display: none !important;
-}
-
-/* 修复Element Plus内部样式导致的滚动条问题 */
-.machine-list-container :deep(.el-transfer-panel__body-wrapper) {
-  overflow: hidden !important;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body-wrapper) .el-scrollbar {
-  overflow: hidden !important;
-}
-
-/* 只有当有列表项时才显示垂直滚动条 */
-.machine-list-container :deep(.el-transfer-panel__list-item) ~ .el-scrollbar {
-  overflow-y: auto !important;
-}
-
-/* 确保整个复选框元素垂直对齐 */
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox) {
-  display: flex !important;
-  align-items: center !important;
-  height: 28px !important;
-  line-height: 28px !important;
-  padding: 0 12px !important;
-}
-
-/* 调整复选框内部样式，确保垂直对齐 */
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox__input) {
-  margin: 0 !important;
-  vertical-align: middle;
+.page-header__actions {
   display: flex;
   align-items: center;
-  justify-content: center;
+  gap: 4px;
+  flex-shrink: 0;
 }
 
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox__input input) {
-  margin: 0 !important;
-  padding: 0 !important;
-  vertical-align: middle;
-}
-
-.machine-list-container :deep(.el-transfer) {
-  display: flex;
-  width: 100%;
-  justify-content: space-between;
-}
-
-.machine-list-container :deep(.el-transfer-panel) {
-  width: 48%;
-  min-width: 200px;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body) {
-  max-height: 280px;
-  overflow-x: hidden;
-  overflow-y: auto;
-}
-
-/* 彻底去除横向滚动条 */
-.machine-list-container :deep(.el-transfer-panel__body),
-.machine-list-container :deep(.el-transfer-panel__body-wrapper),
-.machine-list-container :deep(.el-transfer-panel__body-wrapper .el-scrollbar),
-.machine-list-container :deep(.el-transfer-panel__body-wrapper .el-scrollbar__wrap),
-.machine-list-container :deep(.el-transfer-panel__body-wrapper .el-scrollbar__view) {
-  overflow-x: hidden !important;
-  overflow-y: auto !important;
-}
-
-/* 隐藏滚动条轨道但保留滚动功能 */
-.machine-list-container :deep(.el-scrollbar__wrap) {
-  scrollbar-width: none;
-  -ms-overflow-style: none;
-}
-
-.machine-list-container :deep(.el-scrollbar__wrap::-webkit-scrollbar) {
-  display: none;
-}
-
-/* 确保内容不会溢出 */
-.machine-list-container :deep(.el-transfer-panel__list-item) {
-  width: 100% !important;
-  box-sizing: border-box !important;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.machine-list-container :deep(.el-transfer__buttons) {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
+.job-icon-btn {
+  display: inline-flex;
   align-items: center;
-  margin: 0 12px;
-  width: 40px;
-  gap: 6px;
-  height: 100%;
-  /* 更精确的垂直居中 */
-  display: flex;
-  flex-direction: column;
   justify-content: center;
-  align-items: center;
-  align-self: center;
-  margin: 0 12px;
-  width: 40px;
-  gap: 6px;
-  height: auto;
-}
-
-.machine-list-container :deep(.el-transfer__buttons button) {
   width: 36px;
-  height: 32px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 0;
-  margin: 0;
-  border: none;
+  height: 36px;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  background: var(--el-fill-color-blank);
+  cursor: pointer;
+  color: var(--el-text-color-regular);
 }
-
-.machine-list-container :deep(.el-transfer__buttons button .el-icon) {
-  font-size: 16px;
-  margin: 0;
+.job-icon-btn:hover:not(:disabled) {
+  border-color: var(--el-color-primary);
+  color: var(--el-color-primary);
 }
-
-/* 确保按钮容器在垂直方向居中 */
-.machine-list-container :deep(.el-transfer) {
-  align-items: stretch;
-}
-
-.machine-list-container :deep(.el-transfer__buttons) {
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-}
-
-.transfer-item {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 15px;
-  padding: 2px 0 !important;
-  border-radius: 0;
-  height: auto;
-  box-sizing: border-box;
-  width: 100%;
-  margin: 0 !important;
-  background-color: transparent;
-  border: none;
-  transition: all 0.3s;
-  position: relative;
-  z-index: 1;
-  line-height: 1.2;
-  min-height: 24px;
-}
-
-.transfer-item > * {
-  margin: 0 !important;
-  padding: 0 !important;
-  line-height: 1.2;
-}
-
-.transfer-item:hover {
-  background-color: #f0f9ff;
-  border-radius: 0;
-  z-index: 2;
-}
-
-/* 修复Element Plus内部样式冲突 */
-.machine-list-container :deep(.el-transfer-panel__list) {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  line-height: 1.2;
-}
-
-.machine-list-container :deep(.el-transfer-panel__list-item) {
-  padding: 0 !important;
-  margin: 0 !important;
-  line-height: 1.2 !important;
-  height: auto !important;
-  min-height: 24px !important;
-  box-sizing: border-box !important;
-  overflow: hidden !important;
-  border-bottom: 1px solid #f5f5f5;
-}
-
-/* 直接覆盖Element Plus的默认样式 */
-.machine-list-container :deep(.el-transfer-panel__body) {
-  padding: 0 !important;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox) {
-  margin: 0 !important;
-  padding: 0 12px !important;
-  height: auto !important;
-  min-height: 24px !important;
-  line-height: 1.2 !important;
-}
-
-/* 移除所有可能导致间距的样式 */
-.machine-list-container :deep(.el-transfer-panel__body *),
-.machine-list-container :deep(.el-transfer-panel__list *),
-.machine-list-container :deep(.el-transfer-panel__list-item *) {
-  margin-top: 0 !important;
-  margin-bottom: 0 !important;
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  line-height: 1.2 !important;
-}
-
-.machine-list-container :deep(.el-transfer-panel__list-item:hover) {
-  background-color: transparent;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox) {
-  margin: 0;
-  display: flex;
-  align-items: center;
-  height: 100%;
-  padding: 2px 12px;
-  width: 100%;
-  box-sizing: border-box;
-  line-height: 1.2;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox__input) {
-  margin-right: 8px;
-  flex-shrink: 0;
-  margin-top: 0;
-}
-
-.machine-list-container :deep(.el-transfer-panel__body .el-checkbox__label) {
-  display: block;
-  width: 100%;
-  margin: 0;
-  padding: 0;
-  line-height: 1.2;
-}
-
-.machine-list-container :deep(.el-transfer-panel__list) {
-  line-height: 1.2;
-}
-
-.machine-list-container :deep(.el-transfer-panel__list-item) {
-  line-height: 1.2;
-  min-height: 28px;
-}
-
-.transfer-item:has(.status-offline) {
-  opacity: 0.6;
+.job-icon-btn:disabled {
+  opacity: 0.55;
   cursor: not-allowed;
 }
-
-.item-id {
-  font-weight: 500;
-  color: #374151;
-  font-size: 14px;
-  line-height: 1.5;
-  width: 60px;
+.job-icon-btn__icon--spin {
+  animation: job-spin 0.9s linear infinite;
+}
+@keyframes job-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
-.item-ip {
-  color: #6b7280;
-  font-size: 13px;
-  line-height: 1.5;
-  width: 120px;
+.job-card {
+  border-radius: 12px;
 }
 
-.item-status {
-  font-size: 12px;
+.job-section {
   margin: 0;
-  width: 60px;
-  text-align: center;
-  flex-shrink: 0;
 }
 
-.transfer-item.status-online {
-  background-color: rgba(212, 252, 231, 0.3);
-}
-
-.transfer-item.status-offline {
-  background-color: rgba(254, 226, 226, 0.3);
-}
-
-.transfer-item.status-maintenance {
-  background-color: rgba(252, 231, 186, 0.3);
-}
-
-.selection-info {
-  margin-top: 10px;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-/* 命令和结果容器 */
-.command-result-container {
+.section-head {
   display: flex;
-  gap: 20px;
-  margin-bottom: 20px;
-  min-height: 300px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-/* 命令输入区域 */
-.command-section {
-  flex: 4;
-  min-width: 300px;
-  display: flex;
-  flex-direction: column;
+.section-head h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary);
 }
 
-.command-input-container {
-  margin-bottom: 15px;
-  position: relative;
-  border: 1px solid #dcdfe6;
-  border-radius: 8px;
-  overflow: hidden;
-  transition: all 0.3s;
-  flex: 1;
-  min-height: 200px;
-  background-color: #ffffff;
-  color: #333333;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+.section-meta {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
 }
 
-.command-input-container:hover {
-  border-color: var(--el-color-primary);
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-}
-
-.command-input-container:focus-within {
-  border-color: var(--el-color-primary);
-  box-shadow:
-    0 2px 12px rgba(0, 0, 0, 0.08),
-    0 0 0 2px rgba(255, 105, 0, 0.2);
-}
-
-/* 终端内容区域 */
-.terminal-content {
-  position: relative;
-  padding: 8px;
-  height: 100%;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-start;
-}
-
-.terminal-prompt {
-  position: relative;
-  top: 0;
-  left: 0;
-  margin-right: 8px;
-  margin-left: 4px;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  color: var(--el-color-primary);
-  font-weight: bold;
-  pointer-events: none;
-  z-index: 1;
-  flex-shrink: 0;
-  line-height: 24px;
-  padding-top: 2px;
-}
-
-.command-textarea {
-  flex: 1;
-  height: 100%;
-}
-
-.command-textarea .el-textarea__inner {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
-  line-height: 1.6;
-  padding: 4px 8px;
-  min-height: 184px;
-  resize: vertical;
-  background-color: transparent;
-  border: none;
-  color: #333333;
-  box-shadow: none;
-  overflow-y: auto;
-}
-
-.command-textarea .el-textarea__inner::placeholder {
-  color: #909399;
-}
-
-.command-textarea .el-textarea__inner:focus {
-  box-shadow: none;
-  border: none;
-  background-color: transparent;
-}
-
-/* 终端样式增强 */
-.command-input-container {
-  border-color: #dcdfe6;
-}
-
-.command-input-container:focus-within {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-}
-
-/* 清除按钮样式 */
-.command-textarea .el-input__clear {
-  color: #c0c4cc;
-}
-
-.command-textarea .el-input__clear:hover {
-  color: #909399;
-}
-
-/* 命令语法错误显示样式 */
-.command-errors-container {
-  margin-bottom: 15px;
-  padding: 10px 15px;
-  background-color: #fef2f2;
-  border: 1px solid #fecaca;
-  border-radius: 8px;
-}
-
-.command-error-item {
+.section-head__tools {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 5px;
-  color: #b91c1c;
-  font-size: 13px;
-  line-height: 1.4;
+  flex-wrap: wrap;
 }
 
-.command-error-item:last-child {
+.filter-select {
+  width: 100px;
+}
+
+.job-divider {
+  margin: 16px 0;
+}
+
+.job-split {
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(300px, 1.1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .job-split {
+    grid-template-columns: 1fr;
+  }
+}
+
+.transfer-wrap {
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  padding: 10px;
+  background: var(--el-fill-color-blank);
+}
+
+.transfer-wrap :deep(.el-transfer) {
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.transfer-wrap :deep(.el-transfer-panel) {
+  flex: 1;
+  min-width: 0;
+}
+
+.transfer-wrap :deep(.el-transfer-panel__body) {
+  height: 260px;
+}
+
+.transfer-wrap :deep(.el-transfer__buttons) {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.transfer-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.transfer-row__name {
+  font-weight: 500;
+  color: var(--el-text-color-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 0 1 auto;
+  max-width: 42%;
+}
+
+.transfer-row__ip {
+  color: var(--el-text-color-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.cmd-shell {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  border: 1px solid var(--el-border-color);
+  border-radius: 10px;
+  padding: 10px 10px 10px 8px;
+  background: var(--el-fill-color-light);
+  min-height: 200px;
+}
+
+.cmd-shell:focus-within {
+  border-color: var(--el-color-primary-light-5);
+  box-shadow: 0 0 0 1px var(--el-color-primary-light-7);
+}
+
+.cmd-shell__prompt {
+  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+  font-weight: 700;
+  color: var(--el-color-primary);
+  line-height: 22px;
+  padding-top: 2px;
+  flex-shrink: 0;
+}
+
+.cmd-shell__input {
+  flex: 1;
+  min-width: 0;
+}
+
+.cmd-shell__input :deep(.el-textarea__inner) {
+  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.55;
+  background: transparent;
+  box-shadow: none !important;
+  border: none !important;
+  padding: 2px 4px;
+  resize: vertical;
+  min-height: 180px;
+}
+
+.cmd-warn {
+  margin-top: 10px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: var(--el-color-danger-light-9);
+  border: 1px solid var(--el-color-danger-light-5);
+}
+
+.cmd-warn__line {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 12px;
+  color: var(--el-color-danger-dark-2);
+  margin-bottom: 4px;
+}
+.cmd-warn__line:last-child {
   margin-bottom: 0;
 }
 
-.error-icon {
-  color: #ef4444;
-  font-size: 14px;
+.cmd-warn__icon {
+  flex-shrink: 0;
+  margin-top: 1px;
 }
 
-/* 基本的命令语法高亮模拟 */
-.command-textarea .el-textarea__inner::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  pointer-events: none;
-  background-image: 
-    linear-gradient(to right, transparent calc(2em + 15px), transparent 100%);
-  z-index: 0;
-}
-
-.command-textarea .el-textarea__inner:focus {
-  box-shadow: none;
-}
-
-.command-actions {
+.cmd-actions {
   display: flex;
-  gap: 10px;
   flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
-.history-item {
-  max-width: 500px;
-  white-space: normal;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.job-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
 }
 
-.history-item pre {
+.history-dd__pre {
   margin: 0;
-  padding: 0;
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
-  font-size: 13px;
-  line-height: 1.4;
+  max-width: 360px;
+  max-height: 72px;
+  overflow: auto;
+  font-size: 12px;
   white-space: pre-wrap;
   word-break: break-all;
-  max-height: 80px;
-  overflow-y: auto;
 }
 
-/* 执行结果区域 */
-.result-section {
-  flex: 5;
-  min-width: 300px;
-  display: flex;
-  flex-direction: column;
-}
-
-.result-container {
-  background-color: #f9fafb;
-  border-radius: 8px;
-  padding: 10px;
-  border: 1px solid #e5e7eb;
-  flex: 1;
-  min-height: 200px;
-  overflow-y: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #d1d5db #f3f4f6;
-}
-
-.result-container::-webkit-scrollbar {
-  width: 8px;
-}
-
-.result-container::-webkit-scrollbar-track {
-  background: #f3f4f6;
-  border-radius: 4px;
-}
-
-.result-container::-webkit-scrollbar-thumb {
-  background: #d1d5db;
-  border-radius: 4px;
-}
-
-.result-container::-webkit-scrollbar-thumb:hover {
-  background: #9ca3af;
-}
-
-.filter-status {
-  text-align: center;
-  color: #6b7280;
-  font-size: 13px;
-  padding: 8px;
-  background-color: #f3f4f6;
-  border-radius: 4px;
-  margin-bottom: 10px;
-}
-
-.empty-result {
-  text-align: center;
-  color: #9ca3af;
-  padding: 40px 0;
-  font-style: italic;
-}
-
-.execution-result-item {
-  margin-bottom: 20px;
-  padding: 15px;
-  background-color: #ffffff;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s;
-}
-
-.execution-result-item:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #d1d5db;
-}
-
-.result-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 10px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid #f3f4f6;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.result-header > div:first-child {
+.poll-banner {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-.machine-name {
-  font-weight: 600;
-  color: #374151;
-}
-
-.execution-time {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
-.result-content {
-  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
-  line-height: 1.6;
+  color: var(--el-color-primary);
+  margin-bottom: 10px;
 }
 
-.content-label {
+.poll-banner__icon {
+  animation: job-spin 1s linear infinite;
+}
+
+.out-scroll {
+  max-height: min(62vh, 720px);
+  overflow-y: auto;
+  padding: 4px 2px 8px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-lighter);
+}
+
+.out-filter-tip {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  text-align: center;
+  padding: 6px;
+  margin-bottom: 6px;
+}
+
+.out-empty {
+  text-align: center;
+  padding: 36px 12px;
+  color: var(--el-text-color-placeholder);
+  font-size: 13px;
+}
+
+.out-card {
+  background: var(--el-bg-color);
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 10px;
+  box-shadow: var(--el-box-shadow-lighter);
+}
+
+.out-card:last-child {
+  margin-bottom: 0;
+}
+
+.out-card__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--el-border-color-extra-light);
+}
+
+.out-card__title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.out-card__name {
   font-weight: 600;
-  margin-bottom: 5px;
-  display: inline-block;
-  color: #6b7280;
+  font-size: 14px;
+  color: var(--el-text-color-primary);
 }
 
-.stdout pre {
-  margin: 0 0 10px 0;
-  padding: 12px;
-  background-color: #f3f4f6;
-  border-radius: 6px;
-  color: #1f2937;
-  white-space: pre-wrap;
-  word-break: break-all;
-  border-left: 3px solid var(--el-color-primary);
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+.out-card__id {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  font-family: ui-monospace, Menlo, Monaco, Consolas, monospace;
 }
 
-.stderr pre {
+.out-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.out-card__time {
+  font-size: 12px;
+  color: var(--el-text-color-placeholder);
+}
+
+.out-block__label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.out-block pre {
   margin: 0;
-  padding: 12px;
-  background-color: #fee2e2;
-  border-radius: 6px;
-  color: #dc2626;
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
   white-space: pre-wrap;
-  word-break: break-all;
-  border-left: 3px solid #f56c6c;
-  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  word-break: break-word;
+  max-height: 280px;
+  overflow: auto;
 }
 
-/* 响应式布局 */
-@media (max-width: 992px) {
-  /* 在中等屏幕上改为上下布局 */
-  .command-result-container {
-    flex-direction: column;
-  }
-  
-  .command-section,
-  .result-section {
-    min-width: 100%;
-  }
-  
-  .result-container {
-    max-height: 400px;
-  }
-  
-  .command-textarea .el-textarea__inner {
-    font-size: 13px;
-  }
-  
-  .result-header-actions {
-    gap: 8px;
-  }
-  
-  .result-header-actions .el-select {
-    width: 110px;
-  }
+.out-block--stdout pre {
+  background: var(--el-fill-color-light);
+  color: var(--el-text-color-primary);
+  border-left: 3px solid var(--el-color-primary);
 }
 
-@media (max-width: 768px) {
-  /* 小屏幕设备优化 */
-  .section-header {
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-  
-  .section-header h3 {
-    font-size: 15px;
-  }
-  
-  .section-header .el-button {
-    font-size: 12px;
-    padding: 6px 10px;
-  }
-  
-  /* 优化穿梭框在小屏幕上的显示 */
-  .machine-list-container :deep(.el-transfer) {
-    flex-direction: column;
-    gap: 10px;
-  }
-  
-  .machine-list-container :deep(.el-transfer-panel) {
-    width: 100%;
-    max-width: 100%;
-  }
-  
-  .machine-list-container :deep(.el-transfer-panel__body) {
-    max-height: 180px;
-  }
-  
-  .machine-list-container :deep(.el-transfer__buttons) {
-    flex-direction: row;
-    gap: 10px;
-    margin: 0;
-    position: static;
-    top: auto;
-    transform: none;
-  }
-  
-  .machine-list-container :deep(.el-transfer__buttons button) {
-    padding: 6px 12px;
-    margin: 0;
-  }
-  
-  /* 确保按钮容器居中 */
-  .machine-list-container :deep(.el-transfer__buttons) {
-    justify-content: center;
-    align-items: center;
-  }
-  
-  .command-actions {
-    gap: 8px;
-  }
-  
-  .command-actions .el-button {
-    font-size: 12px;
-    padding: 8px 12px;
-  }
-  
-  .command-textarea .el-textarea__inner {
-    font-size: 12px;
-    line-height: 1.4;
-    min-height: 100px;
-  }
-  
-  .terminal-prompt {
-    font-size: 13px;
-  }
-  
-  .result-header {
-    gap: 8px;
-  }
-  
-  .machine-name {
-    font-size: 14px;
-  }
-  
-  .execution-time {
-    font-size: 11px;
-  }
-  
-  .execution-result-item {
-    padding: 12px;
-  }
-  
-  .stdout pre,
-  .stderr pre {
-    padding: 8px;
-    font-size: 12px;
-    line-height: 1.4;
-  }
-  
-  .history-item {
-    max-width: 250px;
-  }
-  
-  .history-item pre {
-    font-size: 12px;
-  }
-  
-  .filter-status {
-    font-size: 12px;
-    padding: 6px;
-  }
-}
-
-/* 平板设备优化 */
-@media (max-width: 1024px) and (min-width: 769px) {
-  .command-actions {
-    flex-wrap: wrap;
-  }
-  
-  .history-item {
-    max-width: 400px;
-  }
-  
-  .machine-list-container :deep(.el-transfer-panel) {
-    width: 45%;
-  }
+.out-block--stderr pre {
+  background: var(--el-color-danger-light-9);
+  color: var(--el-color-danger-dark-2);
+  border-left: 3px solid var(--el-color-danger);
 }
 </style>

@@ -330,7 +330,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 完成所需项后点顶部「返回 K8s 部署」回到折叠配置页。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
 
-**机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 与作业中心仍用于在线机器列表与任务目标（见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)）。
+**机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 仍用于台账与拓扑。**作业中心**（`/admin/job/center`）机器列表取自 **`GET /api/job/machines`**（仅在线）；下发 **`POST /api/job/execute`** 后控制台轮询 **`GET /api/job/result/:jobId`** 直至各子任务进入终态或超时提示（任务仍在时请到「执行记录」查看）。详见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)。
 
 ---
 
