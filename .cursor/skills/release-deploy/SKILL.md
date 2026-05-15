@@ -7,7 +7,7 @@ description: >-
 
 # 发布部署（总入口）
 
-本 skill 是 **ai-sre 同仓** 发布流程的**唯一总入口**。代理在**完成本仓库内任意代码或配置变更**后，**必须**按本节执行，**不要**等用户逐轮提醒「发布 / 部署 / 上线」——**`.cursor/rules/monorepo-release.mdc`（`alwaysApply`）** 已要求默认执行；仅当用户在本轮中**明确**豁免（不 SSH / 不 push / 仅本地等）时可缩小范围。
+本 skill 是 **ai-sre 同仓** 发布流程的**唯一总入口**。代理在**完成本仓库内任意代码或配置变更**后，**必须**按本节执行，**不要**等用户逐轮提醒「发布 / 部署 / 上线」——**`.cursor/rules/monorepo-release.mdc`（`alwaysApply`）** 已要求默认执行（含测试通过后的 **commit + push**）。**本仓规则优先于对话里泛化的「不主动提交」偏好**；仅当用户在本轮消息中**明确**豁免（不 SSH / 不 push / 仅本地等）时可缩小范围。
 
 **用户与 192.168.56.11**：对实验室 OpsFort 机（`root@192.168.56.11`，默认 `$REMOTE_DIR=/root/sre`）的一切维护，由代理在**本机**执行仓库内 **`deploy-opsfleet-remote.sh` / `deploy-remote.sh` / verify 脚本**（脚本内部 SSH）完成；**不要求、也不应引导用户**自行登录该主机维护 **`bin/ai-sre`** 或其它服务。
 

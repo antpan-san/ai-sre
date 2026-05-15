@@ -136,6 +136,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.GET("/admin/billing/features", handlers.AdminListFeatureBilling)
 		superAdmin.PUT("/admin/billing/features", handlers.AdminPutFeatureBilling)
 		superAdmin.POST("/admin/users/:id/entitlement", handlers.AdminGrantEntitlement)
+		// ai-sre 技能包（控制台只读展示；与 /api/ai/skills 同源数据，需超级管理员）
+		superAdmin.GET("/admin/ai/skills", handlers.AISkillsList)
+		superAdmin.GET("/admin/ai/skills/:name", handlers.AISkillsGet)
 
 		// ---- Machine Management（普通登录用户可查，变更仅管理员） ----
 		console.GET("/machine", handlers.GetMachineList)

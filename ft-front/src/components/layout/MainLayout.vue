@@ -53,10 +53,20 @@
               <el-icon><PieChart /></el-icon>
               <template #title>概览</template>
             </el-menu-item>
-            <el-menu-item v-if="isSuperAdmin" index="/admin/billing/features">
-              <el-icon><Setting /></el-icon>
-              <template #title>订阅与计费</template>
-            </el-menu-item>
+            <el-sub-menu v-if="isSuperAdmin" index="asm-billing">
+              <template #title>
+                <el-icon><Setting /></el-icon>
+                <span>订阅与计费</span>
+              </template>
+              <el-menu-item index="/admin/billing/features">
+                <el-icon><Setting /></el-icon>
+                <template #title>套餐与计费</template>
+              </el-menu-item>
+              <el-menu-item index="/admin/billing/ai-sre-skills">
+                <el-icon><Collection /></el-icon>
+                <template #title>ai-sre 技能包</template>
+              </el-menu-item>
+            </el-sub-menu>
             <el-sub-menu
               v-if="featureVisible('feature.node_ops') || featureVisible('feature.k8s_delivery')"
               index="asm-workloads"
@@ -322,7 +332,8 @@ import {
   Download,
   Reading,
   Setting,
-  List
+  List,
+  Collection
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
@@ -359,7 +370,8 @@ const routeIconMap: Record<string, Component> = {
   '/init-tools': Tools,
   '/execution-records': DocumentCopy,
   '/help/error-codes': Reading,
-  '/billing/features': Setting
+  '/billing/features': Setting,
+  '/billing/ai-sre-skills': Collection
 }
 
 const sectionDefaultPath: Record<string, string> = {
@@ -413,6 +425,7 @@ const menuDefaultOpeneds = computed(() => {
   if (p.includes('/admin/job') || p.includes('/admin/execution-records')) open.push('asm-run')
   if (p.includes('/admin/security-audit')) open.push('asm-security')
   if (p.includes('/admin/advanced')) open.push('asm-advanced')
+  if (p.includes('/admin/billing')) open.push('asm-billing')
   return open
 })
 

@@ -22,6 +22,22 @@ func AISkillsList(c *gin.Context) {
 	})
 }
 
+// AISkillsGet returns a single registered skill (full pack) by pack name.
+func AISkillsGet(c *gin.Context) {
+	name := strings.TrimSpace(c.Param("name"))
+	if name == "" {
+		response.BadRequest(c, "无效技能标识")
+		return
+	}
+	reg := services.DefaultSkillRegistry()
+	rs := reg.LookupByName(name)
+	if rs == nil {
+		response.NotFound(c, "技能不存在或已下线")
+		return
+	}
+	response.OK(c, gin.H{"skill": rs})
+}
+
 type aiSkillsRefineRequest struct {
 	Topic        string `json:"topic" binding:"required"`
 	MaxSamples   int    `json:"max_samples"`

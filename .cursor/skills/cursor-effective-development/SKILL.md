@@ -2,9 +2,9 @@
 name: cursor-effective-development
 description: >-
   Guides Cursor agent collaboration for this user: concise task scoping, @-narrowed context,
-  token-efficient messages, release/commit exemptions, and ai-sre monorepo habits. Apply at the
-  start of every implementation request, plan execution, or when the user asks how to phrase tasks
-  or save tokens in Cursor.
+  token-efficient messages, and ai-sre monorepo habits (releases default to full ship per
+  monorepo-release.mdc). Apply at the start of every implementation request, plan execution,
+  or when the user asks how to phrase tasks or save tokens in Cursor.
 ---
 
 # Cursor 高效开发协作（用户习惯）
@@ -14,9 +14,9 @@ description: >-
 ## 代理：收到实现类需求时先做
 
 1. **解析用户消息**是否包含下表五元；缺项则在动手前用**一条简短追问**补齐（不要长问卷）：
-   - 做什么 / 不做什么 / 验收标准 / 环境（实验室 192.168.56.11 或仅本地）/ **发布与 git**（完整 ship / 仅 deploy / 不 commit）
-2. **默认遵守**本仓 `monorepo-release.mdc`：代码变更后跑适用子 skill（`release-deploy` → `ai-sre-ship` / `opsfleetpilot-ship`），**除非**用户本回合明确豁免。
-3. **默认不** `git commit` / `git push`，除非用户写明「提交」「push」「按发布 skill 含 push」。**本条不免除远端部署**：即使用户不要求 push，只要在本文档适用的仓库改过代码，仍须在本机执行 `release-deploy` 中的 **`deploy-remote.sh` / `deploy-opsfleet-remote.sh`**（适用时）及 **`SHORT=1 scripts/remote-e2e.sh` / SSH verify**，除非用户对**部署**也写明豁免。
+   - 做什么 / 不做什么 / 验收标准 / 环境（实验室 192.168.56.11 或仅本地）/ **是否豁免发布**（默认不豁免；仅当用户本回合明确写「只改本地 / 不 SSH / 不 commit / 不 push」等）
+2. **本仓（ai-sre monorepo）强制**：凡改动可追溯进 git 的工件，**默认完整**执行 **`monorepo-release.mdc` → `release-deploy` → `ai-sre-ship`（及适用的 `opsfleetpilot-ship`）**，含远端 deploy、冒烟、**`git commit` + `git push`**。**不要**等用户说「发布」。**不要**以其它对话中的泛化「不主动提交」偏好跳过本仓发布流程。
+3. **豁免**：仅当用户**在本回合用户消息中**明确写出不 deploy、不 push、不 commit 等时方可缩小范围；否则须在**同一助手回合内**跑完适用脚本与 git 收尾。
 4. **严禁**仅用「已通过 `npm run build` / `go build`」收官：只要触及 `ft-backend`、`ft-front`、根 CLI 等与线上一致的路径，必须以**远端构建与冒烟结果**作为「可做发布结论」的依据（见 `monorepo-release.mdc`）。
 5. **用 @ 收窄上下文**：优先用户 @ 的文件/目录；禁止无必要全仓 `@Codebase` 式探索。
 6. 任务结束回复须包含 **发布自检段落**：列出已执行的脚本命令、摘要结果（exit）；若豁免须逐条写明「跳过 deploy 的原因」。未执行发布亦须承认并说明是否属违规，不得以「如需发布请说」推脱。
@@ -25,11 +25,11 @@ description: >-
 
 | 原因 | 说明 |
 |------|------|
-| 把「改完并通过本地编译」误判为做完 | Skill 定义的完成含远端 deploy + 冒烟 |
-| 与「不主动 git commit」混淆 | Commit/push 可省略；**deploy 省略须单独豁免** |
-| 对话在此处结束（无下一轮） | 代理应在**同一条助手回复的工具调用中**顺序跑完脚本，再写总结 |
+| 把「改完并通过本地编译」误判为做完 | Skill 定义的完成含远端 deploy + 冒烟 + 默认可用的 **commit + push** |
+| 与全局「不主动 git commit」混淆 | **在本仓库以 `monorepo-release.mdc` 为准**：测试通过后默认 **commit + push**，除非用户本回合明确豁免 |
+| 对话在此处结束（无下一轮） | 代理应在**同一条助手回复的工具调用中**顺序跑完脚本与 git，再写总结 |
 
-用户未写【发布】时：实现完成后默认执行 **`deploy-remote.sh` + 适用 **`deploy-opsfleet-remote.sh`** + **`SHORT=1 remote-e2e`** +（适用时）SSH verify；**不**默认 commit/push。
+用户未写【发布】时：实现完成后仍须默认跑 **`deploy-remote.sh`** + 适用 **`deploy-opsfleet-remote.sh`** + **`SHORT=1 remote-e2e`** +（适用时）verify，然后 **`git commit` + `git push`**（无豁免时）。
 
 ## 推荐用户消息模板（可提示用户复制）
 
@@ -38,7 +38,7 @@ description: >-
 【不做】<明确排除项，如不改前端 / 不合并历史报告>
 【验收】<测试或检查项，如 go test、verify-opsfleet、三门版本一致>
 【环境】实验室 192.168.56.11 / 仅本地
-【发布】完整 release-deploy（含 deploy-opsfleet + remote-e2e）/ 仅 deploy / 不 SSH 不 push
+【发布】默认不写即**完整 release（含 commit+push）**；仅当本回合要豁免时写「不 SSH / 不 commit / 不 push」
 【其它】<版本号是否 bump、是否改 config.yaml 等>
 ```
 
@@ -84,7 +84,7 @@ description: >-
 【不做】不改 ft-front；不 git push
 【验收】go test ./ft-backend/...；deploy-opsfleet + verify
 【环境】192.168.56.11
-【发布】deploy + 冒烟，不 commit
+【发布】deploy + 冒烟，本回合不 commit（豁免示例）
 ```
 
 **低效（代理应主动要求补全）：**

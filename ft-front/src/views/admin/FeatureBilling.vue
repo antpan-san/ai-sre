@@ -2,7 +2,7 @@
   <div class="feature-billing page-shell page-shell--crud-wide">
     <div class="page-head">
       <div class="page-head-copy">
-        <h2 class="page-title">订阅与计费</h2>
+        <h2 class="page-title">套餐与计费</h2>
         <el-popover placement="bottom-start" :width="320" trigger="click">
           <template #reference>
             <el-button text type="primary" size="small">字段说明</el-button>

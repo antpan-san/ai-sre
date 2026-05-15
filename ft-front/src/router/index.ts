@@ -64,11 +64,31 @@ const routes: Array<RouteRecordRaw> = [
         component: () => import('../views/user/UserList.vue'),
         meta: { title: '用户', requireAuth: true, roles: adminRoles }
       },
+      { path: 'billing', redirect: '/admin/billing/features' },
       {
         path: 'billing/features',
         name: 'AdminBillingFeatures',
         component: () => import('../views/admin/FeatureBilling.vue'),
-        meta: { title: '订阅与计费', requireAuth: true, roles: superAdminRoles }
+        meta: {
+          title: '套餐与计费',
+          requireAuth: true,
+          roles: superAdminRoles,
+          breadcrumb: [{ title: '订阅与计费' }, { title: '套餐与计费' }]
+        }
+      },
+      {
+        path: 'billing/ai-sre-skills',
+        name: 'AdminAisreSkills',
+        component: () => import('../views/admin/AisreSkillsCatalog.vue'),
+        meta: {
+          title: 'ai-sre 技能包',
+          requireAuth: true,
+          roles: superAdminRoles,
+          breadcrumb: [
+            { title: '订阅与计费', path: '/admin/billing/features' },
+            { title: 'ai-sre 技能包' }
+          ]
+        }
       },
       {
         path: 'service/deploy',
