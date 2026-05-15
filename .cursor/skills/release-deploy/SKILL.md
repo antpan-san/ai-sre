@@ -1,13 +1,14 @@
 ---
 name: release-deploy
 description: >-
-  Publishes ai-sre monorepo: remote deploy, verify, smoke/remote-e2e, README, then **git push last** (only after all remote tests pass).
+  Publishes ai-sre monorepo: remote deploy, verify, smoke/remote-e2e, README, then **mandatory git commit + git push last**
+  (every code change batch must be committed; push only after all remote tests pass).
   Use after any edit under /Users/panshuai/Documents/work/code/ai-sre, when the user says 发布/部署/上线/ship, or when finishing a task that modified this repo.
 ---
 
 # 发布部署（总入口）
 
-本 skill 是 **ai-sre 同仓** 发布流程的**唯一总入口**。代理在**完成本仓库内任意代码或配置变更**后，**必须**按本节执行，**不要**等用户逐轮提醒「发布 / 部署 / 上线」——**`.cursor/rules/monorepo-release.mdc`（`alwaysApply`）** 已要求默认执行（含测试通过后的 **commit + push**）。**本仓规则优先于对话里泛化的「不主动提交」偏好**；仅当用户在本轮消息中**明确**豁免（不 SSH / 不 push / 仅本地等）时可缩小范围。
+本 skill 是 **ai-sre 同仓** 发布流程的**唯一总入口**。代理在**完成本仓库内任意代码或配置变更**后，**必须**按本节执行，**不要**等用户逐轮提醒「发布 / 部署 / 上线」——**`.cursor/rules/monorepo-release.mdc`（`alwaysApply`）** 已要求默认执行（含测试通过后的 **`git commit`（每次改代码必做）+ `git push`**）。**本仓规则优先于对话里泛化的「不主动提交」偏好**；仅当用户在本轮消息中**明确**豁免（不 SSH / **不要 commit** / 不 push / 仅本地等）时可缩小范围。
 
 **用户与 192.168.56.11**：对实验室 OpsFort 机（`root@192.168.56.11`，默认 `$REMOTE_DIR=/root/sre`）的一切维护，由代理在**本机**执行仓库内 **`deploy-opsfleet-remote.sh` / `deploy-remote.sh` / verify 脚本**（脚本内部 SSH）完成；**不要求、也不应引导用户**自行登录该主机维护 **`bin/ai-sre`** 或其它服务。
 
@@ -31,11 +32,11 @@ description: >-
 - [ ] 0. **不在此清单中要求用户 SSH 到 192.168.56.11**；由代理在本机跑脚本完成远端维护
 - [ ] 1. 用 Read 打开 monorepo-release.mdc，确认无用户豁免
 - [ ] 2. **凡改了 `main.go`、`internal/cli`、根 `go.mod` / `go.sum` 或 ai-sre 可执行逻辑**：发布前先检查 **`internal/cli/version.go`** 是否需要递增（有可见行为变更必须递增）；随后**必须**执行 **`./scripts/deploy-opsfleet-remote.sh`**（更新 **`bin/ai-sre`**），不得仅 **`deploy-remote.sh`**；再执行 ai-sre-ship 其余项；并满足项 4a 版本一致。其它触及 OpsFort 路径时仍按 **opsfleetpilot-ship** 全栈
-- [ ] 3. 用 Read 打开并完整执行 **ai-sre-ship**：`deploy-remote.sh` → `SHORT=1 bash scripts/remote-e2e.sh`（或全量 remote-e2e）**通过**后 → **README 最后核对** → **再** `git push`（顺序见子 skill，**禁止**在冒烟未通过时 push）
+- [ ] 3. 用 Read 打开并完整执行 **ai-sre-ship**：`deploy-remote.sh` → `SHORT=1 bash scripts/remote-e2e.sh`（或全量 remote-e2e）**通过**后 → **README 最后核对** → **`git commit`（收录本轮全部改动；每次改代码必须有 commit）** → **再** `git push`（顺序见子 skill，**禁止**在冒烟未通过时 commit/push）
 - [ ] 4. OpsFort 全栈（触及 ft-backend/、ft-front/、deploy/、ansible-agent/、**或需更新对外 ai-sre 版本** 时）：`./scripts/deploy-opsfleet-remote.sh` → SSH 执行 `bash scripts/verify-opsfleet-deployment.sh`。**仅** `deploy-remote.sh` **不会**更新 `GET .../cli/ai-sre` 用的 **`bin/ai-sre`**（与 `$REMOTE_DIR/ai-sre` 是两条线；见 opsfleetpilot 说明）
 - [ ] 4a. **ai-sre 版本三门一致（有 OpsFort 时必做；由代理本机 curl / 脚本验证，用户不登 11）**：本仓 **`internal/cli` Version** = 代理通过 SSH 或 verify 输出确认的 **`$OPSFLEET_AISRE_BINARY_PATH` 的 `version`** = **`curl -sS http://192.168.56.11:9080/ft-api/api/k8s/deploy/cli/ai-sre/version`**（或 verify 脚本等价检查）。不一致则**由代理**重跑 **`deploy-opsfleet-remote.sh`**（必要时检查 **`/etc/opsfleet/backend.env`** 中 **`OPSFLEET_AISRE_VERSION`** 是否与二进制一致并 **`systemctl restart opsfleet-backend`**），**不得**把手工登服务器作为留给用户的步骤
 - [ ] 5. 若变更触及 K8s 离线/控制台 K8s/制品镜像 → 另执行 k8s-offline-deploy-test（见 monorepo-release 第 3 条）
-- [ ] 6. **git**（**必须**在项 2–5 的远程部署与测试全部通过之后）：确认未提交 bin/、dist/；`commit`；`push origin main`（**禁止**在远程测试未通过时 push）
+- [ ] 6. **git commit + push**（**必须**在项 2–5 的远程部署与测试全部通过之后）：确认未提交 bin/、dist/；**必须有新的 `git commit` 包含本轮所有变更**；再 `push origin main`（**禁止**未 commit 结束回合；**禁止**在远程测试未通过时 push）
 - [ ] 7. 向用户汇报：exit 码、**4a 版本**、verify 摘要、URL、提交哈希
 ```
 
@@ -47,7 +48,7 @@ description: >-
 | B | SSH 部署机：`bash scripts/verify-opsfleet-deployment.sh`（含 install-ai-sre.sh 探测） |
 | C | 仓库根：`./scripts/deploy-remote.sh`（仅 ai-sre CLI 同步构建，与全栈独立但同主机同目录时常规仍执行） |
 | D | 仓库根：`SHORT=1 bash scripts/remote-e2e.sh`（本地 vet + 远程 CLI 冒烟） |
-| E | `git add` / `commit` / `push`（**仅**在 A–D 及适用时 k8s-offline 全部通过之后；**勿**纳入 bin/、dist/） |
+| E | `git add` / **`commit`（强制，每次改代码一批）** / `push`（**仅**在 A–D 及适用时 k8s-offline 全部通过之后；**勿**纳入 bin/、dist/） |
 
 **后端说明**：`ft-backend` 已挂载 **`StripOptionalFtAPIPrefix`**，Nginx 将 **`/ft-api/api/...`** 整段转发时也能命中路由；模板仍要求 **`proxy_pass .../`** 带尾斜杠（见 `deploy/nginx.opsfleet.conf.template` 注释）。
 

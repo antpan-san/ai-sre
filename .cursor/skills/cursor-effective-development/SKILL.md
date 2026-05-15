@@ -15,7 +15,7 @@ description: >-
 
 1. **解析用户消息**是否包含下表五元；缺项则在动手前用**一条简短追问**补齐（不要长问卷）：
    - 做什么 / 不做什么 / 验收标准 / 环境（实验室 192.168.56.11 或仅本地）/ **是否豁免发布**（默认不豁免；仅当用户本回合明确写「只改本地 / 不 SSH / 不 commit / 不 push」等）
-2. **本仓（ai-sre monorepo）强制**：凡改动可追溯进 git 的工件，**默认完整**执行 **`monorepo-release.mdc` → `release-deploy` → `ai-sre-ship`（及适用的 `opsfleetpilot-ship`）**，含远端 deploy、冒烟、**`git commit` + `git push`**。**不要**等用户说「发布」。**不要**以其它对话中的泛化「不主动提交」偏好跳过本仓发布流程。
+2. **本仓（ai-sre monorepo）强制**：凡改动可追溯进 git 的工件，**默认完整**执行 **`monorepo-release.mdc` → `release-deploy` → `ai-sre-ship`（及适用的 `opsfleetpilot-ship`）**，含远端 deploy、冒烟、**`git commit`（每一批代码改动必须 commit，不得留未提交工作区）+ `git push`**。**不要**等用户说「发布」或「提交」。**不要**以其它对话中的泛化「不主动提交」偏好跳过本仓发布流程。
 3. **豁免**：仅当用户**在本回合用户消息中**明确写出不 deploy、不 push、不 commit 等时方可缩小范围；否则须在**同一助手回合内**跑完适用脚本与 git 收尾。
 4. **严禁**仅用「已通过 `npm run build` / `go build`」收官：只要触及 `ft-backend`、`ft-front`、根 CLI 等与线上一致的路径，必须以**远端构建与冒烟结果**作为「可做发布结论」的依据（见 `monorepo-release.mdc`）。
 5. **用 @ 收窄上下文**：优先用户 @ 的文件/目录；禁止无必要全仓 `@Codebase` 式探索。

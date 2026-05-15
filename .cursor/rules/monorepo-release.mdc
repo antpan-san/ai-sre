@@ -10,6 +10,7 @@ alwaysApply: true
 - **凡在本仓库路径内产生可提交改动（代码/配置/脚本/文档/`.cursor` 等），在未按本文跑完适用发布步骤前，助手回合视为未完成；禁止**仅用本地 `go build` / `npm run build` 收官。
 - **禁止**以「用户全局习惯上不主动 commit」为借口，**省略** `deploy-remote.sh`、`deploy-opsfleet-remote.sh`（适用时）、`verify-opsfleet-deployment.sh`（适用时）、`SHORT=1 bash scripts/remote-e2e.sh`（或全量）等 **release-deploy / ai-sre-ship / opsfleetpilot-ship** 要求的远端与冒烟步骤。
 - **默认收尾**：远端与本地检查**全部通过后**，须 **`git add` + `git commit` + `git push`**（与 **`.cursor/skills/ai-sre-ship/SKILL.md`** 一致），**无需用户再说「发布 / 提交 / push」**。
+- **每次改代码必须 commit**：只要本轮对仓库做了应进版本库的修改，**必须**至少产生 **一次 `git commit`** 收录本轮全部变更；**禁止**在仍有未提交改动时结束助手回合；**禁止**仅以「用户没说要提交」为由留脏工作区。豁免仅限用户本回合明确写「不要 commit」。
 - **唯一例外**：仅当用户**在本轮用户消息中**明确写出豁免词（示例：`只改本地`、`不 SSH`、`不 deploy`、`不跑发布`、`不要 commit`、`不要 push`）时，才可跳过对应子步骤；**仍须在回复首段列表说明跳过了什么**，未跳过则须写明执行的命令与结果摘要。
 
 ## 用户声明（代理须默认遵守）
@@ -23,7 +24,7 @@ alwaysApply: true
 
 在本仓库内对**任意文件**做出编辑、新增或删除后（含 `internal/`、`main.go`、`ft-*`、`deploy/`、`scripts/`、`README.md`、`docs/`、`.cursor/**` 等），在结束本轮任务前**必须**：
 
-1. 使用 **Read** 打开 **`.cursor/skills/release-deploy/SKILL.md`**（发布部署总入口），再按其清单执行子 skill；其中 **CLI 同步与 push** 以 **`.cursor/skills/ai-sre-ship/SKILL.md`** 为准（README 核对、默认执行 `./scripts/deploy-remote.sh` 与远程冒烟、**然后 `git commit` + `git push`**）。**无豁免时不得跳过 push。**
+1. 使用 **Read** 打开 **`.cursor/skills/release-deploy/SKILL.md`**（发布部署总入口），再按其清单执行子 skill；其中 **CLI 同步与 push** 以 **`.cursor/skills/ai-sre-ship/SKILL.md`** 为准（README 核对、默认执行 `./scripts/deploy-remote.sh` 与远程冒烟、**然后必须有 `git commit`（每次改代码必提交）+ `git push`**）。**无豁免时不得跳过 commit/push。**
 2. 若本次变更触及以下**任一**路径或主题，**另须**遵循 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**：`ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/`，或 `scripts/deploy-opsfleet-remote.sh`、`scripts/build-all.sh`、`scripts/verify-opsfleet-deployment.sh`、与 OpsFleet 部署相关的根 `README` 段落。**另**：凡修改 **`main.go`、根目录 `go.mod`、`go.sum`、`internal/cli/`（含版本号）或其它直接影响 **ai-sre 可执行文件** 的内容，**必须**在发布流程中执行 **`./scripts/deploy-opsfleet-remote.sh`**（以更新 **`$REMOTE_DIR/bin/ai-sre`** 及对外 **`GET .../cli/ai-sre`**）；**不得**仅以 **`deploy-remote.sh`** 代替，否则实验室 **install-ai-sre 仍发旧包**。
 3. **Kubernetes 离线安装包 / 控制台 K8s 部署表单 / 内网制品镜像**相关变更时，**另须**遵循 **`.cursor/skills/k8s-offline-deploy-test/SKILL.md`**（人手等价、合并 inventory、测试与清理）。触发条件（命中**任一**即可）：`ansible-agent/`（尤其 `roles/`、`playbooks/`、`inventory/`）、`ft-backend/handlers/k8s_bundle.go`、`ft-backend/handlers/k8s_ansible.go`、`ft-backend/cmd/gen-k8s-bundle/`、`ft-front/src/views/service/k8s-deploy/`、`deploy/k8s-mirror/`、`ft-backend/handlers/k8s_mirror_catalog.go`、根目录 `install.sh` 或 `k8s_bundle` 相关逻辑。**最低限度**：`cd ft-backend && go build ./...`；`OPSFLEET_ANSIBLE_DIR=<repo>/ansible-agent go run ./cmd/gen-k8s-bundle ...` 成功产出 zip；若本机可 SSH 到测试控制机则按 Skill 做解压安装与反馈；**实验室 VM `root@192.168.56.11` 可达时**，按 Skill 核对制品 manifest 或部署脚本行为。**任一步失败则不得宣称完成且不 push**（除非用户豁免）。
 4. **执行顺序**：先 **`ai-sre-ship`**（含 push 前检查）→ 若适用则 **`opsfleetpilot-ship`** → 若适用则 **`k8s-offline-deploy-test`** → 最后 **`git add/commit/push`**（以 `ai-sre-ship` 第 5 步为准，勿在未跑完适用 skill 时 push）。  
