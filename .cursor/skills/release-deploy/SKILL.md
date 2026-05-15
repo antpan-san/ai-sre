@@ -19,6 +19,7 @@ description: >-
 | Cursor 规则（alwaysApply） | `.cursor/rules/monorepo-release.mdc` |
 | CLI 同步 + 冒烟 + README + push | `.cursor/skills/ai-sre-ship/SKILL.md` |
 | OpsFleet 全栈（Nginx、前端 dist、后端 systemd） | `.cursor/skills/opsfleetpilot-ship/SKILL.md` |
+| 生产环境 opsfleetpilot.com | `.cursor/skills/production-deploy/SKILL.md` |
 | K8s 离线包 / 控制台 K8s 页 / 制品镜像 | `.cursor/skills/k8s-offline-deploy-test/SKILL.md` |
 
 ## 执行顺序（必须）
@@ -67,6 +68,7 @@ description: >-
 |------|----------------|
 | 仅 CLI / 通用同步 | `./scripts/deploy-remote.sh` |
 | OpsFleet 全栈 | `./scripts/deploy-opsfleet-remote.sh` |
+| 生产环境 | 按 `.cursor/skills/production-deploy/SKILL.md`，保留生产 Nginx 与 `config.yaml` |
 | 远端自检（在部署机上） | `bash scripts/verify-opsfleet-deployment.sh`（含 **install-ai-sre.sh**、cli/ai-sre、manifest、/health） |
 | 对外 ai-sre 是否真升级 | 比对 **本仓 Version** 与 `curl .../cli/ai-sre/version` 与 `ssh` 上 `$OPSFLEET_AISRE_BINARY_PATH` 的 `version`（**deploy-remote alone 不更新 bin/ai-sre**） |
 | CLI 冒烟（本地触发 SSH） | `SHORT=1 bash scripts/remote-e2e.sh` |
