@@ -34,7 +34,7 @@
           <span class="section-meta">{{ machines.length }} 台在线 · 已选 {{ selectedMachines.length }} 台</span>
         </div>
         <p class="field-hint">
-          在下方文本框填入 <strong>UUID</strong>、<strong>IP</strong> 或<strong>主机名</strong>（空格 / 逗号 / 换行分隔），点击<strong>应用到已选</strong>解析为当前<strong>在线</strong> Agent；解析依赖顶栏旁的刷新列表以保持在线快照。
+          在下方文本框填入 <strong>UUID</strong>、<strong>IP</strong> 或<strong>主机名</strong>（空格 / 逗号 / 换行分隔），系统将按<strong>当前在线</strong>快照自动解析<strong>已选</strong>；可先点顶栏旁刷新以保持列表最新。确认执行时会再次即时解析一遍。
         </p>
         <div class="targets-body" v-loading="machinesLoading">
           <el-input
@@ -45,7 +45,6 @@
             class="targets-textarea"
           />
           <div class="targets-actions">
-            <el-button type="primary" size="small" @click="applyTargetsFromInput">应用到已选</el-button>
             <el-button size="small" @click="clearTargets">清空目标</el-button>
           </div>
         </div>
@@ -72,7 +71,7 @@
             </div>
             <div class="opt-field opt-field--switch">
               <el-switch v-model="blockIfUnresolvedTargets" />
-              <span class="opt-label-inline">「应用到已选」时若有无法识别的 token 则阻止执行按钮（直到改正）</span>
+              <span class="opt-label-inline">文本目标中存在无法识别的 token 时阻止执行（直到改正）</span>
             </div>
           </div>
         </el-collapse-item>
@@ -333,7 +332,7 @@ function findMachineByToken(t: string): Machine | undefined {
   )
 }
 
-function applyTargetsFromInput() {
+function reconcileTargetsFromTextarea(notify: boolean) {
   const tokens = tokenizeTargets(machineTargetsRaw.value)
   unresolvedTokens.value = []
   const ids: string[] = []
@@ -348,11 +347,30 @@ function applyTargetsFromInput() {
     }
   }
   selectedMachines.value = machines.value.filter((m) => ids.includes(m.id))
+  if (!notify) return
   if (unresolvedTokens.value.length) {
     ElMessage.warning(`未识别的目标（请核对在线 UUID / IP / 名称）：${unresolvedTokens.value.join(', ')}`)
   } else if (tokens.length) {
     ElMessage.success(`已选 ${ids.length} 台机器`)
   }
+}
+
+let targetReconcileTimer: ReturnType<typeof setTimeout> | null = null
+
+function scheduleTargetReconcile() {
+  if (targetReconcileTimer) clearTimeout(targetReconcileTimer)
+  targetReconcileTimer = setTimeout(() => {
+    targetReconcileTimer = null
+    reconcileTargetsFromTextarea(false)
+  }, 380)
+}
+
+function flushTargetReconcile() {
+  if (targetReconcileTimer) {
+    clearTimeout(targetReconcileTimer)
+    targetReconcileTimer = null
+  }
+  reconcileTargetsFromTextarea(false)
 }
 
 function syncTargetsTextFromSelection() {
@@ -365,6 +383,10 @@ function syncTargetsTextFromSelection() {
 }
 
 function clearTargets() {
+  if (targetReconcileTimer) {
+    clearTimeout(targetReconcileTimer)
+    targetReconcileTimer = null
+  }
   selectedMachines.value = []
   machineTargetsRaw.value = ''
   unresolvedTokens.value = []
@@ -392,6 +414,8 @@ const checkCommandSyntax = (command: string) => {
 }
 
 watch(commandText, (v) => checkCommandSyntax(v))
+
+watch(machineTargetsRaw, () => scheduleTargetReconcile())
 
 const loadCommandHistory = () => {
   try {
@@ -543,8 +567,9 @@ const loadMachineList = async () => {
 const refreshMachines = () => void loadMachineList()
 
 const executeCommands = async () => {
+  flushTargetReconcile()
   if (hasBlockingUnresolved.value) {
-    ElMessage.error('请先修正无法识别的目标，或关闭「未识别则阻止执行」')
+    ElMessage.error('请先修正无法识别的目标，或关闭上方「文本目标中存在无法识别的 token 时阻止执行」')
     return
   }
   if (!selectedMachines.value.length) {
@@ -633,6 +658,7 @@ function buildExecutePayloadObject() {
 }
 
 function openScriptDialog() {
+  flushTargetReconcile()
   const b64 = utf8ToB64(JSON.stringify(buildExecutePayloadObject()))
   const ids = selectedMachines.value.map((m) => m.id).join(',')
   const escaped = commandText.value.trim().replace(/\\/g, '\\\\').replace(/'/g, "'\\''")
