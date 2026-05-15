@@ -38,6 +38,7 @@ var (
 	latency           string
 	setKV             map[string]string
 	noFeedback        bool
+	goRuntimeOpts     goRuntimeCLIOptions
 )
 
 // Execute runs the Cobra root (entry from main) as ai-sre.
@@ -139,7 +140,7 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
 
-	cmds := []*cobra.Command{analyzeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(), kafkaCmd(), redisCmd(), mysqlCmd(), nginxCmd(), elasticsearchCmd(), nodeCmd(), jobCmd()}
+	cmds := []*cobra.Command{analyzeCmd(), diagnoseCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(), kafkaCmd(), redisCmd(), mysqlCmd(), nginxCmd(), elasticsearchCmd(), nodeCmd(), jobCmd()}
 	if programName == "ai-sre" {
 		cmds = append(cmds, uninstallCmd())
 	}
@@ -165,6 +166,11 @@ k8s 场景 --pod 可填：
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx := buildContextMap()
 			topic := args[0]
+			if isGoRuntimeAnalyzeTopic(topic) {
+				goRuntimeOpts.Namespace = namespace
+				goRuntimeOpts.Pod = pod
+				return runGoRuntimeAnalyze(topic, goRuntimeOpts)
+			}
 			for k, v := range gatherTopicEvidence(cmd.Context(), topic, ctx) {
 				ctx[k] = v
 			}
@@ -204,13 +210,24 @@ k8s 场景 --pod 可填：
 	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
   %s analyze k8s --pod pending
   %s analyze k8s --pod kube-controller-manager-k8s-master-0 -n kube-system
+  %s analyze go-runtime --pid 1234
   %s analyze elasticsearch -d base_url=http://127.0.0.1:9200
   %s -o json analyze kafka --lag 1
   %s analyze code OPSFLEET_K8S_E_PAUSE_MISSING
   %s analyze code OPSFLEET_K8S_E_APISERVER_TIMEOUT --detail "$(journalctl -u kubelet -n 30)"`,
-		progName, progName, progName, progName, progName, progName, progName)
+		progName, progName, progName, progName, progName, progName, progName, progName)
+	bindGoRuntimeAnalyzeFlags(cmd, &goRuntimeOpts)
 	cmd.AddCommand(analyzeCodeCmd())
 	return cmd
+}
+
+func isGoRuntimeAnalyzeTopic(topic string) bool {
+	switch strings.ToLower(strings.TrimSpace(topic)) {
+	case "go-runtime", "pod-go":
+		return true
+	default:
+		return false
+	}
 }
 
 func askCmd() *cobra.Command {
