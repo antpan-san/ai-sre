@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"ft-backend/common/config"
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
 
@@ -161,7 +162,7 @@ func sanitizeBundleFilePrefix(name string) string {
 
 // resolveAnsibleAgentDir 查找仓库内 ansible-agent（相对 ft-backend 工作目录一般为 ..）。
 func resolveAnsibleAgentDir() string {
-	if d := os.Getenv("OPSFLEET_ANSIBLE_DIR"); d != "" {
+	if d := config.ResolvedAnsibleDir(); d != "" {
 		if st, err := os.Stat(d); err == nil && st.IsDir() {
 			return d
 		}

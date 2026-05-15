@@ -50,6 +50,35 @@ security:
 client:
     encrypt_key: 123456
 
+# 服务端 LLM（密钥优先用环境变量 OPSFLEET_AI_API_KEY，勿将真实 key 提交仓库）
+ai:
+    api_key: ""
+    base_url: https://api.deepseek.com/v1
+    model: deepseek-chat
+
+# OpsFleet 扩展：ai-sre 分发、技能样本目录（可被 OPSFLEET_* 环境变量覆盖）
+opsfleet:
+    ai_sre_binary_path: ""
+    ai_skill_data_dir: /var/lib/opsfleet/ai-skills
+
+# K8s 制品与离线包（实验室默认与 deploy-opsfleet 写入的 mirror 一致）
+k8s:
+    mirror_base_url: http://192.168.56.11
+    mirror_manifest_url: ""
+    relay_base_url: ""
+    ansible_dir: ""
+
+# 服务端技能自迭代（实验室默认开启；生产请改 enabled: false 或仅用环境变量）
+skills:
+    auto_refine:
+        enabled: true
+        min_samples: 8
+        cooldown: 12h
+        topics:
+            - go_runtime
+            - k8s
+        max_per_day: 3
+
 log:
     level: debug
 

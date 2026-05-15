@@ -259,6 +259,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		runtimeWatch.POST("/runtime-watch/sessions", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionExecute), handlers.CreateRuntimeWatchSession)
 		runtimeWatch.GET("/runtime-watch/sessions/:id/samples", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionReport), handlers.GetRuntimeWatchSamples)
 		runtimeWatch.POST("/runtime-watch/sessions/:id/stop", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionExecute), handlers.StopRuntimeWatchSession)
+		runtimeWatch.DELETE("/runtime-watch/sessions/:id", middleware.RequireCapability(models.FeatureKeyRuntimeObserve, middleware.CapabilityActionExecute), handlers.DeleteRuntimeWatchSession)
 
 		// ---- File Management ----
 		protected.POST("/files/upload", handlers.UploadFile)

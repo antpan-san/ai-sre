@@ -22,8 +22,10 @@ type ProcessIdentity struct {
 	Container   string `json:"container,omitempty"`
 	Node        string `json:"node,omitempty"`
 	ContainerID string `json:"container_id,omitempty"`
-	Target      string `json:"target,omitempty"`
-	Source      string `json:"source,omitempty"`
+	Target       string `json:"target,omitempty"`
+	Source       string `json:"source,omitempty"`
+	ResourceKind string `json:"resource_kind,omitempty"`
+	ResourceName string `json:"resource_name,omitempty"`
 }
 
 type ProcSnapshot struct {
@@ -145,13 +147,15 @@ type Report struct {
 
 // WatchReport aggregates multiple Collect snapshots for trend-style analysis.
 type WatchReport struct {
-	GeneratedAt     time.Time          `json:"generated_at"`
-	Target          ProcessIdentity    `json:"target"`
-	Summary         ReportSummary      `json:"summary"`
-	IntervalSeconds float64            `json:"interval_seconds,omitempty"`
-	SampleCount     int                `json:"sample_count"`
-	Samples         []*Report          `json:"samples"`
-	TrendFindings   []Finding          `json:"trend_findings"`
-	Candidates      []ProcessCandidate `json:"candidates,omitempty"`
-	Errors          []string           `json:"errors,omitempty"`
+	GeneratedAt     time.Time           `json:"generated_at"`
+	Target          ProcessIdentity     `json:"target"`
+	Summary         ReportSummary       `json:"summary"`
+	Diagnosis       DiagnosisConclusion `json:"diagnosis,omitempty"`
+	IntervalSeconds float64             `json:"interval_seconds,omitempty"`
+	SampleCount     int                 `json:"sample_count"`
+	Samples         []*Report           `json:"samples"`
+	TrendFindings   []Finding           `json:"trend_findings"`
+	ProbeBundle     map[string]string   `json:"probe_bundle,omitempty"`
+	Candidates      []ProcessCandidate  `json:"candidates,omitempty"`
+	Errors          []string            `json:"errors,omitempty"`
 }

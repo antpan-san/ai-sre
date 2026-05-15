@@ -11,6 +11,8 @@ Use this skill before editing and before finalizing any change that can affect r
 
 Prevent easy compromise of the OpsFleetPilot site, API, managed servers, deployment hosts, and user data. Treat this project as an operations control plane: a low-friction bug can become server takeover.
 
+**配置**：凡新增 `OPSFLEET_*` 或运维开关，须同时遵循 **`.cursor/skills/backend-configuration/SKILL.md`**（yaml 为主、env 覆盖、经 `config.Resolved*` 读取；密钥不进 git）。
+
 ## Minimum Workflow
 
 1. **Classify the touched surface**

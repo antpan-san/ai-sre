@@ -137,7 +137,7 @@
               <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/admin/advanced/performance-analysis"
                 >性能</el-menu-item>
               <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/admin/advanced/runtime-observe"
-                >进程观测</el-menu-item>
+                >运行时诊断</el-menu-item>
             </el-sub-menu>
           </template>
           <template v-else>
@@ -176,7 +176,7 @@
               <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/app/advanced/performance-analysis"
                 >性能</el-menu-item>
               <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/app/advanced/runtime-observe"
-                >进程观测</el-menu-item>
+                >运行时诊断</el-menu-item>
             </el-sub-menu>
           </template>
         </el-menu>

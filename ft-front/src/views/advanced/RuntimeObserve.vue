@@ -1,150 +1,269 @@
 <template>
-  <div class="runtime-observe">
+  <div class="runtime-diagnose page-shell">
     <div class="page-header">
-      <h2>进程观测</h2>
+      <h2>运行时诊断</h2>
+      <p class="page-desc--muted">
+        每次执行 <code>ai-sre diagnose</code> 产生<strong>一条独立报告</strong>（根因 + 证据），按时间倒序排列；不会对同一目标做历史对比或合并。
+      </p>
     </div>
-    <p v-if="billingAlertTitle" class="billing-strip page-desc--muted">{{ billingAlertTitle }}</p>
-    <p class="page-desc--muted">
-      运行 <code>ai-sre diagnose --pod namespace/pod/container</code>，CLI 自动采样、输出结论并上传报告。用于观察 RSS、FD、CPU
-      时间等信号（非侵入式，仅读 procfs/cgroup）。
-    </p>
+
+    <p v-if="billingAlertTitle" class="billing-strip">{{ billingAlertTitle }}</p>
 
     <div class="toolbar">
-      <el-button type="primary" :disabled="!canUse" @click="openCreate">新建观测会话</el-button>
-      <el-button :disabled="!canUse" @click="loadSessions">刷新列表</el-button>
+      <el-input
+        v-model="keyword"
+        clearable
+        placeholder="搜索目标、根因、证据…"
+        class="toolbar-search"
+        :disabled="!canUse"
+      />
+      <el-select v-model="levelFilter" clearable placeholder="级别" style="width: 120px" :disabled="!canUse">
+        <el-option label="严重" value="CRITICAL" />
+        <el-option label="警告" value="WARN" />
+        <el-option label="正常" value="OK" />
+        <el-option label="未知" value="UNKNOWN" />
+      </el-select>
+      <el-button :disabled="!canUse" @click="loadReports">刷新</el-button>
     </div>
 
-    <el-table v-loading="loading" :data="sessions" stripe style="width: 100%; margin-top: 12px">
-      <el-table-column prop="namespace" label="命名空间" width="120" />
-      <el-table-column prop="pod" label="Pod" min-width="160" />
-      <el-table-column prop="container" label="容器" width="120" />
-      <el-table-column prop="interval_sec" label="间隔(s)" width="100" />
-      <el-table-column prop="status" label="状态" width="100" />
-      <el-table-column prop="created_at" label="创建时间" width="180" />
-      <el-table-column label="操作" width="220" fixed="right">
+    <el-table
+      v-loading="loading"
+      :data="filteredReports"
+      stripe
+      class="report-table"
+      empty-text="暂无诊断报告。在本机执行一次 diagnose 后刷新本页。"
+      @row-click="openDetail"
+    >
+      <el-table-column label="诊断时间" width="172">
         <template #default="{ row }">
-          <el-button link type="primary" @click="selectSession(row)">样本</el-button>
-          <el-button v-if="row.status === 'active'" link type="warning" @click="stopSession(row.id)">停止</el-button>
+          {{ formatTime(row.last_diagnosed_at || row.created_at) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="级别" width="88" align="center">
+        <template #default="{ row }">
+          <el-tag :type="levelTagType(row.diagnosis_level)" size="small" effect="plain">
+            {{ levelLabel(row.diagnosis_level) }}
+          </el-tag>
+        </template>
+      </el-table-column>
+      <el-table-column label="诊断目标" min-width="200" show-overflow-tooltip>
+        <template #default="{ row }">
+          <span class="target-text">{{ displayTarget(row) }}</span>
+          <span v-if="row.work_pod && row.resource_kind" class="work-pod-hint"> → {{ row.work_pod }}</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="根因" min-width="280">
+        <template #default="{ row }">
+          <div class="root-cause-cell">
+            <SafeMarkdown :content="row.root_cause" :clamp-lines="3" />
+          </div>
+        </template>
+      </el-table-column>
+      <el-table-column label="来源" width="72" align="center">
+        <template #default="{ row }">
+          <span v-if="row.diagnosis_source === 'ai'" class="source-ai">AI</span>
+          <span v-else-if="row.diagnosis_source === 'local'" class="source-local">本地</span>
+          <span v-else class="muted">—</span>
+        </template>
+      </el-table-column>
+      <el-table-column label="" width="148" fixed="right">
+        <template #default="{ row }">
+          <el-button link type="primary" @click.stop="openDetail(row)">查看</el-button>
+          <el-button link type="danger" :disabled="deletingId === row.id" @click.stop="confirmDelete(row)">
+            删除
+          </el-button>
         </template>
       </el-table-column>
     </el-table>
 
-    <el-drawer v-model="drawerVisible" title="样本时间线" size="60%">
-      <template v-if="selectedId">
-        <p class="page-desc--muted">自动刷新（约 5s）。原始 JSON 见表格「摘要」列。</p>
-        <el-table :data="samples" max-height="520" stripe>
-          <el-table-column prop="observed_at" label="时间" width="200" />
-          <el-table-column label="摘要" min-width="240">
-            <template #default="{ row }">
-              {{ sampleSummary(row.payload) }}
-            </template>
-          </el-table-column>
-        </el-table>
+    <el-drawer v-model="drawerVisible" title="单次诊断报告" size="560px" destroy-on-close>
+      <template v-if="active">
+        <el-card shadow="never" class="detail-card">
+          <template #header>
+            <div class="detail-header">
+              <el-tag :type="levelTagType(active.diagnosis_level)" effect="dark" size="small">
+                {{ levelLabel(active.diagnosis_level) }}
+              </el-tag>
+              <span class="detail-target">{{ displayTarget(active) }}</span>
+            </div>
+          </template>
+          <div class="detail-section">
+            <div class="detail-label">根因</div>
+            <div class="detail-body detail-md">
+              <SafeMarkdown :content="active.root_cause" />
+            </div>
+          </div>
+          <div v-if="active.evidence" class="detail-section">
+            <div class="detail-label">证据</div>
+            <div class="detail-evidence-md">
+              <SafeMarkdown :content="active.evidence" />
+            </div>
+          </div>
+          <el-descriptions :column="1" border size="small" class="meta-desc">
+            <el-descriptions-item label="诊断时间">
+              {{ formatTime(active.last_diagnosed_at || active.created_at) }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="active.diagnosis_source" label="结论来源">
+              {{ active.diagnosis_source === 'ai' ? '平台 AI 分析' : '本地规则/指标' }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="active.sample_count != null && active.sample_count > 0" label="本次 proc 采样">
+              {{ active.sample_count }} 次
+            </el-descriptions-item>
+            <el-descriptions-item v-if="active.work_pod" label="分析 Pod">
+              {{ active.namespace }}/{{ active.work_pod }}
+            </el-descriptions-item>
+            <el-descriptions-item label="报告 ID">
+              <span class="report-id">{{ active.id }}</span>
+            </el-descriptions-item>
+          </el-descriptions>
+        </el-card>
+
+        <div v-if="findings.length" class="detail-section" style="margin-top: 16px">
+          <div class="detail-label">辅助发现（当次采集）</div>
+          <ul class="finding-list">
+            <li v-for="(f, i) in findings" :key="i">
+              <el-tag :type="findingTag(f.severity)" size="small" effect="plain">{{ f.severity }}</el-tag>
+              {{ f.title }}
+            </li>
+          </ul>
+        </div>
+
+        <el-collapse v-if="detailPayload" style="margin-top: 16px">
+          <el-collapse-item title="技术数据（可选，供研发复核）" name="raw">
+            <pre class="raw-json">{{ prettyJSON(detailPayload) }}</pre>
+          </el-collapse-item>
+        </el-collapse>
       </template>
     </el-drawer>
-
-    <el-dialog v-model="createVisible" title="新建观测会话" width="520px" @closed="resetCreate">
-      <el-form :model="createForm" label-width="100px">
-        <el-form-item label="命名空间" required>
-          <el-input v-model="createForm.namespace" placeholder="default" />
-        </el-form-item>
-        <el-form-item label="Pod" required>
-          <el-input v-model="createForm.pod" placeholder="例如 my-app-7d4f8" />
-        </el-form-item>
-        <el-form-item label="容器">
-          <el-input v-model="createForm.container" placeholder="可选，默认第一个容器" />
-        </el-form-item>
-        <el-form-item label="间隔(秒)">
-          <el-input-number v-model="createForm.interval_sec" :min="5" :max="3600" />
-        </el-form-item>
-        <el-form-item label="机器备注">
-          <el-input v-model="createForm.machine_note" type="textarea" rows="2" placeholder="可选：填写执行 ai-sre 的节点" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="createVisible = false">取消</el-button>
-        <el-button type="primary" :loading="createLoading" @click="submitCreate">创建</el-button>
-      </template>
-    </el-dialog>
-
-    <el-dialog v-model="tokenVisible" title="写入令牌（仅显示一次）" width="640px">
-      <p>请立即复制；关闭后需重新创建会话才能获取新令牌。</p>
-      <el-descriptions :column="1" border>
-        <el-descriptions-item label="会话 ID">{{ created?.id }}</el-descriptions-item>
-        <el-descriptions-item label="上报 URL">{{ uploadURLHint }}</el-descriptions-item>
-        <el-descriptions-item label="令牌">{{ created?.sample_write_token }}</el-descriptions-item>
-      </el-descriptions>
-      <p style="margin-top: 12px"><strong>示例命令</strong>：</p>
-      <el-input type="textarea" :rows="5" readonly :model-value="cliExample" />
-      <template #footer>
-        <el-button type="primary" @click="copyCli">复制命令</el-button>
-        <el-button @click="tokenVisible = false">关闭</el-button>
-      </template>
-    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
-import { ElMessage } from 'element-plus'
-import {
-  listRuntimeWatchSessions,
-  createRuntimeWatchSession,
-  getRuntimeWatchSamples,
-  stopRuntimeWatchSession,
-  type RuntimeWatchSessionRow,
-  type RuntimeWatchSampleRow,
-  type CreateRuntimeWatchSessionResult
-} from '../../api/runtimeWatch'
-import { createCheckoutSession, getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
-import { copyTextToClipboard } from '../../utils/clipboard'
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { listRuntimeDiagnoses, getRuntimeWatchSamples, deleteRuntimeWatchSession, type RuntimeDiagnosisRow } from '../../api/runtimeWatch'
+import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
+import SafeMarkdown from '../../components/markdown/SafeMarkdown.vue'
 
 const loading = ref(false)
-const sessions = ref<RuntimeWatchSessionRow[]>([])
+const reports = ref<RuntimeDiagnosisRow[]>([])
+const keyword = ref('')
+const levelFilter = ref('')
 const capability = ref<BillingCapabilityFeature | null>(null)
 const observePackKey = computed(() => capability.value?.pack_key || 'pack.runtime_observe')
 const canUse = computed(() => capability.value?.can_execute ?? false)
 const billingAlertTitle = computed(() => {
   if (!capability.value) return '能力信息载入中…'
-  if (canUse.value) return '已开通 · 可创建会话并接收节点上报的样本'
+  if (canUse.value) return '已开通 · 每次 diagnose 生成一条报告，仅本账号可见'
   const st = capability.value.execute_state as Record<string, unknown> | undefined
-  return String(st?.msg || `需订阅 ${observePackKey.value} 后使用进程观测`)
+  return String(st?.msg || `需订阅 ${observePackKey.value} 后查看运行时诊断`)
 })
-
-const createVisible = ref(false)
-const createLoading = ref(false)
-const createForm = reactive({
-  namespace: 'default',
-  pod: '',
-  container: '',
-  interval_sec: 15,
-  machine_note: ''
-})
-
-const tokenVisible = ref(false)
-const created = ref<CreateRuntimeWatchSessionResult | null>(null)
 
 const drawerVisible = ref(false)
-const selectedId = ref('')
-const samples = ref<RuntimeWatchSampleRow[]>([])
-let pollTimer: ReturnType<typeof setInterval> | null = null
+const active = ref<RuntimeDiagnosisRow | null>(null)
+const deletingId = ref<string | null>(null)
+const detailPayload = ref<unknown>(null)
+const findings = ref<{ severity: string; title: string }[]>([])
 
-const apiBase = import.meta.env.VITE_BASE_API || '/ft-api'
-const uploadURLHint = computed(() => {
-  const b = String(apiBase).replace(/\/$/, '')
-  if (b.startsWith('http')) return `${b}/api/runtime-watch/sample`
-  const origin = typeof window !== 'undefined' ? window.location.origin : ''
-  const prefix = b.startsWith('/') ? b : `/${b}`
-  return `${origin}${prefix}/api/runtime-watch/sample`
+const filteredReports = computed(() => {
+  let list = [...reports.value]
+  const kw = keyword.value.trim().toLowerCase()
+  if (kw) {
+    list = list.filter((r) => {
+      const hay = [
+        displayTarget(r),
+        r.root_cause,
+        r.evidence,
+        r.work_pod,
+        r.resource_kind,
+        r.resource_name
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return hay.includes(kw)
+    })
+  }
+  if (levelFilter.value) {
+    list = list.filter((r) => (r.diagnosis_level || 'UNKNOWN').toUpperCase() === levelFilter.value)
+  }
+  return list
 })
 
-const cliExample = computed(() => {
-  const c = created.value
-  if (!c) return ''
-  return [
-    `ai-sre diagnose --pod ${c.namespace}/${c.pod}${c.container ? `/${c.container}` : ''}`
-  ].join('\n')
-})
+function displayTarget(row: RuntimeDiagnosisRow): string {
+  if (row.target_display?.trim()) return row.target_display.trim()
+  if (row.resource_kind && row.resource_name) {
+    return `${row.resource_kind}/${row.namespace}/${row.resource_name}`
+  }
+  return `${row.namespace}/${row.pod}`
+}
+
+function formatTime(iso?: string): string {
+  if (!iso) return '—'
+  try {
+    return new Date(iso).toLocaleString()
+  } catch {
+    return iso
+  }
+}
+
+function levelLabel(level?: string): string {
+  switch ((level || '').toUpperCase()) {
+    case 'CRITICAL':
+      return '严重'
+    case 'WARN':
+      return '警告'
+    case 'OK':
+      return '正常'
+    default:
+      return '未知'
+  }
+}
+
+function levelTagType(level?: string): 'danger' | 'warning' | 'success' | 'info' {
+  switch ((level || '').toUpperCase()) {
+    case 'CRITICAL':
+      return 'danger'
+    case 'WARN':
+      return 'warning'
+    case 'OK':
+      return 'success'
+    default:
+      return 'info'
+  }
+}
+
+function findingTag(sev: string): 'danger' | 'warning' | 'info' {
+  const s = sev.toLowerCase()
+  if (s.includes('crit')) return 'danger'
+  if (s.includes('warn')) return 'warning'
+  return 'info'
+}
+
+function prettyJSON(v: unknown): string {
+  try {
+    return JSON.stringify(v, null, 2)
+  } catch {
+    return String(v)
+  }
+}
+
+function extractFindings(payload: unknown): { severity: string; title: string }[] {
+  if (!payload || typeof payload !== 'object') return []
+  const p = payload as Record<string, unknown>
+  const tf = p.trend_findings
+  if (!Array.isArray(tf)) return []
+  return tf
+    .slice(0, 6)
+    .map((item) => {
+      const f = item as Record<string, unknown>
+      return {
+        severity: String(f.severity || 'info'),
+        title: String(f.title || '')
+      }
+    })
+    .filter((f) => f.title)
+}
 
 const loadCapability = async () => {
   try {
@@ -156,143 +275,74 @@ const loadCapability = async () => {
   }
 }
 
-const loadSessions = async () => {
+const loadReports = async () => {
   if (!canUse.value) {
-    sessions.value = []
+    reports.value = []
     return
   }
   loading.value = true
   try {
-    sessions.value = await listRuntimeWatchSessions()
+    reports.value = await listRuntimeDiagnoses()
   } catch {
-    sessions.value = []
+    reports.value = []
+    ElMessage.error('加载诊断报告失败')
   } finally {
     loading.value = false
   }
 }
 
-const openCreate = () => {
-  if (!canUse.value) {
-    void goSubscribe()
-    return
-  }
-  createVisible.value = true
-}
-
-const resetCreate = () => {
-  createForm.namespace = 'default'
-  createForm.pod = ''
-  createForm.container = ''
-  createForm.interval_sec = 15
-  createForm.machine_note = ''
-}
-
-const submitCreate = async () => {
-  if (!createForm.namespace.trim() || !createForm.pod.trim()) {
-    ElMessage.warning('请填写命名空间与 Pod')
-    return
-  }
-  createLoading.value = true
-  try {
-    const res = await createRuntimeWatchSession({
-      namespace: createForm.namespace.trim(),
-      pod: createForm.pod.trim(),
-      container: createForm.container.trim() || undefined,
-      interval_sec: createForm.interval_sec,
-      machine_note: createForm.machine_note.trim() || undefined
-    })
-    created.value = res
-    createVisible.value = false
-    tokenVisible.value = true
-    await loadSessions()
-  } finally {
-    createLoading.value = false
-  }
-}
-
-const goSubscribe = async () => {
-  try {
-    const resp = await createCheckoutSession({ pack_key: observePackKey.value })
-    const url = (resp as { url?: string })?.url
-    if (url) window.location.href = url
-  } catch {
-    /* interceptor */
-  }
-}
-
-const copyCli = async () => {
-  try {
-    await copyTextToClipboard(cliExample.value)
-    ElMessage.success('已复制')
-  } catch {
-    ElMessage.error('复制失败')
-  }
-}
-
-const selectSession = async (row: RuntimeWatchSessionRow) => {
-  selectedId.value = row.id
+const openDetail = async (row: RuntimeDiagnosisRow) => {
+  active.value = row
   drawerVisible.value = true
-  await refreshSamples()
-}
-
-const refreshSamples = async () => {
-  if (!selectedId.value || !canUse.value) return
+  detailPayload.value = null
+  findings.value = []
   try {
-    const data = await getRuntimeWatchSamples(selectedId.value)
-    samples.value = data.samples || []
+    const data = await getRuntimeWatchSamples(row.id)
+    const last = data.samples?.length ? data.samples[data.samples.length - 1] : null
+    if (last?.payload) {
+      detailPayload.value = last.payload
+      findings.value = extractFindings(last.payload)
+    }
   } catch {
-    samples.value = []
+    ElMessage.warning('未能加载报告技术数据')
   }
 }
 
-const stopSession = async (id: string) => {
+async function confirmDelete(row: RuntimeDiagnosisRow) {
+  if (!canUse.value) return
   try {
-    await stopRuntimeWatchSession(id)
-    ElMessage.success('已停止')
-    await loadSessions()
-    if (selectedId.value === id) drawerVisible.value = false
+    await ElMessageBox.confirm(
+      `将永久删除该诊断报告（含附带的样本数据）。目标：${displayTarget(row)}`,
+      '删除诊断报告',
+      { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }
+    )
   } catch {
-    /* */
+    return
   }
-}
-
-function sampleSummary(payload: unknown): string {
-  if (!payload || typeof payload !== 'object') return ''
-  const p = payload as Record<string, unknown>
-  const samples = p.samples as unknown[] | undefined
-  const last = samples?.length ? (samples[samples.length - 1] as Record<string, unknown>) : null
-  const snap = last?.snapshot as Record<string, unknown> | undefined
-  const st = snap?.status as Record<string, unknown> | undefined
-  const rss = st?.vm_rss_bytes
-  const fd = (snap?.fd as Record<string, unknown> | undefined)?.open
-  const tf = p.trend_findings as unknown[] | undefined
-  return `samples=${Array.isArray(samples) ? samples.length : 0} rss_bytes=${rss ?? '-'} fd=${fd ?? '-'} trend=${tf?.length ?? 0}`
+  deletingId.value = row.id
+  try {
+    await deleteRuntimeWatchSession(row.id)
+    ElMessage.success('已删除')
+    if (active.value?.id === row.id) {
+      drawerVisible.value = false
+      active.value = null
+    }
+    await loadReports()
+  } catch {
+    ElMessage.error('删除失败')
+  } finally {
+    deletingId.value = null
+  }
 }
 
 onMounted(async () => {
   await loadCapability()
-  await loadSessions()
-})
-
-watch(drawerVisible, (v) => {
-  if (pollTimer) {
-    clearInterval(pollTimer)
-    pollTimer = null
-  }
-  if (v && selectedId.value) {
-    pollTimer = setInterval(() => {
-      void refreshSamples()
-    }, 5000)
-  }
-})
-
-onUnmounted(() => {
-  if (pollTimer) clearInterval(pollTimer)
+  await loadReports()
 })
 </script>
 
 <style scoped>
-.runtime-observe {
+.runtime-diagnose {
   padding: 16px 20px 32px;
 }
 .page-header h2 {
@@ -310,11 +360,136 @@ onUnmounted(() => {
   padding: 8px 12px;
   border-radius: 8px;
   background: var(--el-fill-color-light);
+  font-size: 13px;
+  margin-bottom: 12px;
 }
 .toolbar {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.toolbar-search {
+  width: 280px;
+}
+.report-table :deep(.el-table__row) {
+  cursor: pointer;
+}
+.target-text {
+  font-weight: 500;
+}
+.work-pod-hint {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.root-cause-cell {
+  min-height: 2.5em;
+}
+.root-cause-cell :deep(.safe-md) {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.muted {
+  color: var(--el-text-color-placeholder);
+}
+.source-ai {
+  color: var(--el-color-primary);
+  font-size: 12px;
+}
+.source-local {
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.detail-card :deep(.el-card__header) {
+  padding: 12px 16px;
+}
+.detail-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.detail-target {
+  font-weight: 600;
+  font-size: 14px;
+}
+.detail-section {
+  margin-bottom: 16px;
+}
+.detail-label {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.detail-md {
+  padding: 10px 12px;
+  background: var(--el-fill-color-blank);
+  border-radius: 8px;
+  border: 1px solid var(--el-border-color-lighter);
+}
+.detail-evidence-md {
+  padding: 10px 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+  max-height: 360px;
+  overflow: auto;
+  font-size: 13px;
+}
+.detail-evidence-md :deep(pre) {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.detail-body {
+  margin: 0;
+  line-height: 1.6;
+  font-size: 14px;
+}
+.root-cause-block {
+  font-weight: 500;
+}
+.detail-evidence {
+  margin: 0;
+  padding: 12px;
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 280px;
+  overflow: auto;
+}
+.meta-desc {
+  margin-top: 12px;
+}
+.report-id {
+  font-family: ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.finding-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.finding-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.raw-json {
+  margin: 0;
+  font-size: 11px;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 code {
   font-size: 12px;

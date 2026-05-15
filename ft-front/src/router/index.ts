@@ -217,10 +217,10 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AdminRuntimeObserve',
         component: () => import('../views/advanced/RuntimeObserve.vue'),
         meta: {
-          title: '进程观测',
+          title: '运行时诊断',
           requireAuth: true,
           roles: appRoles,
-          breadcrumb: [{ title: '数据' }, { title: '进程观测' }]
+          breadcrumb: [{ title: '数据' }, { title: '运行时诊断' }]
         }
       }
     ]
@@ -274,10 +274,10 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AppRuntimeObserve',
         component: () => import('../views/advanced/RuntimeObserve.vue'),
         meta: {
-          title: '进程观测',
+          title: '运行时诊断',
           requireAuth: true,
           roles: appRoles,
-          breadcrumb: [{ title: '数据' }, { title: '进程观测' }]
+          breadcrumb: [{ title: '数据' }, { title: '运行时诊断' }]
         }
       },
       {

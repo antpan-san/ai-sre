@@ -6,9 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 	"time"
+
+	"ft-backend/common/config"
 )
 
 // ServerAIConfig reads DeepSeek-compatible settings from environment.
@@ -19,18 +20,12 @@ type ServerAIConfig struct {
 }
 
 func LoadServerAIConfig() ServerAIConfig {
-	cfg := ServerAIConfig{
-		APIKey:  strings.TrimSpace(os.Getenv("OPSFLEET_AI_API_KEY")),
-		BaseURL: strings.TrimSpace(os.Getenv("OPSFLEET_AI_BASE_URL")),
-		Model:   strings.TrimSpace(os.Getenv("OPSFLEET_AI_MODEL")),
+	r := config.ResolvedAIConfig()
+	return ServerAIConfig{
+		APIKey:  r.APIKey,
+		BaseURL: r.BaseURL,
+		Model:   r.Model,
 	}
-	if cfg.BaseURL == "" {
-		cfg.BaseURL = "https://api.deepseek.com/v1"
-	}
-	if cfg.Model == "" {
-		cfg.Model = "deepseek-chat"
-	}
-	return cfg
 }
 
 // DiagnoseWithDeepSeek sends one diagnose prompt to DeepSeek-compatible chat/completions.

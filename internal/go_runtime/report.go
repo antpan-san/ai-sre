@@ -75,7 +75,13 @@ func WriteText(w io.Writer, r *Report) error {
 }
 
 func SummarizeWatchReport(wr *WatchReport) ReportSummary {
-	if wr == nil || len(wr.Samples) == 0 {
+	if wr == nil {
+		return ReportSummary{Level: "UNKNOWN", Title: "没有采集到样本"}
+	}
+	if len(wr.Samples) == 0 {
+		if len(wr.TrendFindings) > 0 {
+			return SummarizeInfrastructureReport(wr)
+		}
 		return ReportSummary{Level: "UNKNOWN", Title: "没有采集到样本"}
 	}
 	last := wr.Samples[len(wr.Samples)-1]

@@ -18,6 +18,15 @@ type goRuntimeCLIOptions struct {
 	Namespace  string
 	Pod        string
 	PodTarget  string
+	Deployment string
+	StatefulSet string
+	DaemonSet  string
+	ReplicaSet string
+	Job        string
+	CronJob    string
+	Service    string
+	Ingress    string
+	PVC        string
 	Container  string
 	ProcRoot   string
 	CgroupRoot string
@@ -36,18 +45,30 @@ func diagnoseCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "diagnose",
 		Short: "Go 程序智能诊断",
-		Long: `一条命令完成 Go 程序运行时诊断。支持本机 PID、进程名或 Kubernetes Pod；
-默认自动采样约 30 秒，CLI 输出结论，并把报告上传到当前绑定账号的执行记录与进程观测页面。`,
+		Long: `一条命令完成运行时诊断：本机进程或 Kubernetes 工作负载/网络资源。
+自动执行 kubectl 采集与（适用时）宿主机 proc 采样，输出根因与证据并同步进程观测。
+支持 --pod、--deployment、--statefulset、--daemonset、--replicaset、--job、--cronjob、
+--service、--ingress、--pvc（格式 name 或 namespace/name）。不支持 --namespace 等元数据资源。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
-				return fmt.Errorf("请使用 --pid、--pid-name 或 --pod 指定诊断目标")
+				return fmt.Errorf("请使用 --pid、--name 或 Kubernetes 资源参数指定诊断目标")
 			}
 			return runSmartGoRuntimeDiagnose(cmd.Context(), smart)
 		},
 	}
 	cmd.Flags().IntVar(&smart.PID, "pid", 0, "本机 Go 进程 PID")
-	cmd.Flags().StringVar(&smart.PIDName, "pid-name", "", "本机 Go 进程名或命令行关键词")
-	cmd.Flags().StringVar(&smart.PodTarget, "pod", "", "Kubernetes Pod，格式: pod | namespace/pod | namespace/pod/container")
+	cmd.Flags().StringVar(&smart.PIDName, "name", "", "本机 Go 进程名或命令行关键词")
+	cmd.Flags().StringVar(&smart.PIDName, "pid-name", "", "同 --name（兼容旧参数）")
+	cmd.Flags().StringVar(&smart.PodTarget, "pod", "", "Pod：name | namespace/pod[/container]")
+	cmd.Flags().StringVar(&smart.Deployment, "deployment", "", "Deployment：name | namespace/name")
+	cmd.Flags().StringVar(&smart.StatefulSet, "statefulset", "", "StatefulSet：name | namespace/name")
+	cmd.Flags().StringVar(&smart.DaemonSet, "daemonset", "", "DaemonSet：name | namespace/name")
+	cmd.Flags().StringVar(&smart.ReplicaSet, "replicaset", "", "ReplicaSet：name | namespace/name")
+	cmd.Flags().StringVar(&smart.Job, "job", "", "Job：name | namespace/name")
+	cmd.Flags().StringVar(&smart.CronJob, "cronjob", "", "CronJob：name | namespace/name")
+	cmd.Flags().StringVar(&smart.Service, "service", "", "Service：name | namespace/name")
+	cmd.Flags().StringVar(&smart.Ingress, "ingress", "", "Ingress：name | namespace/name")
+	cmd.Flags().StringVar(&smart.PVC, "pvc", "", "PersistentVolumeClaim：name | namespace/name")
 	cmd.AddCommand(goProcessDiagnoseCmd())
 	return cmd
 }
@@ -55,8 +76,9 @@ func diagnoseCmd() *cobra.Command {
 func goProcessDiagnoseCmd() *cobra.Command {
 	var opts goRuntimeCLIOptions
 	cmd := &cobra.Command{
-		Use:   "go-process",
-		Short: "非侵入式 Go 进程运行时诊断",
+		Use:    "go-process",
+		Hidden: true,
+		Short:  "高级：本地/离线 Go 进程诊断（一般用 ai-sre diagnose --pid|--name|--pod）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runGoRuntimeCLI(cmd.Context(), opts)
 		},
@@ -72,13 +94,17 @@ func goProcessDiagnoseCmd() *cobra.Command {
 func runGoRuntimeAnalyze(ctx context.Context, topic string, opts goRuntimeCLIOptions) error {
 	switch strings.ToLower(strings.TrimSpace(topic)) {
 	case "go-runtime", "pod-go":
-		return runGoRuntimeCLI(ctx, opts)
+		return fmt.Errorf("请使用 ai-sre diagnose：本机 --pid/--name，集群 --pod <namespace/pod>")
 	default:
 		return fmt.Errorf("unsupported go runtime topic %q", topic)
 	}
 }
 
 func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) error {
+	k8sRef, err := resolveDiagnoseK8sTarget(opts)
+	if err != nil {
+		return err
+	}
 	targets := 0
 	if opts.PID > 0 {
 		targets++
@@ -86,11 +112,11 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 	if strings.TrimSpace(opts.PIDName) != "" {
 		targets++
 	}
-	if strings.TrimSpace(opts.PodTarget) != "" {
+	if k8sRef != nil {
 		targets++
 	}
 	if targets != 1 {
-		return fmt.Errorf("请且仅请提供一个诊断目标：--pid、--pid-name 或 --pod")
+		return fmt.Errorf("请且仅请提供一个诊断目标：--pid、--name，或一种 K8s 资源（--pod/--deployment/--ingress 等）")
 	}
 	base := strings.TrimRight(strings.TrimSpace(resolveOpsfleetAPIBase()), "/")
 	token := strings.TrimSpace(resolveOpsfleetToken())
@@ -105,11 +131,11 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 	const smartSamples = 4
 	const smartInterval = 10 * time.Second
 	var wr *goruntime.WatchReport
-	var err error
+	var collectErr error
 	command := strings.Join(os.Args, " ")
 	switch {
 	case opts.PID > 0:
-		wr, err = goruntime.CollectWatch(ctx, goruntime.Options{PID: opts.PID}, smartInterval, smartSamples)
+		wr, collectErr = goruntime.CollectWatch(ctx, goruntime.Options{PID: opts.PID}, smartInterval, smartSamples)
 		if wr != nil {
 			wr.Target.Target = fmt.Sprintf("pid:%d", opts.PID)
 			wr.Target.Source = "pid"
@@ -126,7 +152,7 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 		if findErr != nil {
 			return fmt.Errorf("未找到匹配进程 %q: %w", opts.PIDName, findErr)
 		}
-		wr, err = goruntime.CollectWatch(ctx, goruntime.Options{PID: selected.PID}, smartInterval, smartSamples)
+		wr, collectErr = goruntime.CollectWatch(ctx, goruntime.Options{PID: selected.PID}, smartInterval, smartSamples)
 		if wr != nil {
 			wr.Candidates = candidates
 			wr.Target.Target = "pid-name:" + strings.TrimSpace(opts.PIDName)
@@ -141,15 +167,24 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 			}
 			wr.Summary = goruntime.SummarizeWatchReport(wr)
 		}
-	case strings.TrimSpace(opts.PodTarget) != "":
-		wr, err = goruntime.CollectKubernetesWatch(ctx, goruntime.KubernetesCollectOptions{
-			Target:             opts.PodTarget,
+	case k8sRef != nil:
+		k8sOpts := goruntime.KubernetesCollectOptions{
 			CollectorImage:     strings.TrimSpace(os.Getenv("OPSFLEET_GO_RUNTIME_COLLECTOR_IMAGE")),
 			CollectorNamespace: strings.TrimSpace(os.Getenv("OPSFLEET_GO_RUNTIME_COLLECTOR_NAMESPACE")),
 			KeepCollector:      strings.EqualFold(strings.TrimSpace(os.Getenv("OPSFLEET_GO_RUNTIME_KEEP_COLLECTOR")), "1"),
-		}, smartInterval, smartSamples)
+		}
+		wr, collectErr = goruntime.CollectKubernetesDiagnose(ctx, *k8sRef, k8sOpts, smartInterval, smartSamples)
 	}
-	if err != nil {
+	if wr == nil && collectErr != nil {
+		return collectErr
+	}
+	if collectErr != nil && wr != nil {
+		wr.Errors = append(wr.Errors, collectErr.Error())
+	}
+	if wr == nil {
+		return fmt.Errorf("未生成诊断报告")
+	}
+	if err := finalizeGoRuntimeDiagnosis(ctx, base, wr); err != nil {
 		return err
 	}
 	jsonOut := strings.EqualFold(outputFormat, "json")
@@ -158,18 +193,32 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 			return err
 		}
 	} else {
-		if err := writeWatchText(os.Stdout, wr); err != nil {
+		if err := writeDiagnosisText(os.Stdout, wr); err != nil {
 			return err
 		}
 	}
-	upload, err := postGoRuntimeReport(ctx, base, token, fingerprint, command, wr)
-	if err != nil {
-		return fmt.Errorf("诊断已完成，但页面记录未保存: %w", err)
+	if _, err := postGoRuntimeReport(ctx, base, token, fingerprint, command, wr); err != nil {
+		return fmt.Errorf("结论已生成，但同步进程观测失败: %w", err)
 	}
-	if jsonOut {
-		fmt.Fprintf(os.Stderr, "Go runtime 页面记录: execution=%s runtime_watch_session=%s\n", upload.ExecutionRecordID, upload.RuntimeWatchSessionID)
-	} else {
-		fmt.Fprintf(os.Stdout, "\n页面记录: 执行记录 %s；进程观测会话 %s\n", upload.ExecutionRecordID, upload.RuntimeWatchSessionID)
+	return nil
+}
+
+func writeDiagnosisText(w io.Writer, wr *goruntime.WatchReport) error {
+	if wr == nil {
+		return nil
+	}
+	rc := strings.TrimSpace(wr.Diagnosis.RootCause)
+	ev := strings.TrimSpace(wr.Diagnosis.Evidence)
+	if rc == "" {
+		rc = strings.TrimSpace(wr.Summary.Title)
+		ev = strings.TrimSpace(wr.Summary.Evidence)
+	}
+	if rc == "" {
+		return fmt.Errorf("未得出根因结论")
+	}
+	fmt.Fprintf(w, "根因: %s\n", rc)
+	if ev != "" {
+		fmt.Fprintf(w, "证据: %s\n", ev)
 	}
 	return nil
 }
@@ -277,11 +326,23 @@ func writeWatchText(w io.Writer, wr *goruntime.WatchReport) error {
 	}
 	fmt.Fprintf(w, "样本数: %d  间隔: %.0fs\n", wr.SampleCount, wr.IntervalSeconds)
 	if len(wr.TrendFindings) > 0 {
-		fmt.Fprintf(w, "\n趋势发现:\n")
+		label := "趋势发现"
+		if wr.SampleCount == 0 {
+			label = "诊断发现"
+		}
+		fmt.Fprintf(w, "\n%s:\n", label)
 		for i, f := range wr.TrendFindings {
 			fmt.Fprintf(w, "%d. [%s] %s\n", i+1, strings.ToUpper(f.Severity), f.Title)
-			fmt.Fprintf(w, "   证据: %s\n", f.Evidence)
+			if f.Evidence != "" {
+				fmt.Fprintf(w, "   证据: %s\n", f.Evidence)
+			}
+			if f.Verify != "" {
+				fmt.Fprintf(w, "   建议: %s\n", f.Verify)
+			}
 		}
+	}
+	if len(wr.Errors) > 0 {
+		fmt.Fprintf(w, "\n备注: %s\n", strings.Join(wr.Errors, "; "))
 	}
 	if len(wr.Samples) > 0 {
 		fmt.Fprintf(w, "\n最近一次快照:\n")
@@ -304,18 +365,4 @@ func bindGoRuntimeFlags(cmd *cobra.Command, opts *goRuntimeCLIOptions) {
 	cmd.Flags().StringVar(&opts.SessionID, "session-id", "", "与 --upload-url 配套：会话 UUID")
 	cmd.Flags().StringVar(&opts.SampleToken, "sample-token", "", "与 --upload-url 配套：控制台创建会话时给出的写入令牌")
 	cmd.Flags().StringVar(&opts.CrictlPath, "crictl-path", "", "crictl 可执行文件路径，默认可从 PATH 查找")
-}
-
-func bindGoRuntimeAnalyzeFlags(cmd *cobra.Command, opts *goRuntimeCLIOptions) {
-	// namespace / pod / -n 已由 analyze 父命令注册，RunE 中从包级变量写入 opts。
-	cmd.Flags().IntVar(&opts.PID, "pid", 0, "Go runtime: 本地宿主机进程 PID")
-	cmd.Flags().StringVar(&opts.Container, "container", "", "Go runtime: Kubernetes container 名称")
-	cmd.Flags().StringVar(&opts.ProcRoot, "proc-root", "/proc", "Go runtime: procfs 根目录")
-	cmd.Flags().StringVar(&opts.CgroupRoot, "cgroup-root", "/sys/fs/cgroup", "Go runtime: cgroupfs 根目录")
-	cmd.Flags().DurationVar(&opts.WatchInterval, "watch-interval", 0, "Go runtime: 多采样间隔")
-	cmd.Flags().IntVar(&opts.WatchSamples, "watch-samples", 1, "Go runtime: 采集次数")
-	cmd.Flags().StringVar(&opts.UploadURL, "upload-url", "", "Go runtime: 上报样本 URL")
-	cmd.Flags().StringVar(&opts.SessionID, "session-id", "", "Go runtime: 会话 id")
-	cmd.Flags().StringVar(&opts.SampleToken, "sample-token", "", "Go runtime: 样本写入 token")
-	cmd.Flags().StringVar(&opts.CrictlPath, "crictl-path", "", "Go runtime: crictl 路径")
 }

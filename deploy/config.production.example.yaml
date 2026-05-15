@@ -37,9 +37,32 @@ client:
   encrypt_key: change-me-in-production
 log:
   level: info
-# 可选：curl 安装 ai-sre。全栈 deploy-opsfleet-remote 会写 OPSFLEET_AISRE_* 到 systemd EnvironmentFile（优先于此处）。
-# 若需同时服务 amd64 与 arm64 客户端，请配置 arm64 专用路径（或由 build-all 生成 bin/ai-sre.arm64 并由部署脚本写入 OPSFLEET_AISRE_BINARY_PATH_ARM64）。
+# 服务端 LLM：api_key 仅通过 OPSFLEET_AI_API_KEY 注入，勿写入本文件并提交。
+ai:
+  api_key: ""
+  base_url: https://api.deepseek.com/v1
+  model: deepseek-chat
+
+# curl 安装 ai-sre、技能数据目录（路径可被 OPSFLEET_AISRE_* / OPSFLEET_AI_SKILL_DATA_DIR 覆盖）
 opsfleet:
   ai_sre_binary_path: ""
   # ai_sre_binary_path_amd64: ""
   # ai_sre_binary_path_arm64: ""
+  ai_skill_data_dir: /var/lib/opsfleet/ai-skills
+
+k8s:
+  mirror_base_url: http://127.0.0.1
+  mirror_manifest_url: ""
+  relay_base_url: ""
+  ansible_dir: ""
+
+# 技能自动 refine（生产建议 enabled: false，或仅实验室开启）
+skills:
+  auto_refine:
+    enabled: false
+    min_samples: 8
+    cooldown: 12h
+    topics:
+      - go_runtime
+      - k8s
+    max_per_day: 3

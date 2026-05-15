@@ -571,17 +571,10 @@ func aiSrePathIfFile(p string) string {
 	return p
 }
 
-// resolveAiSreBinaryPath 与旧逻辑一致：环境变量 OPSFLEET_AISRE_BINARY_PATH 优先于 config。
+// resolveAiSreBinaryPath 环境变量优先于 config.yaml opsfleet.ai_sre_binary_path。
 func resolveAiSreBinaryPath(cfg *config.Config) (path string) {
-	if cfg != nil {
-		path = strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
-		if path == "" {
-			path = strings.TrimSpace(cfg.Opsfleet.AiSreBinaryPath)
-		}
-	} else {
-		path = strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
-	}
-	return aiSrePathIfFile(path)
+	_ = cfg
+	return aiSrePathIfFile(config.ResolvedAISreBinaryPath())
 }
 
 // resolveAiSreBinaryPathForArch 按客户端请求的 arch 选取分发文件（amd64 / arm64）。
@@ -589,13 +582,8 @@ func resolveAiSreBinaryPath(cfg *config.Config) (path string) {
 func resolveAiSreBinaryPathForArch(cfg *config.Config, wantArch string) string {
 	wantArch = strings.TrimSpace(strings.ToLower(wantArch))
 	if wantArch == "arm64" {
-		if p := aiSrePathIfFile(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_ARM64")); p != "" {
+		if p := aiSrePathIfFile(config.ResolvedAISreBinaryPathArm64()); p != "" {
 			return p
-		}
-		if cfg != nil {
-			if p := aiSrePathIfFile(cfg.Opsfleet.AiSreBinaryPathArm64); p != "" {
-				return p
-			}
 		}
 		if lp := resolveAiSreBinaryPath(cfg); lp != "" {
 			if got, err := readELFArch(lp); err == nil && got == "arm64" {
@@ -605,13 +593,8 @@ func resolveAiSreBinaryPathForArch(cfg *config.Config, wantArch string) string {
 		return ""
 	}
 	if wantArch == "amd64" {
-		if p := aiSrePathIfFile(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_AMD64")); p != "" {
+		if p := aiSrePathIfFile(config.ResolvedAISreBinaryPathAmd64()); p != "" {
 			return p
-		}
-		if cfg != nil {
-			if p := aiSrePathIfFile(cfg.Opsfleet.AiSreBinaryPathAmd64); p != "" {
-				return p
-			}
 		}
 		if lp := resolveAiSreBinaryPath(cfg); lp != "" {
 			if got, err := readELFArch(lp); err == nil && got == "amd64" {
@@ -637,15 +620,9 @@ func firstAiSrePathWithProbe(cfg *config.Config) string {
 		}
 		candidates = append(candidates, p)
 	}
-	add(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_AMD64"))
-	add(os.Getenv("OPSFLEET_AISRE_BINARY_PATH_ARM64"))
-	add(os.Getenv("OPSFLEET_AISRE_BINARY_PATH"))
-	if cfg != nil {
-		o := cfg.Opsfleet
-		add(o.AiSreBinaryPathAmd64)
-		add(o.AiSreBinaryPathArm64)
-		add(o.AiSreBinaryPath)
-	}
+	add(config.ResolvedAISreBinaryPathAmd64())
+	add(config.ResolvedAISreBinaryPathArm64())
+	add(config.ResolvedAISreBinaryPath())
 	for _, p := range candidates {
 		if probeAiSreVersion(p) != "" {
 			return p
@@ -661,7 +638,7 @@ func firstAiSrePathWithProbe(cfg *config.Config) string {
 
 // probeAiSreVersion 优先环境变量，其次执行二进制 `version` 子命令解析第二列。
 func probeAiSreVersion(bin string) string {
-	if v := strings.TrimSpace(os.Getenv("OPSFLEET_AISRE_VERSION")); v != "" {
+	if v := strings.TrimSpace(config.ResolvedAISreVersion()); v != "" {
 		return v
 	}
 	if bin == "" {

@@ -19,3 +19,7 @@ ft-backend/opsfleet-backend
 
 # K8s 离线包 zip（本地 gen-k8s-bundle 产物，勿入库）
 /opsfleet-k8s-*.zip
+
+# 本地 K8s Go 诊断矩阵输出（可由 scripts/k8s-go-diagnose-lab-matrix.sh 重新生成）
+data/k8s-go-diagnose-lab-*/
+examples/memleak-demo/memleak-demo-linux

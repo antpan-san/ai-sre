@@ -6,10 +6,10 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
+	"ft-backend/common/config"
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
 
@@ -18,13 +18,7 @@ import (
 
 // resolveK8sRelayBaseURL 中转/制品 HTTP 根（无尾斜杠），用于 warm 与预检。
 func resolveK8sRelayBaseURL() string {
-	if b := strings.TrimSpace(os.Getenv("OPSFLEET_K8S_RELAY_BASE_URL")); b != "" {
-		return strings.TrimRight(b, "/")
-	}
-	if b := strings.TrimSpace(os.Getenv("OPSFLEET_K8S_MIRROR_BASE_URL")); b != "" {
-		return strings.TrimRight(b, "/")
-	}
-	return strings.TrimRight("http://192.168.56.11", "/")
+	return strings.TrimRight(config.ResolvedK8sRelayBaseURL(), "/")
 }
 
 // K8sRelayPreflightResponse 控制台「生成命令」时只读预检（不下载大文件）。
@@ -161,7 +155,7 @@ func buildResourceRoutingForOfflineBundle(req K8sDeployRequest) (jsonOut string,
 	}
 	relayHost := strings.TrimSpace(req.DownloadDomain)
 	if relayHost == "" {
-		if b := strings.TrimSpace(os.Getenv("OPSFLEET_K8S_MIRROR_BASE_URL")); b != "" {
+		if b := strings.TrimSpace(config.ResolvedK8sMirrorBaseURL()); b != "" {
 			if u, err := url.Parse(b); err == nil && u.Host != "" {
 				relayHost = u.Host
 				if u.Scheme != "" {

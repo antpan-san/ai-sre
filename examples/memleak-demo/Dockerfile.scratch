@@ -1,0 +1,5 @@
+FROM scratch
+COPY memleak-demo-linux /memleak-demo
+EXPOSE 8080
+USER 65534:65534
+ENTRYPOINT ["/memleak-demo"]

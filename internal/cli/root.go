@@ -210,13 +210,15 @@ k8s 场景 --pod 可填：
 	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
   %s analyze k8s --pod pending
   %s analyze k8s --pod kube-controller-manager-k8s-master-0 -n kube-system
-  %s analyze go-runtime --pid 1234
+  %s diagnose --pid 1234
+  %s diagnose --pod default/api-0
+  %s diagnose --deployment memleak-demo/memleak-demo
+  %s diagnose --ingress kube-system/my-ingress
   %s analyze elasticsearch -d base_url=http://127.0.0.1:9200
   %s -o json analyze kafka --lag 1
   %s analyze code OPSFLEET_K8S_E_PAUSE_MISSING
   %s analyze code OPSFLEET_K8S_E_APISERVER_TIMEOUT --detail "$(journalctl -u kubelet -n 30)"`,
-		progName, progName, progName, progName, progName, progName, progName, progName)
-	bindGoRuntimeAnalyzeFlags(cmd, &goRuntimeOpts)
+		progName, progName, progName, progName, progName, progName, progName, progName, progName, progName, progName)
 	cmd.AddCommand(analyzeCodeCmd())
 	return cmd
 }

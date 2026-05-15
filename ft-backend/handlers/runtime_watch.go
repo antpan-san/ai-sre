@@ -5,6 +5,7 @@ import (
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -84,6 +85,21 @@ func PostRuntimeWatchSample(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "保存样本失败"})
 		return
 	}
+	if watch := extractDiagnosisFromWatchJSON(body.Watch); watch != nil {
+		applyWatchDiagnosisToSession(&sess, watch)
+		_ = database.DB.Model(&sess).Updates(map[string]interface{}{
+			"target_display":    sess.TargetDisplay,
+			"resource_kind":     sess.ResourceKind,
+			"resource_name":     sess.ResourceName,
+			"work_pod":          sess.WorkPod,
+			"diagnosis_level":   sess.DiagnosisLevel,
+			"root_cause":        sess.RootCause,
+			"evidence":          sess.Evidence,
+			"diagnosis_source":  sess.DiagnosisSource,
+			"sample_count":      sess.SampleCount,
+			"last_diagnosed_at": sess.LastDiagnosedAt,
+		}).Error
+	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "样本已接收", "data": gin.H{"id": row.ID}})
 }
 
@@ -159,22 +175,33 @@ func ListRuntimeWatchSessions(c *gin.Context) {
 		return
 	}
 	var rows []models.RuntimeWatchSession
-	if err := database.DB.Where("user_id = ?", uid).Order("created_at DESC").Limit(200).Find(&rows).Error; err != nil {
+	// 仅列出 CLI 单次 diagnose 上传的报告（不含手动创建的持续采样空会话）
+	if err := database.DB.Where("user_id = ? AND root_cause <> ''", uid).
+		Order("COALESCE(last_diagnosed_at, created_at) DESC").
+		Limit(200).Find(&rows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "查询失败"})
 		return
 	}
 	out := make([]gin.H, 0, len(rows))
 	for _, r := range rows {
-		out = append(out, gin.H{
-			"id":           r.ID,
-			"namespace":    r.Namespace,
-			"pod":          r.Pod,
-			"container":    r.Container,
-			"interval_sec": r.IntervalSec,
-			"status":       r.Status,
-			"created_at":   r.CreatedAt,
-			"machine_note": r.MachineNote,
-		})
+		row := sessionDiagnosisRow(r)
+		if !row["has_diagnosis"].(bool) {
+			var sample models.RuntimeWatchSample
+			if err := database.DB.Where("session_id = ?", r.ID).Order("observed_at DESC").First(&sample).Error; err == nil {
+				if watch := extractDiagnosisFromWatchJSON([]byte(sample.Payload)); watch != nil {
+					applyWatchDiagnosisToSession(&r, watch)
+					_ = database.DB.Model(&r).Updates(map[string]interface{}{
+						"target_display": r.TargetDisplay, "resource_kind": r.ResourceKind,
+						"resource_name": r.ResourceName, "work_pod": r.WorkPod,
+						"diagnosis_level": r.DiagnosisLevel, "root_cause": r.RootCause,
+						"evidence": r.Evidence, "diagnosis_source": r.DiagnosisSource,
+						"sample_count": r.SampleCount, "last_diagnosed_at": r.LastDiagnosedAt,
+					}).Error
+					row = sessionDiagnosisRow(r)
+				}
+			}
+		}
+		out = append(out, row)
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": out})
 }
@@ -220,16 +247,43 @@ func GetRuntimeWatchSamples(c *gin.Context) {
 		})
 	}
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": gin.H{
-		"session": gin.H{
-			"id":           sess.ID,
-			"namespace":    sess.Namespace,
-			"pod":          sess.Pod,
-			"container":    sess.Container,
-			"interval_sec": sess.IntervalSec,
-			"status":       sess.Status,
-		},
+		"session": sessionDiagnosisRow(sess),
 		"samples": out,
 	}})
+}
+
+// DeleteRuntimeWatchSession deletes a session owned by the current user and its samples (hard delete).
+func DeleteRuntimeWatchSession(c *gin.Context) {
+	uid := models.UserIDFromContext(c.MustGet("userID"))
+	if uid == uuid.Nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"code": 401, "msg": "未授权"})
+		return
+	}
+	sid, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "无效的 id"})
+		return
+	}
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		var sess models.RuntimeWatchSession
+		if err := tx.Where("id = ? AND user_id = ?", sid, uid).First(&sess).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("session_id = ?", sid).Delete(&models.RuntimeWatchSample{}).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ? AND user_id = ?", sid, uid).Delete(&models.RuntimeWatchSession{}).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"code": 404, "msg": "会话不存在"})
+			return
+		}
+		logger.Error("runtime watch session delete: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "删除失败"})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "已删除"})
 }
 
 // StopRuntimeWatchSession marks a session stopped.

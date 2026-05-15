@@ -19,12 +19,44 @@ type Config struct {
 	JWT      JWTConfig      `yaml:"jwt"`
 	File     FileConfig     `yaml:"file"`
 	Redis    RedisConfig    `yaml:"redis"`
+	AI       AIConfig       `yaml:"ai"`
 	Opsfleet OpsfleetConfig `yaml:"opsfleet"`
+	K8s      K8sConfig      `yaml:"k8s"`
+	Skills   SkillsConfig   `yaml:"skills"`
 	Security SecurityConfig `yaml:"security"`
 	Billing  BillingConfig  `yaml:"billing"`
 	Log      struct {
 		Level string `yaml:"level"`
 	} `yaml:"log"`
+}
+
+// AIConfig 服务端 LLM（DeepSeek 兼容）。密钥建议仅放环境变量 OPSFLEET_AI_API_KEY。
+type AIConfig struct {
+	APIKey  string `yaml:"api_key"`
+	BaseURL string `yaml:"base_url"`
+	Model   string `yaml:"model"`
+}
+
+// K8sConfig 控制台 K8s 部署与制品代理。
+type K8sConfig struct {
+	MirrorBaseURL     string `yaml:"mirror_base_url"`
+	MirrorManifestURL string `yaml:"mirror_manifest_url"`
+	RelayBaseURL      string `yaml:"relay_base_url"`
+	AnsibleDir        string `yaml:"ansible_dir"`
+}
+
+// SkillsConfig 服务端技能样本与自迭代。
+type SkillsConfig struct {
+	AutoRefine SkillAutoRefineConfig `yaml:"auto_refine"`
+}
+
+// SkillAutoRefineConfig 样本达阈值后自动 RefineSkill（可被 OPSFLEET_SKILL_AUTO_REFINE_* 覆盖）。
+type SkillAutoRefineConfig struct {
+	Enabled    bool     `yaml:"enabled"`
+	MinSamples int      `yaml:"min_samples"`
+	Cooldown   string   `yaml:"cooldown"`
+	Topics     []string `yaml:"topics"`
+	MaxPerDay  int      `yaml:"max_per_day"`
 }
 
 // BillingPackage maps a Stripe Price 到订阅后授予的功能包和兼容 feature_key。
@@ -45,7 +77,7 @@ type BillingConfig struct {
 	Packages            []BillingPackage `yaml:"packages"`
 }
 
-// OpsfleetConfig 控制台扩展（K8s 部署页 curl 安装 ai-sre 等）。
+// OpsfleetConfig 控制台扩展（K8s 部署页 curl 安装 ai-sre、技能数据目录等）。
 type OpsfleetConfig struct {
 	// AiSreBinaryPath 默认/legacy：Linux 可执行文件绝对路径；未单独配置 *_amd64 / *_arm64 时 amd64 与「未带 arch」下载均用此文件。
 	AiSreBinaryPath string `yaml:"ai_sre_binary_path"`
@@ -53,6 +85,8 @@ type OpsfleetConfig struct {
 	AiSreBinaryPathAmd64 string `yaml:"ai_sre_binary_path_amd64"`
 	// AiSreBinaryPathArm64 可选：显式 arm64 分发（?arch=arm64）；与 amd64 分属不同文件时必配，否则 ARM 机会拿到错误 ELF。
 	AiSreBinaryPathArm64 string `yaml:"ai_sre_binary_path_arm64"`
+	// AISkillDataDir 样本/反馈/generated 技能包目录（可被 OPSFLEET_AI_SKILL_DATA_DIR 覆盖）。
+	AISkillDataDir string `yaml:"ai_skill_data_dir"`
 }
 
 type ServerConfig struct {

@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
-	"strings"
 	"time"
 
+	"ft-backend/common/config"
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
 
@@ -33,14 +32,7 @@ type K8sMirrorFile struct {
 }
 
 func resolveK8sMirrorManifestURL() string {
-	if u := strings.TrimSpace(os.Getenv("OPSFLEET_K8S_MIRROR_MANIFEST_URL")); u != "" {
-		return u
-	}
-	base := strings.TrimSpace(os.Getenv("OPSFLEET_K8S_MIRROR_BASE_URL"))
-	if base == "" {
-		base = "http://192.168.56.11"
-	}
-	return strings.TrimRight(base, "/") + "/manifest.json"
+	return config.ResolvedK8sMirrorManifestURL()
 }
 
 // GetK8sMirrorCatalog 代理拉取制品站 manifest.json，供前端展示 SHA 与下载路径。

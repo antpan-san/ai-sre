@@ -85,31 +85,43 @@ func CollectKubernetesWatch(ctx context.Context, opts KubernetesCollectOptions, 
 	if ref.Container == "" && len(pod.Status.ContainerStatuses) > 0 {
 		ref.Container = pod.Status.ContainerStatuses[0].Name
 	}
+	detail, err := loadPodDetail(ctx, k, ref.Namespace, ref.Pod)
+	if err != nil {
+		detail = kubectlPodDetail{kubectlPodJSON: pod}
+	}
 	containerID := pickContainerID(pod, ref.Container)
-	if containerID == "" {
-		return nil, fmt.Errorf("container %q not found in pod %s/%s", ref.Container, ref.Namespace, ref.Pod)
-	}
-	ns := strings.TrimSpace(opts.CollectorNamespace)
-	if ns == "" {
-		ns = "kube-system"
-	}
-	image := strings.TrimSpace(opts.CollectorImage)
-	if image == "" {
-		image = "busybox:1.36"
+	collectorNS := strings.TrimSpace(opts.CollectorNamespace)
+	if collectorNS == "" {
+		collectorNS = "kube-system"
 	}
 	collectorName := collectorPodName(ref.Namespace, ref.Pod)
-	if err := ensureCollectorPod(ctx, k, ns, collectorName, pod.Spec.NodeName, image); err != nil {
-		return nil, err
+	if containerID == "" {
+		wr := BuildInfrastructureWatchReport(ref, detail, "", collectorName, collectorNS, "",
+			fmt.Errorf("container %q not found in pod %s/%s", ref.Container, ref.Namespace, ref.Pod), "")
+		return enrichKubernetesWatchReport(ctx, k, ref, collectorNS, collectorName, wr), nil
 	}
+	node := pod.Spec.NodeName
+	if node == "" {
+		node = detail.Spec.NodeName
+	}
+	images := collectorImageCandidates(opts, imagesOnNode(ctx, k, node))
+	imageUsed, colErr := ensureCollectorPodWithFallback(ctx, k, collectorNS, collectorName, node, images)
 	if !opts.KeepCollector {
-		defer deleteCollectorPod(context.Background(), k, ns, collectorName)
+		defer deleteCollectorPod(context.Background(), k, collectorNS, collectorName)
 	}
-	hostPID, err := findHostPIDInCollector(ctx, k, ns, collectorName, containerID)
+	if colErr != nil {
+		events := describePodEvents(ctx, k, collectorNS, collectorName)
+		wr := BuildInfrastructureWatchReport(ref, detail, containerID, collectorName, collectorNS, imageUsed, colErr, events)
+		return enrichKubernetesWatchReport(ctx, k, ref, collectorNS, collectorName, wr), nil
+	}
+	hostPID, err := findHostPIDInCollector(ctx, k, collectorNS, collectorName, containerID)
 	if err != nil {
-		return nil, err
+		events := describePodEvents(ctx, k, collectorNS, collectorName)
+		wr := BuildInfrastructureWatchReport(ref, detail, containerID, collectorName, collectorNS, imageUsed, err, events)
+		return enrichKubernetesWatchReport(ctx, k, ref, collectorNS, collectorName, wr), nil
 	}
 	collectOne := func() (*Report, error) {
-		tmp, err := snapshotRemoteProc(ctx, k, ns, collectorName, hostPID)
+		tmp, err := snapshotRemoteProc(ctx, k, collectorNS, collectorName, hostPID)
 		if err != nil {
 			return nil, err
 		}
@@ -144,7 +156,19 @@ func CollectKubernetesWatch(ctx context.Context, opts KubernetesCollectOptions, 
 	wr.Target.Target = ref.Namespace + "/" + ref.Pod + "/" + ref.Container
 	wr.Target.Source = "kubernetes"
 	wr.Summary = SummarizeWatchReport(wr)
-	return wr, nil
+	return enrichKubernetesWatchReport(ctx, k, ref, collectorNS, collectorName, wr), nil
+}
+
+func enrichKubernetesWatchReport(ctx context.Context, kubectl string, ref PodRef, collectorNS, collectorName string, wr *WatchReport) *WatchReport {
+	if wr == nil {
+		return wr
+	}
+	bundle := GatherPodProbeBundle(ctx, kubectl, ref.Namespace, ref.Pod)
+	if strings.TrimSpace(collectorName) != "" {
+		bundle = mergeProbeBundles(bundle, GatherCollectorProbeBundle(ctx, kubectl, collectorNS, collectorName))
+	}
+	attachProbeBundle(wr, bundle)
+	return wr
 }
 
 func kubectlBin(bin string) string {
@@ -210,50 +234,6 @@ func pickContainerID(pod kubectlPodJSON, name string) string {
 func collectorPodName(ns, pod string) string {
 	sum := sha1.Sum([]byte(ns + "/" + pod + "/" + strconv.FormatInt(time.Now().UnixNano(), 10)))
 	return "ai-sre-go-diag-" + hex.EncodeToString(sum[:])[:10]
-}
-
-func ensureCollectorPod(ctx context.Context, kubectl, ns, name, node, image string) error {
-	manifest := fmt.Sprintf(`apiVersion: v1
-kind: Pod
-metadata:
-  name: %s
-  namespace: %s
-  labels:
-    app.kubernetes.io/name: ai-sre-go-runtime-diagnose
-spec:
-  restartPolicy: Never
-  nodeName: %s
-  tolerations:
-  - operator: Exists
-  containers:
-  - name: collector
-    image: %s
-    command: ["sh", "-c", "sleep 3600"]
-    securityContext:
-      privileged: true
-      runAsUser: 0
-    volumeMounts:
-    - name: host-proc
-      mountPath: /host/proc
-      readOnly: true
-    - name: host-cgroup
-      mountPath: /host/sys/fs/cgroup
-      readOnly: true
-  volumes:
-  - name: host-proc
-    hostPath:
-      path: /proc
-      type: Directory
-  - name: host-cgroup
-    hostPath:
-      path: /sys/fs/cgroup
-      type: Directory
-`, name, ns, node, image)
-	if _, err := kubectlInput(ctx, kubectl, 30*time.Second, manifest, "apply", "-f", "-"); err != nil {
-		return err
-	}
-	_, err := kubectlOutput(ctx, kubectl, 75*time.Second, "-n", ns, "wait", "--for=condition=Ready", "pod/"+name, "--timeout=60s")
-	return err
 }
 
 func deleteCollectorPod(ctx context.Context, kubectl, ns, name string) {

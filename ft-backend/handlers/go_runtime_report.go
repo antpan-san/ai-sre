@@ -11,6 +11,7 @@ import (
 	"ft-backend/database"
 	"ft-backend/middleware"
 	"ft-backend/models"
+	"ft-backend/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -88,6 +89,9 @@ func PostCLIGoRuntimeReport(c *gin.Context) {
 	}
 	target := mapFromAny(watch["target"])
 	summary := mapFromAny(watch["summary"])
+	if d := mapFromAny(watch["diagnosis"]); len(d) > 0 {
+		summary["diagnosis"] = d
+	}
 	ns := cleanString(target["namespace"])
 	pod := cleanString(target["pod"])
 	container := cleanString(target["container"])
@@ -97,8 +101,12 @@ func PostCLIGoRuntimeReport(c *gin.Context) {
 	if ns == "" {
 		ns = "local"
 	}
+	resourceKind := cleanString(target["resource_kind"])
+	resourceName := cleanString(target["resource_name"])
 	if pod == "" {
-		if pid != "" {
+		if resourceKind != "" && resourceName != "" {
+			pod = resourceKind + "/" + resourceName
+		} else if pid != "" {
 			pod = "pid-" + pid
 		} else if targetName != "" {
 			pod = targetName
@@ -125,8 +133,9 @@ func PostCLIGoRuntimeReport(c *gin.Context) {
 		IntervalSec:     interval,
 		Status:          "stopped",
 		SampleTokenHash: hash,
-		MachineNote:     "CLI 自动诊断",
+		MachineNote:     "CLI 单次诊断",
 	}
+	applyWatchDiagnosisToSession(&sess, watch)
 	sample := models.RuntimeWatchSample{
 		SessionID:  sess.ID,
 		ObservedAt: now,
@@ -140,9 +149,12 @@ func PostCLIGoRuntimeReport(c *gin.Context) {
 	if source == "kubernetes" {
 		resourceType = "k8s_pod"
 	}
-	resourceName := targetName
-	if resourceName == "" {
-		resourceName = strings.Trim(strings.Join([]string{ns, pod, container}, "/"), "/")
+	recordResource := targetName
+	if recordResource == "" {
+		recordResource = strings.Trim(strings.Join([]string{ns, pod, container}, "/"), "/")
+	}
+	if resourceKind != "" && resourceName != "" {
+		recordResource = resourceKind + "/" + resourceName
 	}
 	meta := map[string]interface{}{
 		"record_kind":      "go_runtime",
@@ -163,8 +175,9 @@ func PostCLIGoRuntimeReport(c *gin.Context) {
 		meta["cli_binding_id"] = ident.CLIBindingID.String()
 	}
 	effects := map[string]interface{}{
-		"summary": summary,
-		"watch":   watch,
+		"summary":   summary,
+		"diagnosis": mapFromAny(watch["diagnosis"]),
+		"watch":     watch,
 	}
 	status := models.ExecutionStatusSuccess
 	rec := models.ExecutionRecord{
@@ -180,7 +193,7 @@ func PostCLIGoRuntimeReport(c *gin.Context) {
 		TargetHost:         targetHost,
 		ResourceType:       resourceType,
 		ResourceID:         cleanString(target["container_id"]),
-		ResourceName:       resourceName,
+		ResourceName:       recordResource,
 		StartedAt:          &now,
 		FinishedAt:         &now,
 		StdoutSummary:      goRuntimeSummaryText(summary),
@@ -219,11 +232,76 @@ func PostCLIGoRuntimeReport(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "msg": "保存 Go runtime 报告失败"})
 		return
 	}
+	go appendGoRuntimeSkillSample(watch, rec.CorrelationID)
+
 	c.JSON(http.StatusOK, gin.H{"code": 200, "msg": "success", "data": gin.H{
 		"execution_record_id":      rec.ID,
 		"runtime_watch_session_id": sess.ID,
 		"runtime_watch_sample_id":  sample.ID,
 	}})
+}
+
+func appendGoRuntimeSkillSample(watch map[string]interface{}, requestID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("appendGoRuntimeSkillSample panic: %v", r)
+		}
+	}()
+	if len(watch) == 0 {
+		return
+	}
+	diag := mapFromAny(watch["diagnosis"])
+	summary := mapFromAny(watch["summary"])
+	target := mapFromAny(watch["target"])
+	root := cleanString(diag["root_cause"])
+	if root == "" {
+		root = cleanString(summary["title"])
+	}
+	evidence := cleanString(diag["evidence"])
+	if evidence == "" {
+		evidence = cleanString(summary["evidence"])
+	}
+	answer := strings.TrimSpace(root)
+	if evidence != "" {
+		if answer != "" {
+			answer += "\n"
+		}
+		answer += "证据：" + evidence
+	}
+	if answer == "" {
+		return
+	}
+	ctx := map[string]string{
+		"record_kind":      "go_runtime",
+		"resource_kind":    cleanString(target["resource_kind"]),
+		"resource_name":    cleanString(target["resource_name"]),
+		"target_display":   cleanString(target["target"]),
+		"diagnosis_source": cleanString(diag["source"]),
+		"namespace":        cleanString(target["namespace"]),
+		"pod":              cleanString(target["pod"]),
+		"container":        cleanString(target["container"]),
+	}
+	if sc := intFromAny(watch["sample_count"]); sc > 0 {
+		ctx["sample_count"] = fmt.Sprintf("%d", sc)
+	}
+	reg := services.DefaultSkillRegistry()
+	skillName := "go_runtime_diagnose_v1"
+	if matched := reg.Match("go_runtime", nil); matched != nil {
+		skillName = matched.Pack.Name
+	}
+	sample := services.DiagnoseSample{
+		Topic:       "go_runtime",
+		SkillName:   skillName,
+		Style:       "evidence_root_cause",
+		UserContext: ctx,
+		RequestID:   strings.TrimSpace(requestID),
+		AnswerLen:   len(answer),
+		AnswerHead:  headSample(answer, 600),
+		AnswerTail:  tailSample(answer, 400),
+	}
+	if err := services.AppendDiagnoseSample(reg, sample); err != nil {
+		logger.Error("go_runtime AppendDiagnoseSample: %v", err)
+	}
 }
 
 func resolveCLIBearerIdentity(c *gin.Context) (*aiIdentity, bool) {
@@ -284,6 +362,16 @@ func intFromAny(v interface{}) int {
 }
 
 func goRuntimeSummaryText(summary map[string]interface{}) string {
+	if d, ok := summary["diagnosis"].(map[string]interface{}); ok {
+		rc := cleanString(d["root_cause"])
+		ev := cleanString(d["evidence"])
+		if rc != "" {
+			if ev != "" {
+				return "根因: " + rc + " | 证据: " + limitText(ev, 500)
+			}
+			return "根因: " + rc
+		}
+	}
 	level := cleanString(summary["level"])
 	title := cleanString(summary["title"])
 	evidence := cleanString(summary["evidence"])

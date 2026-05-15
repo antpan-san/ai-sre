@@ -395,7 +395,7 @@ function packLabel(value: string) {
     'pack.node_ops': '节点运维',
     'pack.monitoring': '可观测性',
     'pack.backup_performance': '备份与性能',
-    'pack.runtime_observe': '进程观测',
+    'pack.runtime_observe': '运行时诊断',
     'skillpack.k8s': 'K8s 技能包',
     'skillpack.kafka': 'Kafka 技能包',
     'skillpack.redis': 'Redis 技能包',

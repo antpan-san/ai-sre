@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"ft-backend/common/config"
 	"ft-backend/skills"
 
 	"gopkg.in/yaml.v3"
@@ -97,7 +98,7 @@ func DefaultSkillRegistry() *SkillRegistry {
 // ResolveSkillDataDir picks a writable directory for samples / feedback / generated packs.
 // Override with OPSFLEET_AI_SKILL_DATA_DIR.
 func ResolveSkillDataDir() string {
-	if v := strings.TrimSpace(os.Getenv("OPSFLEET_AI_SKILL_DATA_DIR")); v != "" {
+	if v := strings.TrimSpace(config.ResolvedAISkillDataDir()); v != "" {
 		return v
 	}
 	for _, candidate := range []string{"/var/lib/opsfleet/ai-skills", "./data/ai-skills"} {
