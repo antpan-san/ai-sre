@@ -10,7 +10,7 @@
         </p>
       </div>
       <div class="page-header__actions">
-        <el-tooltip content="刷新在线机器列表" placement="bottom-end">
+        <el-tooltip content="刷新在线列表（文本解析目标的快照）" placement="bottom-end">
           <button
             type="button"
             class="job-icon-btn"
@@ -34,38 +34,20 @@
           <span class="section-meta">{{ machines.length }} 台在线 · 已选 {{ selectedMachines.length }} 台</span>
         </div>
         <p class="field-hint">
-          在下方文本框填入 <strong>UUID</strong>、<strong>IP</strong> 或<strong>主机名</strong>（空格 / 逗号 / 换行分隔），点击「应用到已选」；也可在穿梭框勾选。
+          在下方文本框填入 <strong>UUID</strong>、<strong>IP</strong> 或<strong>主机名</strong>（空格 / 逗号 / 换行分隔），点击<strong>应用到已选</strong>解析为当前<strong>在线</strong> Agent；解析依赖顶栏旁的刷新列表以保持在线快照。
         </p>
-        <el-input
-          v-model="machineTargetsRaw"
-          type="textarea"
-          :autosize="{ minRows: 2, maxRows: 6 }"
-          placeholder="示例：550e8400-e29b… &#10;192.168.1.10&#10;k8s-worker-02"
-          class="targets-textarea"
-        />
-        <div class="targets-actions">
-          <el-button type="primary" size="small" @click="applyTargetsFromInput">应用到已选</el-button>
-          <el-button size="small" @click="clearTargets">清空目标</el-button>
-        </div>
-
-        <div class="transfer-wrap" v-loading="machinesLoading">
-          <el-transfer
-            v-model="transferValue"
-            :data="transferData"
-            :titles="['待选在线', '已选']"
-            :filterable="true"
-            filter-placeholder="筛选 ID / IP / 名称"
-            :format="{ noMatch: '无匹配', noData: '暂无在线机器', all: '全部', confirm: '确认' }"
-            @change="onTransferChange"
-          >
-            <template #default="{ option }">
-              <div class="transfer-row">
-                <span class="transfer-row__name">{{ option.name }}</span>
-                <span class="transfer-row__ip">{{ option.ip }}</span>
-                <el-tag type="success" size="small" effect="plain">在线</el-tag>
-              </div>
-            </template>
-          </el-transfer>
+        <div class="targets-body" v-loading="machinesLoading">
+          <el-input
+            v-model="machineTargetsRaw"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 8 }"
+            placeholder="示例：550e8400-e29b… &#10;192.168.1.10&#10;k8s-worker-02"
+            class="targets-textarea"
+          />
+          <div class="targets-actions">
+            <el-button type="primary" size="small" @click="applyTargetsFromInput">应用到已选</el-button>
+            <el-button size="small" @click="clearTargets">清空目标</el-button>
+          </div>
         </div>
       </section>
 
@@ -158,7 +140,7 @@
             <code class="job-id-bar__code">{{ lastJobId }}</code>
             <el-button link type="primary" size="small" @click="copyText(lastJobLink)">复制控制台链接</el-button>
           </div>
-          <p class="job-hint">Ctrl+Enter 执行 · Ctrl+K 清空命令 · Ctrl+R 刷新列表 · Ctrl+L 清空右侧结果</p>
+          <p class="job-hint">Ctrl+Enter 执行 · Ctrl+K 清空命令 · Ctrl+R 刷新在线快照 · Ctrl+L 清空右侧结果</p>
         </section>
 
         <!-- ④⑤ 输出 -->
@@ -277,7 +259,6 @@ const machines = ref<Machine[]>([])
 
 const machineTargetsRaw = ref('')
 const selectedMachines = ref<Machine[]>([])
-const transferValue = ref<string[]>([])
 const unresolvedTokens = ref<string[]>([])
 const optionsOpen = ref(['opt'])
 
@@ -286,17 +267,6 @@ const confirmDangerPatterns = ref(true)
 const blockIfUnresolvedTargets = ref(true)
 
 const lastJobId = ref('')
-
-const transferData = computed(() =>
-  machines.value.map((m) => ({
-    key: m.id,
-    label: `${m.name} · ${m.ip}`,
-    id: m.id,
-    name: m.name,
-    ip: m.ip,
-    status: m.status
-  }))
-)
 
 const commandText = ref('')
 const commandErrors = ref<string[]>([])
@@ -377,7 +347,6 @@ function applyTargetsFromInput() {
       unresolvedTokens.value.push(t)
     }
   }
-  transferValue.value = ids
   selectedMachines.value = machines.value.filter((m) => ids.includes(m.id))
   if (unresolvedTokens.value.length) {
     ElMessage.warning(`未识别的目标（请核对在线 UUID / IP / 名称）：${unresolvedTokens.value.join(', ')}`)
@@ -395,14 +364,7 @@ function syncTargetsTextFromSelection() {
   unresolvedTokens.value = []
 }
 
-function onTransferChange(value: string[]) {
-  transferValue.value = value
-  selectedMachines.value = machines.value.filter((machine) => value.includes(machine.id))
-  syncTargetsTextFromSelection()
-}
-
 function clearTargets() {
-  transferValue.value = []
   selectedMachines.value = []
   machineTargetsRaw.value = ''
   unresolvedTokens.value = []
@@ -564,12 +526,11 @@ const copyAllResults = async () => {
 }
 
 const loadMachineList = async () => {
-  const prev = new Set(transferValue.value)
+  const prev = new Set(selectedMachines.value.map((m) => m.id))
   machinesLoading.value = true
   try {
     machines.value = await getAvailableMachines()
     const nextIds = machines.value.filter((m) => prev.has(m.id)).map((m) => m.id)
-    transferValue.value = nextIds
     selectedMachines.value = machines.value.filter((m) => nextIds.includes(m.id))
     syncTargetsTextFromSelection()
   } catch (e: any) {
@@ -952,57 +913,9 @@ onUnmounted(() => {
   }
 }
 
-.transfer-wrap {
-  border: 1px solid var(--el-border-color-lighter);
+.targets-body {
+  min-height: 48px;
   border-radius: 10px;
-  padding: 10px;
-  background: var(--el-fill-color-blank);
-}
-
-.transfer-wrap :deep(.el-transfer) {
-  display: flex;
-  width: 100%;
-  gap: 8px;
-}
-
-.transfer-wrap :deep(.el-transfer-panel) {
-  flex: 1;
-  min-width: 0;
-}
-
-.transfer-wrap :deep(.el-transfer-panel__body) {
-  height: 240px;
-}
-
-.transfer-wrap :deep(.el-transfer__buttons) {
-  flex-direction: column;
-  justify-content: center;
-  gap: 6px;
-}
-
-.transfer-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  min-width: 0;
-}
-
-.transfer-row__name {
-  font-weight: 500;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.transfer-row__ip {
-  color: var(--el-text-color-secondary);
-  font-family: ui-monospace, monospace;
-  font-size: 12px;
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .cmd-shell {

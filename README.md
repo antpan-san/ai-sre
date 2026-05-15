@@ -331,7 +331,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 完成所需项后点顶部「返回 K8s 部署」回到折叠配置页。旧地址 `/init-tools/system-param` 等会被路由自动重定向到该单页。
 
-**机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 仍用于台账与拓扑。**作业中心**（`/admin/job/center`、`/app/job/center`）支持：**目标文本框**（UUID / IP / 名称解析到在线 Agent）、**穿梭框**、折叠 **「执行选项」（超时秒数等）**、**命令或脚本**，以及 **一键脚本**（推荐 `ai-sre job run --machines … -c … --print-console-url`）。页面 **URL `?jobId=<uuid>`** 或 **`ai-sre job run --print-console-url` 输出的链接** 可把同一任务的各机输出拉回「执行结果」区。API：**`POST /api/job/execute`**（JSON：`machine_ids`、`command`、`timeout`，超时由后端夹在 10～3600 秒）；**`GET /api/job/result/:jobId`** 轮询子任务。**CLI**：`ai-sre job run --machines uuid1,uuid2 -c '…' [--timeout 120] [--wait] [--max-wait 15m] [--print-console-url]`（需 `OPSFLEET_API_URL` + `OPSFLEET_TOKEN`/文件令牌）；**executor** 亦注册同一子命令。详见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)。
+**机器与作业**：已移除「机器管理」独立页面；后端 `/api/machine` 仍用于台账与拓扑。**作业中心**（`/admin/job/center`、`/app/job/center`）支持：**目标文本框**（UUID / IP / 名称解析到在线 Agent，需 **应用到已选**）、折叠 **「执行选项」（超时秒数等）**、**命令或脚本**，以及 **一键脚本**（推荐 `ai-sre job run --machines … -c … --print-console-url`）。页面 **URL `?jobId=<uuid>`** 或 **`ai-sre job run --print-console-url` 输出的链接** 可把同一任务的各机输出拉回「执行结果」区。API：**`POST /api/job/execute`**（JSON：`machine_ids`、`command`、`timeout`，超时由后端夹在 10～3600 秒）；**`GET /api/job/result/:jobId`** 轮询子任务。**CLI**：`ai-sre job run --machines uuid1,uuid2 -c '…' [--timeout 120] [--wait] [--max-wait 15m] [--print-console-url]`（需 `OPSFLEET_API_URL` + `OPSFLEET_TOKEN`/文件令牌）；**executor** 亦注册同一子命令。详见 [`PRODUCT_DOC.md`](PRODUCT_DOC.md)。
 
 ---
 
