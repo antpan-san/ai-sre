@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ft-backend/common/config"
+	"ft-backend/common/logger"
 	"ft-backend/database"
 	"ft-backend/models"
 
@@ -202,7 +203,14 @@ func CreateManualAutoIteration(title, description, topic, createdBy string, user
 	if err != nil {
 		return nil, err
 	}
+	notifyAutoIterationDingTalk("【自动迭代】新任务", fmt.Sprintf("标题: %s\n状态: %s\n来源: %s", row.Title, row.Status, row.Source))
 	return &row, nil
+}
+
+func notifyAutoIterationDingTalk(title, body string) {
+	if err := SendAutoIterationDingTalk(title, body); err != nil {
+		logger.Warn("auto_iteration dingtalk: %v", err)
+	}
 }
 
 func transitionAutoIteration(id uuid.UUID, actorType, actorName string, allowedFrom []string, toStatus, message string, extra map[string]interface{}) (*models.AutoIteration, error) {
@@ -293,6 +301,7 @@ func ApproveAutoIteration(id uuid.UUID, userID uuid.UUID, actorName, notes strin
 	if err != nil {
 		return nil, err
 	}
+	notifyAutoIterationDingTalk("【自动迭代】已批准", fmt.Sprintf("标题: %s\n审批人: %s", row.Title, actorName))
 	return &row, nil
 }
 
@@ -365,12 +374,21 @@ func ResendAutoIterationNotification(id uuid.UUID, actorName string) (*models.Au
 		if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
 			return err
 		}
-		msg := "钉钉通知已重发"
+		msg := "钉钉通知已发送"
+		sent := false
 		if cfg.DingTalkWebhook == "" {
 			msg = "未配置钉钉 webhook，跳过通知"
+		} else {
+			body := fmt.Sprintf("任务: %s\n状态: %s\n风险: %s", row.Title, row.Status, row.RiskLevel)
+			if err := SendAutoIterationDingTalk("【自动迭代】通知", body); err != nil {
+				msg = "钉钉发送失败"
+			} else {
+				sent = true
+			}
 		}
 		return appendAutoIterationEvent(tx, id, models.AutoIterationEventNotification, "super_admin", actorName, msg, map[string]interface{}{
 			"resent": true,
+			"sent":   sent,
 		})
 	})
 	if err != nil {
@@ -441,6 +459,7 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 					"requires_super_admin_approval": true,
 				})
 			}
+			notifyAutoIterationDingTalk("【自动迭代】CLI 反馈入队", fmt.Sprintf("标题: %s\n分类: %s\nTopic: %s", iter.Title, classification, topic))
 		}
 	}
 	return &CLIFeedbackAnalyzeResult{
@@ -548,6 +567,9 @@ func CodeAgentReportResult(iterationID, bindingID uuid.UUID, success bool, summa
 		return appendAutoIterationEvent(tx, iterationID, models.AutoIterationEventStateChange, "worker", "code-agent",
 			"Worker 上报结果", map[string]interface{}{"success": success, "status": toStatus})
 	})
+	if err == nil && toStatus == models.AutoIterationStatusAwaitingApproval {
+		notifyAutoIterationDingTalk("【自动迭代】待审批", fmt.Sprintf("标题: %s\n请 super_admin 在控制台批准上线", row.Title))
+	}
 	return err
 }
 

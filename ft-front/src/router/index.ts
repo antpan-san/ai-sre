@@ -106,18 +106,10 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: 'auto-iterations/:id',
-        name: 'AdminAutoIterationDetail',
-        component: () => import('../views/admin/AutoIterationDetail.vue'),
-        meta: {
-          title: '迭代详情',
-          requireAuth: true,
-          roles: superAdminRoles,
-          breadcrumb: [
-            { title: '订阅与计费', path: '/admin/billing/features' },
-            { title: '自动迭代', path: '/admin/auto-iterations' },
-            { title: '详情' }
-          ]
-        }
+        redirect: (to) => ({
+          path: '/admin/auto-iterations',
+          query: { id: String(to.params.id || '') }
+        })
       },
       {
         path: 'service/deploy',
