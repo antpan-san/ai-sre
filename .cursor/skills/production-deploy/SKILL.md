@@ -16,7 +16,7 @@ Use this skill when the user asks to deploy ai-sre/OpsFleetPilot to production, 
 
 This skill is intentionally separate from `release-deploy`: production already has custom Nginx routing on port 80 and must not be overwritten by the lab deployment script.
 
-**技能包策略（用户指定，与 `monorepo-release.mdc` 一致）**：**GitHub `git push` 不承载技能包对外发布**；**builtin / 服务端注册表** 的生效环境是 **本生产机**（`204.44.123.101`），**不是**实验室 `192.168.56.11`。改 `ft-backend/skills/builtin/*.yaml` 后须在本机执行下文 **「技能包部署」** 或全量生产发布，不得以实验室 `verify` 的 `/api/ai/skills` 作为上线结论。
+**技能包策略（与 `skill-pack-assets` 一致）**：技能包 YAML **禁止上 GitHub**；**本生产机**为对外权威（`/var/lib/opsfleet/ai-skills/builtin/`）。实验室 **允许** 上传联调。改本地 YAML 后执行 **`./scripts/deploy-skill-packs-production.sh`**（勿把 YAML 放进 git push）。
 
 ## Fixed Production Target
 
@@ -71,16 +71,15 @@ Expected before deployment may be an older ai-sre version. Do not continue if `o
 
 **触发**：`ft-backend/skills/builtin/**`、`internal/assets/skills/**`、`ft-backend/services/skill_*.go`、`ft-backend/handlers/ai_skills.go` 等。
 
-**禁止**：为技能包单独跑 `deploy-opsfleet-remote.sh` 到实验室；**禁止**宣称「已 push GitHub 则技能包已发布」。
+**禁止**：将技能包 YAML 提交到 GitHub；**禁止**宣称「已 push 则技能包已发布」。
 
-**推荐（轻量，仅技能包）** — 仓库根：
+**推荐（轻量）** — 仓库根：
 
 ```bash
-chmod +x ./scripts/deploy-skill-packs-production.sh
 ./scripts/deploy-skill-packs-production.sh
 ```
 
-脚本行为：rsync `ft-backend/skills/`（及存在的 `internal/assets/skills/`）→ 生产机 `build-all.sh`（builtin **embed 进 `opsfleet-backend`**）→ `systemctl restart opsfleet-backend` → 本机 `curl` `/health` 与 `/ft-api/api/ai/skills`。
+脚本行为：rsync 本地 `ft-backend/skills/builtin/*.yaml` → 生产 **`/var/lib/opsfleet/ai-skills/builtin/`**（及镜像到 `/root/sre/ft-backend/skills/builtin/`）→ `systemctl restart opsfleet-backend` → 注册表从磁盘加载 builtin。
 
 **与全量生产发布关系**：若同时改前端/大量后端，仍走下文 **Sync Source → Build On Production → Activate**；技能包会随 `build-all.sh` 一并更新。仅改技能时可不 rsync 全仓，用上一脚本即可。
 

@@ -7,7 +7,7 @@ package skills
 
 import "embed"
 
-//go:embed builtin/*.yaml
+//go:embed builtin/README.md
 var BuiltinFS embed.FS
 
 // BuiltinDir is the directory inside BuiltinFS that holds the YAML files.

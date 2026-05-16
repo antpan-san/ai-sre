@@ -108,7 +108,7 @@ description: >-
 
 **`git push` 是向 GitHub 同步源码的默认步骤**；在步骤 3 冒烟/远程测试未通过时**不得**执行 push（用户本回合明确豁免 push 除外）。
 
-**`git push` ≠ 技能包发布**：push **不**向用户环境发布技能包。若本轮改动 `ft-backend/skills/builtin/**`、`internal/assets/skills/**` 或技能注册表相关代码，在 push **之后**另执行 **`.cursor/skills/production-deploy/SKILL.md` §技能包** 或 **`./scripts/deploy-skill-packs-production.sh`**（生产 `204.44.123.101`）；**不要**把实验室 `192.168.56.11` 的 `/api/ai/skills` 当作技能包已上线依据。
+**技能包核心资产**：`*.yaml` **禁止**进入 `git commit`/`push`（见 **`skill-pack-assets`**）。push 前跑 **`./scripts/check-skill-packs-not-in-git.sh`**。改技能包后在 push **之后**执行 **`deploy-skill-packs-lab.sh`**（实验室允许）与 **`deploy-skill-packs-production.sh`**（生产权威）。
 
 在**本地**项目根：
 

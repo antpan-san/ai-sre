@@ -31,6 +31,13 @@ func LoadSkillsAndKnowledge(opts Options) (*skill.Registry, *rag.Index, error) {
 		}
 		sk = skill.MergeRegistries(sk, extra)
 	}
+	for _, dir := range ResolveDefaultBuiltinSkillDirs() {
+		extra, err := skill.LoadDirFromPath(dir)
+		if err != nil {
+			continue
+		}
+		sk = skill.MergeRegistries(sk, extra)
+	}
 
 	kb, err := rag.LoadFS(assets.FS, "knowledge")
 	if err != nil {

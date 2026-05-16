@@ -9,10 +9,37 @@ import (
 	"time"
 )
 
-// TestBuiltinSkillsLoadAndValidate asserts that every embedded YAML pack parses
-// and satisfies the minimal schema validation.
+func writeTestBuiltinPack(t *testing.T, dir, topic string) {
+	t.Helper()
+	builtinDir := filepath.Join(dir, "builtin")
+	if err := os.MkdirAll(builtinDir, 0o755); err != nil {
+		t.Fatalf("mkdir builtin: %v", err)
+	}
+	body := `name: ` + topic + `_test_v1
+display_name: "Test ` + topic + `"
+topics: [` + topic + `]
+match_keywords: [` + topic + `]
+input: [issue]
+analysis_steps:
+  - step one
+  - step two
+  - step three
+  - step four
+output_format:
+  - root_cause
+`
+	if err := os.WriteFile(filepath.Join(builtinDir, topic+".yaml"), []byte(body), 0o644); err != nil {
+		t.Fatalf("write yaml: %v", err)
+	}
+}
+
+// TestBuiltinSkillsLoadAndValidate loads builtin packs from data_dir/builtin (same as production disk layout).
 func TestBuiltinSkillsLoadAndValidate(t *testing.T) {
-	r, err := NewSkillRegistry("")
+	dir := t.TempDir()
+	for _, topic := range []string{"k8s", "kafka", "redis", "mysql", "nginx", "elasticsearch"} {
+		writeTestBuiltinPack(t, dir, topic)
+	}
+	r, err := NewSkillRegistry(dir)
 	if err != nil {
 		t.Fatalf("NewSkillRegistry: %v", err)
 	}
@@ -38,6 +65,7 @@ func TestBuiltinSkillsLoadAndValidate(t *testing.T) {
 
 func TestSkillRegistryGeneratedOverridesBuiltin(t *testing.T) {
 	dir := t.TempDir()
+	writeTestBuiltinPack(t, dir, "k8s")
 	if err := os.MkdirAll(filepath.Join(dir, "generated"), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
 	}

@@ -59,7 +59,7 @@ OpsFleetPilot 与 **ai-sre** CLI **同仓**，仓库根目录：**`/Users/panshu
 4. **部署后远程自检（测试）**（SSH 到部署机，在 **`$OPSFLEET_REMOTE_DIR`** 下）：`bash scripts/verify-opsfleet-deployment.sh`  
    - 必看：**systemd active**、**/health**、**静态 index.html**、**GET .../cli/ai-sre?arch=amd64 → 200**、若存在 **`bin/ai-sre.arm64`** 则 **`?arch=arm64 → 200`**、**GET .../install-ai-sre.sh** 返回以 **`#!`** 开头的 shell（动态脚本；若 404/HTML 检查 Nginx **`location /ft-api/`** 与后端 **`StripOptionalFtAPIPrefix`**）  
    - **manifest.json**：未部署 `deploy/k8s-mirror` 时 WARN 可接受  
-   - **`GET /api/ai/skills`**：实验室仅作联调；**技能包对用户生效以生产为准**（见 `monorepo-release.mdc`、`production-deploy` §技能包），勿在仅改技能 YAML 时把本步当作「技能包已发布」  
+   - **`GET /api/ai/skills`**：实验室联调用；技能包 YAML **勿进 GitHub**；改 YAML 用 **`deploy-skill-packs-lab.sh`**，生产权威用 **`deploy-skill-packs-production.sh`**（见 `skill-pack-assets`）  
 5. **CLI 同步**（同主机常规仍执行）：仓库根 **`./scripts/deploy-remote.sh`**（仅 **ai-sre** 二进制构建，与全栈共用目录时不冲突）。  
 6. **远程冒烟/功能测试**：仓库根 **`SHORT=1 bash scripts/remote-e2e.sh`**（见 **ai-sre-ship**；全量联调为可选，规则同 ai-sre-ship）。  
 7. **失败处理**（不单独产生 push）：构建或 health 或冒烟失败 → **`journalctl -u opsfleet-backend -n 120`**、**`nginx -t`**、远端 **`go build`** 复现；**修复后从步骤 3 重跑**；**在步骤 3～6 全部通过前不执行步骤 8**。  

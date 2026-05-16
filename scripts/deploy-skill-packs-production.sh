@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
-# Deploy ai-sre / OpsFleet skill packs to production (opsfleetpilot.com).
-# Builtin YAML is embedded in opsfleet-backend via build-all.sh; this script
-# rsyncs source, rebuilds on the server, restarts backend, and verifies /api/ai/skills.
-#
-# Do NOT use deploy-opsfleet-remote.sh (lab). Do NOT use this for 192.168.56.11.
+# Deploy skill pack YAML to production (opsfleetpilot.com). Canonical store:
+#   /var/lib/opsfleet/ai-skills/builtin/
+# Do NOT commit skill YAML to GitHub — rsync from local workspace only.
 #
 # Usage (from repo root):
 #   ./scripts/deploy-skill-packs-production.sh
-#
-# Env:
-#   PROD_SSH=root@204.44.123.101
-#   PROD_SSH_PORT=10080
-#   PROD_REMOTE_DIR=/root/sre
 
 set -euo pipefail
 
@@ -19,29 +12,36 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PROD_SSH="${PROD_SSH:-root@204.44.123.101}"
 PROD_SSH_PORT="${PROD_SSH_PORT:-10080}"
 PROD_REMOTE_DIR="${PROD_REMOTE_DIR:-/root/sre}"
+SKILL_DATA_DIR="${SKILL_DATA_DIR:-/var/lib/opsfleet/ai-skills}"
 RSYNC_SSH="ssh -p ${PROD_SSH_PORT}"
 
-echo "==> Skill packs -> production (${PROD_SSH}:${PROD_REMOTE_DIR})"
+SRC_BACKEND="${ROOT}/ft-backend/skills/builtin"
+SRC_CLI="${ROOT}/internal/assets/skills"
 
-ssh -p "${PROD_SSH_PORT}" "${PROD_SSH}" "test -d ${PROD_REMOTE_DIR} || mkdir -p ${PROD_REMOTE_DIR}"
-
-echo "==> Rsync skill-related source (builtin YAML + backend loader)"
-rsync -avz --no-owner --no-group -e "${RSYNC_SSH}" \
-  --exclude '.git' \
-  --exclude 'bin' \
-  --exclude 'dist' \
-  "${ROOT}/ft-backend/skills/" "${PROD_SSH}:${PROD_REMOTE_DIR}/ft-backend/skills/"
-
-if [ -d "${ROOT}/internal/assets/skills" ]; then
-  rsync -avz --no-owner --no-group -e "${RSYNC_SSH}" \
-    "${ROOT}/internal/assets/skills/" "${PROD_SSH}:${PROD_REMOTE_DIR}/internal/assets/skills/"
+if ! compgen -G "${SRC_BACKEND}/*.yaml" > /dev/null 2>&1; then
+  echo "ERROR: no YAML under ${SRC_BACKEND}; maintain skill packs locally (not in git)." >&2
+  exit 1
 fi
 
-echo "==> Remote build (embeds builtin into opsfleet-backend) + restart"
+echo "==> Skill packs -> production (${PROD_SSH}:${SKILL_DATA_DIR}/builtin)"
+
+ssh -p "${PROD_SSH_PORT}" "${PROD_SSH}" "mkdir -p ${SKILL_DATA_DIR}/builtin ${SKILL_DATA_DIR}/generated ${SKILL_DATA_DIR}/samples ${SKILL_DATA_DIR}/feedback ${PROD_REMOTE_DIR}/ft-backend/skills/builtin"
+
+rsync -avz --no-owner --no-group -e "${RSYNC_SSH}" \
+  "${SRC_BACKEND}/" "${PROD_SSH}:${SKILL_DATA_DIR}/builtin/"
+
+rsync -avz --no-owner --no-group -e "${RSYNC_SSH}" \
+  "${SRC_BACKEND}/" "${PROD_SSH}:${PROD_REMOTE_DIR}/ft-backend/skills/builtin/"
+
+if compgen -G "${SRC_CLI}/*.yaml" > /dev/null 2>&1; then
+  ssh -p "${PROD_SSH_PORT}" "${PROD_SSH}" "mkdir -p ${PROD_REMOTE_DIR}/internal/assets/skills"
+  rsync -avz --no-owner --no-group -e "${RSYNC_SSH}" \
+    "${SRC_CLI}/" "${PROD_SSH}:${PROD_REMOTE_DIR}/internal/assets/skills/"
+fi
+
+echo "==> Restart opsfleet-backend"
 ssh -p "${PROD_SSH_PORT}" "${PROD_SSH}" "set -euo pipefail
-cd ${PROD_REMOTE_DIR}
-bash scripts/build-all.sh
-install -d -m 0755 /var/lib/opsfleet/ai-skills/samples /var/lib/opsfleet/ai-skills/feedback /var/lib/opsfleet/ai-skills/generated
+grep -q '^OPSFLEET_AI_SKILL_DATA_DIR=' /etc/opsfleet/backend.env 2>/dev/null || echo 'OPSFLEET_AI_SKILL_DATA_DIR=${SKILL_DATA_DIR}' >> /etc/opsfleet/backend.env
 systemctl restart opsfleet-backend
 sleep 3
 systemctl is-active --quiet opsfleet-backend
@@ -51,4 +51,4 @@ curl -fsS http://127.0.0.1/ft-api/api/ai/skills | head -c 2048
 printf \"\\n\"
 "
 
-echo "==> Done. Builtin skills are in the rebuilt opsfleet-backend; generated packs remain under /var/lib/opsfleet/ai-skills on the server."
+echo "==> Production skill deploy OK (builtin on disk; generated unchanged unless you rsync it separately)"

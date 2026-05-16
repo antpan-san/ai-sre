@@ -134,6 +134,18 @@ func (r *SkillRegistry) DataDir() string {
 }
 
 func (r *SkillRegistry) loadBuiltin() error {
+	if err := r.loadBuiltinFromEmbed(); err != nil {
+		return err
+	}
+	if r.dataDir != "" {
+		if err := r.loadBuiltinFromDir(filepath.Join(r.dataDir, "builtin")); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (r *SkillRegistry) loadBuiltinFromEmbed() error {
 	entries, err := fs.ReadDir(skills.BuiltinFS, skills.BuiltinDir)
 	if err != nil {
 		return err
@@ -154,7 +166,35 @@ func (r *SkillRegistry) loadBuiltin() error {
 			return fmt.Errorf("embedded skill %s failed validation", e.Name())
 		}
 		rs := &RegisteredSkill{Pack: *pack, Source: SkillSourceBuiltin, Version: "builtin", Path: "embed:" + skills.BuiltinDir + "/" + e.Name()}
-		r.indexLocked(rs, /*replaceGenerated*/ false)
+		r.indexLocked(rs, false, false)
+	}
+	return nil
+}
+
+// loadBuiltinFromDir loads YAML from data_dir/builtin (production/lab canonical copy).
+func (r *SkillRegistry) loadBuiltinFromDir(dir string) error {
+	entries, err := os.ReadDir(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".yaml") {
+			continue
+		}
+		full := filepath.Join(dir, e.Name())
+		raw, err := os.ReadFile(full)
+		if err != nil {
+			continue
+		}
+		pack, err := unmarshalSkillPack(raw)
+		if err != nil || !ValidateSkillDraft(pack) {
+			continue
+		}
+		rs := &RegisteredSkill{Pack: *pack, Source: SkillSourceBuiltin, Version: "disk", Path: full}
+		r.indexLocked(rs, false, true)
 	}
 	return nil
 }
@@ -182,12 +222,12 @@ func (r *SkillRegistry) loadGenerated() error {
 			continue
 		}
 		rs := &RegisteredSkill{Pack: *pack, Source: SkillSourceGenerated, Version: timestampVersion(full), Path: full}
-		r.indexLocked(rs, true)
+		r.indexLocked(rs, true, false)
 	}
 	return nil
 }
 
-func (r *SkillRegistry) indexLocked(rs *RegisteredSkill, replaceGenerated bool) {
+func (r *SkillRegistry) indexLocked(rs *RegisteredSkill, replaceGenerated bool, replaceBuiltin bool) {
 	if rs == nil {
 		return
 	}
@@ -199,7 +239,9 @@ func (r *SkillRegistry) indexLocked(rs *RegisteredSkill, replaceGenerated bool) 
 		}
 		switch rs.Source {
 		case SkillSourceBuiltin:
-			if _, exists := r.builtin[key]; !exists {
+			if replaceBuiltin {
+				r.builtin[key] = rs
+			} else if _, exists := r.builtin[key]; !exists {
 				r.builtin[key] = rs
 			}
 		case SkillSourceGenerated:
@@ -358,7 +400,7 @@ func (r *SkillRegistry) SaveGenerated(pack *SkillPack) (string, error) {
 
 	r.mu.Lock()
 	rs := &RegisteredSkill{Pack: *pack, Source: SkillSourceGenerated, Version: timestampVersion(newPath), Path: newPath}
-	r.indexLocked(rs, true)
+	r.indexLocked(rs, true, false)
 	r.mu.Unlock()
 
 	return newPath, nil

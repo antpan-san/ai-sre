@@ -24,15 +24,14 @@ description: >-
 | **生产技能包**（builtin YAML / 注册表） | `production-deploy` §技能包 或 `./scripts/deploy-skill-packs-production.sh` |
 | K8s 离线包 / 控制台 K8s 页 / 制品镜像 | `.cursor/skills/k8s-offline-deploy-test/SKILL.md` |
 
-## 技能包 vs GitHub push（强制）
+## 技能包 vs GitHub push（强制，详见 `skill-pack-assets`）
 
-| 动作 | 实验室 192.168.56.11 | 生产 204.44.123.101:10080 |
-|------|----------------------|---------------------------|
-| 日常代码 `git push` 前/后 | `deploy-remote` / `deploy-opsfleet`（**代码**） | **不**默认全量生产 |
-| 改 `ft-backend/skills/builtin/**` 等 | **不**作为技能包发布目标 | **`deploy-skill-packs-production.sh`** 或 `production-deploy` |
-| `/api/ai/skills` 验收 | 仅联调参考 | **权威** |
+| 动作 | GitHub | 实验室 192.168.56.11 | 生产 204.44.123.101 |
+|------|--------|----------------------|---------------------|
+| 技能包 `*.yaml` | **禁止** commit/push | **允许** `deploy-skill-packs-lab.sh` | **允许** `deploy-skill-packs-production.sh`（权威） |
+| 代码 | `git push` | `deploy-opsfleet-remote.sh` 等 | 全量 `production-deploy`（按需） |
 
-`git push` **只**把提交推到 GitHub；**技能包对用户生效**必须在生产步骤成功后才能在回复中宣称。
+推送前：`./scripts/check-skill-packs-not-in-git.sh`。
 
 ## 执行顺序（必须）
 
@@ -48,7 +47,7 @@ description: >-
 - [ ] 4a. **ai-sre 版本三门一致（有 OpsFort 时必做；由代理本机 curl / 脚本验证，用户不登 11）**：本仓 **`internal/cli` Version** = 代理通过 SSH 或 verify 输出确认的 **`$OPSFLEET_AISRE_BINARY_PATH` 的 `version`** = **`curl -sS http://192.168.56.11:9080/ft-api/api/k8s/deploy/cli/ai-sre/version`**（或 verify 脚本等价检查）。不一致则**由代理**重跑 **`deploy-opsfleet-remote.sh`**（必要时检查 **`/etc/opsfleet/backend.env`** 中 **`OPSFLEET_AISRE_VERSION`** 是否与二进制一致并 **`systemctl restart opsfleet-backend`**），**不得**把手工登服务器作为留给用户的步骤
 - [ ] 5. 若变更触及 K8s 离线/控制台 K8s/制品镜像 → 另执行 k8s-offline-deploy-test（见 monorepo-release 第 3 条）
 - [ ] 6. **git commit + push**（**必须**在项 2–5 的远程部署与测试全部通过之后）：确认未提交 bin/、dist/；**必须有新的 `git commit` 包含本轮所有变更**；再 `push origin main`（**禁止**未 commit 结束回合；**禁止**在远程测试未通过时 push）。**push 本身不包含技能包发布。**
-- [ ] 6b. **技能包（若本轮触及 `ft-backend/skills/`、`internal/assets/skills/`、skill registry 相关代码）**：`git push` **之后**执行 **`./scripts/deploy-skill-packs-production.sh`** 或 `production-deploy` §技能包；用 **生产** `curl .../ft-api/api/ai/skills` 验收；**禁止**仅以实验室 skills 条数作为「技能包已上线」
+- [ ] 6b. **技能包 YAML（本地有改动时）**：**不得**将 YAML 纳入步骤 6 的 commit；`git push` 后执行 **`deploy-skill-packs-lab.sh`**（联调）+ **`deploy-skill-packs-production.sh`**（权威）；生产 `curl .../ft-api/api/ai/skills` 验收
 - [ ] 7. 向用户汇报：exit 码、**4a 版本**、verify 摘要、URL、提交哈希、**生产技能包验收**（若适用）
 ```
 
