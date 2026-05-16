@@ -63,6 +63,29 @@
         </el-card>
       </el-tab-pane>
 
+      <el-tab-pane label="商品包" name="commercial">
+        <div class="tab-toolbar">
+          <el-button :loading="commercialLoading" @click="loadCommercial">刷新</el-button>
+          <span v-if="commercialPolicyRev" class="page-desc--muted">policy_rev: {{ commercialPolicyRev }}</span>
+        </div>
+        <el-card shadow="never" v-loading="commercialLoading">
+          <h4 class="section-title">领域包（skillpack.* / pack.*）</h4>
+          <el-table :data="commercialProducts" stripe border size="small" empty-text="暂无商品包">
+            <el-table-column prop="product_key" label="商品键" min-width="200" />
+            <el-table-column prop="title" label="标题" min-width="180" />
+            <el-table-column prop="product_type" label="类型" width="100" />
+            <el-table-column prop="price_hint" label="价格提示" width="120" show-overflow-tooltip />
+          </el-table>
+          <h4 class="section-title bindings-title">树节点绑定</h4>
+          <el-table :data="commercialBindings" stripe border size="small" empty-text="暂无绑定">
+            <el-table-column prop="product_key" label="商品包" min-width="180" />
+            <el-table-column prop="node_path" label="节点路径" min-width="280" show-overflow-tooltip />
+            <el-table-column prop="grant_scope" label="范围" width="100" />
+            <el-table-column prop="pack_key" label="pack_key" min-width="160" show-overflow-tooltip />
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
       <el-tab-pane label="注册表" name="registry">
         <div class="tab-toolbar">
           <el-input
@@ -256,6 +279,12 @@ import {
   type SkillAssetListItem,
   type SkillTreeNode
 } from '../../api/skillAssets'
+import {
+  listCommercialBindings,
+  listCommercialProducts,
+  type CommercialProduct,
+  type ProductNodeBinding
+} from '../../api/skillCommercial'
 import { copyTextToClipboard } from '../../utils/clipboard'
 
 const activeTab = ref('registry')
@@ -272,6 +301,11 @@ const treeRev = ref('')
 const treeSource = ref('')
 const treeRows = ref<SkillTreeTableNode[]>([])
 const selectedTreeFilter = ref<SkillTreeNode | null>(null)
+
+const commercialLoading = ref(false)
+const commercialProducts = ref<CommercialProduct[]>([])
+const commercialBindings = ref<ProductNodeBinding[]>([])
+const commercialPolicyRev = ref('')
 
 const reviewLoading = ref(false)
 const reviewRows = ref<SkillAssetListItem[]>([])
@@ -475,11 +509,28 @@ const loadReview = async () => {
   }
 }
 
+const loadCommercial = async () => {
+  commercialLoading.value = true
+  try {
+    const [prod, bind] = await Promise.all([listCommercialProducts(), listCommercialBindings()])
+    commercialProducts.value = prod.products || []
+    commercialPolicyRev.value = prod.policy_rev || ''
+    commercialBindings.value = bind.bindings || []
+  } catch {
+    commercialProducts.value = []
+    commercialBindings.value = []
+  } finally {
+    commercialLoading.value = false
+  }
+}
+
 const onTabChange = (name: string | number) => {
   if (name === 'review') {
     void loadReview()
   } else if (name === 'tree') {
     void loadSkillTree()
+  } else if (name === 'commercial') {
+    void loadCommercial()
   }
 }
 
@@ -710,6 +761,16 @@ onMounted(() => {
   margin-top: 16px;
   display: flex;
   gap: 12px;
+}
+
+.section-title {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.bindings-title {
+  margin-top: 20px;
 }
 
 :deep(.el-table__row) {

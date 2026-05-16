@@ -69,6 +69,10 @@ func maybeRunServerDiagnosticPlan(ctx context.Context, topic string, kv map[stri
 	if strings.TrimSpace(resolveOpsfleetAPIBase()) == "" || strings.TrimSpace(resolveOpsfleetToken()) == "" || strings.TrimSpace(resolveOpsfleetFingerprint()) == "" {
 		return nil, false, nil
 	}
+	intent := buildExecutionIntent("analyze", topic, kv)
+	if err := ensureExecutionAllowed(ctx, intent, false); err != nil {
+		return nil, false, err
+	}
 	plan, err := requestServerDiagnosticPlan(ctx, topic, kv)
 	if err != nil {
 		return nil, false, err

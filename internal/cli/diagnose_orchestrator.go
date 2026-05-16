@@ -98,6 +98,9 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 	if base != "" {
 		reqID := uuid.NewString()
 		intent := buildExecutionIntent("analyze", topic, kv)
+		if err := ensureExecutionAllowed(ctx, intent, false); err != nil {
+			return nil, err
+		}
 		resp, err := callServerDiagnose(ctx, diagnoseRequest{
 			Topic:     topic,
 			Context:   kv,

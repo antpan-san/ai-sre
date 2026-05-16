@@ -83,35 +83,46 @@ func skillsServerCmd() *cobra.Command {
 }
 
 func skillsStatusCmd() *cobra.Command {
-	return &cobra.Command{
+	var refresh bool
+	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "查看当前 CLI 可执行能力状态（不下发 YAML/Prompt）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
 			defer cancel()
-			resp, err := callCLISync(ctx)
+			resp, err := getCLISyncCached(ctx, refresh)
 			if err != nil {
 				return err
 			}
 			if strings.EqualFold(outputFormat, "json") {
 				return json.NewEncoder(os.Stdout).Encode(resp)
 			}
-			fmt.Printf("CLI policy tree=%s policy=%s\n", resp.TreeRev, resp.PolicyRev)
+			fmt.Printf("CLI tree=%s policy=%s", resp.TreeRev, resp.PolicyRev)
+			if resp.UpgradeRequired {
+				fmt.Printf("  [upgrade required: min %s, latest %s]", resp.MinCLIVersion, resp.LatestCLIVersion)
+			}
+			fmt.Println()
 			if len(resp.Capabilities) == 0 {
 				fmt.Println("  (no capabilities returned)")
 				return nil
 			}
-			fmt.Printf("%-36s %-16s %-16s %s\n", "CAPABILITY", "STATE", "MODE", "PACK")
+			fmt.Printf("%-32s %-14s %-14s %s\n", "CAPABILITY", "STATE", "PRODUCT", "PACK")
 			for _, c := range resp.Capabilities {
 				name := c.Title
 				if name == "" {
 					name = c.NodePath
 				}
-				fmt.Printf("%-36s %-16s %-16s %s\n", truncateStatusCell(name, 36), c.AccessState, c.ExecutionMode, c.PackKey)
+				prod := c.CommercialProductKey
+				if prod == "" {
+					prod = "—"
+				}
+				fmt.Printf("%-32s %-14s %-14s %s\n", truncateStatusCell(name, 32), c.AccessState, truncateStatusCell(prod, 14), c.PackKey)
 			}
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&refresh, "refresh", false, "忽略本地缓存，强制从服务端刷新")
+	return cmd
 }
 
 func skillsRefineCmd() *cobra.Command {
@@ -199,31 +210,36 @@ type serverSkillSummary struct {
 }
 
 type cliSyncResponse struct {
-	PolicyRev        string                 `json:"policy_rev"`
-	TreeRev          string                 `json:"tree_rev"`
-	MinCLIVersion    string                 `json:"min_cli_version"`
-	LatestCLIVersion string                 `json:"latest_cli_version"`
-	Capabilities     []cliSyncCapability    `json:"capabilities"`
-	AIQuota          map[string]interface{} `json:"ai_quota,omitempty"`
+	PolicyRev           string                 `json:"policy_rev"`
+	TreeRev             string                 `json:"tree_rev"`
+	TreeSource          string                 `json:"tree_source,omitempty"`
+	MinCLIVersion       string                 `json:"min_cli_version"`
+	LatestCLIVersion    string                 `json:"latest_cli_version"`
+	UpgradeRequired     bool                   `json:"upgrade_required"`
+	Capabilities        []cliSyncCapability    `json:"capabilities"`
+	ParameterTemplates  map[string]interface{} `json:"parameter_templates,omitempty"`
+	AIQuota             map[string]interface{} `json:"ai_quota,omitempty"`
 }
 
 type cliSyncCapability struct {
-	NodePath             string `json:"node_path"`
-	NodeType             string `json:"node_type"`
-	Title                string `json:"title"`
-	Topic                string `json:"topic"`
-	SkillKey             string `json:"skill_key"`
-	ProblemKey           string `json:"problem_key"`
-	CapabilityKey        string `json:"capability_key"`
-	PackKey              string `json:"pack_key"`
-	FeatureKey           string `json:"feature_key"`
-	ExecutionMode        string `json:"execution_mode"`
-	CanExecute           bool   `json:"can_execute"`
-	AccessState          string `json:"access_state"`
-	EntitlementSource    string `json:"entitlement_source"`
-	RequiresSubscription bool   `json:"requires_subscription"`
-	RequiresPlan         bool   `json:"requires_plan"`
-	LocalFallbackAllowed bool   `json:"local_fallback_allowed"`
+	NodePath               string `json:"node_path"`
+	Title                  string `json:"title"`
+	Topic                  string `json:"topic"`
+	SkillKey               string `json:"skill_key"`
+	ProblemKey             string `json:"problem_key"`
+	CapabilityKey          string `json:"capability_key"`
+	PackKey                string `json:"pack_key"`
+	ExecutionMode          string `json:"execution_mode"`
+	CanExecute             bool   `json:"can_execute"`
+	AccessState            string `json:"access_state"`
+	DenialReason           string `json:"denial_reason"`
+	CommercialProductKey   string `json:"commercial_product_key"`
+	RequiresPlan           bool   `json:"requires_plan"`
+	LocalFallbackAllowed   bool   `json:"local_fallback_allowed"`
+	NodeType               string `json:"node_type,omitempty"`
+	FeatureKey             string `json:"feature_key,omitempty"`
+	EntitlementSource      string `json:"entitlement_source,omitempty"`
+	RequiresSubscription   bool   `json:"requires_subscription,omitempty"`
 }
 
 func callCLISync(ctx context.Context) (*cliSyncResponse, error) {
@@ -240,6 +256,7 @@ func callCLISync(ctx context.Context) (*cliSyncResponse, error) {
 		return nil, err
 	}
 	attachOpsfleetAuth(hreq)
+	hreq.Header.Set("X-AI-SRE-Version", strings.TrimSpace(Version))
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(hreq)
 	if err != nil {

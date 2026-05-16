@@ -915,6 +915,39 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_user_skill_unlock_coordinate
     WHERE skill_key IS NOT NULL AND skill_key <> '' AND problem_key IS NOT NULL AND problem_key <> '';
 
 -- ============================================================
+-- 17c. 商业化商品包与技能树节点绑定
+-- ============================================================
+CREATE TABLE IF NOT EXISTS skill_commercial_products (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_key   VARCHAR(80) NOT NULL,
+    title         VARCHAR(200) NOT NULL,
+    description   VARCHAR(2000),
+    product_type  VARCHAR(32) NOT NULL DEFAULT 'pack',
+    status        VARCHAR(32) NOT NULL DEFAULT 'active',
+    price_hint    VARCHAR(120),
+    sort_order    INTEGER NOT NULL DEFAULT 0,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at    TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skill_commercial_products_key ON skill_commercial_products(product_key);
+
+CREATE TABLE IF NOT EXISTS skill_product_node_bindings (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    product_key     VARCHAR(80) NOT NULL,
+    node_path       VARCHAR(300) NOT NULL DEFAULT '',
+    skill_key       VARCHAR(160),
+    capability_key  VARCHAR(160),
+    pack_key        VARCHAR(80),
+    grant_scope     VARCHAR(32) NOT NULL DEFAULT 'subtree',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_skill_product_bindings_product ON skill_product_node_bindings(product_key);
+CREATE INDEX IF NOT EXISTS idx_skill_product_bindings_node ON skill_product_node_bindings(node_path);
+
+-- ============================================================
 -- 18. 表注释
 -- ============================================================
 COMMENT ON TABLE tenants          IS '多租户注册表';

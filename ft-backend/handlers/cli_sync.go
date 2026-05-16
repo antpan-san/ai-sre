@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"net/http"
+	"strconv"
 	"strings"
-	"time"
 
 	"ft-backend/database"
 	"ft-backend/middleware"
@@ -14,14 +14,21 @@ import (
 	"github.com/google/uuid"
 )
 
-// GetCLISync returns the compact execution policy snapshot for a bound CLI.
-// It deliberately omits YAML, prompts, Stripe details, and review asset content.
+const (
+	cliMinVersion    = "0.5.18"
+	cliLatestVersion = "0.5.22"
+)
+
+// GetCLISync returns the compact execution policy snapshot for a bound CLI (sync v2).
+// It deliberately omits YAML, prompts, Stripe prices, and full entitlement policies.
 func GetCLISync(c *gin.Context) {
 	ident, ok := resolveCLIBearerIdentity(c)
 	if !ok {
 		return
 	}
 	tree := services.ActiveSkillTree()
+	policyRev := services.CommercialPolicyRev()
+	templates := map[string]interface{}{}
 	caps := make([]gin.H, 0, len(tree.Nodes))
 	for _, n := range tree.Nodes {
 		if n.Status == models.SkillTreeNodeStatusDisabled {
@@ -30,40 +37,63 @@ func GetCLISync(c *gin.Context) {
 		if !n.CLIVisible || n.NodeType == services.SkillNodeTypeCategory {
 			continue
 		}
-		state := cliCapabilityState(c, ident, n)
+		commercialKey := ""
+		packKey := strings.TrimSpace(n.PackKey)
+		if match, ok := services.ResolveCommercialProductForNode(n.Path); ok {
+			commercialKey = match.ProductKey
+			if packKey == "" {
+				packKey = match.PackKey
+			}
+		}
+		if packKey == "" {
+			packKey = skillPackForTopic(n.Topic)
+		}
+		state := cliCapabilityState(c, ident, n, packKey)
 		denialReason := ""
 		if !state.CanExecute {
 			denialReason = state.AccessState
+			if denialReason == "" {
+				denialReason = "paywall"
+			}
+		}
+		if topic := strings.TrimSpace(n.Topic); topic != "" {
+			if _, ok := templates[topic]; !ok {
+				templates[topic] = services.ParameterTemplatesForTopic(topic)
+			}
 		}
 		caps = append(caps, gin.H{
-			"node_path":              n.Path,
-			"node_type":              n.NodeType,
-			"title":                  n.Title,
-			"topic":                  n.Topic,
-			"skill_key":              n.SkillKey,
-			"problem_key":            n.ProblemKey,
-			"capability_key":         n.CapabilityKey,
-			"pack_key":               n.PackKey,
-			"feature_key":            n.FeatureKey,
-			"execution_mode":         n.ExecutionMode,
-			"can_execute":            state.CanExecute,
-			"access_state":           state.AccessState,
-			"denial_reason":          denialReason,
-			"entitlement_source":     state.EntitlementSource,
-			"requires_subscription":  state.RequiresSubscription,
-			"requires_plan":          n.ExecutionMode == services.ExecutionModeServerPlanReadonly,
-			"local_fallback_allowed": n.ExecutionMode == services.ExecutionModeLocalAIFallback || n.ExecutionMode == services.ExecutionModeLocalReadonly,
+			"node_path":                n.Path,
+			"title":                    n.Title,
+			"topic":                    n.Topic,
+			"skill_key":                n.SkillKey,
+			"problem_key":              n.ProblemKey,
+			"capability_key":           n.CapabilityKey,
+			"pack_key":                 packKey,
+			"execution_mode":           n.ExecutionMode,
+			"can_execute":              state.CanExecute,
+			"access_state":             state.AccessState,
+			"denial_reason":            denialReason,
+			"commercial_product_key":   commercialKey,
+			"requires_plan":            n.ExecutionMode == services.ExecutionModeServerPlanReadonly,
+			"local_fallback_allowed":   n.ExecutionMode == services.ExecutionModeLocalAIFallback || n.ExecutionMode == services.ExecutionModeLocalReadonly,
+			"entitlement_source":       state.EntitlementSource,
+			"requires_subscription":    state.RequiresSubscription,
+			"node_type":                n.NodeType,
+			"feature_key":              n.FeatureKey,
 		})
 	}
+	cliVer := strings.TrimSpace(c.GetHeader("X-AI-SRE-Version"))
 	c.JSON(http.StatusOK, gin.H{
 		"code": 200,
 		"data": gin.H{
-			"policy_rev":         time.Now().UTC().Format("2006-01-02"),
+			"policy_rev":         policyRev,
 			"tree_rev":           tree.TreeRev,
 			"tree_source":        tree.Source,
-			"min_cli_version":    "0.5.18",
-			"latest_cli_version": "0.5.21",
+			"min_cli_version":    cliMinVersion,
+			"latest_cli_version": cliLatestVersion,
+			"upgrade_required":   cliUpgradeRequired(cliVer),
 			"capabilities":       caps,
+			"parameter_templates": templates,
 			"ai_quota": gin.H{
 				"free_daily_limit": aiFreeDailyLimit,
 				"timezone":         "Asia/Shanghai",
@@ -80,16 +110,12 @@ type cliCapabilityAccess struct {
 	RequiresSubscription bool
 }
 
-func cliCapabilityState(c *gin.Context, ident *aiIdentity, node services.SkillTreeNode) cliCapabilityAccess {
+func cliCapabilityState(c *gin.Context, ident *aiIdentity, node services.SkillTreeNode, packKey string) cliCapabilityAccess {
 	if ident == nil {
 		return cliCapabilityAccess{AccessState: "unauthorized", RequiresSubscription: true}
 	}
 	if models.IsSuperAdminRole(ident.Role) {
 		return cliCapabilityAccess{CanExecute: true, AccessState: "super_admin", EntitlementSource: "super_admin"}
-	}
-	packKey := strings.TrimSpace(node.PackKey)
-	if packKey == "" {
-		packKey = skillPackForTopic(node.Topic)
 	}
 	if strings.HasPrefix(packKey, "skillpack.") {
 		return cliAISkillPackAccess(c, ident, packKey)
@@ -102,7 +128,7 @@ func cliCapabilityState(c *gin.Context, ident *aiIdentity, node services.SkillTr
 	source, _ := payload["entitlement_source"].(string)
 	required, _ := payload["billing_required"].(bool)
 	if allowed {
-		state := "available"
+		state := "entitlement"
 		if source != "" {
 			state = source
 		}
@@ -115,10 +141,10 @@ func cliAISkillPackAccess(c *gin.Context, ident *aiIdentity, packKey string) cli
 	if ident == nil || ident.UserID == uuid.Nil {
 		return cliCapabilityAccess{AccessState: "unauthorized", RequiresSubscription: true}
 	}
+	if source, ok := services.UserHasCommercialEntitlement(ident.UserID, packKey); ok {
+		return cliCapabilityAccess{CanExecute: true, AccessState: source, EntitlementSource: source}
+	}
 	if source, ok := cliEntitlementSourceForUser(ident.UserID, packKey); ok {
-		if source == "" {
-			source = "entitlement"
-		}
 		return cliCapabilityAccess{CanExecute: true, AccessState: source, EntitlementSource: source}
 	}
 	used := 0
@@ -137,12 +163,36 @@ func databaseLookupAIUsage(subject, packKey string, out *models.AIUsage) error {
 }
 
 func cliEntitlementSourceForUser(uid uuid.UUID, packKey string) (string, bool) {
-	var ent models.Entitlement
-	err := database.DB.Where("user_id = ? AND feature_key = ?", uid, packKey).
-		Where("valid_until IS NULL OR valid_until > ?", time.Now().UTC()).
-		First(&ent).Error
-	if err != nil {
-		return "", false
+	return services.UserHasCommercialEntitlement(uid, packKey)
+}
+
+func cliUpgradeRequired(clientVersion string) bool {
+	if clientVersion == "" {
+		return false
 	}
-	return strings.TrimSpace(ent.Source), true
+	return versionLess(clientVersion, cliMinVersion)
+}
+
+func versionLess(a, b string) bool {
+	pa := parseVersionParts(a)
+	pb := parseVersionParts(b)
+	for i := 0; i < 3; i++ {
+		if pa[i] < pb[i] {
+			return true
+		}
+		if pa[i] > pb[i] {
+			return false
+		}
+	}
+	return false
+}
+
+func parseVersionParts(v string) [3]int {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+	parts := strings.Split(v, ".")
+	var out [3]int
+	for i := 0; i < 3 && i < len(parts); i++ {
+		out[i], _ = strconv.Atoi(parts[i])
+	}
+	return out
 }

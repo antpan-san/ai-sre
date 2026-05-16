@@ -53,6 +53,7 @@ func main() {
 	if err := services.SeedBuiltinSkillTree(); err != nil {
 		logger.Warn("SeedBuiltinSkillTree: %v", err)
 	}
+	services.LogCommercialSeedFailure(services.SeedSkillCommercialProducts())
 
 	// 5. Connect to Redis (non-fatal if fails — graceful degradation)
 	if err := redis.Connect(&cfg.Redis); err != nil {
