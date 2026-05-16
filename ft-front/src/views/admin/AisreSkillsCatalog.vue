@@ -10,6 +10,59 @@
     </div>
 
     <el-tabs v-model="activeTab" class="skills-tabs" @tab-change="onTabChange">
+      <el-tab-pane label="能力树" name="tree">
+        <div class="tab-toolbar">
+          <el-button :loading="treeLoading" @click="loadSkillTree">刷新</el-button>
+          <span v-if="treeRev" class="tree-rev page-desc--muted">
+            版本：{{ treeRev }}<template v-if="treeSource">（{{ treeSource }}）</template>
+          </span>
+        </div>
+        <el-card shadow="never" v-loading="treeLoading">
+          <el-table
+            :data="treeRows"
+            row-key="path"
+            stripe
+            border
+            size="small"
+            default-expand-all
+            empty-text="暂无能力树"
+            @row-click="onTreeRowClick"
+          >
+            <el-table-column prop="title" label="能力节点" min-width="240" show-overflow-tooltip />
+            <el-table-column prop="path" label="路径" min-width="300" show-overflow-tooltip />
+            <el-table-column label="类型" width="110" align="center">
+              <template #default="{ row }">
+                <el-tag :type="nodeTypeTag(row.node_type)" size="small">{{ nodeTypeLabel(row.node_type) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="资产" width="150" align="center">
+              <template #default="{ row }">
+                <span class="asset-stat">{{ treeAssetStatText(row) }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="topic" label="Topic" width="110" show-overflow-tooltip />
+            <el-table-column prop="problem_key" label="问题模式" width="150" show-overflow-tooltip />
+            <el-table-column prop="capability_key" label="能力键" min-width="190" show-overflow-tooltip />
+            <el-table-column prop="pack_key" label="订阅包" min-width="170" show-overflow-tooltip />
+            <el-table-column prop="execution_mode" label="执行模式" min-width="170" show-overflow-tooltip />
+            <el-table-column label="状态" width="90" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.status === 'disabled' ? 'info' : 'success'" size="small">
+                  {{ row.status === 'disabled' ? '停用' : '启用' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="CLI" width="80" align="center">
+              <template #default="{ row }">
+                <el-tag :type="row.cli_visible ? 'success' : 'info'" size="small">
+                  {{ row.cli_visible ? '可见' : '隐藏' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
       <el-tab-pane label="注册表" name="registry">
         <div class="tab-toolbar">
           <el-input
@@ -65,12 +118,17 @@
             <el-option label="已驳回" value="deprecated" />
             <el-option label="全部" value="" />
           </el-select>
+          <el-tag v-if="selectedTreeFilter" closable type="info" @close="clearTreeFilter">
+            {{ selectedTreeFilter.title }}
+          </el-tag>
           <el-button :loading="reviewLoading" @click="loadReview">刷新</el-button>
         </div>
         <el-card shadow="never" v-loading="reviewLoading">
           <el-table :data="reviewRows" stripe border size="small" empty-text="暂无技能资产">
             <el-table-column prop="display_name" label="展示名" min-width="140" show-overflow-tooltip />
             <el-table-column prop="topic" label="Topic" width="90" />
+            <el-table-column prop="problem_key" label="问题模式" width="140" show-overflow-tooltip />
+            <el-table-column prop="category_path" label="能力路径" min-width="220" show-overflow-tooltip />
             <el-table-column prop="created_by" label="提交人" width="100" show-overflow-tooltip />
             <el-table-column label="状态" width="100" align="center">
               <template #default="{ row }">
@@ -146,6 +204,15 @@
             <el-descriptions-item label="ID">{{ assetDetail.id }}</el-descriptions-item>
             <el-descriptions-item label="名称">{{ assetDetail.name }}</el-descriptions-item>
             <el-descriptions-item label="Topic">{{ assetDetail.topic }}</el-descriptions-item>
+            <el-descriptions-item v-if="assetDetail.category_path" label="能力路径">
+              {{ assetDetail.category_path }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="assetDetail.skill_key" label="Skill Key">
+              {{ assetDetail.skill_key }}
+            </el-descriptions-item>
+            <el-descriptions-item v-if="assetDetail.problem_key" label="问题模式">
+              {{ assetDetail.problem_key }}
+            </el-descriptions-item>
             <el-descriptions-item label="状态">
               <el-tag :type="assetStatusTag(assetDetail.status)" size="small">{{ assetStatusLabel(assetDetail.status) }}</el-tag>
             </el-descriptions-item>
@@ -181,11 +248,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAdminAiSkillDetail, getAdminAiSkills, type RegisteredSkill, type SkillSummary } from '../../api/aiSkills'
 import {
   approveAdminSkillAsset,
+  getAdminSkillTree,
   getAdminSkillAsset,
   listAdminSkillAssets,
   rejectAdminSkillAsset,
   type SkillAssetDetail,
-  type SkillAssetListItem
+  type SkillAssetListItem,
+  type SkillTreeNode
 } from '../../api/skillAssets'
 import { copyTextToClipboard } from '../../utils/clipboard'
 
@@ -195,6 +264,14 @@ const loading = ref(false)
 const rows = ref<SkillSummary[]>([])
 const dataDir = ref('')
 const keyword = ref('')
+
+type SkillTreeTableNode = SkillTreeNode & { children?: SkillTreeTableNode[] }
+
+const treeLoading = ref(false)
+const treeRev = ref('')
+const treeSource = ref('')
+const treeRows = ref<SkillTreeTableNode[]>([])
+const selectedTreeFilter = ref<SkillTreeNode | null>(null)
 
 const reviewLoading = ref(false)
 const reviewRows = ref<SkillAssetListItem[]>([])
@@ -268,6 +345,90 @@ const assetStatusTag = (s: string) => {
   }
 }
 
+const nodeTypeLabel = (s: string) => {
+  switch (s) {
+    case 'category':
+      return '大类'
+    case 'capability':
+      return '能力'
+    case 'skill':
+      return '技能'
+    default:
+      return s || '—'
+  }
+}
+
+const nodeTypeTag = (s: string) => {
+  switch (s) {
+    case 'category':
+      return 'info'
+    case 'capability':
+      return 'warning'
+    case 'skill':
+      return 'success'
+    default:
+      return 'info'
+  }
+}
+
+const treeAssetStatText = (row: SkillTreeNode) => {
+  const s = row.asset_stats
+  if (!s || !s.total) return '—'
+  return `审${s.review || 0} / 发${s.approved || 0} / 驳${s.deprecated || 0}`
+}
+
+const buildSkillTreeRows = (nodes: SkillTreeNode[]): SkillTreeTableNode[] => {
+  const byPath = new Map<string, SkillTreeTableNode>()
+  const sorted = [...nodes].sort((a, b) => {
+    const ao = a.sort_order || 0
+    const bo = b.sort_order || 0
+    if (ao !== bo) return ao - bo
+    return (a.path || '').localeCompare(b.path || '')
+  })
+  sorted.forEach((n) => {
+    byPath.set(n.path, { ...n, children: [] })
+  })
+  const roots: SkillTreeTableNode[] = []
+  sorted.forEach((n) => {
+    const row = byPath.get(n.path)
+    if (!row) return
+    const parent = n.parent_path ? byPath.get(n.parent_path) : null
+    if (parent) {
+      parent.children = parent.children || []
+      parent.children.push(row)
+    } else {
+      roots.push(row)
+    }
+  })
+  const prune = (rows: SkillTreeTableNode[]) => {
+    rows.forEach((row) => {
+      if (row.children && row.children.length > 0) {
+        prune(row.children)
+      } else {
+        delete row.children
+      }
+    })
+  }
+  prune(roots)
+  return roots
+}
+
+const loadSkillTree = async () => {
+  treeLoading.value = true
+  try {
+    const data = await getAdminSkillTree()
+    treeRev.value = data.tree_rev || ''
+    treeSource.value = data.tree_source || ''
+    treeRows.value = buildSkillTreeRows(data.nodes || [])
+  } catch {
+    treeRev.value = ''
+    treeSource.value = ''
+    treeRows.value = []
+  } finally {
+    treeLoading.value = false
+  }
+}
+
 const loadRegistry = async () => {
   loading.value = true
   try {
@@ -294,8 +455,10 @@ const loadReviewPendingCount = async () => {
 const loadReview = async () => {
   reviewLoading.value = true
   try {
+    const treeFilter = selectedTreeFilter.value
     const data = await listAdminSkillAssets({
       status: reviewStatus.value || undefined,
+      category_path: treeFilter?.path || undefined,
       page: reviewPage.value,
       page_size: reviewPageSize.value
     })
@@ -315,7 +478,22 @@ const loadReview = async () => {
 const onTabChange = (name: string | number) => {
   if (name === 'review') {
     void loadReview()
+  } else if (name === 'tree') {
+    void loadSkillTree()
   }
+}
+
+const onTreeRowClick = (row: SkillTreeNode) => {
+  selectedTreeFilter.value = row
+  reviewPage.value = 1
+  activeTab.value = 'review'
+  void loadReview()
+}
+
+const clearTreeFilter = () => {
+  selectedTreeFilter.value = null
+  reviewPage.value = 1
+  void loadReview()
 }
 
 const openRegistryDetail = async (name: string) => {
@@ -368,7 +546,7 @@ const onApprove = async (row: SkillAssetListItem | SkillAssetDetail) => {
     const res = await approveAdminSkillAsset(row.id, { merge_with_registry: true })
     ElMessage.success(res.merged ? `已合并发布至 ${res.path}` : `已发布至 ${res.path || 'generated'}`)
     assetDetailOpen.value = false
-    await Promise.all([loadReview(), loadReviewPendingCount(), loadRegistry()])
+    await Promise.all([loadReview(), loadReviewPendingCount(), loadRegistry(), loadSkillTree()])
   } catch {
     ElMessage.error('审核失败')
   } finally {
@@ -393,7 +571,7 @@ const onReject = async (row: SkillAssetListItem | SkillAssetDetail) => {
     await rejectAdminSkillAsset(row.id, { reason })
     ElMessage.success('已驳回')
     assetDetailOpen.value = false
-    await Promise.all([loadReview(), loadReviewPendingCount()])
+    await Promise.all([loadReview(), loadReviewPendingCount(), loadSkillTree()])
   } catch {
     ElMessage.error('驳回失败')
   } finally {
@@ -422,6 +600,7 @@ const copyAssetJson = async () => {
 }
 
 onMounted(() => {
+  void loadSkillTree()
   void loadRegistry()
   void loadReviewPendingCount()
 })
@@ -460,6 +639,16 @@ onMounted(() => {
 
 .review-status-select {
   width: 160px;
+}
+
+.tree-rev {
+  font-size: 13px;
+}
+
+.asset-stat {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
+  white-space: nowrap;
 }
 
 .review-badge {

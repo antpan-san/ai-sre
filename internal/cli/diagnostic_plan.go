@@ -30,6 +30,12 @@ type serverDiagnosticPlan struct {
 	PlanID               string                     `json:"plan_id"`
 	PlanToken            string                     `json:"plan_token"`
 	Topic                string                     `json:"topic"`
+	Intent               executionIntent            `json:"intent"`
+	NormalizedNodePath   string                     `json:"normalized_node_path"`
+	SkillKey             string                     `json:"skill_key"`
+	ProblemKey           string                     `json:"problem_key"`
+	CapabilityKey        string                     `json:"capability_key"`
+	ExecutionMode        string                     `json:"execution_mode"`
 	ExpiresAt            time.Time                  `json:"expires_at"`
 	RequiresConfirmation bool                       `json:"requires_confirmation"`
 	Steps                []serverDiagnosticPlanStep `json:"steps"`
@@ -81,12 +87,14 @@ func maybeRunServerDiagnosticPlan(ctx context.Context, topic string, kv map[stri
 }
 
 func requestServerDiagnosticPlan(ctx context.Context, topic string, kv map[string]string) (*serverDiagnosticPlan, error) {
+	intent := buildExecutionIntent("analyze", topic, kv)
 	body, err := json.Marshal(map[string]interface{}{
 		"topic":      strings.TrimSpace(topic),
 		"context":    kv,
 		"command":    strings.Join(os.Args, " "),
 		"request_id": "",
 		"client":     opsfleetAIClient(),
+		"intent":     intent,
 	})
 	if err != nil {
 		return nil, err

@@ -106,6 +106,8 @@ func Migrate() error {
 		&models.SkillAssetVersion{},
 		&models.UserSkillUnlock{},
 		&models.DiagnosticPlan{},
+		&models.SkillTreeVersion{},
+		&models.SkillTreeNodeRecord{},
 		&models.RuntimeWatchSession{},
 		&models.RuntimeWatchSample{},
 		// NOTE: Heartbeat is NOT included here – it is a partitioned table

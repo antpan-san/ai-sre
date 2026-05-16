@@ -17,11 +17,12 @@ import (
 )
 
 type aiDiagnoseRequest struct {
-	Topic     string            `json:"topic" binding:"required"`
-	Context   map[string]string `json:"context"`
-	Command   string            `json:"command"`
-	RequestID string            `json:"request_id"`
-	Client    aiClientInfo      `json:"client"`
+	Topic     string                        `json:"topic" binding:"required"`
+	Context   map[string]string             `json:"context"`
+	Command   string                        `json:"command"`
+	RequestID string                        `json:"request_id"`
+	Client    aiClientInfo                  `json:"client"`
+	Intent    services.SkillExecutionIntent `json:"intent"`
 }
 
 type aiSkillPack struct {
@@ -69,7 +70,8 @@ func AIDiagnose(c *gin.Context) {
 	if !ok {
 		return
 	}
-	packKey := skillPackForTopic(topic)
+	intent := services.NormalizeSkillExecutionIntent(topic, req.Context, req.Intent)
+	packKey := defaultString(intent.PackKey, skillPackForTopic(topic))
 	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, packKey, ident)
 	if !quotaOK {
 		recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, packKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
@@ -78,7 +80,7 @@ func AIDiagnose(c *gin.Context) {
 	reg := services.DefaultSkillRegistry()
 	matched := reg.Match(topic, req.Context)
 	if ident != nil && ident.UserID != uuid.Nil {
-		if overlay := services.UserDiagnosticSkillOverlay(ident.UserID, topic); overlay != nil {
+		if overlay := services.UserDiagnosticSkillOverlay(ident.UserID, topic, intent.ProblemKey); overlay != nil {
 			matched = services.MergeRegisteredSkills(matched, overlay)
 		}
 	}
@@ -106,10 +108,16 @@ func AIDiagnose(c *gin.Context) {
 	}
 	reqID := requestIDOrNow(req.RequestID)
 	meta := map[string]interface{}{
-		"request_id":   reqID,
-		"topic":        topic,
-		"fallback":     "server_deepseek",
-		"skill_source": skillSource,
+		"request_id":           reqID,
+		"topic":                topic,
+		"fallback":             "server_deepseek",
+		"skill_source":         skillSource,
+		"normalized_node_path": intent.NodePath,
+		"skill_key":            intent.SkillKey,
+		"problem_key":          intent.ProblemKey,
+		"capability_key":       intent.CapabilityKey,
+		"execution_mode":       intent.ExecutionMode,
+		"pack_key":             packKey,
 	}
 	if req.Context != nil {
 		if s := strings.TrimSpace(req.Context["diagnosis_style"]); s != "" {
@@ -271,6 +279,8 @@ func skillPackForTopic(topic string) string {
 		return models.SkillPackMySQL
 	case "elasticsearch", "es":
 		return models.SkillPackElasticsearch
+	case "go_runtime", "go-runtime", "pod-go":
+		return models.PackKeyRuntimeObserve
 	default:
 		return models.SkillPackK8s
 	}
@@ -289,6 +299,8 @@ func skillPackForText(text string) string {
 		return models.SkillPackMySQL
 	case strings.Contains(s, "elastic") || strings.Contains(s, "es "):
 		return models.SkillPackElasticsearch
+	case strings.Contains(s, "go runtime") || strings.Contains(s, "go_runtime") || strings.Contains(s, "goroutine") || strings.Contains(s, "pprof"):
+		return models.PackKeyRuntimeObserve
 	default:
 		return models.SkillPackK8s
 	}

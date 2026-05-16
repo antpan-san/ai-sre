@@ -15,6 +15,7 @@ import (
 	"ft-backend/database"
 	"ft-backend/iotservice"
 	"ft-backend/routes"
+	"ft-backend/services"
 	"ft-backend/utils"
 )
 
@@ -48,6 +49,9 @@ func main() {
 	if err := database.Migrate(); err != nil {
 		logger.Error("Failed to migrate database: %v", err)
 		return
+	}
+	if err := services.SeedBuiltinSkillTree(); err != nil {
+		logger.Warn("SeedBuiltinSkillTree: %v", err)
 	}
 
 	// 5. Connect to Redis (non-fatal if fails — graceful degradation)

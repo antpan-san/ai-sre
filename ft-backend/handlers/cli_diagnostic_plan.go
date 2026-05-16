@@ -14,6 +14,7 @@ import (
 	"ft-backend/common/response"
 	"ft-backend/database"
 	"ft-backend/models"
+	"ft-backend/services"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -32,11 +33,12 @@ type diagnosticPlanStep struct {
 }
 
 type cliDiagnosticPlanRequest struct {
-	Topic     string            `json:"topic" binding:"required"`
-	Context   map[string]string `json:"context"`
-	Command   string            `json:"command"`
-	RequestID string            `json:"request_id"`
-	Client    aiClientInfo      `json:"client"`
+	Topic     string                        `json:"topic" binding:"required"`
+	Context   map[string]string             `json:"context"`
+	Command   string                        `json:"command"`
+	RequestID string                        `json:"request_id"`
+	Client    aiClientInfo                  `json:"client"`
+	Intent    services.SkillExecutionIntent `json:"intent"`
 }
 
 func CreateCLIDiagnosticPlan(c *gin.Context) {
@@ -54,7 +56,9 @@ func CreateCLIDiagnosticPlan(c *gin.Context) {
 		response.BadRequest(c, "topic 不能为空")
 		return
 	}
-	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, skillPackForTopic(topic), ident)
+	intent := services.NormalizeSkillExecutionIntent(topic, req.Context, req.Intent)
+	packKey := defaultString(intent.PackKey, skillPackForTopic(topic))
+	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, packKey, ident)
 	if !quotaOK {
 		_ = commitQuota
 		recordAIExecution(ident, "diagnostic_plan", "诊断任务单: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, quotaDecision.PackKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
@@ -85,6 +89,12 @@ func CreateCLIDiagnosticPlan(c *gin.Context) {
 		CLIBindingID:    ident.CLIBindingID,
 		FingerprintHash: ident.FingerprintHash,
 		Topic:           topic,
+		SkillKey:        intent.SkillKey,
+		ProblemKey:      intent.ProblemKey,
+		CapabilityKey:   intent.CapabilityKey,
+		NodePath:        intent.NodePath,
+		ExecutionMode:   intent.ExecutionMode,
+		PackKey:         packKey,
 		Command:         limitText(req.Command, 2000),
 		RequestID:       strings.TrimSpace(req.RequestID),
 		Status:          models.DiagnosticPlanStatusPending,
@@ -104,6 +114,12 @@ func CreateCLIDiagnosticPlan(c *gin.Context) {
 		"plan_id":               plan.ID.String(),
 		"plan_token":            token,
 		"topic":                 topic,
+		"intent":                intent,
+		"normalized_node_path":  intent.NodePath,
+		"skill_key":             intent.SkillKey,
+		"problem_key":           intent.ProblemKey,
+		"capability_key":        intent.CapabilityKey,
+		"execution_mode":        intent.ExecutionMode,
 		"expires_at":            plan.ExpiresAt,
 		"requires_confirmation": true,
 		"steps":                 steps,
@@ -210,8 +226,16 @@ func PostCLIDiagnosticPlanObservations(c *gin.Context) {
 	}); err != nil {
 		logger.Warn("ensure diagnostic plan skill unlock failed plan=%s: %v", plan.ID, err)
 	}
-	recordAIExecution(ident, "diagnostic_plan_observations", "诊断证据上报: "+plan.Topic, "", "", skillPackForTopic(plan.Topic), models.ExecutionStatusSuccess, plan.Summary, "", nil, req.Client, aiQuotaDecision{PackKey: skillPackForTopic(plan.Topic)})
-	response.OK(c, gin.H{"plan_id": plan.ID.String(), "status": models.DiagnosticPlanStatusObserved})
+	obsPackKey := defaultString(plan.PackKey, skillPackForTopic(plan.Topic))
+	recordAIExecution(ident, "diagnostic_plan_observations", "诊断证据上报: "+plan.Topic, "", "", obsPackKey, models.ExecutionStatusSuccess, plan.Summary, "", nil, req.Client, aiQuotaDecision{PackKey: obsPackKey})
+	response.OK(c, gin.H{
+		"plan_id":              plan.ID.String(),
+		"status":               models.DiagnosticPlanStatusObserved,
+		"normalized_node_path": plan.NodePath,
+		"skill_key":            plan.SkillKey,
+		"problem_key":          plan.ProblemKey,
+		"capability_key":       plan.CapabilityKey,
+	})
 }
 
 func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) error {
@@ -223,6 +247,9 @@ func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) e
 		topic = "unknown"
 	}
 	name := "diagnostic." + sanitizeSkillAssetName(topic) + ".readonly-plan"
+	if strings.TrimSpace(plan.ProblemKey) != "" {
+		name = "diagnostic." + sanitizeSkillAssetName(topic) + "." + sanitizeSkillAssetName(plan.ProblemKey) + ".readonly-plan"
+	}
 	var asset models.SkillAsset
 	if err := tx.Where("name = ?", name).First(&asset).Error; err != nil {
 		if err != gorm.ErrRecordNotFound {
@@ -230,6 +257,10 @@ func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) e
 		}
 		asset = models.SkillAsset{
 			Topic:           topic,
+			SkillKey:        strings.TrimSpace(plan.SkillKey),
+			ProblemKey:      strings.TrimSpace(plan.ProblemKey),
+			CapabilityKey:   strings.TrimSpace(plan.CapabilityKey),
+			CategoryPath:    strings.TrimSpace(plan.NodePath),
 			Name:            name,
 			DisplayName:     "只读诊断计划: " + topic,
 			Status:          models.SkillAssetStatusReview,
@@ -244,6 +275,12 @@ func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) e
 	}
 	content := map[string]interface{}{
 		"topic":                topic,
+		"skill_key":            strings.TrimSpace(plan.SkillKey),
+		"problem_key":          strings.TrimSpace(plan.ProblemKey),
+		"capability_key":       strings.TrimSpace(plan.CapabilityKey),
+		"category_path":        strings.TrimSpace(plan.NodePath),
+		"execution_mode":       strings.TrimSpace(plan.ExecutionMode),
+		"pack_key":             strings.TrimSpace(plan.PackKey),
 		"mode":                 "readonly_plan",
 		"source_plan_id":       plan.ID.String(),
 		"source_plan_status":   plan.Status,
@@ -276,12 +313,22 @@ func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) e
 	if err := tx.Model(&asset).Updates(map[string]interface{}{
 		"current_version_id": version.ID,
 		"status":             models.SkillAssetStatusReview,
+		"skill_key":          strings.TrimSpace(plan.SkillKey),
+		"problem_key":        strings.TrimSpace(plan.ProblemKey),
+		"capability_key":     strings.TrimSpace(plan.CapabilityKey),
+		"category_path":      strings.TrimSpace(plan.NodePath),
 	}).Error; err != nil {
 		return err
 	}
 	versionID := version.ID
 	var unlock models.UserSkillUnlock
-	if err := tx.Where("user_id = ? AND skill_asset_id = ?", plan.UserID, asset.ID).First(&unlock).Error; err != nil {
+	unlockQ := tx.Where("user_id = ?", plan.UserID)
+	if sk := strings.TrimSpace(plan.SkillKey); sk != "" && strings.TrimSpace(plan.ProblemKey) != "" {
+		unlockQ = unlockQ.Where("skill_key = ? AND problem_key = ?", sk, strings.TrimSpace(plan.ProblemKey))
+	} else {
+		unlockQ = unlockQ.Where("skill_asset_id = ?", asset.ID)
+	}
+	if err := unlockQ.First(&unlock).Error; err != nil {
 		if err != gorm.ErrRecordNotFound {
 			return err
 		}
@@ -289,12 +336,16 @@ func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) e
 			UserID:              plan.UserID,
 			SkillAssetID:        asset.ID,
 			SkillAssetVersionID: &versionID,
+			SkillKey:            strings.TrimSpace(plan.SkillKey),
+			ProblemKey:          strings.TrimSpace(plan.ProblemKey),
 			Source:              "diagnostic_plan",
 		}
 		return tx.Create(&unlock).Error
 	}
 	return tx.Model(&unlock).Updates(map[string]interface{}{
 		"skill_asset_version_id": versionID,
+		"skill_key":              strings.TrimSpace(plan.SkillKey),
+		"problem_key":            strings.TrimSpace(plan.ProblemKey),
 		"source":                 "diagnostic_plan",
 		"valid_until":            nil,
 	}).Error

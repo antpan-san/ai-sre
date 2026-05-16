@@ -67,6 +67,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/runtime-watch/sample", middleware.RateLimit("runtime-watch-sample", 3000, time.Minute), handlers.PostRuntimeWatchSample)
 		public.GET("/cli/go-runtime/auth-check", middleware.RateLimit("cli-go-runtime-auth-check", 300, time.Minute), handlers.CheckCLIGoRuntimeAuth)
 		public.POST("/cli/go-runtime/reports", middleware.RateLimit("cli-go-runtime-report", 300, time.Minute), handlers.PostCLIGoRuntimeReport)
+		public.GET("/cli/sync", middleware.RateLimit("cli-sync", 300, time.Minute), handlers.GetCLISync)
 		public.POST("/cli/diagnostics/plan", middleware.RateLimit("cli-diagnostic-plan", 120, time.Minute), handlers.CreateCLIDiagnosticPlan)
 		public.POST("/cli/diagnostics/observations", middleware.RateLimit("cli-diagnostic-observations", 240, time.Minute), handlers.PostCLIDiagnosticPlanObservations)
 		// AI diagnosis/evolution public endpoints for ai-sre runtime fallback
@@ -141,6 +142,15 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// ai-sre 技能包（控制台只读展示；与 /api/ai/skills 同源数据，需超级管理员）
 		superAdmin.GET("/admin/ai/skills", handlers.AISkillsList)
 		superAdmin.GET("/admin/ai/skills/:name", handlers.AISkillsGet)
+		superAdmin.GET("/admin/skill-tree", handlers.AdminSkillTree)
+		superAdmin.GET("/admin/skill-tree/versions", handlers.AdminListSkillTreeVersions)
+		superAdmin.POST("/admin/skill-tree/versions/draft", handlers.AdminCreateDraftSkillTree)
+		superAdmin.POST("/admin/skill-tree/versions/:rev/publish", handlers.AdminPublishSkillTreeVersion)
+		superAdmin.GET("/admin/skill-tree/nodes", handlers.AdminGetSkillTreeNodes)
+		superAdmin.POST("/admin/skill-tree/nodes", handlers.AdminCreateSkillTreeNode)
+		superAdmin.PUT("/admin/skill-tree/nodes/:id", handlers.AdminUpdateSkillTreeNode)
+		superAdmin.PATCH("/admin/skill-tree/nodes/:id/status", handlers.AdminSetSkillTreeNodeStatus)
+		superAdmin.POST("/admin/skill-tree/nodes/reorder", handlers.AdminReorderSkillTreeNodes)
 		superAdmin.GET("/admin/skill-assets", handlers.AdminListSkillAssets)
 		superAdmin.GET("/admin/skill-assets/:id", handlers.AdminGetSkillAsset)
 		superAdmin.POST("/admin/skill-assets/:id/approve", handlers.AdminApproveSkillAsset)

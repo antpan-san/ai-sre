@@ -13,24 +13,24 @@ import (
 )
 
 type goRuntimeCLIOptions struct {
-	PID        int
-	PIDName    string
-	Namespace  string
-	Pod        string
-	PodTarget  string
-	Deployment string
+	PID         int
+	PIDName     string
+	Namespace   string
+	Pod         string
+	PodTarget   string
+	Deployment  string
 	StatefulSet string
-	DaemonSet  string
-	ReplicaSet string
-	Job        string
-	CronJob    string
-	Service    string
-	Ingress    string
-	PVC        string
-	Container  string
-	ProcRoot   string
-	CgroupRoot string
-	JSON       bool
+	DaemonSet   string
+	ReplicaSet  string
+	Job         string
+	CronJob     string
+	Service     string
+	Ingress     string
+	PVC         string
+	Container   string
+	ProcRoot    string
+	CgroupRoot  string
+	JSON        bool
 
 	WatchInterval time.Duration
 	WatchSamples  int
@@ -121,11 +121,14 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 	base := strings.TrimRight(strings.TrimSpace(resolveOpsfleetAPIBase()), "/")
 	token := strings.TrimSpace(resolveOpsfleetToken())
 	fingerprint := strings.TrimSpace(resolveOpsfleetFingerprint())
-	if base == "" || token == "" || fingerprint == "" {
-		return fmt.Errorf("Go runtime 诊断需要当前 ai-sre 已绑定用户 token；请从控制台重新生成并执行「安装 ai-sre」命令")
-	}
-	if err := checkGoRuntimeAuth(ctx, base, token, fingerprint); err != nil {
-		return fmt.Errorf("Go runtime 诊断鉴权失败: %w", err)
+	online := base != "" && token != "" && fingerprint != ""
+	if online {
+		if err := checkGoRuntimeAuth(ctx, base, token, fingerprint); err != nil {
+			online = false
+			fmt.Fprintf(os.Stderr, "Go runtime 平台鉴权不可用，将使用本地采集与本地 AI/规则回退: %v\n", err)
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, "Go runtime 平台连接信息不完整，将使用本地采集与本地 AI/规则回退。")
 	}
 
 	const smartSamples = 4
@@ -184,7 +187,11 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 	if wr == nil {
 		return fmt.Errorf("未生成诊断报告")
 	}
-	if err := finalizeGoRuntimeDiagnosis(ctx, base, wr); err != nil {
+	aiBase := ""
+	if online {
+		aiBase = base
+	}
+	if err := finalizeGoRuntimeDiagnosis(ctx, aiBase, wr); err != nil {
 		return err
 	}
 	jsonOut := strings.EqualFold(outputFormat, "json")
@@ -197,8 +204,10 @@ func runSmartGoRuntimeDiagnose(ctx context.Context, opts goRuntimeCLIOptions) er
 			return err
 		}
 	}
-	if _, err := postGoRuntimeReport(ctx, base, token, fingerprint, command, wr); err != nil {
-		return fmt.Errorf("结论已生成，但同步进程观测失败: %w", err)
+	if online {
+		if _, err := postGoRuntimeReport(ctx, base, token, fingerprint, command, wr); err != nil {
+			return fmt.Errorf("结论已生成，但同步进程观测失败: %w", err)
+		}
 	}
 	return nil
 }

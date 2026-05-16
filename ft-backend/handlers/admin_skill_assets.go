@@ -18,7 +18,16 @@ import (
 func AdminListSkillAssets(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
-	items, total, err := services.ListSkillAssets(c.Query("status"), c.Query("topic"), page, pageSize)
+	items, total, err := services.ListSkillAssets(services.SkillAssetListFilter{
+		Status:        c.Query("status"),
+		Topic:         c.Query("topic"),
+		SkillKey:      c.Query("skill_key"),
+		ProblemKey:    c.Query("problem_key"),
+		CapabilityKey: c.Query("capability_key"),
+		CategoryPath:  c.Query("category_path"),
+		Page:          page,
+		PageSize:      pageSize,
+	})
 	if err != nil {
 		logger.Error("AdminListSkillAssets: %v", err)
 		response.ServerError(c, "查询技能资产失败")
@@ -29,6 +38,22 @@ func AdminListSkillAssets(c *gin.Context) {
 		"total":     total,
 		"page":      page,
 		"page_size": pageSize,
+	})
+}
+
+// AdminSkillTree returns the server-side skill tree coordinate catalog.
+func AdminSkillTree(c *gin.Context) {
+	nodes, err := services.SkillTreeNodesWithAssetStats()
+	if err != nil {
+		logger.Error("AdminSkillTree: %v", err)
+		response.ServerError(c, "查询技能树失败")
+		return
+	}
+	tree := services.ActiveSkillTree()
+	response.OK(c, gin.H{
+		"tree_rev":    tree.TreeRev,
+		"tree_source": tree.Source,
+		"nodes":       nodes,
 	})
 }
 

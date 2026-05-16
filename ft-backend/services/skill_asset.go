@@ -17,6 +17,10 @@ import (
 type SkillAssetListItem struct {
 	ID                 string     `json:"id"`
 	Topic              string     `json:"topic"`
+	SkillKey           string     `json:"skill_key,omitempty"`
+	ProblemKey         string     `json:"problem_key,omitempty"`
+	CapabilityKey      string     `json:"capability_key,omitempty"`
+	CategoryPath       string     `json:"category_path,omitempty"`
 	Name               string     `json:"name"`
 	DisplayName        string     `json:"display_name"`
 	Status             string     `json:"status"`
@@ -39,29 +43,52 @@ type SkillAssetDetail struct {
 	VersionNotes  string                 `json:"version_notes"`
 }
 
+type SkillAssetListFilter struct {
+	Status        string
+	Topic         string
+	SkillKey      string
+	ProblemKey    string
+	CapabilityKey string
+	CategoryPath  string
+	Page          int
+	PageSize      int
+}
+
 // ListSkillAssets returns paginated skill assets for super_admin review.
-func ListSkillAssets(status, topic string, page, pageSize int) ([]SkillAssetListItem, int64, error) {
-	if page < 1 {
-		page = 1
+func ListSkillAssets(filter SkillAssetListFilter) ([]SkillAssetListItem, int64, error) {
+	if filter.Page < 1 {
+		filter.Page = 1
 	}
-	if pageSize <= 0 || pageSize > 100 {
-		pageSize = 20
+	if filter.PageSize <= 0 || filter.PageSize > 100 {
+		filter.PageSize = 20
 	}
 	q := database.DB.Model(&models.SkillAsset{})
-	status = strings.TrimSpace(strings.ToLower(status))
+	status := strings.TrimSpace(strings.ToLower(filter.Status))
 	if status != "" {
 		q = q.Where("status = ?", status)
 	}
-	topic = strings.TrimSpace(strings.ToLower(topic))
+	topic := strings.TrimSpace(strings.ToLower(filter.Topic))
 	if topic != "" {
 		q = q.Where("topic = ?", topic)
+	}
+	if skillKey := strings.TrimSpace(filter.SkillKey); skillKey != "" {
+		q = q.Where("skill_key = ?", skillKey)
+	}
+	if problemKey := strings.TrimSpace(filter.ProblemKey); problemKey != "" {
+		q = q.Where("problem_key = ?", problemKey)
+	}
+	if capabilityKey := strings.TrimSpace(filter.CapabilityKey); capabilityKey != "" {
+		q = q.Where("capability_key = ?", capabilityKey)
+	}
+	if categoryPath := strings.TrimSpace(filter.CategoryPath); categoryPath != "" {
+		q = q.Where("category_path = ? OR category_path LIKE ?", categoryPath, categoryPath+".%")
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 	var rows []models.SkillAsset
-	if err := q.Order("created_at DESC").Offset((page - 1) * pageSize).Limit(pageSize).Find(&rows).Error; err != nil {
+	if err := q.Order("created_at DESC").Offset((filter.Page - 1) * filter.PageSize).Limit(filter.PageSize).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
 	out := make([]SkillAssetListItem, 0, len(rows))
@@ -202,7 +229,7 @@ func RejectSkillAsset(assetID uuid.UUID, adminName, reason string) error {
 }
 
 // UserDiagnosticSkillOverlay returns a temporary registered skill for unlocked review assets.
-func UserDiagnosticSkillOverlay(userID uuid.UUID, topic string) *RegisteredSkill {
+func UserDiagnosticSkillOverlay(userID uuid.UUID, topic, problemKey string) *RegisteredSkill {
 	if userID == uuid.Nil {
 		return nil
 	}
@@ -210,6 +237,7 @@ func UserDiagnosticSkillOverlay(userID uuid.UUID, topic string) *RegisteredSkill
 	if topic == "" {
 		return nil
 	}
+	problemKey = strings.TrimSpace(strings.ToLower(problemKey))
 	var unlocks []models.UserSkillUnlock
 	if err := database.DB.Where("user_id = ?", userID).Find(&unlocks).Error; err != nil || len(unlocks) == 0 {
 		return nil
@@ -218,8 +246,12 @@ func UserDiagnosticSkillOverlay(userID uuid.UUID, topic string) *RegisteredSkill
 	for _, u := range unlocks {
 		assetIDs = append(assetIDs, u.SkillAssetID)
 	}
+	q := database.DB.Where("id IN ? AND topic = ? AND status = ?", assetIDs, topic, models.SkillAssetStatusReview)
+	if problemKey != "" {
+		q = q.Where("problem_key = ? OR problem_key = '' OR problem_key IS NULL", problemKey)
+	}
 	var assets []models.SkillAsset
-	if err := database.DB.Where("id IN ? AND topic = ? AND status = ?", assetIDs, topic, models.SkillAssetStatusReview).Find(&assets).Error; err != nil || len(assets) == 0 {
+	if err := q.Order("problem_key DESC, created_at DESC").Find(&assets).Error; err != nil || len(assets) == 0 {
 		return nil
 	}
 	asset := assets[0]
@@ -378,16 +410,20 @@ func finalizeDiagnosticPlansForAsset(tx *gorm.DB, content models.JSONB) error {
 
 func skillAssetListItemFromModel(a *models.SkillAsset) SkillAssetListItem {
 	item := SkillAssetListItem{
-		ID:          a.ID.String(),
-		Topic:       a.Topic,
-		Name:        a.Name,
-		DisplayName: a.DisplayName,
-		Status:      a.Status,
-		Source:      a.Source,
-		CreatedBy:   a.CreatedBy,
-		CreatedAt:   a.CreatedAt,
-		ApprovedBy:  a.ApprovedBy,
-		ApprovedAt:  a.ApprovedAt,
+		ID:            a.ID.String(),
+		Topic:         a.Topic,
+		SkillKey:      a.SkillKey,
+		ProblemKey:    a.ProblemKey,
+		CapabilityKey: a.CapabilityKey,
+		CategoryPath:  a.CategoryPath,
+		Name:          a.Name,
+		DisplayName:   a.DisplayName,
+		Status:        a.Status,
+		Source:        a.Source,
+		CreatedBy:     a.CreatedBy,
+		CreatedAt:     a.CreatedAt,
+		ApprovedBy:    a.ApprovedBy,
+		ApprovedAt:    a.ApprovedAt,
 	}
 	if a.CurrentVersionID != nil {
 		item.CurrentVersionID = a.CurrentVersionID.String()

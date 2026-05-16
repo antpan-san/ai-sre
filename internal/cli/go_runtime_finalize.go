@@ -40,21 +40,29 @@ func finalizeGoRuntimeDiagnosis(ctx context.Context, apiBase string, wr *gorunti
 	}
 
 	if strings.TrimSpace(apiBase) == "" {
+		if err := finalizeGoRuntimeWithLocalAI(ctx, wr); err == nil {
+			return nil
+		}
 		return fallbackDiagnosisFromSummary(wr)
 	}
 
 	topic := "go_runtime"
 	kv := buildGoRuntimeAIContext(wr)
+	intent := buildExecutionIntent("diagnose", topic, kv)
 	resp, err := callServerDiagnose(ctx, diagnoseRequest{
 		Topic:     topic,
 		Context:   kv,
 		Command:   strings.Join(os.Args, " "),
 		RequestID: uuid.NewString(),
 		Client:    opsfleetAIClient(),
+		Intent:    intent,
 	})
 	if err != nil || resp == nil || strings.TrimSpace(resp.Answer) == "" {
 		if err != nil {
 			wr.Errors = append(wr.Errors, "平台 AI 分析失败: "+err.Error())
+		}
+		if localErr := finalizeGoRuntimeWithLocalAI(ctx, wr); localErr == nil {
+			return nil
 		}
 		return fallbackDiagnosisFromSummary(wr)
 	}
@@ -66,6 +74,29 @@ func finalizeGoRuntimeDiagnosis(ctx context.Context, apiBase string, wr *gorunti
 		ev = probeEvidenceFallback(wr)
 	}
 	goruntime.ApplyDiagnosis(wr, "WARN", rc, ev, "ai")
+	return nil
+}
+
+func finalizeGoRuntimeWithLocalAI(ctx context.Context, wr *goruntime.WatchReport) error {
+	eng, err := bootstrap()
+	if err != nil {
+		return err
+	}
+	res, err := eng.Analyze(ctx, "go_runtime", buildGoRuntimeAIContext(wr), !noRAG)
+	if err != nil || res == nil || strings.TrimSpace(res.Answer) == "" {
+		if err == nil {
+			err = fmt.Errorf("本地 AI 未返回诊断")
+		}
+		return err
+	}
+	rc, ev := parseAIDiagnosis(res.Answer)
+	if rc == "" {
+		rc = strings.TrimSpace(res.Answer)
+	}
+	if ev == "" {
+		ev = probeEvidenceFallback(wr)
+	}
+	goruntime.ApplyDiagnosis(wr, "WARN", rc, ev, "local_ai")
 	return nil
 }
 

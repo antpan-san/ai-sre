@@ -843,7 +843,79 @@ END
 WHERE pack_key IS NULL OR pack_key = '';
 
 -- ============================================================
--- 17. 表注释
+-- 17. 技能树坐标：诊断计划、资产与用户解锁按问题模式绑定
+-- ============================================================
+ALTER TABLE IF EXISTS skill_assets
+    ADD COLUMN IF NOT EXISTS skill_key VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS problem_key VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS capability_key VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS category_path VARCHAR(300),
+    ADD COLUMN IF NOT EXISTS risk_level VARCHAR(32);
+
+ALTER TABLE IF EXISTS user_skill_unlocks
+    ADD COLUMN IF NOT EXISTS skill_key VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS problem_key VARCHAR(120);
+
+ALTER TABLE IF EXISTS diagnostic_plans
+    ADD COLUMN IF NOT EXISTS skill_key VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS problem_key VARCHAR(120),
+    ADD COLUMN IF NOT EXISTS capability_key VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS node_path VARCHAR(300),
+    ADD COLUMN IF NOT EXISTS execution_mode VARCHAR(80),
+    ADD COLUMN IF NOT EXISTS pack_key VARCHAR(80);
+
+-- ============================================================
+-- 17b. 技能树版本与节点（可重复执行；节点仅停用不物理删除）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS skill_tree_versions (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tree_rev      VARCHAR(80) NOT NULL,
+    status        VARCHAR(32) NOT NULL DEFAULT 'draft',
+    title         VARCHAR(200),
+    notes         VARCHAR(2000),
+    published_by  VARCHAR(80),
+    published_at  TIMESTAMPTZ,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at    TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skill_tree_versions_rev ON skill_tree_versions(tree_rev);
+CREATE INDEX IF NOT EXISTS idx_skill_tree_versions_status ON skill_tree_versions(status);
+
+CREATE TABLE IF NOT EXISTS skill_tree_nodes (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tree_rev        VARCHAR(80) NOT NULL,
+    path            VARCHAR(300) NOT NULL,
+    parent_path     VARCHAR(300),
+    node_type       VARCHAR(32) NOT NULL,
+    title           VARCHAR(200) NOT NULL,
+    description     VARCHAR(2000),
+    topic           VARCHAR(80),
+    skill_key       VARCHAR(160),
+    problem_key     VARCHAR(120),
+    capability_key  VARCHAR(160),
+    pack_key        VARCHAR(80),
+    feature_key     VARCHAR(80),
+    execution_mode  VARCHAR(80),
+    cli_visible     BOOLEAN NOT NULL DEFAULT TRUE,
+    status          VARCHAR(32) NOT NULL DEFAULT 'active',
+    sort_order      INTEGER NOT NULL DEFAULT 0,
+    metadata        JSONB NOT NULL DEFAULT '{}',
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at      TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_skill_tree_node_rev_path ON skill_tree_nodes(tree_rev, path);
+CREATE INDEX IF NOT EXISTS idx_skill_tree_nodes_tree_rev ON skill_tree_nodes(tree_rev);
+CREATE INDEX IF NOT EXISTS idx_skill_tree_nodes_parent ON skill_tree_nodes(parent_path);
+CREATE INDEX IF NOT EXISTS idx_skill_tree_nodes_status ON skill_tree_nodes(status);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_skill_unlock_coordinate
+    ON user_skill_unlocks(user_id, skill_key, problem_key)
+    WHERE skill_key IS NOT NULL AND skill_key <> '' AND problem_key IS NOT NULL AND problem_key <> '';
+
+-- ============================================================
+-- 18. 表注释
 -- ============================================================
 COMMENT ON TABLE tenants          IS '多租户注册表';
 COMMENT ON TABLE users            IS '系统用户 (RBAC)';

@@ -21,6 +21,10 @@ const (
 type SkillAsset struct {
 	BaseModel
 	Topic            string     `gorm:"size:80;not null;index" json:"topic"`
+	SkillKey         string     `gorm:"size:160;index" json:"skill_key,omitempty"`
+	ProblemKey       string     `gorm:"size:120;index" json:"problem_key,omitempty"`
+	CapabilityKey    string     `gorm:"size:160;index" json:"capability_key,omitempty"`
+	CategoryPath     string     `gorm:"size:300;index" json:"category_path,omitempty"`
 	Name             string     `gorm:"size:120;not null;uniqueIndex" json:"name"`
 	DisplayName      string     `gorm:"size:200" json:"display_name"`
 	Status           string     `gorm:"size:32;not null;default:'draft';index" json:"status"`
@@ -32,6 +36,7 @@ type SkillAsset struct {
 	ApprovedAt       *time.Time `json:"approved_at,omitempty"`
 	CurrentVersionID *uuid.UUID `gorm:"type:uuid;index" json:"current_version_id,omitempty"`
 	QualityLabels    JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"quality_labels"`
+	RiskLevel        string     `gorm:"size:32" json:"risk_level,omitempty"`
 }
 
 func (SkillAsset) TableName() string {
@@ -54,9 +59,11 @@ func (SkillAssetVersion) TableName() string {
 
 type UserSkillUnlock struct {
 	BaseModel
-	UserID              uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_user_skill_unlock" json:"user_id"`
-	SkillAssetID        uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_user_skill_unlock" json:"skill_asset_id"`
+	UserID              uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	SkillAssetID        uuid.UUID  `gorm:"type:uuid;not null;index" json:"skill_asset_id"`
 	SkillAssetVersionID *uuid.UUID `gorm:"type:uuid;index" json:"skill_asset_version_id,omitempty"`
+	SkillKey            string     `gorm:"size:160;index" json:"skill_key,omitempty"`
+	ProblemKey          string     `gorm:"size:120;index" json:"problem_key,omitempty"`
 	Source              string     `gorm:"size:64;not null;default:'diagnosis_unlock'" json:"source"`
 	ValidUntil          *time.Time `json:"valid_until,omitempty"`
 }
@@ -72,6 +79,12 @@ type DiagnosticPlan struct {
 	CLIBindingID    *uuid.UUID `gorm:"type:uuid;index" json:"cli_binding_id,omitempty"`
 	FingerprintHash string     `gorm:"size:64;not null;index" json:"fingerprint_hash"`
 	Topic           string     `gorm:"size:80;not null;index" json:"topic"`
+	SkillKey        string     `gorm:"size:160;index" json:"skill_key,omitempty"`
+	ProblemKey      string     `gorm:"size:120;index" json:"problem_key,omitempty"`
+	CapabilityKey   string     `gorm:"size:160;index" json:"capability_key,omitempty"`
+	NodePath        string     `gorm:"size:300;index" json:"node_path,omitempty"`
+	ExecutionMode   string     `gorm:"size:80" json:"execution_mode,omitempty"`
+	PackKey         string     `gorm:"size:80;index" json:"pack_key,omitempty"`
 	Command         string     `gorm:"size:2000" json:"command"`
 	RequestID       string     `gorm:"size:80;index" json:"request_id"`
 	Status          string     `gorm:"size:32;not null;default:'pending';index" json:"status"`

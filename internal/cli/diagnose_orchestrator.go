@@ -28,6 +28,7 @@ type diagnoseRequest struct {
 	Command   string               `json:"command,omitempty"`
 	RequestID string               `json:"request_id,omitempty"`
 	Client    opsfleetAIClientInfo `json:"client,omitempty"`
+	Intent    executionIntent      `json:"intent,omitempty"`
 }
 
 type diagnoseResponse struct {
@@ -96,12 +97,14 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 	base := strings.TrimSpace(resolveOpsfleetAPIBase())
 	if base != "" {
 		reqID := uuid.NewString()
+		intent := buildExecutionIntent("analyze", topic, kv)
 		resp, err := callServerDiagnose(ctx, diagnoseRequest{
 			Topic:     topic,
 			Context:   kv,
 			Command:   strings.Join(os.Args, " "),
 			RequestID: reqID,
 			Client:    opsfleetAIClient(),
+			Intent:    intent,
 		})
 		if err == nil && resp != nil && strings.TrimSpace(resp.Answer) != "" {
 			if strings.EqualFold(topic, "k8s") && hasKubectlEvidence(kv) {
@@ -114,6 +117,7 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 					Command:   strings.Join(os.Args, " "),
 					RequestID: reqID,
 					Client:    opsfleetAIClient(),
+					Intent:    intent,
 				}); e2 == nil && r2 != nil && strings.TrimSpace(r2.Answer) != "" {
 					resp = r2
 					resp.Metadata = ensureMap(resp.Metadata)

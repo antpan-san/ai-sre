@@ -3,6 +3,10 @@ import request from '../utils/request'
 export interface SkillAssetListItem {
   id: string
   topic: string
+  skill_key?: string
+  problem_key?: string
+  capability_key?: string
+  category_path?: string
   name: string
   display_name: string
   status: string
@@ -14,6 +18,37 @@ export interface SkillAssetListItem {
   current_version_id?: string
   version_label?: string
   observation_summary?: string
+}
+
+export interface SkillTreeNode {
+  path: string
+  parent_path?: string
+  node_type: string
+  title: string
+  description?: string
+  topic?: string
+  skill_key?: string
+  problem_key?: string
+  capability_key?: string
+  pack_key?: string
+  feature_key?: string
+  execution_mode?: string
+  cli_visible: boolean
+  status?: string
+  sort_order: number
+  asset_stats?: {
+    total: number
+    draft: number
+    review: number
+    approved: number
+    deprecated: number
+  }
+}
+
+export type SkillTreeResponse = {
+  tree_rev: string
+  tree_source?: string
+  nodes: SkillTreeNode[]
 }
 
 export interface SkillAssetDetail extends SkillAssetListItem {
@@ -33,6 +68,10 @@ export type SkillAssetsListResponse = {
 export const listAdminSkillAssets = (params?: {
   status?: string
   topic?: string
+  skill_key?: string
+  problem_key?: string
+  capability_key?: string
+  category_path?: string
   page?: number
   page_size?: number
 }): Promise<SkillAssetsListResponse> => {
@@ -41,6 +80,10 @@ export const listAdminSkillAssets = (params?: {
 
 export const getAdminSkillAsset = (id: string): Promise<{ asset: SkillAssetDetail }> => {
   return request.get(`/api/admin/skill-assets/${encodeURIComponent(id)}`)
+}
+
+export const getAdminSkillTree = (): Promise<SkillTreeResponse> => {
+  return request.get('/api/admin/skill-tree')
 }
 
 export const approveAdminSkillAsset = (

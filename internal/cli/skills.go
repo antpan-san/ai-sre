@@ -25,6 +25,7 @@ func skillsCmd() *cobra.Command {
 	}
 	cmd.AddCommand(skillsListCmd())
 	cmd.AddCommand(skillsServerCmd())
+	cmd.AddCommand(skillsStatusCmd())
 	cmd.AddCommand(skillsRefineCmd())
 	cmd.AddCommand(skillsFeedbackCmd())
 	return cmd
@@ -75,6 +76,38 @@ func skillsServerCmd() *cobra.Command {
 			for _, s := range list {
 				topics := strings.Join(s.Topics, ",")
 				fmt.Printf("%-32s %-10s %-22s %s\n", s.Name, s.Source, s.Version, topics)
+			}
+			return nil
+		},
+	}
+}
+
+func skillsStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "查看当前 CLI 可执行能力状态（不下发 YAML/Prompt）",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx, cancel := context.WithTimeout(cmd.Context(), 30*time.Second)
+			defer cancel()
+			resp, err := callCLISync(ctx)
+			if err != nil {
+				return err
+			}
+			if strings.EqualFold(outputFormat, "json") {
+				return json.NewEncoder(os.Stdout).Encode(resp)
+			}
+			fmt.Printf("CLI policy tree=%s policy=%s\n", resp.TreeRev, resp.PolicyRev)
+			if len(resp.Capabilities) == 0 {
+				fmt.Println("  (no capabilities returned)")
+				return nil
+			}
+			fmt.Printf("%-36s %-16s %-16s %s\n", "CAPABILITY", "STATE", "MODE", "PACK")
+			for _, c := range resp.Capabilities {
+				name := c.Title
+				if name == "" {
+					name = c.NodePath
+				}
+				fmt.Printf("%-36s %-16s %-16s %s\n", truncateStatusCell(name, 36), c.AccessState, c.ExecutionMode, c.PackKey)
 			}
 			return nil
 		},
@@ -163,6 +196,91 @@ type serverSkillSummary struct {
 	Source      string   `json:"source"`
 	Version     string   `json:"version"`
 	Path        string   `json:"path,omitempty"`
+}
+
+type cliSyncResponse struct {
+	PolicyRev        string                 `json:"policy_rev"`
+	TreeRev          string                 `json:"tree_rev"`
+	MinCLIVersion    string                 `json:"min_cli_version"`
+	LatestCLIVersion string                 `json:"latest_cli_version"`
+	Capabilities     []cliSyncCapability    `json:"capabilities"`
+	AIQuota          map[string]interface{} `json:"ai_quota,omitempty"`
+}
+
+type cliSyncCapability struct {
+	NodePath             string `json:"node_path"`
+	NodeType             string `json:"node_type"`
+	Title                string `json:"title"`
+	Topic                string `json:"topic"`
+	SkillKey             string `json:"skill_key"`
+	ProblemKey           string `json:"problem_key"`
+	CapabilityKey        string `json:"capability_key"`
+	PackKey              string `json:"pack_key"`
+	FeatureKey           string `json:"feature_key"`
+	ExecutionMode        string `json:"execution_mode"`
+	CanExecute           bool   `json:"can_execute"`
+	AccessState          string `json:"access_state"`
+	EntitlementSource    string `json:"entitlement_source"`
+	RequiresSubscription bool   `json:"requires_subscription"`
+	RequiresPlan         bool   `json:"requires_plan"`
+	LocalFallbackAllowed bool   `json:"local_fallback_allowed"`
+}
+
+func callCLISync(ctx context.Context) (*cliSyncResponse, error) {
+	base := strings.TrimSpace(resolveOpsfleetAPIBase())
+	if base == "" {
+		return nil, errors.New("opsfleet api base is empty")
+	}
+	if strings.TrimSpace(resolveOpsfleetToken()) == "" || strings.TrimSpace(resolveOpsfleetFingerprint()) == "" {
+		return nil, errors.New("skills status 需要当前 ai-sre 已绑定 OpsFleet CLI token")
+	}
+	endpoint := strings.TrimRight(base, "/") + "/api/cli/sync"
+	hreq, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil, err
+	}
+	attachOpsfleetAuth(hreq)
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(hreq)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	raw, err := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 300 {
+		return nil, fmt.Errorf("cli sync status=%d: %s", resp.StatusCode, parseOpsfleetErrMsg(raw))
+	}
+	var env struct {
+		Code int             `json:"code"`
+		Msg  string          `json:"msg"`
+		Data json.RawMessage `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &env); err != nil {
+		return nil, err
+	}
+	if env.Code != 200 {
+		return nil, fmt.Errorf("api code=%d msg=%s", env.Code, env.Msg)
+	}
+	var out cliSyncResponse
+	if err := json.Unmarshal(env.Data, &out); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func truncateStatusCell(s string, n int) string {
+	s = strings.TrimSpace(s)
+	if n <= 0 || len([]rune(s)) <= n {
+		return s
+	}
+	r := []rune(s)
+	if n <= 1 {
+		return string(r[:n])
+	}
+	return string(r[:n-1]) + "…"
 }
 
 func callServerSkillsList(ctx context.Context) ([]serverSkillSummary, string, error) {
