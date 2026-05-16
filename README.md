@@ -47,7 +47,9 @@ Go CLI + 同仓 **OpsFleetPilot** Web/API（`ft-backend/`、`ft-front/`、`deplo
 - **AI**：`analyze` / `ask` / `runbook` 优先走控制台 API；本机可配 `api_key` 作回退。`analyze` 可附带本机 `kubectl` 或 `ai-sre <topic> diagnose --json` 采集结果。
 - **诊断任务单**：已绑定 CLI 时，可向控制台申请只读采集计划（k8s / redis / kafka 等）；结果用于诊断与技能沉淀。
 - **技能包**：控制台审核「待审资产」；`skills feedback` / `skills refine` 参与技能更新。
-- **自动迭代**（仅 `super_admin`）：控制台 **订阅与计费 → 自动迭代** 单页管理任务与审批。钉钉通知在服务端配置 `OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK`（勿写入 Git）。CLI 经 `POST /api/cli/feedback/analyze` 提交是否建议迭代（仅返回公开字段）。
+- **自动迭代**（仅 `super_admin`）：控制台 **订阅与计费 → 自动迭代** 单页管理任务与审批。钉钉：`OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK`（勿提交 Git）。
+- **磁盘告警**：控制台后端主机根分区超阈值时钉钉通知；`OPSFLEET_DISK_ALERT_DINGTALK_WEBHOOK` + `OPSFLEET_DISK_ALERT_KEYWORD`（机器人安全词）。
+- **登录有效期**：JWT 访问令牌默认 **24 小时**（`jwt.access_token_exp` 或 `OPSFLEET_JWT_ACCESS_TOKEN_EXP`）。
 - **错误码**：部署/安装失败可输出 `OPSFLEET_*` 码；`ai-sre analyze code <CODE>` 或控制台「错误码」页查询根因卡片。
 - **Go 运行时**：`ai-sre diagnose --pid|--name|--pod` 采样 proc/cgroup，可上传至控制台「运行时诊断」。
 - **反馈**：TTY 下 `analyze` 结束可提交 y/n/备注；可选触发自动迭代分类。
@@ -279,7 +281,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 | 远程全栈部署（无 Docker） | `./scripts/deploy-opsfleet-remote.sh`（默认远端目录与 `DEPLOY_REMOTE_DIR` 一致：`/root/sre`；可用 `OPSFLEET_REMOTE_DIR` 覆盖） |
 | 部署后自检（在服务器上） | `bash scripts/verify-opsfleet-deployment.sh` |
 
-**实验室部署**：默认主机 `root@192.168.56.11`，目录 `/root/sre`。密钥与覆盖项写在 **`/etc/opsfleet/backend.env`**（示例见 `deploy/backend.env.example`），含 `OPSFLEET_AI_API_KEY`、`OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK`、`OPSFLEET_AUTO_ITERATION_ENABLED` 等。
+**实验室部署**：默认主机 `root@192.168.56.11`，目录 `/root/sre`。密钥与覆盖项写在 **`/etc/opsfleet/backend.env`**（见 `deploy/backend.env.example`）。
 
 **控制台**：`ft-backend/conf/config.yaml` + `npm run dev`（前端代理 `/ft-api`）。默认账号 `admin` / `password`（`super_admin`），生产请修改。CORS 须在 `security.cors_allowed_origins` 填写浏览器访问的完整 Origin。
 

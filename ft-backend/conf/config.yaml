@@ -13,8 +13,8 @@ database:
     timezone: Asia/Shanghai
 jwt:
     secret_key: 123456
-    access_token_exp: 15
-    refresh_token_exp: 1440
+    access_token_exp: 1440
+    refresh_token_exp: 10080
 file:
     upload_dir: uploads
     max_file_size: 1073741824
@@ -77,6 +77,15 @@ auto_iteration:
     dingtalk_webhook: ""
     github_repo: ""
     code_agent_token: ""
+
+# 控制台主机磁盘告警（钉钉机器人须含安全关键词；webhook 仅环境变量）
+alerts:
+    disk:
+        enabled: true
+        threshold_percent: 85
+        cooldown_minutes: 120
+        keyword: "操"
+        dingtalk_webhook: ""
 
 skills:
     auto_refine:

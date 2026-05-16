@@ -34,6 +34,7 @@ func main() {
 		logger.Error("Failed to load config: %v", err)
 		return
 	}
+	config.ApplyEnvOverrides(cfg)
 	config.GlobalCfg = cfg
 	logger.InitLogger(cfg.Log.Level, nil)
 	logger.Info("Configuration loaded successfully")
@@ -84,6 +85,7 @@ func main() {
 	if redis.IsConnected() {
 		go iotservice.StartHeartbeatConsumer(consumerCtx)
 	}
+	go services.RunDiskAlertMonitor(consumerCtx)
 
 	// 10. Setup router
 	router := routes.SetupRouter(cfg)
