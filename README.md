@@ -64,7 +64,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 **Go runtime 智能诊断**：推荐使用 `ai-sre diagnose --pid <pid>`、`ai-sre diagnose --name <name>` 或 `ai-sre diagnose --pod <pod|namespace/pod|namespace/pod/container>`（`--pid-name` 仍兼容）。若当前 CLI 已绑定平台，会先校验 CLI token、机器指纹与 `feature.runtime_observe` 权益；平台不可用、鉴权失败或离线时，仍允许执行本地只读采集，并在本机有 LLM 凭据时使用本地 AI 回退，否则用内置规则总结。通过后默认采样 4 次、间隔 10 秒，读取 `/proc/<pid>/status`、`smaps_rollup`、`stat`（含 utime/stime）、`limits`、`fd`、`maps` 以及 cgroup v1/v2 的 memory/cpu 指标，判断 RSS、匿名内存、FD、线程数、cgroup memory/CPU throttling 与趋势风险。`--name` 会扫描 `/proc` 并优先选择 Go binary；`--pod` 会通过 kubectl 定位 Pod 所在节点与容器 ID，创建临时只读 collector 读取宿主机 procfs/cgroup，结束后自动清理。若采集器镜像拉取失败（如离线集群无 busybox），命令仍会基于目标 Pod 与采集器事件给出诊断结论，并提示设置 `OPSFLEET_GO_RUNTIME_COLLECTOR_IMAGE` 或在节点上用 `--pid`。在线且具备权益时，诊断结果会自动上传到控制台「执行记录」与「运行时诊断」（根因/证据可按 Markdown 渲染展示，并可删除历史报告），普通用户只能看到自己的记录。旧入口 `ai-sre diagnose go-process ...` 继续保留，用于离线 fixture 或手动参数调试。
 
-**诊断结束后的反馈闭环**：TTY 下 `analyze` 答完会追加一行 `本次诊断是否帮你定位了根因？输入 y / n / 自由备注；空行跳过。`；按需写一行后将通过 `POST /api/ai/skills/feedback` 落到服务端 `feedback/<topic>.jsonl`，参与下次 `ai-sre skills refine`。非 TTY、`-o json` 或显式 `--no-feedback` 会自动跳过。
+**诊断结束后的反馈闭环**：TTY 下 `analyze` 答完会追加一行 `本次诊断是否帮你定位了根因？输入 y / n / 自由备注；空行跳过。`；按需写一行后将通过 `POST /api/ai/skills/feedback` 落到服务端 `feedback/<topic>.jsonl`，参与下次 `ai-sre skills refine`。若填写了备注或标记未解决，CLI 还会用 binding token 调用 `POST /api/cli/feedback/analyze`（仅返回是否建议平台自动迭代，不含内部任务详情）。非 TTY、`-o json` 或显式 `--no-feedback` 会自动跳过。
 
 **部署错误码 → 根因卡片（0.5.1 新）**：所有 K8s 部署/下载失败的 ansible / install.sh / bootstrap.sh 都会在 stderr 输出一行机器可读 `[ERROR-CODE] OPSFLEET_* …`：
 - `OPSFLEET_K8S_E_PAUSE_MISSING` — containerd 节点缺 `registry.k8s.io/pause:3.10`，静态 Pod sandbox 拉不起来 → 已通过 `ansible-agent/roles/pause_preload` 在所有节点离线 `ctr import` 修复；

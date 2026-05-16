@@ -64,13 +64,32 @@ func maybePromptFeedback(parentCtx context.Context, topic string, diag *diagnose
 		skill = strings.TrimSpace(diag.SkillName)
 		reqID = strings.TrimSpace(diag.RequestID())
 	}
-	ctx, cancel := context.WithTimeout(parentCtx, 10*time.Second)
+	ctx, cancel := context.WithTimeout(parentCtx, 15*time.Second)
 	defer cancel()
 	if err := callServerSkillsFeedback(ctx, topic, skill, reqID, helpfulPtr, note); err != nil {
 		fmt.Fprintf(os.Stderr, "(反馈上报失败: %v)\n", err)
 		return
 	}
 	fmt.Fprintln(os.Stderr, "已记录到服务端，可执行 ai-sre skills refine --topic "+topic+" 让 LLM 据此精炼技能包。")
+
+	summary := strings.TrimSpace(note)
+	if summary == "" && helpfulPtr != nil && !*helpfulPtr {
+		summary = "diagnose not helpful for topic " + topic
+	}
+	if summary != "" {
+		if out, err := callCLIFeedbackAnalyze(ctx, topic, "", summary, map[string]interface{}{
+			"skill_name": skill,
+			"request_id": reqID,
+			"helpful":    helpfulPtr,
+		}); err == nil && out != nil {
+			if strings.TrimSpace(out.UserMessage) != "" {
+				fmt.Fprintln(os.Stderr, out.UserMessage)
+			}
+			if out.NeedIteration && strings.TrimSpace(out.NextAction) != "" {
+				fmt.Fprintln(os.Stderr, out.NextAction)
+			}
+		}
+	}
 }
 
 func isStdinTTY() bool {

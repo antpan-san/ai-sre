@@ -3,6 +3,7 @@ package routes_test
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -33,6 +34,7 @@ func testRouter(secret string) *gin.Engine {
 	super.GET("/admin/auto-iterations", handlers.AdminListAutoIterations)
 	super.PUT("/admin/auto-iterations/settings", handlers.AdminUpdateAutoIterationSettings)
 	super.GET("/admin/auto-iterations/:id/events/stream", handlers.AdminStreamAutoIterationEvents)
+	super.POST("/admin/auto-iterations/:id/approve", handlers.AdminApproveAutoIteration)
 
 	pub := r.Group("/api")
 	pub.POST("/cli/feedback/analyze", handlers.PostCLIFeedbackAnalyze)
@@ -165,6 +167,67 @@ func TestCLIFeedbackAnalyzePublicFieldsOnly(t *testing.T) {
 }
 
 func hashCLI(s string) string { return services.HashSecretForAgent(s) }
+
+func TestCLIAndAgentDeniedOnAdminList(t *testing.T) {
+	router, _, _, _ := setupAuthTest(t)
+	cliTok := "cli-feedback-token-0123456789abcdef0123456789ab"
+	fp := "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+	_ = database.DB.Exec(`INSERT INTO cli_bindings (id, user_id, username, token_hash, fingerprint_hash, expires_at, created_at, updated_at)
+		VALUES (?, ?, 'cli', ?, ?, datetime('now','+1 day'), datetime('now'), datetime('now'))`,
+		uuid.NewString(), uuid.NewString(), hashCLI(cliTok), hashCLI(fp))
+
+	req := httptest.NewRequest(http.MethodGet, "/api/admin/auto-iterations", nil)
+	req.Header.Set("Authorization", bearer(cliTok))
+	req.Header.Set("X-OpsFleet-CLI-Fingerprint", fp)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden {
+		t.Fatalf("cli admin list status=%d want 401/403", w.Code)
+	}
+
+	agentTok := "agent-test-token-0123456789abcdef0123456789ab"
+	agentFP := "aabbccddeeff00112233445566778899aabbccddeeff001122334455667788"
+	req2 := httptest.NewRequest(http.MethodGet, "/api/admin/auto-iterations", nil)
+	req2.Header.Set("Authorization", bearer(agentTok))
+	req2.Header.Set("X-OpsFleet-Agent-Fingerprint", agentFP)
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+	if w2.Code != http.StatusUnauthorized && w2.Code != http.StatusForbidden {
+		t.Fatalf("agent admin list status=%d want 401/403", w2.Code)
+	}
+}
+
+func TestSuperAdminApprovesHighRiskFixture(t *testing.T) {
+	router, superTok, _, _ := setupAuthTest(t)
+	id := uuid.New()
+	_ = database.DB.Exec(`INSERT INTO auto_iterations (id, title, status, source, risk_level, requires_super_admin_approval, metadata, created_at, updated_at)
+		VALUES (?, 'high', 'awaiting_approval', 'manual', 'high', 1, '{}', datetime('now'), datetime('now'))`, id.String())
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/auto-iterations/"+id.String()+"/approve", bytes.NewReader([]byte(`{"notes":"ok"}`)))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", bearer(superTok))
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("approve status=%d body=%s", w.Code, w.Body.String())
+	}
+}
+
+func TestAgentDeniedOnAdminApprove(t *testing.T) {
+	router, _, _, _ := setupAuthTest(t)
+	id := uuid.New()
+	_ = database.DB.Exec(`INSERT INTO auto_iterations (id, title, status, source, risk_level, requires_super_admin_approval, metadata, created_at, updated_at)
+		VALUES (?, 't', 'awaiting_approval', 'manual', 'high', 1, '{}', datetime('now'), datetime('now'))`, id.String())
+	agentTok := "agent-test-token-0123456789abcdef0123456789ab"
+	agentFP := "aabbccddeeff00112233445566778899aabbccddeeff001122334455667788"
+	req := httptest.NewRequest(http.MethodPost, "/api/admin/auto-iterations/"+id.String()+"/approve", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Authorization", bearer(agentTok))
+	req.Header.Set("X-OpsFleet-Agent-Fingerprint", agentFP)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	if w.Code != http.StatusUnauthorized && w.Code != http.StatusForbidden && w.Code != http.StatusNotFound {
+		t.Fatalf("agent approve status=%d want 401/403/404", w.Code)
+	}
+}
 
 func TestSuperAdminSettingsWritesAudit(t *testing.T) {
 	router, superTok, _, _ := setupAuthTest(t)

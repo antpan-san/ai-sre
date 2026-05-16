@@ -31,6 +31,7 @@
       <el-card shadow="never" class="log-card">
         <template #header>
           <span>事件日志</span>
+          <el-tag v-if="sseConnected" type="success" size="small" class="sse-tag">实时</el-tag>
           <el-button size="small" @click="loadDetail">刷新</el-button>
         </template>
         <el-table :data="events" size="small" stripe border empty-text="暂无日志">
@@ -45,9 +46,10 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, onUnmounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { connectSSE } from '../../utils/sseFetch'
 import {
   approveAutoIteration,
   cancelAutoIteration,
@@ -68,8 +70,45 @@ const route = useRoute()
 const loading = ref(false)
 const iteration = ref<AutoIteration | null>(null)
 const events = ref<AutoIterationEvent[]>([])
+const sseConnected = ref(false)
+let sseAbort: AbortController | null = null
+const seenEventIds = new Set<string>()
 
 const id = () => String(route.params.id || '')
+
+const mergeEvent = (ev: AutoIterationEvent) => {
+  if (!ev?.id || seenEventIds.has(ev.id)) return
+  seenEventIds.add(ev.id)
+  events.value = [...events.value, ev].sort(
+    (a, b) => String(a.created_at).localeCompare(String(b.created_at))
+  )
+}
+
+const startSSE = () => {
+  stopSSE()
+  const taskId = id()
+  if (!taskId) return
+  sseAbort = connectSSE(`/api/admin/auto-iterations/${encodeURIComponent(taskId)}/events/stream`, {
+    onEvent: (name, data) => {
+      if (name !== 'log') return
+      try {
+        mergeEvent(JSON.parse(data) as AutoIterationEvent)
+        sseConnected.value = true
+      } catch {
+        /* ignore malformed chunk */
+      }
+    },
+    onError: () => {
+      sseConnected.value = false
+    }
+  })
+}
+
+const stopSSE = () => {
+  sseAbort?.abort()
+  sseAbort = null
+  sseConnected.value = false
+}
 
 const loadDetail = async () => {
   loading.value = true
@@ -77,6 +116,10 @@ const loadDetail = async () => {
     const data = await getAutoIteration(id())
     iteration.value = data.iteration
     events.value = data.events || []
+    seenEventIds.clear()
+    for (const ev of events.value) {
+      if (ev.id) seenEventIds.add(ev.id)
+    }
   } catch {
     iteration.value = null
     events.value = []
@@ -151,7 +194,12 @@ const act = async (name: string) => {
   }
 }
 
-onMounted(() => void loadDetail())
+onMounted(async () => {
+  await loadDetail()
+  startSSE()
+})
+
+onUnmounted(() => stopSSE())
 </script>
 
 <style scoped>
@@ -166,5 +214,9 @@ onMounted(() => void loadDetail())
 }
 .log-card {
   margin-top: 8px;
+}
+.sse-tag {
+  margin-left: 8px;
+  vertical-align: middle;
 }
 </style>
