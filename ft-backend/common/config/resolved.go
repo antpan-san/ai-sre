@@ -1,6 +1,8 @@
 package config
 
 import (
+	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -187,5 +189,64 @@ func ResolvedSkillAutoRefineConfig() ResolvedSkillAutoRefine {
 		Cooldown:   cooldown,
 		Topics:     set,
 		MaxPerDay:  maxPerDay,
+	}
+}
+
+// ResolvedAutoIteration merges yaml auto_iteration with OPSFLEET_AUTO_ITERATION_* env.
+type ResolvedAutoIteration struct {
+	Enabled                  bool
+	MaxConcurrent            int
+	HighRiskRequiresApproval bool
+	DingTalkWebhook          string
+	GitHubRepo               string
+	CodeAgentToken           string
+}
+
+func yamlAutoIteration() AutoIterationConfig {
+	if GlobalCfg != nil {
+		return GlobalCfg.AutoIteration
+	}
+	return AutoIterationConfig{}
+}
+
+// ResolvedAutoIterationConfig returns effective auto-iteration policy (secrets from env only in production).
+func ResolvedAutoIterationConfig() ResolvedAutoIteration {
+	y := yamlAutoIteration()
+	enabled := y.Enabled
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_ENABLED")); v != "" {
+		enabled = v == "1" || strings.EqualFold(v, "true")
+	}
+	maxConcurrent := y.MaxConcurrent
+	if maxConcurrent < 1 {
+		maxConcurrent = 2
+	}
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_MAX_CONCURRENT")); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			maxConcurrent = n
+		}
+	}
+	highRisk := y.HighRiskRequiresApproval
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_HIGH_RISK_REQUIRES_APPROVAL")); v != "" {
+		highRisk = v == "1" || strings.EqualFold(v, "true")
+	}
+	webhook := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK"))
+	if webhook == "" {
+		webhook = strings.TrimSpace(y.DingTalkWebhook)
+	}
+	repo := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_GITHUB_REPO"))
+	if repo == "" {
+		repo = strings.TrimSpace(y.GitHubRepo)
+	}
+	agentToken := strings.TrimSpace(os.Getenv("OPSFLEET_CODE_AGENT_TOKEN"))
+	if agentToken == "" {
+		agentToken = strings.TrimSpace(y.CodeAgentToken)
+	}
+	return ResolvedAutoIteration{
+		Enabled:                  enabled,
+		MaxConcurrent:            maxConcurrent,
+		HighRiskRequiresApproval: highRisk,
+		DingTalkWebhook:          webhook,
+		GitHubRepo:               repo,
+		CodeAgentToken:           agentToken,
 	}
 }

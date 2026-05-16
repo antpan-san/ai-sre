@@ -66,6 +66,10 @@
                 <el-icon><Collection /></el-icon>
                 <template #title>ai-sre 技能包</template>
               </el-menu-item>
+              <el-menu-item index="/admin/auto-iterations">
+                <el-icon><Refresh /></el-icon>
+                <template #title>自动迭代</template>
+              </el-menu-item>
             </el-sub-menu>
             <el-sub-menu
               v-if="featureVisible('feature.node_ops') || featureVisible('feature.k8s_delivery')"
@@ -333,7 +337,8 @@ import {
   Reading,
   Setting,
   List,
-  Collection
+  Collection,
+  Refresh
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'

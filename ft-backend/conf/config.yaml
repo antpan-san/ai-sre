@@ -69,6 +69,15 @@ k8s:
     ansible_dir: ""
 
 # 服务端技能自迭代（实验室默认开启；生产请改 enabled: false 或仅用环境变量）
+# 自动迭代（控制台仅 super_admin；Worker 用 OPSFLEET_CODE_AGENT_TOKEN）
+auto_iteration:
+    enabled: false
+    max_concurrent: 2
+    high_risk_requires_approval: true
+    dingtalk_webhook: ""
+    github_repo: ""
+    code_agent_token: ""
+
 skills:
     auto_refine:
         enabled: true

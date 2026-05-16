@@ -70,6 +70,14 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/cli/sync", middleware.RateLimit("cli-sync", 300, time.Minute), handlers.GetCLISync)
 		public.POST("/cli/diagnostics/plan", middleware.RateLimit("cli-diagnostic-plan", 120, time.Minute), handlers.CreateCLIDiagnosticPlan)
 		public.POST("/cli/diagnostics/observations", middleware.RateLimit("cli-diagnostic-observations", 240, time.Minute), handlers.PostCLIDiagnosticPlanObservations)
+		public.POST("/cli/feedback/analyze", middleware.RateLimit("cli-feedback-analyze", 60, time.Minute), handlers.PostCLIFeedbackAnalyze)
+
+		codeAgent := public.Group("/code-agent")
+		codeAgent.Use(middleware.CodeAgentAuth(cfg))
+		codeAgent.POST("/heartbeat", handlers.CodeAgentHeartbeat)
+		codeAgent.GET("/tasks/pull", handlers.CodeAgentPullTask)
+		codeAgent.POST("/tasks/:id/events", handlers.CodeAgentPostTaskEvents)
+		codeAgent.POST("/tasks/:id/result", handlers.CodeAgentPostTaskResult)
 		// AI diagnosis/evolution public endpoints for ai-sre runtime fallback
 		aiPublic := public.Group("/ai")
 		aiPublic.Use(middleware.RateLimit("public-ai", 30, time.Minute))
@@ -165,6 +173,23 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.POST("/admin/skill-assets/:id/deprecate", handlers.AdminDeprecateSkillAsset)
 		superAdmin.GET("/admin/skill-usage/summary", handlers.AdminSkillUsageSummary)
 		superAdmin.GET("/admin/skill-usage/export.csv", handlers.AdminSkillUsageCSV)
+
+		superAdmin.GET("/admin/auto-iterations/settings", handlers.AdminGetAutoIterationSettings)
+		superAdmin.PUT("/admin/auto-iterations/settings", handlers.AdminUpdateAutoIterationSettings)
+		superAdmin.POST("/admin/auto-iterations/manual", handlers.AdminCreateManualAutoIteration)
+		superAdmin.GET("/admin/auto-iterations", handlers.AdminListAutoIterations)
+		superAdmin.GET("/admin/auto-iterations/:id/events/stream", handlers.AdminStreamAutoIterationEvents)
+		superAdmin.GET("/admin/auto-iterations/:id", handlers.AdminGetAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/start", handlers.AdminStartAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/pause", handlers.AdminPauseAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/resume", handlers.AdminResumeAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/cancel", handlers.AdminCancelAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/approve", handlers.AdminApproveAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/reject", handlers.AdminRejectAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/rollback", handlers.AdminRollbackAutoIteration)
+		superAdmin.POST("/admin/auto-iterations/:id/run-tests", handlers.AdminRunAutoIterationTests)
+		superAdmin.POST("/admin/auto-iterations/:id/sync-github", handlers.AdminSyncAutoIterationGitHub)
+		superAdmin.POST("/admin/auto-iterations/:id/resend-notification", handlers.AdminResendAutoIterationNotification)
 
 		// ---- Machine Management（普通登录用户可查，变更仅管理员） ----
 		console.GET("/machine", handlers.GetMachineList)

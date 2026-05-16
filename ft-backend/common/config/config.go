@@ -22,7 +22,8 @@ type Config struct {
 	AI       AIConfig       `yaml:"ai"`
 	Opsfleet OpsfleetConfig `yaml:"opsfleet"`
 	K8s      K8sConfig      `yaml:"k8s"`
-	Skills   SkillsConfig   `yaml:"skills"`
+	Skills         SkillsConfig         `yaml:"skills"`
+	AutoIteration  AutoIterationConfig  `yaml:"auto_iteration"`
 	Security SecurityConfig `yaml:"security"`
 	Billing  BillingConfig  `yaml:"billing"`
 	Log      struct {
@@ -48,6 +49,16 @@ type K8sConfig struct {
 // SkillsConfig 服务端技能样本与自迭代。
 type SkillsConfig struct {
 	AutoRefine SkillAutoRefineConfig `yaml:"auto_refine"`
+}
+
+// AutoIterationConfig 平台自动迭代（仅 super_admin 控制台；密钥用环境变量覆盖）。
+type AutoIterationConfig struct {
+	Enabled                  bool   `yaml:"enabled"`
+	MaxConcurrent            int    `yaml:"max_concurrent"`
+	HighRiskRequiresApproval bool   `yaml:"high_risk_requires_approval"`
+	DingTalkWebhook          string `yaml:"dingtalk_webhook"`
+	GitHubRepo               string `yaml:"github_repo"`
+	CodeAgentToken           string `yaml:"code_agent_token"`
 }
 
 // SkillAutoRefineConfig 样本达阈值后自动 RefineSkill（可被 OPSFLEET_SKILL_AUTO_REFINE_* 覆盖）。

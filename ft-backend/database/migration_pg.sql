@@ -976,6 +976,91 @@ CREATE INDEX IF NOT EXISTS idx_skill_asset_reviews_asset ON skill_asset_reviews(
 CREATE INDEX IF NOT EXISTS idx_skill_asset_reviews_action ON skill_asset_reviews(action);
 
 -- ============================================================
+-- 17e. 自动迭代（仅 super_admin 控制台；Worker 独立鉴权）
+-- ============================================================
+CREATE TABLE IF NOT EXISTS auto_iterations (
+    id                           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id                    UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,
+    title                        VARCHAR(200) NOT NULL,
+    description                  VARCHAR(2000),
+    status                       VARCHAR(32) NOT NULL DEFAULT 'draft',
+    source                       VARCHAR(32) NOT NULL DEFAULT 'manual',
+    risk_level                   VARCHAR(32) NOT NULL DEFAULT 'low',
+    requires_super_admin_approval BOOLEAN NOT NULL DEFAULT FALSE,
+    topic                        VARCHAR(80),
+    command                      VARCHAR(2000),
+    summary                      VARCHAR(2000),
+    feedback_id                  UUID,
+    created_by_user_id           UUID,
+    created_by                     VARCHAR(80),
+    approved_by_user_id          UUID,
+    approved_by                  VARCHAR(80),
+    approved_at                  TIMESTAMPTZ,
+    assigned_agent_id            UUID,
+    last_error                   VARCHAR(2000),
+    metadata                     JSONB NOT NULL DEFAULT '{}',
+    created_at                   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at                   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_auto_iterations_status ON auto_iterations(status);
+CREATE INDEX IF NOT EXISTS idx_auto_iterations_topic ON auto_iterations(topic);
+
+CREATE TABLE IF NOT EXISTS auto_iteration_events (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,
+    auto_iteration_id UUID NOT NULL,
+    event_type        VARCHAR(32) NOT NULL,
+    actor_type        VARCHAR(32) NOT NULL DEFAULT 'system',
+    actor_name        VARCHAR(80),
+    message           VARCHAR(4000) NOT NULL,
+    payload           JSONB NOT NULL DEFAULT '{}',
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_auto_iteration_events_iteration ON auto_iteration_events(auto_iteration_id);
+
+CREATE TABLE IF NOT EXISTS auto_iteration_settings (
+    id                          INTEGER PRIMARY KEY DEFAULT 1,
+    enabled                     BOOLEAN NOT NULL DEFAULT FALSE,
+    max_concurrent              INTEGER NOT NULL DEFAULT 2,
+    high_risk_requires_approval BOOLEAN NOT NULL DEFAULT TRUE,
+    notes                       VARCHAR(2000),
+    updated_at                  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_by                  VARCHAR(80),
+    CONSTRAINT chk_auto_iteration_settings_singleton CHECK (id = 1)
+);
+
+CREATE TABLE IF NOT EXISTS auto_iteration_feedbacks (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id         UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,
+    user_id           UUID NOT NULL,
+    cli_binding_id    UUID,
+    topic             VARCHAR(80),
+    classification    VARCHAR(64),
+    need_iteration    BOOLEAN NOT NULL DEFAULT FALSE,
+    user_message      VARCHAR(2000),
+    raw_payload       JSONB NOT NULL DEFAULT '{}',
+    auto_iteration_id UUID,
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_auto_iteration_feedbacks_user ON auto_iteration_feedbacks(user_id);
+
+CREATE TABLE IF NOT EXISTS code_agent_bindings (
+    id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id           UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,
+    name                VARCHAR(120) NOT NULL,
+    token_hash          VARCHAR(64) NOT NULL,
+    fingerprint_hash    VARCHAR(64) NOT NULL,
+    status              VARCHAR(32) NOT NULL DEFAULT 'active',
+    last_heartbeat_at   TIMESTAMPTZ,
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at          TIMESTAMPTZ
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_code_agent_token_fp ON code_agent_bindings(token_hash, fingerprint_hash);
+
+-- ============================================================
 -- 18. 表注释
 -- ============================================================
 COMMENT ON TABLE tenants          IS '多租户注册表';

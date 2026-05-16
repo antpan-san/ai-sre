@@ -50,6 +50,9 @@ func main() {
 		logger.Error("Failed to migrate database: %v", err)
 		return
 	}
+	if err := services.EnsureAutoIterationSettings(); err != nil {
+		logger.Warn("EnsureAutoIterationSettings: %v", err)
+	}
 	if err := services.SeedBuiltinSkillTree(); err != nil {
 		logger.Warn("SeedBuiltinSkillTree: %v", err)
 	}

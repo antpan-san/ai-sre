@@ -91,6 +91,35 @@ const routes: Array<RouteRecordRaw> = [
         }
       },
       {
+        path: 'auto-iterations',
+        name: 'AdminAutoIterations',
+        component: () => import('../views/admin/AutoIterations.vue'),
+        meta: {
+          title: '自动迭代',
+          requireAuth: true,
+          roles: superAdminRoles,
+          breadcrumb: [
+            { title: '订阅与计费', path: '/admin/billing/features' },
+            { title: '自动迭代' }
+          ]
+        }
+      },
+      {
+        path: 'auto-iterations/:id',
+        name: 'AdminAutoIterationDetail',
+        component: () => import('../views/admin/AutoIterationDetail.vue'),
+        meta: {
+          title: '迭代详情',
+          requireAuth: true,
+          roles: superAdminRoles,
+          breadcrumb: [
+            { title: '订阅与计费', path: '/admin/billing/features' },
+            { title: '自动迭代', path: '/admin/auto-iterations' },
+            { title: '详情' }
+          ]
+        }
+      },
+      {
         path: 'service/deploy',
         name: 'AdminServiceDeploy',
         component: () => import('../views/service/ServiceDeploy.vue'),
