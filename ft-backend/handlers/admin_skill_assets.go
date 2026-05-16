@@ -25,6 +25,7 @@ func AdminListSkillAssets(c *gin.Context) {
 		ProblemKey:    c.Query("problem_key"),
 		CapabilityKey: c.Query("capability_key"),
 		CategoryPath:  c.Query("category_path"),
+		CreatedBy:     c.Query("created_by"),
 		Page:          page,
 		PageSize:      pageSize,
 	})
@@ -161,6 +162,83 @@ func AdminRejectSkillAsset(c *gin.Context) {
 			}
 			logger.Error("AdminRejectSkillAsset id=%s: %v", id, err)
 			response.ServerError(c, "驳回失败")
+		}
+		return
+	}
+	response.OK(c, gin.H{"asset_id": id.String(), "status": "deprecated"})
+}
+
+// AdminSkillAssetApproveDiff previews merge impact before approve.
+func AdminSkillAssetApproveDiff(c *gin.Context) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.BadRequest(c, "无效资产 ID")
+		return
+	}
+	merge := c.Query("merge_with_registry") != "false"
+	diff, err := services.BuildSkillApproveDiff(id, merge)
+	if err != nil {
+		switch err.Error() {
+		case "no_version":
+			response.BadRequest(c, "技能资产缺少版本内容")
+		default:
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				response.NotFound(c, "技能资产不存在")
+				return
+			}
+			logger.Error("AdminSkillAssetApproveDiff id=%s: %v", id, err)
+			response.ServerError(c, "生成审核对比失败")
+		}
+		return
+	}
+	response.OK(c, gin.H{"diff": diff})
+}
+
+// AdminListSkillAssetReviews returns audit rows for one asset.
+func AdminListSkillAssetReviews(c *gin.Context) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.BadRequest(c, "无效资产 ID")
+		return
+	}
+	limit, _ := strconv.Atoi(c.DefaultQuery("limit", "50"))
+	rows, err := services.ListSkillAssetReviews(id, limit)
+	if err != nil {
+		logger.Error("AdminListSkillAssetReviews id=%s: %v", id, err)
+		response.ServerError(c, "查询审核记录失败")
+		return
+	}
+	response.OK(c, gin.H{"items": rows})
+}
+
+type adminSkillAssetDeprecateRequest struct {
+	Reason string `json:"reason"`
+}
+
+// AdminDeprecateSkillAsset marks an approved asset deprecated.
+func AdminDeprecateSkillAsset(c *gin.Context) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.BadRequest(c, "无效资产 ID")
+		return
+	}
+	var req adminSkillAssetDeprecateRequest
+	_ = c.ShouldBindJSON(&req)
+	adminID, _ := c.Get("userID")
+	adminName, _ := c.Get("username")
+	uid, _ := adminID.(uuid.UUID)
+	name, _ := adminName.(string)
+	if err := services.DeprecateSkillAsset(id, uid, name, strings.TrimSpace(req.Reason)); err != nil {
+		switch err.Error() {
+		case "not_approved":
+			response.BadRequest(c, "仅已发布资产可下架")
+		default:
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				response.NotFound(c, "技能资产不存在")
+				return
+			}
+			logger.Error("AdminDeprecateSkillAsset id=%s: %v", id, err)
+			response.ServerError(c, "下架失败")
 		}
 		return
 	}

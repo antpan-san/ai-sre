@@ -158,8 +158,13 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.GET("/admin/skill-commercial/node-products", handlers.AdminCommercialProductsForNode)
 		superAdmin.GET("/admin/skill-assets", handlers.AdminListSkillAssets)
 		superAdmin.GET("/admin/skill-assets/:id", handlers.AdminGetSkillAsset)
+		superAdmin.GET("/admin/skill-assets/:id/diff", handlers.AdminSkillAssetApproveDiff)
+		superAdmin.GET("/admin/skill-assets/:id/reviews", handlers.AdminListSkillAssetReviews)
 		superAdmin.POST("/admin/skill-assets/:id/approve", handlers.AdminApproveSkillAsset)
 		superAdmin.POST("/admin/skill-assets/:id/reject", handlers.AdminRejectSkillAsset)
+		superAdmin.POST("/admin/skill-assets/:id/deprecate", handlers.AdminDeprecateSkillAsset)
+		superAdmin.GET("/admin/skill-usage/summary", handlers.AdminSkillUsageSummary)
+		superAdmin.GET("/admin/skill-usage/export.csv", handlers.AdminSkillUsageCSV)
 
 		// ---- Machine Management（普通登录用户可查，变更仅管理员） ----
 		console.GET("/machine", handlers.GetMachineList)

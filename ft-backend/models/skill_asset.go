@@ -36,7 +36,12 @@ type SkillAsset struct {
 	ApprovedAt       *time.Time `json:"approved_at,omitempty"`
 	CurrentVersionID *uuid.UUID `gorm:"type:uuid;index" json:"current_version_id,omitempty"`
 	QualityLabels    JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"quality_labels"`
-	RiskLevel        string     `gorm:"size:32" json:"risk_level,omitempty"`
+	RiskLevel          string     `gorm:"size:32" json:"risk_level,omitempty"`
+	ReviewNotes        string     `gorm:"size:2000" json:"review_notes,omitempty"`
+	RejectedReason     string     `gorm:"size:2000" json:"rejected_reason,omitempty"`
+	PublishedPackPath  string     `gorm:"size:500" json:"published_pack_path,omitempty"`
+	PublishedAt        *time.Time `json:"published_at,omitempty"`
+	DeprecatedReason   string     `gorm:"size:2000" json:"deprecated_reason,omitempty"`
 }
 
 func (SkillAsset) TableName() string {

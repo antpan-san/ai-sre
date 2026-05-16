@@ -948,6 +948,34 @@ CREATE INDEX IF NOT EXISTS idx_skill_product_bindings_product ON skill_product_n
 CREATE INDEX IF NOT EXISTS idx_skill_product_bindings_node ON skill_product_node_bindings(node_path);
 
 -- ============================================================
+-- 17d. 技能资产审核轨迹与发布元数据
+-- ============================================================
+ALTER TABLE IF EXISTS skill_assets
+    ADD COLUMN IF NOT EXISTS review_notes VARCHAR(2000),
+    ADD COLUMN IF NOT EXISTS rejected_reason VARCHAR(2000),
+    ADD COLUMN IF NOT EXISTS published_pack_path VARCHAR(500),
+    ADD COLUMN IF NOT EXISTS published_at TIMESTAMPTZ,
+    ADD COLUMN IF NOT EXISTS deprecated_reason VARCHAR(2000);
+
+CREATE TABLE IF NOT EXISTS skill_asset_reviews (
+    id                   UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    skill_asset_id       UUID NOT NULL,
+    action               VARCHAR(32) NOT NULL,
+    actor_user_id        UUID,
+    actor_name           VARCHAR(80),
+    notes                VARCHAR(2000),
+    publish_mode         VARCHAR(32),
+    merged_with_builtin  BOOLEAN NOT NULL DEFAULT FALSE,
+    published_pack_path  VARCHAR(500),
+    diff_summary         JSONB NOT NULL DEFAULT '{}',
+    created_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at           TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS idx_skill_asset_reviews_asset ON skill_asset_reviews(skill_asset_id);
+CREATE INDEX IF NOT EXISTS idx_skill_asset_reviews_action ON skill_asset_reviews(action);
+
+-- ============================================================
 -- 18. 表注释
 -- ============================================================
 COMMENT ON TABLE tenants          IS '多租户注册表';

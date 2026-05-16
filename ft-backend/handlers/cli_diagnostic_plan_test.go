@@ -75,6 +75,29 @@ func TestBuildGoRuntimeReadonlyDiagnosticPlan(t *testing.T) {
 	}
 }
 
+func TestBuildRedisReadonlyDiagnosticPlan(t *testing.T) {
+	steps, err := buildRedisReadonlyDiagnosticPlan(map[string]string{"addr": "127.0.0.1:6379"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(steps) != 1 || !allowedReadonlyDiagnosticCommand(steps[0].Argv) {
+		t.Fatalf("unsafe redis plan: %#v", steps)
+	}
+}
+
+func TestBuildKafkaReadonlyDiagnosticPlanRequiresBootstrap(t *testing.T) {
+	if _, err := buildKafkaReadonlyDiagnosticPlan(nil); err == nil {
+		t.Fatal("expected error")
+	}
+	steps, err := buildKafkaReadonlyDiagnosticPlan(map[string]string{"bootstrap": "10.0.0.1:9092"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !allowedReadonlyDiagnosticCommand(steps[0].Argv) {
+		t.Fatalf("unsafe kafka plan: %#v", steps[0].Argv)
+	}
+}
+
 func TestAllowedAISreReadonlyDiagnosticCommand(t *testing.T) {
 	ok := []string{"ai-sre", "go_runtime", "diagnose", "--json", "--pod", "prod/api-0"}
 	if !allowedReadonlyDiagnosticCommand(ok) {
@@ -83,6 +106,14 @@ func TestAllowedAISreReadonlyDiagnosticCommand(t *testing.T) {
 	bad := []string{"ai-sre", "go_runtime", "diagnose", "--json", ";rm"}
 	if allowedReadonlyDiagnosticCommand(bad) {
 		t.Fatalf("expected reject metachar")
+	}
+	redisOK := []string{"ai-sre", "redis", "diagnose", "127.0.0.1:6379", "--json"}
+	if !allowedReadonlyDiagnosticCommand(redisOK) {
+		t.Fatalf("expected allowed redis argv")
+	}
+	nginxOK := []string{"ai-sre", "nginx", "diagnose", "--json", "--access-log", "/var/log/nginx/access.log"}
+	if !allowedReadonlyDiagnosticCommand(nginxOK) {
+		t.Fatalf("expected allowed nginx argv")
 	}
 }
 

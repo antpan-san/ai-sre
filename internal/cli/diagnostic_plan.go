@@ -48,9 +48,27 @@ func shouldRequestServerDiagnosticPlan(topic string, kv map[string]string) bool 
 		return !hasKubectlEvidence(kv)
 	case "go_runtime", "go-runtime":
 		return !hasGoRuntimeDiagnosticEvidence(kv)
+	case "redis", "kafka", "nginx", "mysql", "elasticsearch", "es":
+		return !hasMiddlewareDiagnosticEvidence(t, kv)
 	default:
 		return false
 	}
+}
+
+func hasMiddlewareDiagnosticEvidence(topic string, kv map[string]string) bool {
+	if kv == nil {
+		return false
+	}
+	prefix := strings.ToLower(strings.TrimSpace(topic)) + "_"
+	if topic == "es" {
+		prefix = "elasticsearch_"
+	}
+	for k := range kv {
+		if strings.HasPrefix(k, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func hasGoRuntimeDiagnosticEvidence(kv map[string]string) bool {
@@ -401,7 +419,7 @@ func marshalStringMap(v map[string]string) []byte {
 }
 
 func allowedCLIAISreDiagnosticCommand(argv []string) bool {
-	if len(argv) < 3 || argv[1] != "go_runtime" || argv[2] != "diagnose" {
+	if len(argv) < 3 {
 		return false
 	}
 	for _, a := range argv {
@@ -409,7 +427,83 @@ func allowedCLIAISreDiagnosticCommand(argv []string) bool {
 			return false
 		}
 	}
-	return allowedCLIAISreArgs(argv[3:])
+	switch argv[1] {
+	case "go_runtime":
+		if argv[2] != "diagnose" {
+			return false
+		}
+		return allowedCLIAISreArgs(argv[3:])
+	case "redis", "kafka", "mysql", "elasticsearch":
+		if argv[2] != "diagnose" || len(argv) < 4 {
+			return false
+		}
+		if !diagnosticAISreValueRe.MatchString(argv[3]) {
+			return false
+		}
+		return allowedCLITopicDiagnoseFlags(argv[1], argv[4:])
+	case "nginx":
+		if argv[2] != "diagnose" {
+			return false
+		}
+		return allowedCLITopicDiagnoseFlags(argv[1], argv[3:])
+	default:
+		return false
+	}
+}
+
+func allowedCLITopicDiagnoseFlags(topic string, args []string) bool {
+	allowed := map[string]struct{}{"--json": {}}
+	switch topic {
+	case "redis":
+		allowed["--password"] = struct{}{}
+		allowed["--timeout"] = struct{}{}
+	case "kafka":
+		allowed["--limit"] = struct{}{}
+		allowed["--timeout"] = struct{}{}
+		allowed["--command-dir"] = struct{}{}
+		allowed["--config"] = struct{}{}
+	case "nginx":
+		allowed["--access-log"] = struct{}{}
+		allowed["--tail"] = struct{}{}
+	case "mysql":
+		allowed["--timeout"] = struct{}{}
+	case "elasticsearch":
+		allowed["--timeout"] = struct{}{}
+		allowed["--user"] = struct{}{}
+		allowed["--password"] = struct{}{}
+		allowed["--insecure"] = struct{}{}
+	}
+	return allowedCLIAISreArgsWithSet(args, allowed)
+}
+
+func allowedCLIAISreArgsWithSet(args []string, allowed map[string]struct{}) bool {
+	expectValue := ""
+	for _, a := range args {
+		if expectValue != "" {
+			if !diagnosticAISreValueRe.MatchString(a) && !cliDiagnosticSafePath(a) {
+				return false
+			}
+			expectValue = ""
+			continue
+		}
+		if !strings.HasPrefix(a, "--") {
+			return false
+		}
+		if _, ok := allowed[a]; !ok {
+			return false
+		}
+		if a != "--json" && a != "--insecure" {
+			expectValue = a
+		}
+	}
+	return expectValue == ""
+}
+
+func cliDiagnosticSafePath(s string) bool {
+	if s == "" || strings.ContainsAny(s, ";&|`$<>") {
+		return false
+	}
+	return len(s) <= 512
 }
 
 func allowedCLIAISreArgs(args []string) bool {

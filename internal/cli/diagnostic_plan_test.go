@@ -38,7 +38,10 @@ func TestShouldRequestServerDiagnosticPlan(t *testing.T) {
 	if shouldRequestServerDiagnosticPlan("go_runtime", map[string]string{"go_runtime_diagnose_json": "ok"}) {
 		t.Fatalf("expected skip when go_runtime evidence exists")
 	}
-	if shouldRequestServerDiagnosticPlan("kafka", map[string]string{}) {
-		t.Fatal("expected non-k8s topic to skip plan")
+	if !shouldRequestServerDiagnosticPlan("redis", map[string]string{}) {
+		t.Fatal("expected redis without evidence to request plan")
+	}
+	if shouldRequestServerDiagnosticPlan("redis", map[string]string{"redis_diagnose_json": "ok"}) {
+		t.Fatal("expected skip when redis evidence exists")
 	}
 }

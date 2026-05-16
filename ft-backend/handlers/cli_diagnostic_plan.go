@@ -385,17 +385,6 @@ func stringMapToAny(in map[string]string) map[string]interface{} {
 	return out
 }
 
-func buildReadonlyDiagnosticPlan(topic string, kv map[string]string) ([]diagnosticPlanStep, error) {
-	switch strings.ToLower(strings.TrimSpace(topic)) {
-	case "k8s", "kubernetes":
-		return buildK8sReadonlyDiagnosticPlan(kv), nil
-	case "go_runtime", "go-runtime":
-		return buildGoRuntimeReadonlyDiagnosticPlan(kv), nil
-	default:
-		return nil, fmt.Errorf("当前仅支持 k8s / go_runtime 只读诊断任务单")
-	}
-}
-
 func buildGoRuntimeReadonlyDiagnosticPlan(kv map[string]string) []diagnosticPlanStep {
 	ns := cleanK8sNameFromMap(kv, "namespace", "")
 	pod := cleanK8sNameFromMap(kv, "pod", "")
@@ -584,14 +573,81 @@ func allowedAISreReadonlyDiagnosticCommand(argv []string) bool {
 			return false
 		}
 	}
-	if argv[1] != "go_runtime" || argv[2] != "diagnose" {
+	topic := argv[1]
+	switch topic {
+	case "go_runtime":
+		if argv[2] != "diagnose" {
+			return false
+		}
+		return argsSubset(argv[3:], []string{
+			"--json", "--pod", "--deployment", "--statefulset", "--daemonset",
+			"--replicaset", "--job", "--cronjob", "--service", "--ingress", "--pvc",
+			"--pid", "--name", "--pid-name",
+		}) && allowedAISreDiagnosticFlagValues(argv[3:])
+	case "redis", "kafka", "mysql", "elasticsearch":
+		if argv[2] != "diagnose" || len(argv) < 4 {
+			return false
+		}
+		if !aisreDiagnosticValueRe.MatchString(argv[3]) {
+			return false
+		}
+		return allowedAISreTopicDiagnoseFlags(topic, argv[4:])
+	case "nginx":
+		if argv[2] != "diagnose" {
+			return false
+		}
+		return allowedAISreTopicDiagnoseFlags(topic, argv[3:])
+	default:
 		return false
 	}
-	return argsSubset(argv[3:], []string{
-		"--json", "--pod", "--deployment", "--statefulset", "--daemonset",
-		"--replicaset", "--job", "--cronjob", "--service", "--ingress", "--pvc",
-		"--pid", "--name", "--pid-name",
-	}) && allowedAISreDiagnosticFlagValues(argv[3:])
+}
+
+func allowedAISreTopicDiagnoseFlags(topic string, args []string) bool {
+	allowed := map[string]struct{}{"--json": {}}
+	switch topic {
+	case "redis":
+		allowed["--password"] = struct{}{}
+		allowed["--timeout"] = struct{}{}
+	case "kafka":
+		allowed["--limit"] = struct{}{}
+		allowed["--timeout"] = struct{}{}
+		allowed["--command-dir"] = struct{}{}
+		allowed["--config"] = struct{}{}
+	case "nginx":
+		allowed["--access-log"] = struct{}{}
+		allowed["--tail"] = struct{}{}
+	case "mysql":
+		allowed["--timeout"] = struct{}{}
+	case "elasticsearch":
+		allowed["--timeout"] = struct{}{}
+		allowed["--user"] = struct{}{}
+		allowed["--password"] = struct{}{}
+		allowed["--insecure"] = struct{}{}
+	}
+	return allowedAISreDiagnosticFlagValuesWithSet(args, allowed)
+}
+
+func allowedAISreDiagnosticFlagValuesWithSet(args []string, allowed map[string]struct{}) bool {
+	expectValue := ""
+	for _, a := range args {
+		if expectValue != "" {
+			if !aisreDiagnosticValueRe.MatchString(a) && !diagnosticSafePath(a) {
+				return false
+			}
+			expectValue = ""
+			continue
+		}
+		if !strings.HasPrefix(a, "--") {
+			return false
+		}
+		if _, ok := allowed[a]; !ok {
+			return false
+		}
+		if a != "--json" && a != "--insecure" {
+			expectValue = a
+		}
+	}
+	return expectValue == ""
 }
 
 func allowedAISreDiagnosticFlagValues(args []string) bool {

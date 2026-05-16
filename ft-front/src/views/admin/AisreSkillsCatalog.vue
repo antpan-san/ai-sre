@@ -141,6 +141,23 @@
             <el-option label="已驳回" value="deprecated" />
             <el-option label="全部" value="" />
           </el-select>
+          <el-select v-model="reviewTopic" clearable placeholder="Topic" class="review-topic-select" @change="loadReview">
+            <el-option label="k8s" value="k8s" />
+            <el-option label="go_runtime" value="go_runtime" />
+            <el-option label="redis" value="redis" />
+            <el-option label="kafka" value="kafka" />
+            <el-option label="nginx" value="nginx" />
+            <el-option label="mysql" value="mysql" />
+            <el-option label="elasticsearch" value="elasticsearch" />
+          </el-select>
+          <el-input
+            v-model="reviewCreatedBy"
+            clearable
+            class="review-created-by"
+            placeholder="提交人"
+            @clear="loadReview"
+            @keyup.enter="loadReview"
+          />
           <el-tag v-if="selectedTreeFilter" closable type="info" @close="clearTreeFilter">
             {{ selectedTreeFilter.title }}
           </el-tag>
@@ -153,6 +170,7 @@
             <el-table-column prop="problem_key" label="问题模式" width="140" show-overflow-tooltip />
             <el-table-column prop="category_path" label="能力路径" min-width="220" show-overflow-tooltip />
             <el-table-column prop="created_by" label="提交人" width="100" show-overflow-tooltip />
+            <el-table-column prop="risk_level" label="风险" width="80" align="center" />
             <el-table-column label="状态" width="100" align="center">
               <template #default="{ row }">
                 <el-tag :type="assetStatusTag(row.status)" size="small">{{ assetStatusLabel(row.status) }}</el-tag>
@@ -195,6 +213,48 @@
               @current-change="loadReview"
             />
           </div>
+        </el-card>
+      </el-tab-pane>
+
+      <el-tab-pane label="运营统计" name="usage">
+        <div class="tab-toolbar">
+          <el-select v-model="usageDays" class="review-status-select" @change="loadUsage">
+            <el-option label="近 7 天" :value="7" />
+            <el-option label="近 30 天" :value="30" />
+            <el-option label="近 90 天" :value="90" />
+          </el-select>
+          <el-button :loading="usageLoading" @click="loadUsage">刷新</el-button>
+          <el-link type="primary" :href="usageCsvHref" target="_blank">导出 CSV</el-link>
+        </div>
+        <el-card shadow="never" v-loading="usageLoading">
+          <h4 class="section-title">诊断任务单</h4>
+          <el-table :data="usageStats?.diagnostic_plans || []" stripe border size="small" empty-text="暂无数据">
+            <el-table-column prop="label" label="坐标" min-width="240" />
+            <el-table-column prop="status" label="状态" width="120" />
+            <el-table-column prop="count" label="次数" width="100" align="right" />
+          </el-table>
+          <h4 class="section-title bindings-title">AI 调用</h4>
+          <el-table :data="usageStats?.ai_executions || []" stripe border size="small" empty-text="暂无数据">
+            <el-table-column prop="label" label="类别" min-width="200" />
+            <el-table-column prop="status" label="状态" width="120" />
+            <el-table-column prop="count" label="次数" width="100" align="right" />
+          </el-table>
+          <h4 class="section-title bindings-title">资产与审核</h4>
+          <el-row :gutter="16">
+            <el-col :span="12">
+              <el-table :data="usageStats?.skill_assets || []" stripe border size="small" empty-text="暂无">
+                <el-table-column prop="label" label="Topic" />
+                <el-table-column prop="status" label="状态" width="100" />
+                <el-table-column prop="count" label="数" width="80" align="right" />
+              </el-table>
+            </el-col>
+            <el-col :span="12">
+              <el-table :data="usageStats?.reviews || []" stripe border size="small" empty-text="暂无">
+                <el-table-column prop="label" label="动作" />
+                <el-table-column prop="count" label="次数" width="100" align="right" />
+              </el-table>
+            </el-col>
+          </el-row>
         </el-card>
       </el-tab-pane>
     </el-tabs>
@@ -243,7 +303,29 @@
             <el-descriptions-item v-if="assetDetail.observation_summary" label="观察摘要">
               {{ assetDetail.observation_summary }}
             </el-descriptions-item>
+            <el-descriptions-item v-if="assetDetail.published_pack_path" label="发布路径">
+              {{ assetDetail.published_pack_path }}
+            </el-descriptions-item>
           </el-descriptions>
+          <div v-if="assetApproveDiff" class="diff-block">
+            <h4 class="section-title">发布预览</h4>
+            <p class="page-desc--muted">
+              {{ assetApproveDiff.generated_pack_name }}
+              <template v-if="assetApproveDiff.registry_pack_name">
+                · 注册表 {{ assetApproveDiff.registry_pack_name }}
+              </template>
+              · 变更 {{ (assetApproveDiff.fields_changed || []).join(', ') || '—' }}
+            </p>
+          </div>
+          <div v-if="assetReviews.length" class="diff-block">
+            <h4 class="section-title">审核记录</h4>
+            <el-table :data="assetReviews" size="small" border stripe>
+              <el-table-column prop="action" label="动作" width="90" />
+              <el-table-column prop="actor_name" label="操作人" width="100" />
+              <el-table-column prop="notes" label="备注" min-width="140" show-overflow-tooltip />
+              <el-table-column prop="created_at" label="时间" width="170" />
+            </el-table>
+          </div>
           <div class="json-block-wrap">
             <div class="json-block-head">
               <span>版本内容</span>
@@ -252,12 +334,18 @@
             <pre class="json-pre">{{ assetDetailJson }}</pre>
           </div>
           <div v-if="assetDetail.status === 'review'" class="asset-actions">
+            <el-checkbox v-model="approveMergeRegistry" @change="loadAssetDiff(assetDetail.id)">
+              与注册表同 topic 技能合并发布
+            </el-checkbox>
             <el-button type="success" :loading="approvingId === assetDetail.id" @click="onApprove(assetDetail)">
               审核通过并发布
             </el-button>
             <el-button type="danger" :loading="rejectingId === assetDetail.id" @click="onReject(assetDetail)">
               驳回
             </el-button>
+          </div>
+          <div v-else-if="assetDetail.status === 'approved'" class="asset-actions">
+            <el-button type="warning" @click="onDeprecate(assetDetail)">下架</el-button>
           </div>
         </template>
       </div>
@@ -271,13 +359,21 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAdminAiSkillDetail, getAdminAiSkills, type RegisteredSkill, type SkillSummary } from '../../api/aiSkills'
 import {
   approveAdminSkillAsset,
+  deprecateAdminSkillAsset,
+  exportAdminSkillUsageCSV,
+  getAdminSkillAssetApproveDiff,
   getAdminSkillTree,
   getAdminSkillAsset,
+  getAdminSkillUsageSummary,
+  listAdminSkillAssetReviews,
   listAdminSkillAssets,
   rejectAdminSkillAsset,
+  type SkillApproveDiff,
   type SkillAssetDetail,
   type SkillAssetListItem,
-  type SkillTreeNode
+  type SkillAssetReviewRow,
+  type SkillTreeNode,
+  type SkillUsageSummary
 } from '../../api/skillAssets'
 import {
   listCommercialBindings,
@@ -313,9 +409,19 @@ const reviewTotal = ref(0)
 const reviewPage = ref(1)
 const reviewPageSize = ref(20)
 const reviewStatus = ref('review')
+const reviewTopic = ref('')
+const reviewCreatedBy = ref('')
 const reviewPendingCount = ref(0)
 const approvingId = ref('')
 const rejectingId = ref('')
+const approveMergeRegistry = ref(true)
+const assetApproveDiff = ref<SkillApproveDiff | null>(null)
+const assetReviews = ref<SkillAssetReviewRow[]>([])
+
+const usageLoading = ref(false)
+const usageDays = ref(30)
+const usageStats = ref<SkillUsageSummary | null>(null)
+const usageCsvHref = computed(() => exportAdminSkillUsageCSV(usageDays.value))
 
 const registryDetailOpen = ref(false)
 const registryDetailLoading = ref(false)
@@ -492,6 +598,8 @@ const loadReview = async () => {
     const treeFilter = selectedTreeFilter.value
     const data = await listAdminSkillAssets({
       status: reviewStatus.value || undefined,
+      topic: reviewTopic.value || undefined,
+      created_by: reviewCreatedBy.value || undefined,
       category_path: treeFilter?.path || undefined,
       page: reviewPage.value,
       page_size: reviewPageSize.value
@@ -531,6 +639,8 @@ const onTabChange = (name: string | number) => {
     void loadSkillTree()
   } else if (name === 'commercial') {
     void loadCommercial()
+  } else if (name === 'usage') {
+    void loadUsage()
   }
 }
 
@@ -568,13 +678,34 @@ const onRegistryRowClick = (row: SkillSummary) => {
   void openRegistryDetail(row.name)
 }
 
+const loadAssetReviews = async (id: string) => {
+  try {
+    const data = await listAdminSkillAssetReviews(id)
+    assetReviews.value = data.items || []
+  } catch {
+    assetReviews.value = []
+  }
+}
+
+const loadAssetDiff = async (id: string) => {
+  try {
+    const data = await getAdminSkillAssetApproveDiff(id, approveMergeRegistry.value)
+    assetApproveDiff.value = data.diff
+  } catch {
+    assetApproveDiff.value = null
+  }
+}
+
 const openAssetDetail = async (id: string) => {
   assetDetail.value = null
+  assetApproveDiff.value = null
+  assetReviews.value = []
   assetDetailOpen.value = true
   assetDetailLoading.value = true
   try {
     const data = await getAdminSkillAsset(id)
     assetDetail.value = data.asset
+    await Promise.all([loadAssetReviews(id), loadAssetDiff(id)])
   } catch {
     assetDetailOpen.value = false
   } finally {
@@ -582,10 +713,33 @@ const openAssetDetail = async (id: string) => {
   }
 }
 
+const loadUsage = async () => {
+  usageLoading.value = true
+  try {
+    const data = await getAdminSkillUsageSummary(usageDays.value)
+    usageStats.value = data.stats
+  } catch {
+    usageStats.value = null
+  } finally {
+    usageLoading.value = false
+  }
+}
+
 const onApprove = async (row: SkillAssetListItem | SkillAssetDetail) => {
+  let diffText = ''
+  try {
+    const { diff } = await getAdminSkillAssetApproveDiff(row.id, approveMergeRegistry.value)
+    const changed = (diff.fields_changed || []).join(', ') || '无字段差异'
+    diffText = `\n\n预览：${diff.generated_pack_name}`
+    if (diff.registry_pack_name) {
+      diffText += ` ← 合并 ${diff.registry_pack_name}（${diff.registry_source || 'registry'}）`
+    }
+    diffText += `\n变更字段：${changed}`
+  } catch {
+  }
   try {
     await ElMessageBox.confirm(
-      '通过后将把诊断沉淀写入 generated 技能包（默认与当前注册表同 topic 技能合并，保留原有分析步骤），是否继续？',
+      `通过后将写入 generated 技能包（${approveMergeRegistry.value ? '与注册表合并' : '独立覆盖'}）。${diffText}`,
       '审核通过',
       { type: 'warning', confirmButtonText: '通过并发布', cancelButtonText: '取消' }
     )
@@ -594,7 +748,7 @@ const onApprove = async (row: SkillAssetListItem | SkillAssetDetail) => {
   }
   approvingId.value = row.id
   try {
-    const res = await approveAdminSkillAsset(row.id, { merge_with_registry: true })
+    const res = await approveAdminSkillAsset(row.id, { merge_with_registry: approveMergeRegistry.value })
     ElMessage.success(res.merged ? `已合并发布至 ${res.path}` : `已发布至 ${res.path || 'generated'}`)
     assetDetailOpen.value = false
     await Promise.all([loadReview(), loadReviewPendingCount(), loadRegistry(), loadSkillTree()])
@@ -602,6 +756,28 @@ const onApprove = async (row: SkillAssetListItem | SkillAssetDetail) => {
     ElMessage.error('审核失败')
   } finally {
     approvingId.value = ''
+  }
+}
+
+const onDeprecate = async (row: SkillAssetListItem | SkillAssetDetail) => {
+  let reason = ''
+  try {
+    const { value } = await ElMessageBox.prompt('下架已发布资产（不删除磁盘技能包）', '下架', {
+      confirmButtonText: '下架',
+      cancelButtonText: '取消',
+      inputPlaceholder: '原因（可选）'
+    })
+    reason = value || ''
+  } catch {
+    return
+  }
+  try {
+    await deprecateAdminSkillAsset(row.id, { reason })
+    ElMessage.success('已下架')
+    assetDetailOpen.value = false
+    await Promise.all([loadReview(), loadSkillTree()])
+  } catch {
+    ElMessage.error('下架失败')
   }
 }
 

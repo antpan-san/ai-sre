@@ -18,6 +18,12 @@ export interface SkillAssetListItem {
   current_version_id?: string
   version_label?: string
   observation_summary?: string
+  risk_level?: string
+  review_notes?: string
+  rejected_reason?: string
+  published_pack_path?: string
+  published_at?: string
+  deprecated_reason?: string
 }
 
 export interface SkillTreeNode {
@@ -65,6 +71,45 @@ export type SkillAssetsListResponse = {
   page_size: number
 }
 
+export interface SkillApproveDiff {
+  topic: string
+  generated_pack_name: string
+  registry_pack_name?: string
+  registry_source?: string
+  merge_preview: boolean
+  generated_summary: Record<string, unknown>
+  registry_summary?: Record<string, unknown>
+  merged_summary?: Record<string, unknown>
+  fields_changed?: string[]
+}
+
+export interface SkillAssetReviewRow {
+  id: string
+  skill_asset_id: string
+  action: string
+  actor_name?: string
+  notes?: string
+  publish_mode?: string
+  merged_with_builtin: boolean
+  published_pack_path?: string
+  diff_summary?: Record<string, unknown>
+  created_at: string
+}
+
+export interface SkillUsageRow {
+  label: string
+  count: number
+  status?: string
+  extra?: string
+}
+
+export interface SkillUsageSummary {
+  diagnostic_plans: SkillUsageRow[]
+  ai_executions: SkillUsageRow[]
+  skill_assets: SkillUsageRow[]
+  reviews: SkillUsageRow[]
+}
+
 export const listAdminSkillAssets = (params?: {
   status?: string
   topic?: string
@@ -72,6 +117,7 @@ export const listAdminSkillAssets = (params?: {
   problem_key?: string
   capability_key?: string
   category_path?: string
+  created_by?: string
   page?: number
   page_size?: number
 }): Promise<SkillAssetsListResponse> => {
@@ -98,4 +144,37 @@ export const rejectAdminSkillAsset = (
   body?: { reason?: string }
 ): Promise<{ asset_id: string; status: string }> => {
   return request.post(`/api/admin/skill-assets/${encodeURIComponent(id)}/reject`, body ?? {})
+}
+
+export const getAdminSkillAssetApproveDiff = (
+  id: string,
+  mergeWithRegistry = true
+): Promise<{ diff: SkillApproveDiff }> => {
+  return request.get(`/api/admin/skill-assets/${encodeURIComponent(id)}/diff`, {
+    params: { merge_with_registry: mergeWithRegistry }
+  })
+}
+
+export const listAdminSkillAssetReviews = (
+  id: string,
+  limit = 50
+): Promise<{ items: SkillAssetReviewRow[] }> => {
+  return request.get(`/api/admin/skill-assets/${encodeURIComponent(id)}/reviews`, { params: { limit } })
+}
+
+export const deprecateAdminSkillAsset = (
+  id: string,
+  body?: { reason?: string }
+): Promise<{ asset_id: string; status: string }> => {
+  return request.post(`/api/admin/skill-assets/${encodeURIComponent(id)}/deprecate`, body ?? {})
+}
+
+export const getAdminSkillUsageSummary = (days = 30): Promise<{ since: string; days: number; stats: SkillUsageSummary }> => {
+  return request.get('/api/admin/skill-usage/summary', { params: { days } })
+}
+
+export const exportAdminSkillUsageCSV = (days = 30): string => {
+  const base = import.meta.env.VITE_API_BASE_URL || ''
+  const q = new URLSearchParams({ days: String(days) })
+  return `${base}/api/admin/skill-usage/export.csv?${q.toString()}`
 }

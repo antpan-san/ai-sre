@@ -104,6 +104,7 @@ func Migrate() error {
 		&models.CLIBinding{},
 		&models.SkillAsset{},
 		&models.SkillAssetVersion{},
+		&models.SkillAssetReview{},
 		&models.UserSkillUnlock{},
 		&models.DiagnosticPlan{},
 		&models.SkillTreeVersion{},

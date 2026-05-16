@@ -32,6 +32,12 @@ type SkillAssetListItem struct {
 	CurrentVersionID   string     `json:"current_version_id,omitempty"`
 	VersionLabel       string     `json:"version_label,omitempty"`
 	ObservationSummary string     `json:"observation_summary,omitempty"`
+	RiskLevel          string     `json:"risk_level,omitempty"`
+	ReviewNotes        string     `json:"review_notes,omitempty"`
+	RejectedReason     string     `json:"rejected_reason,omitempty"`
+	PublishedPackPath  string     `json:"published_pack_path,omitempty"`
+	PublishedAt        *time.Time `json:"published_at,omitempty"`
+	DeprecatedReason   string     `json:"deprecated_reason,omitempty"`
 }
 
 // SkillAssetDetail includes the current version payload for review.
@@ -50,6 +56,7 @@ type SkillAssetListFilter struct {
 	ProblemKey    string
 	CapabilityKey string
 	CategoryPath  string
+	CreatedBy     string
 	Page          int
 	PageSize      int
 }
@@ -82,6 +89,9 @@ func ListSkillAssets(filter SkillAssetListFilter) ([]SkillAssetListItem, int64, 
 	}
 	if categoryPath := strings.TrimSpace(filter.CategoryPath); categoryPath != "" {
 		q = q.Where("category_path = ? OR category_path LIKE ?", categoryPath, categoryPath+".%")
+	}
+	if createdBy := strings.TrimSpace(filter.CreatedBy); createdBy != "" {
+		q = q.Where("created_by ILIKE ?", "%"+createdBy+"%")
 	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
@@ -133,46 +143,78 @@ func GetSkillAssetDetail(assetID uuid.UUID) (*SkillAssetDetail, error) {
 	return detail, nil
 }
 
-// ApproveSkillAsset marks the asset approved, publishes a generated skill pack, and finalizes linked plans.
-// When mergeWithRegistry is true, diagnostic content is merged into the existing builtin/generated pack for the topic.
+// ApproveSkillAsset publishes to the registry first, then marks the asset approved in one DB transaction.
+// Publish failure leaves the asset in review status (no partial approve).
 func ApproveSkillAsset(assetID uuid.UUID, adminID uuid.UUID, adminName, notes string, mergeWithRegistry bool) (*SkillPack, string, bool, error) {
 	reg := DefaultSkillRegistry()
 	if reg.DataDir() == "" {
 		return nil, "", false, fmt.Errorf("OPSFLEET_AI_SKILL_DATA_DIR 未配置，无法发布技能包")
 	}
-	var pack *SkillPack
-	var path string
-	var merged bool
-	err := database.DB.Transaction(func(tx *gorm.DB) error {
-		var asset models.SkillAsset
-		if err := tx.Where("id = ?", assetID).First(&asset).Error; err != nil {
-			return err
+	var asset models.SkillAsset
+	if err := database.DB.Where("id = ?", assetID).First(&asset).Error; err != nil {
+		return nil, "", false, err
+	}
+	if asset.Status == models.SkillAssetStatusApproved {
+		return nil, "", false, fmt.Errorf("already_approved")
+	}
+	if asset.CurrentVersionID == nil {
+		return nil, "", false, fmt.Errorf("no_version")
+	}
+	var ver models.SkillAssetVersion
+	if err := database.DB.Where("id = ? AND skill_asset_id = ?", *asset.CurrentVersionID, asset.ID).First(&ver).Error; err != nil {
+		return nil, "", false, err
+	}
+	built, err := SkillPackFromDiagnosticAsset(&asset, &ver)
+	if err != nil {
+		return nil, "", false, err
+	}
+	if !ValidateSkillDraft(built) {
+		return nil, "", false, fmt.Errorf("invalid_pack")
+	}
+	pack := built
+	merged := false
+	if mergeWithRegistry {
+		pack, merged = MergeSkillPackWithRegistry(reg, pack)
+	}
+	path, errPub := reg.SaveGenerated(pack)
+	if errPub != nil {
+		return pack, "", merged, errPub
+	}
+	diff, _ := BuildSkillApproveDiff(assetID, mergeWithRegistry)
+	diffMap := map[string]interface{}{}
+	if diff != nil {
+		diffMap["topic"] = diff.Topic
+		diffMap["fields_changed"] = diff.FieldsChanged
+		diffMap["merge_preview"] = diff.MergePreview
+	}
+	publishMode := models.SkillAssetPublishModeStandalone
+	if mergeWithRegistry {
+		publishMode = models.SkillAssetPublishModeMerge
+	}
+	now := time.Now().UTC()
+	risk := strings.TrimSpace(asset.RiskLevel)
+	if risk == "" {
+		risk = inferRiskLevel(jsonbToMap(ver.Content))
+	}
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		res := tx.Model(&models.SkillAsset{}).
+			Where("id = ? AND status <> ?", assetID, models.SkillAssetStatusApproved).
+			Updates(map[string]interface{}{
+				"status":              models.SkillAssetStatusApproved,
+				"approved_by_user_id": adminID,
+				"approved_by":         limitSkillText(adminName, 80),
+				"approved_at":         &now,
+				"review_notes":        limitSkillText(notes, 2000),
+				"published_pack_path": limitSkillText(path, 500),
+				"published_at":        &now,
+				"risk_level":          risk,
+				"rejected_reason":     "",
+			})
+		if res.Error != nil {
+			return res.Error
 		}
-		if asset.Status == models.SkillAssetStatusApproved {
+		if res.RowsAffected == 0 {
 			return fmt.Errorf("already_approved")
-		}
-		if asset.CurrentVersionID == nil {
-			return fmt.Errorf("no_version")
-		}
-		var ver models.SkillAssetVersion
-		if err := tx.Where("id = ? AND skill_asset_id = ?", *asset.CurrentVersionID, asset.ID).First(&ver).Error; err != nil {
-			return err
-		}
-		built, err := SkillPackFromDiagnosticAsset(&asset, &ver)
-		if err != nil {
-			return err
-		}
-		if !ValidateSkillDraft(built) {
-			return fmt.Errorf("invalid_pack")
-		}
-		now := time.Now().UTC()
-		if err := tx.Model(&asset).Updates(map[string]interface{}{
-			"status":              models.SkillAssetStatusApproved,
-			"approved_by_user_id": adminID,
-			"approved_by":         limitSkillText(adminName, 80),
-			"approved_at":         &now,
-		}).Error; err != nil {
-			return err
 		}
 		if err := tx.Model(&ver).Update("status", models.SkillAssetStatusApproved).Error; err != nil {
 			return err
@@ -183,19 +225,10 @@ func ApproveSkillAsset(assetID uuid.UUID, adminID uuid.UUID, adminName, notes st
 		if err := finalizeDiagnosticPlansForAsset(tx, ver.Content); err != nil {
 			return err
 		}
-		pack = built
-		return nil
+		return insertSkillAssetReview(tx, assetID, models.SkillAssetReviewActionApprove, adminID, adminName, notes, publishMode, merged, path, diffMap)
 	})
 	if err != nil {
-		return nil, "", false, err
-	}
-	if mergeWithRegistry {
-		pack, merged = MergeSkillPackWithRegistry(reg, pack)
-	}
-	var errPub error
-	path, errPub = reg.SaveGenerated(pack)
-	if errPub != nil {
-		return pack, "", merged, errPub
+		return pack, path, merged, err
 	}
 	return pack, path, merged, nil
 }
@@ -211,8 +244,9 @@ func RejectSkillAsset(assetID uuid.UUID, adminName, reason string) error {
 			return fmt.Errorf("already_approved")
 		}
 		updates := map[string]interface{}{
-			"status":      models.SkillAssetStatusDeprecated,
-			"approved_by": limitSkillText(adminName, 80),
+			"status":           models.SkillAssetStatusDeprecated,
+			"rejected_reason":  limitSkillText(reason, 2000),
+			"deprecated_reason": "",
 		}
 		if err := tx.Model(&asset).Updates(updates).Error; err != nil {
 			return err
@@ -224,7 +258,10 @@ func RejectSkillAsset(assetID uuid.UUID, adminName, reason string) error {
 			}
 			_ = tx.Model(&models.SkillAssetVersion{}).Where("id = ?", *asset.CurrentVersionID).Updates(verUpdates)
 		}
-		return nil
+		actorID := uuid.Nil
+		return insertSkillAssetReview(tx, assetID, models.SkillAssetReviewActionReject, actorID, adminName, reason, "", false, "", map[string]interface{}{
+			"reason": limitSkillText(reason, 2000),
+		})
 	})
 }
 
@@ -327,6 +364,16 @@ func diagnosticPackInputsForTopic(topic string) (input, keywords []string) {
 	switch strings.ToLower(strings.TrimSpace(topic)) {
 	case "go_runtime", "go-runtime":
 		return []string{"namespace", "pod", "deployment", "pid"}, []string{"go_runtime", "go-runtime", "diagnose", "readonly"}
+	case "redis":
+		return []string{"addr", "host", "port"}, []string{"redis", "diagnose", "readonly", "latency"}
+	case "kafka":
+		return []string{"bootstrap", "bootstrap_server"}, []string{"kafka", "diagnose", "readonly", "consumer_lag"}
+	case "nginx":
+		return []string{"access_log"}, []string{"nginx", "diagnose", "readonly", "5xx"}
+	case "mysql":
+		return []string{"dsn"}, []string{"mysql", "diagnose", "readonly", "runtime"}
+	case "elasticsearch", "es":
+		return []string{"url", "host"}, []string{"elasticsearch", "diagnose", "readonly", "health"}
 	default:
 		return []string{"namespace", "pod", "issue"}, []string{topic, "diagnose", "readonly", "kubectl"}
 	}
@@ -422,8 +469,14 @@ func skillAssetListItemFromModel(a *models.SkillAsset) SkillAssetListItem {
 		Source:        a.Source,
 		CreatedBy:     a.CreatedBy,
 		CreatedAt:     a.CreatedAt,
-		ApprovedBy:    a.ApprovedBy,
-		ApprovedAt:    a.ApprovedAt,
+		ApprovedBy:        a.ApprovedBy,
+		ApprovedAt:        a.ApprovedAt,
+		RiskLevel:         a.RiskLevel,
+		ReviewNotes:       a.ReviewNotes,
+		RejectedReason:    a.RejectedReason,
+		PublishedPackPath: a.PublishedPackPath,
+		PublishedAt:       a.PublishedAt,
+		DeprecatedReason:  a.DeprecatedReason,
 	}
 	if a.CurrentVersionID != nil {
 		item.CurrentVersionID = a.CurrentVersionID.String()
