@@ -1,10 +1,11 @@
 package handlers
 
 import (
+	"crypto/sha256"
 	"crypto/subtle"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"regexp"
 	"strings"
 	"time"
@@ -120,8 +121,8 @@ type cliDiagnosticObservationRequest struct {
 	PlanID       string            `json:"plan_id" binding:"required"`
 	PlanToken    string            `json:"plan_token" binding:"required"`
 	Observations map[string]string `json:"observations"`
-	Summary       string            `json:"summary"`
-	Client        aiClientInfo      `json:"client"`
+	Summary      string            `json:"summary"`
+	Client       aiClientInfo      `json:"client"`
 }
 
 func PostCLIDiagnosticPlanObservations(c *gin.Context) {
@@ -165,6 +166,9 @@ func PostCLIDiagnosticPlanObservations(c *gin.Context) {
 		if subtle.ConstantTimeCompare([]byte(plan.FingerprintHash), []byte(ident.FingerprintHash)) != 1 {
 			return fmt.Errorf("fingerprint")
 		}
+		if plan.Status != models.DiagnosticPlanStatusPending {
+			return fmt.Errorf("used")
+		}
 		if time.Now().UTC().After(plan.ExpiresAt) {
 			_ = tx.Model(&plan).Update("status", models.DiagnosticPlanStatusExpired).Error
 			return fmt.Errorf("expired")
@@ -172,16 +176,21 @@ func PostCLIDiagnosticPlanObservations(c *gin.Context) {
 		if subtle.ConstantTimeCompare([]byte(plan.PlanTokenHash), []byte(hashSecret(req.PlanToken))) != 1 {
 			return fmt.Errorf("token")
 		}
+		plan.Status = models.DiagnosticPlanStatusObserved
+		plan.Observations = models.NewJSONBFromMap(stringMapToAny(req.Observations))
+		plan.Summary = limitText(req.Summary, 1200)
 		return tx.Model(&plan).Updates(map[string]interface{}{
-			"status":       models.DiagnosticPlanStatusObserved,
-			"observations": models.NewJSONBFromMap(stringMapToAny(req.Observations)),
-			"summary":      limitText(req.Summary, 1200),
+			"status":       plan.Status,
+			"observations": plan.Observations,
+			"summary":      plan.Summary,
 		}).Error
 	})
 	if err != nil {
 		switch err.Error() {
 		case "forbidden", "binding", "fingerprint", "token":
 			response.Unauthorized(c, "诊断任务单无效或不属于当前 CLI")
+		case "used":
+			response.BadRequest(c, "诊断任务单已使用")
 		case "expired":
 			response.BadRequest(c, "诊断任务单已过期")
 		default:
@@ -194,7 +203,123 @@ func PostCLIDiagnosticPlanObservations(c *gin.Context) {
 		}
 		return
 	}
+	if err := database.DB.Transaction(func(tx *gorm.DB) error {
+		return ensureDiagnosticPlanSkillUnlock(tx, &plan)
+	}); err != nil {
+		logger.Warn("ensure diagnostic plan skill unlock failed plan=%s: %v", plan.ID, err)
+	}
 	response.OK(c, gin.H{"plan_id": plan.ID.String(), "status": models.DiagnosticPlanStatusObserved})
+}
+
+func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) error {
+	if tx == nil || plan == nil || plan.UserID == uuid.Nil {
+		return nil
+	}
+	topic := strings.TrimSpace(strings.ToLower(plan.Topic))
+	if topic == "" {
+		topic = "unknown"
+	}
+	name := "diagnostic." + sanitizeSkillAssetName(topic) + ".readonly-plan"
+	var asset models.SkillAsset
+	if err := tx.Where("name = ?", name).First(&asset).Error; err != nil {
+		if err != gorm.ErrRecordNotFound {
+			return err
+		}
+		asset = models.SkillAsset{
+			Topic:           topic,
+			Name:            name,
+			DisplayName:     "只读诊断计划: " + topic,
+			Status:          models.SkillAssetStatusReview,
+			Source:          "diagnostic_plan",
+			CreatedByUserID: &plan.UserID,
+			CreatedBy:       plan.Username,
+			QualityLabels:   models.NewJSONBFromMap(map[string]interface{}{"review_required": true}),
+		}
+		if err := tx.Create(&asset).Error; err != nil {
+			return err
+		}
+	}
+	content := map[string]interface{}{
+		"topic":                topic,
+		"mode":                 "readonly_plan",
+		"source_plan_id":       plan.ID.String(),
+		"source_plan_status":   plan.Status,
+		"steps":                json.RawMessage(plan.Steps),
+		"observation_summary":  plan.Summary,
+		"requires_super_admin": true,
+	}
+	raw, _ := json.Marshal(content)
+	sum := sha256.Sum256(raw)
+	checksum := hex.EncodeToString(sum[:])
+	versionName := "v" + time.Now().UTC().Format("20060102150405")
+	var version models.SkillAssetVersion
+	if err := tx.Where("skill_asset_id = ? AND checksum = ?", asset.ID, checksum).First(&version).Error; err != nil {
+		if err != gorm.ErrRecordNotFound {
+			return err
+		}
+		version = models.SkillAssetVersion{
+			SkillAssetID: asset.ID,
+			Version:      versionName,
+			Status:       models.SkillAssetStatusReview,
+			Content:      models.NewJSONBFromMap(content),
+			Checksum:     checksum,
+			Notes:        "created from CLI readonly diagnostic observations",
+		}
+		if err := tx.Create(&version).Error; err != nil {
+			return err
+		}
+	}
+	if err := tx.Model(&asset).Updates(map[string]interface{}{
+		"current_version_id": version.ID,
+		"status":             models.SkillAssetStatusReview,
+	}).Error; err != nil {
+		return err
+	}
+	versionID := version.ID
+	var unlock models.UserSkillUnlock
+	if err := tx.Where("user_id = ? AND skill_asset_id = ?", plan.UserID, asset.ID).First(&unlock).Error; err != nil {
+		if err != gorm.ErrRecordNotFound {
+			return err
+		}
+		unlock = models.UserSkillUnlock{
+			UserID:              plan.UserID,
+			SkillAssetID:        asset.ID,
+			SkillAssetVersionID: &versionID,
+			Source:              "diagnostic_plan",
+		}
+		return tx.Create(&unlock).Error
+	}
+	return tx.Model(&unlock).Updates(map[string]interface{}{
+		"skill_asset_version_id": versionID,
+		"source":                 "diagnostic_plan",
+		"valid_until":            nil,
+	}).Error
+}
+
+func sanitizeSkillAssetName(s string) string {
+	s = strings.ToLower(strings.TrimSpace(s))
+	var b strings.Builder
+	lastDash := false
+	for _, r := range s {
+		ok := (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9')
+		if ok {
+			b.WriteRune(r)
+			lastDash = false
+			continue
+		}
+		if !lastDash {
+			b.WriteByte('-')
+			lastDash = true
+		}
+	}
+	out := strings.Trim(b.String(), "-")
+	if out == "" {
+		return "unknown"
+	}
+	if len(out) > 60 {
+		out = out[:60]
+	}
+	return out
 }
 
 func stringMapToAny(in map[string]string) map[string]interface{} {
@@ -359,4 +484,3 @@ func allowedK8sFlagValues(args []string) bool {
 	}
 	return expectValue == ""
 }
-

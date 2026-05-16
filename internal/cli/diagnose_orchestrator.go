@@ -84,7 +84,7 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 	opts := effectiveLoaderOptions()
 	ev := loadEvolutionConfig()
 	opts.GeneratedSkillsDir, opts.GeneratedKnowledgeDir = loader.DefaultGeneratedDirs()
-	if !ev.EnableGenerated {
+	if !ev.EnableGenerated || !localGeneratedSkillsEnabled() {
 		opts.GeneratedSkillsDir = ""
 		opts.GeneratedKnowledgeDir = ""
 	}
@@ -155,6 +155,9 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 }
 
 func applyDiagnoseSkillDraft(resp *diagnoseResponse, ev evolutionConfig) {
+	if !localGeneratedSkillsEnabled() {
+		return
+	}
 	if resp == nil || resp.SkillDraft == nil || resp.SkillDraft.Name == "" {
 		return
 	}
@@ -169,6 +172,10 @@ func applyDiagnoseSkillDraft(resp *diagnoseResponse, ev evolutionConfig) {
 			recordDiagnoseMetric("autopipeline_success")
 		}
 	}
+}
+
+func localGeneratedSkillsEnabled() bool {
+	return os.Getenv("OPSFLEET_ENABLE_LOCAL_SKILL_DRAFT") == "1"
 }
 
 func ensureMap(m map[string]interface{}) map[string]interface{} {

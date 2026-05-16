@@ -40,8 +40,8 @@ func (SkillAsset) TableName() string {
 
 type SkillAssetVersion struct {
 	BaseModel
-	SkillAssetID uuid.UUID `gorm:"type:uuid;not null;index" json:"skill_asset_id"`
-	Version      string    `gorm:"size:64;not null" json:"version"`
+	SkillAssetID uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_skill_asset_version;index" json:"skill_asset_id"`
+	Version      string    `gorm:"size:64;not null;uniqueIndex:idx_skill_asset_version" json:"version"`
 	Status       string    `gorm:"size:32;not null;default:'draft';index" json:"status"`
 	Content      JSONB     `gorm:"type:jsonb;not null;default:'{}'" json:"content"`
 	Checksum     string    `gorm:"size:64;not null;index" json:"checksum"`
@@ -54,8 +54,8 @@ func (SkillAssetVersion) TableName() string {
 
 type UserSkillUnlock struct {
 	BaseModel
-	UserID              uuid.UUID  `gorm:"type:uuid;not null;index:idx_user_skill_unlock" json:"user_id"`
-	SkillAssetID        uuid.UUID  `gorm:"type:uuid;not null;index:idx_user_skill_unlock" json:"skill_asset_id"`
+	UserID              uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_user_skill_unlock" json:"user_id"`
+	SkillAssetID        uuid.UUID  `gorm:"type:uuid;not null;uniqueIndex:idx_user_skill_unlock" json:"skill_asset_id"`
 	SkillAssetVersionID *uuid.UUID `gorm:"type:uuid;index" json:"skill_asset_version_id,omitempty"`
 	Source              string     `gorm:"size:64;not null;default:'diagnosis_unlock'" json:"source"`
 	ValidUntil          *time.Time `json:"valid_until,omitempty"`
@@ -85,4 +85,3 @@ type DiagnosticPlan struct {
 func (DiagnosticPlan) TableName() string {
 	return "diagnostic_plans"
 }
-

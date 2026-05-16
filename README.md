@@ -51,6 +51,8 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 
 `analyze` / `ask` / `runbook`：在默认内建 OpsFleet 基址（或 `OPSFLEET_API_URL`）可用时，**优先调用控制台公开接口** `POST /ft-api/api/ai/diagnose`、`/api/ai/ask`、`/api/ai/runbook`，**不要求本机配置 DeepSeek api_key**；仅当服务端不可用且本机已配置凭据时才回退到本地 LLM。回退若出现 HTTP 500，多为控制台未配置 **`OPSFLEET_AI_API_KEY`** 或无法访问 DeepSeek；在 **`/etc/opsfleet/backend.env`**（或 systemd 环境）补齐并 **`systemctl restart opsfleet-backend`**，或在运行 `ai-sre` 的机器配置 **`~/.config/ai-sre/config.yaml`** 的 **`api_key`** 作为回退。`analyze k8s` 在能执行 `kubectl` 时会把采集结果一并 POST 给服务端；自 **0.5.0** 起，**所有 topic** 都走「证据驱动」管道——`analyze kafka/redis/mysql/nginx/elasticsearch` 在用户传入 `-d bootstrap=…`、`-d target=host:port`、`-d dsn=…`、`-d access_log=…`、`-d base_url=…` 等参数时，会**就近调用本地** `ai-sre <topic> diagnose --json` 子命令采集指标，作为 `kafka_diagnose_json` / `redis_diagnose_json` / `mysql_diagnose_json` / `nginx_diagnose_json` / `es_diagnose_json` 一并 POST 给服务端，再由服务端提示词约束为「根因 + 证据摘录 + 修复要点」，减少泛泛命令清单；`--pod` 为**具体 Pod 名**时会额外附带该 Pod 的 describe/events/logs（含 previous）并优先参与推理。
 
+**服务端诊断任务单**：当 `analyze k8s` 本机没有可用 kubectl 证据、但当前 ai-sre 已绑定控制台 CLI token 时，CLI 会向服务端请求一次性只读任务单，只包含固定 argv 的 `kubectl get/describe/logs/version/config current-context` 采集动作，不下发 skill YAML 或提示词。TTY 会先预览命令并要求输入 `y`；CI/Ansible 等非 TTY 需加 `--yes`。采集结果会回传服务端绑定当前用户，并合并进本次诊断上下文；服务端只把该 topic 的诊断能力资产标记为待 super_admin 审核。旧版本地生成 skill 默认不再写入或加载；如需兼容调试，显式设置 `OPSFLEET_ENABLE_LOCAL_SKILL_DRAFT=1`。
+
 **Go runtime 智能诊断**：推荐使用 `ai-sre diagnose --pid <pid>`、`ai-sre diagnose --name <name>` 或 `ai-sre diagnose --pod <pod|namespace/pod|namespace/pod/container>`（`--pid-name` 仍兼容）。命令开始前会校验 CLI token、机器指纹与 `feature.runtime_observe` 权益；通过后默认采样 4 次、间隔 10 秒，读取 `/proc/<pid>/status`、`smaps_rollup`、`stat`（含 utime/stime）、`limits`、`fd`、`maps` 以及 cgroup v1/v2 的 memory/cpu 指标，判断 RSS、匿名内存、FD、线程数、cgroup memory/CPU throttling 与趋势风险。`--name` 会扫描 `/proc` 并优先选择 Go binary；`--pod` 会通过 kubectl 定位 Pod 所在节点与容器 ID，创建临时只读 collector 读取宿主机 procfs/cgroup，结束后自动清理。若采集器镜像拉取失败（如离线集群无 busybox），命令仍会基于目标 Pod 与采集器事件给出诊断结论，并提示设置 `OPSFLEET_GO_RUNTIME_COLLECTOR_IMAGE` 或在节点上用 `--pid`。该能力需要当前 ai-sre 已绑定用户 token，诊断结果会自动上传到控制台「执行记录」与「运行时诊断」（根因/证据可按 Markdown 渲染展示，并可删除历史报告），普通用户只能看到自己的记录。旧入口 `ai-sre diagnose go-process ...` 继续保留，用于离线 fixture 或手动参数调试。
 
 **诊断结束后的反馈闭环**：TTY 下 `analyze` 答完会追加一行 `本次诊断是否帮你定位了根因？输入 y / n / 自由备注；空行跳过。`；按需写一行后将通过 `POST /api/ai/skills/feedback` 落到服务端 `feedback/<topic>.jsonl`，参与下次 `ai-sre skills refine`。非 TTY、`-o json` 或显式 `--no-feedback` 会自动跳过。
@@ -97,7 +99,7 @@ Go 实现的 CLI：**技能包（Skill Pack）+ Prompt 组装 + 可选轻量 RAG
 | `--skills-dir` | 额外技能包目录（`*.yaml`，与内置合并；同名覆盖） |
 | `--knowledge-dir` | 额外知识库目录（`*.md`，与内置合并参与 RAG） |
 
-`analyze` 常用 flag：`--lag`、`--topic`、`--pod`、`--namespace`、`--issue`、`--code`、`--upstream`、`--latency`、`-d`/`--set key=value`。
+`analyze` 常用 flag：`--lag`、`--topic`、`--pod`、`--namespace`、`--issue`、`--code`、`--upstream`、`--latency`、`-d`/`--set key=value`、`--yes`（确认服务端只读诊断任务单）。
 
 ---
 

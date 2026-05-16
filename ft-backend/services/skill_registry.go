@@ -137,12 +137,52 @@ func (r *SkillRegistry) loadBuiltin() error {
 	if err := r.loadBuiltinFromEmbed(); err != nil {
 		return err
 	}
-	if r.dataDir != "" {
-		if err := r.loadBuiltinFromDir(filepath.Join(r.dataDir, "builtin")); err != nil {
+	seen := map[string]struct{}{}
+	loadDir := func(dir string) error {
+		dir = strings.TrimSpace(dir)
+		if dir == "" {
+			return nil
+		}
+		if abs, err := filepath.Abs(dir); err == nil {
+			dir = abs
+		}
+		if _, ok := seen[dir]; ok {
+			return nil
+		}
+		seen[dir] = struct{}{}
+		return r.loadBuiltinFromDir(dir)
+	}
+	for _, dir := range builtinSkillDirCandidates(r.dataDir) {
+		if err := loadDir(dir); err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+func builtinSkillDirCandidates(dataDir string) []string {
+	var dirs []string
+	if strings.TrimSpace(dataDir) != "" {
+		dirs = append(dirs, filepath.Join(dataDir, "builtin"))
+	}
+	addRoot := func(root string) {
+		if root == "" {
+			return
+		}
+		dirs = append(dirs, filepath.Join(root, "skills", "builtin"))
+		dirs = append(dirs, filepath.Join(root, "ft-backend", "skills", "builtin"))
+	}
+	if wd, err := os.Getwd(); err == nil {
+		for i := 0; i < 5; i++ {
+			addRoot(wd)
+			parent := filepath.Dir(wd)
+			if parent == wd {
+				break
+			}
+			wd = parent
+		}
+	}
+	return dirs
 }
 
 func (r *SkillRegistry) loadBuiltinFromEmbed() error {

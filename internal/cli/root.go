@@ -39,6 +39,7 @@ var (
 	setKV             map[string]string
 	noFeedback        bool
 	goRuntimeOpts     goRuntimeCLIOptions
+	diagnosticPlanYes bool
 )
 
 // Execute runs the Cobra root (entry from main) as ai-sre.
@@ -174,6 +175,17 @@ k8s 场景 --pod 可填：
 			for k, v := range gatherTopicEvidence(cmd.Context(), topic, ctx) {
 				ctx[k] = v
 			}
+			if shouldRequestServerDiagnosticPlan(topic, ctx) {
+				obs, ran, err := maybeRunServerDiagnosticPlan(cmd.Context(), topic, ctx, diagnosticPlanYes)
+				if err != nil {
+					return err
+				}
+				if ran {
+					for k, v := range obs {
+						ctx[k] = v
+					}
+				}
+			}
 			if hasTopicEvidence(ctx) {
 				ctx["diagnosis_style"] = "evidence_root_cause"
 			}
@@ -207,6 +219,7 @@ k8s 场景 --pod 可填：
 	cmd.Flags().StringVar(&latency, "latency", "", "延迟描述，如 50ms、p99=20ms")
 	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
 	cmd.Flags().BoolVar(&noFeedback, "no-feedback", false, "禁用诊断后的「是否帮到我」反馈提示（非 TTY、-o json 也会自动跳过）")
+	cmd.Flags().BoolVar(&diagnosticPlanYes, "yes", false, "非 TTY 环境确认执行服务端只读诊断任务单")
 	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
   %s analyze k8s --pod pending
   %s analyze k8s --pod kube-controller-manager-k8s-master-0 -n kube-system
@@ -388,7 +401,10 @@ func bootstrap() (*engine.Engine, error) {
 		}
 		sDir, kDir = "", ""
 	}
-	genSkillsDir, genKnowledgeDir := loader.DefaultGeneratedDirs()
+	genSkillsDir, genKnowledgeDir := "", ""
+	if localGeneratedSkillsEnabled() {
+		genSkillsDir, genKnowledgeDir = loader.DefaultGeneratedDirs()
+	}
 	skills, kb, err := loader.LoadSkillsAndKnowledge(loader.Options{
 		SkillsExtraDir:        sDir,
 		KnowledgeExtraDir:     kDir,
