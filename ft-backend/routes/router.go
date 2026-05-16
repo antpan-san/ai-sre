@@ -67,6 +67,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/runtime-watch/sample", middleware.RateLimit("runtime-watch-sample", 3000, time.Minute), handlers.PostRuntimeWatchSample)
 		public.GET("/cli/go-runtime/auth-check", middleware.RateLimit("cli-go-runtime-auth-check", 300, time.Minute), handlers.CheckCLIGoRuntimeAuth)
 		public.POST("/cli/go-runtime/reports", middleware.RateLimit("cli-go-runtime-report", 300, time.Minute), handlers.PostCLIGoRuntimeReport)
+		public.POST("/cli/diagnostics/plan", middleware.RateLimit("cli-diagnostic-plan", 120, time.Minute), handlers.CreateCLIDiagnosticPlan)
+		public.POST("/cli/diagnostics/observations", middleware.RateLimit("cli-diagnostic-observations", 240, time.Minute), handlers.PostCLIDiagnosticPlanObservations)
 		// AI diagnosis/evolution public endpoints for ai-sre runtime fallback
 		aiPublic := public.Group("/ai")
 		aiPublic.Use(middleware.RateLimit("public-ai", 30, time.Minute))

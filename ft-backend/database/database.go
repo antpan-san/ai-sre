@@ -102,6 +102,10 @@ func Migrate() error {
 		&models.AIUsage{},
 		&models.CLIInstallSession{},
 		&models.CLIBinding{},
+		&models.SkillAsset{},
+		&models.SkillAssetVersion{},
+		&models.UserSkillUnlock{},
+		&models.DiagnosticPlan{},
 		&models.RuntimeWatchSession{},
 		&models.RuntimeWatchSample{},
 		// NOTE: Heartbeat is NOT included here – it is a partitioned table

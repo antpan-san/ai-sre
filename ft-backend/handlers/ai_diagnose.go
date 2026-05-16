@@ -87,10 +87,6 @@ func AIDiagnose(c *gin.Context) {
 	}
 	commitQuota(true)
 
-	draft := buildSkillDraftFromContext(topic, kvForSkillDraft(req.Context))
-	if !isSkillDraftValid(draft) {
-		draft = nil
-	}
 	skillName := ""
 	skillDisplay := ""
 	skillSource := ""
@@ -141,7 +137,6 @@ func AIDiagnose(c *gin.Context) {
 		SkillName:    skillName,
 		SkillDisplay: skillDisplay,
 		Metadata:     meta,
-		SkillDraft:   draft,
 	})
 }
 

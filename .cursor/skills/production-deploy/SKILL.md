@@ -16,6 +16,8 @@ Use this skill when the user asks to deploy ai-sre/OpsFleetPilot to production, 
 
 This skill is intentionally separate from `release-deploy`: production already has custom Nginx routing on port 80 and must not be overwritten by the lab deployment script.
 
+**技能包策略（用户指定，与 `monorepo-release.mdc` 一致）**：**GitHub `git push` 不承载技能包对外发布**；**builtin / 服务端注册表** 的生效环境是 **本生产机**（`204.44.123.101`），**不是**实验室 `192.168.56.11`。改 `ft-backend/skills/builtin/*.yaml` 后须在本机执行下文 **「技能包部署」** 或全量生产发布，不得以实验室 `verify` 的 `/api/ai/skills` 作为上线结论。
+
 ## Fixed Production Target
 
 | Item | Value |
@@ -65,6 +67,34 @@ ssh -p 10080 root@204.44.123.101 'test -x /root/sre/bin/ai-sre && /root/sre/bin/
 
 Expected before deployment may be an older ai-sre version. Do not continue if `opsfleet-backend` or `nginx` is already broken unless the user asked for recovery.
 
+## 技能包部署（仅改 YAML / 注册表时可用）
+
+**触发**：`ft-backend/skills/builtin/**`、`internal/assets/skills/**`、`ft-backend/services/skill_*.go`、`ft-backend/handlers/ai_skills.go` 等。
+
+**禁止**：为技能包单独跑 `deploy-opsfleet-remote.sh` 到实验室；**禁止**宣称「已 push GitHub 则技能包已发布」。
+
+**推荐（轻量，仅技能包）** — 仓库根：
+
+```bash
+chmod +x ./scripts/deploy-skill-packs-production.sh
+./scripts/deploy-skill-packs-production.sh
+```
+
+脚本行为：rsync `ft-backend/skills/`（及存在的 `internal/assets/skills/`）→ 生产机 `build-all.sh`（builtin **embed 进 `opsfleet-backend`**）→ `systemctl restart opsfleet-backend` → 本机 `curl` `/health` 与 `/ft-api/api/ai/skills`。
+
+**与全量生产发布关系**：若同时改前端/大量后端，仍走下文 **Sync Source → Build On Production → Activate**；技能包会随 `build-all.sh` 一并更新。仅改技能时可不 rsync 全仓，用上一脚本即可。
+
+**generated（运行时）**：生产目录默认 **`/var/lib/opsfleet/ai-skills/generated/`**（`OPSFLEET_AI_SKILL_DATA_DIR`）。**不要**用 `rsync --delete` 覆盖整个 `ai-skills`，除非用户明确要求替换 generated；备份见下节扩展项。
+
+**生产技能包验收（必须）**：
+
+```bash
+ssh -p 10080 root@204.44.123.101 'curl -fsS http://127.0.0.1/ft-api/api/ai/skills | head -c 4096; echo'
+ssh -p 10080 root@204.44.123.101 'test -d /var/lib/opsfleet/ai-skills && ls -la /var/lib/opsfleet/ai-skills/generated 2>/dev/null | head -20 || true'
+```
+
+汇报：builtin 数量、是否含预期 `name`/`topics`、生产 `data_dir` 是否可写。
+
 ## Backup
 
 Create a full operational backup:
@@ -81,6 +111,7 @@ cp -a /etc/opsfleet "$B/opsfleet-etc" 2>/dev/null || true
 cp -a /root/sre/ft-backend/conf/config.yaml "$B/config.yaml" 2>/dev/null || true
 cp -a /root/sre/bin "$B/bin" 2>/dev/null || true
 cp -a /var/www/opsfleetpilot "$B/web" 2>/dev/null || true
+cp -a /var/lib/opsfleet/ai-skills "$B/ai-skills" 2>/dev/null || true
 printf "%s\n" "$B"'
 ```
 
@@ -233,8 +264,9 @@ Only restore Nginx directories if the deployment intentionally changed Nginx and
 
 Report:
 
-- Git commit hash deployed.
+- Git commit hash deployed (if applicable).
 - ai-sre version deployed.
+- **Skill registry**: `GET /ft-api/api/ai/skills` count / key packs (production only).
 - Backup directory.
 - Whether production `config.yaml` and Nginx routing were preserved.
 - Health/version/domain verification results.

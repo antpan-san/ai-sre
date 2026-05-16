@@ -56,6 +56,7 @@ description: >-
 - **产品决策**以用户最新消息为准；与 plan 冲突时以用户「变更：…」为准。
 - **ai-sre 同仓**常见意图映射：
   - 动 `internal/cli` / `main.go` → 必须 `deploy-opsfleet-remote.sh`（更新 `bin/ai-sre`），不能只 `deploy-remote.sh`
+  - 动 `ft-backend/skills/builtin/**` 等技能包 → `git push` 后 **`./scripts/deploy-skill-packs-production.sh`**（生产）；实验室不算技能包发布
   - 动 `ft-backend` 配置 → `conf/config.yaml` + `backend-configuration` skill，密钥仅 env
   - 动 ansible/K8s 离线/UI 部署 → 另加 `k8s-offline-deploy-test`
 - 用户说「实现 plan」→ 打开 plan 中 todos，逐项完成并标记，**不编辑 plan 文件本身**。

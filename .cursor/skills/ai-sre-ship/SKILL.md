@@ -106,7 +106,9 @@ description: >-
 
 **`git commit` 是强制步骤**：每一次在仓库内的代码/配置/文档类修改，在步骤 3 通过后**必须**有新的 commit 纳入本轮全部变更；**禁止**「只 deploy、不 commit」或把改动留在工作区结束回合（用户本回合明确豁免 commit 除外）。可分多次 commit（如先代码后文档），但**本轮结束前**不得残留未提交的本次文件。
 
-**`git push` 是向远端 Git 的默认最后一步**；在步骤 3 冒烟/远程测试未通过时**不得**执行 push（用户本回合明确豁免 push 除外）。
+**`git push` 是向 GitHub 同步源码的默认步骤**；在步骤 3 冒烟/远程测试未通过时**不得**执行 push（用户本回合明确豁免 push 除外）。
+
+**`git push` ≠ 技能包发布**：push **不**向用户环境发布技能包。若本轮改动 `ft-backend/skills/builtin/**`、`internal/assets/skills/**` 或技能注册表相关代码，在 push **之后**另执行 **`.cursor/skills/production-deploy/SKILL.md` §技能包** 或 **`./scripts/deploy-skill-packs-production.sh`**（生产 `204.44.123.101`）；**不要**把实验室 `192.168.56.11` 的 `/api/ai/skills` 当作技能包已上线依据。
 
 在**本地**项目根：
 
