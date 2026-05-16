@@ -13,6 +13,7 @@ import (
 	"ft-backend/services"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 )
 
 type aiDiagnoseRequest struct {
@@ -76,6 +77,11 @@ func AIDiagnose(c *gin.Context) {
 	}
 	reg := services.DefaultSkillRegistry()
 	matched := reg.Match(topic, req.Context)
+	if ident != nil && ident.UserID != uuid.Nil {
+		if overlay := services.UserDiagnosticSkillOverlay(ident.UserID, topic); overlay != nil {
+			matched = services.MergeRegisteredSkills(matched, overlay)
+		}
+	}
 
 	prompt := buildServerDiagnosePromptWithSkill(topic, req.Context, matched)
 	answer, err := runServerDeepSeek(c.Request.Context(), prompt)

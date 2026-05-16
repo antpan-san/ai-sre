@@ -98,6 +98,8 @@ func CreateCLIDiagnosticPlan(c *gin.Context) {
 		response.ServerError(c, "保存诊断任务单失败")
 		return
 	}
+	commitQuota(true)
+	recordAIExecution(ident, "diagnostic_plan", "诊断任务单: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, quotaDecision.PackKey, models.ExecutionStatusSuccess, "", "", req.Context, req.Client, quotaDecision)
 	response.OK(c, gin.H{
 		"plan_id":               plan.ID.String(),
 		"plan_token":            token,
@@ -208,6 +210,7 @@ func PostCLIDiagnosticPlanObservations(c *gin.Context) {
 	}); err != nil {
 		logger.Warn("ensure diagnostic plan skill unlock failed plan=%s: %v", plan.ID, err)
 	}
+	recordAIExecution(ident, "diagnostic_plan_observations", "诊断证据上报: "+plan.Topic, "", "", skillPackForTopic(plan.Topic), models.ExecutionStatusSuccess, plan.Summary, "", nil, req.Client, aiQuotaDecision{PackKey: skillPackForTopic(plan.Topic)})
 	response.OK(c, gin.H{"plan_id": plan.ID.String(), "status": models.DiagnosticPlanStatusObserved})
 }
 
@@ -245,6 +248,7 @@ func ensureDiagnosticPlanSkillUnlock(tx *gorm.DB, plan *models.DiagnosticPlan) e
 		"source_plan_id":       plan.ID.String(),
 		"source_plan_status":   plan.Status,
 		"steps":                json.RawMessage(plan.Steps),
+		"observations":         json.RawMessage(plan.Observations),
 		"observation_summary":  plan.Summary,
 		"requires_super_admin": true,
 	}

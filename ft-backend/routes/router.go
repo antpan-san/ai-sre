@@ -141,6 +141,10 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		// ai-sre 技能包（控制台只读展示；与 /api/ai/skills 同源数据，需超级管理员）
 		superAdmin.GET("/admin/ai/skills", handlers.AISkillsList)
 		superAdmin.GET("/admin/ai/skills/:name", handlers.AISkillsGet)
+		superAdmin.GET("/admin/skill-assets", handlers.AdminListSkillAssets)
+		superAdmin.GET("/admin/skill-assets/:id", handlers.AdminGetSkillAsset)
+		superAdmin.POST("/admin/skill-assets/:id/approve", handlers.AdminApproveSkillAsset)
+		superAdmin.POST("/admin/skill-assets/:id/reject", handlers.AdminRejectSkillAsset)
 
 		// ---- Machine Management（普通登录用户可查，变更仅管理员） ----
 		console.GET("/machine", handlers.GetMachineList)
