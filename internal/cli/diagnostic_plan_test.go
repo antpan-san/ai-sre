@@ -32,6 +32,12 @@ func TestShouldRequestServerDiagnosticPlan(t *testing.T) {
 	if shouldRequestServerDiagnosticPlan("k8s", map[string]string{"kubectl_nodes": "ok"}) {
 		t.Fatal("expected local kubectl evidence to skip plan")
 	}
+	if !shouldRequestServerDiagnosticPlan("go_runtime", map[string]string{}) {
+		t.Fatalf("expected go_runtime plan when no evidence")
+	}
+	if shouldRequestServerDiagnosticPlan("go_runtime", map[string]string{"go_runtime_diagnose_json": "ok"}) {
+		t.Fatalf("expected skip when go_runtime evidence exists")
+	}
 	if shouldRequestServerDiagnosticPlan("kafka", map[string]string{}) {
 		t.Fatal("expected non-k8s topic to skip plan")
 	}

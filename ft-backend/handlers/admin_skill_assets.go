@@ -53,7 +53,8 @@ func AdminGetSkillAsset(c *gin.Context) {
 }
 
 type adminSkillAssetApproveRequest struct {
-	Notes string `json:"notes"`
+	Notes             string `json:"notes"`
+	MergeWithRegistry *bool  `json:"merge_with_registry"`
 }
 
 // AdminApproveSkillAsset publishes an approved skill pack to the registry data dir.
@@ -69,7 +70,11 @@ func AdminApproveSkillAsset(c *gin.Context) {
 	adminName, _ := c.Get("username")
 	uid, _ := adminID.(uuid.UUID)
 	name, _ := adminName.(string)
-	pack, path, err := services.ApproveSkillAsset(id, uid, name, strings.TrimSpace(req.Notes))
+	merge := true
+	if req.MergeWithRegistry != nil {
+		merge = *req.MergeWithRegistry
+	}
+	pack, path, merged, err := services.ApproveSkillAsset(id, uid, name, strings.TrimSpace(req.Notes), merge)
 	if err != nil {
 		switch err.Error() {
 		case "already_approved":
@@ -101,6 +106,7 @@ func AdminApproveSkillAsset(c *gin.Context) {
 		"status":   "approved",
 		"pack":     pack,
 		"path":     path,
+		"merged":   merged,
 	})
 }
 

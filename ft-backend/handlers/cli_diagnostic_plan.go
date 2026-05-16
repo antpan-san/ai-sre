@@ -338,9 +338,38 @@ func buildReadonlyDiagnosticPlan(topic string, kv map[string]string) ([]diagnost
 	switch strings.ToLower(strings.TrimSpace(topic)) {
 	case "k8s", "kubernetes":
 		return buildK8sReadonlyDiagnosticPlan(kv), nil
+	case "go_runtime", "go-runtime":
+		return buildGoRuntimeReadonlyDiagnosticPlan(kv), nil
 	default:
-		return nil, fmt.Errorf("当前仅支持 k8s 只读诊断任务单")
+		return nil, fmt.Errorf("当前仅支持 k8s / go_runtime 只读诊断任务单")
 	}
+}
+
+func buildGoRuntimeReadonlyDiagnosticPlan(kv map[string]string) []diagnosticPlanStep {
+	ns := cleanK8sNameFromMap(kv, "namespace", "")
+	pod := cleanK8sNameFromMap(kv, "pod", "")
+	deploy := cleanK8sNameFromMap(kv, "deployment", "")
+	argv := []string{"ai-sre", "go_runtime", "diagnose", "--json"}
+	switch {
+	case pod != "" && ns != "":
+		argv = append(argv, "--pod", ns+"/"+pod)
+	case pod != "":
+		argv = append(argv, "--pod", pod)
+	case deploy != "" && ns != "":
+		argv = append(argv, "--deployment", ns+"/"+deploy)
+	case deploy != "":
+		argv = append(argv, "--deployment", deploy)
+	}
+	steps := []diagnosticPlanStep{
+		{ID: "go_runtime_diagnose_json", Title: "Go 运行时智能诊断（JSON）", Argv: argv, TimeoutSeconds: 90, EvidenceKey: "go_runtime_diagnose_json"},
+	}
+	if pod != "" && ns != "" {
+		steps = append(steps, diagnosticPlanStep{
+			ID: "kubectl_pod_wide", Title: "读取目标 Pod 状态", Argv: []string{"kubectl", "get", "pod", "-n", ns, pod, "-o", "wide"},
+			TimeoutSeconds: 15, EvidenceKey: "kubectl_focus_pod",
+		})
+	}
+	return steps
 }
 
 func buildK8sReadonlyDiagnosticPlan(kv map[string]string) []diagnosticPlanStep {
@@ -390,7 +419,13 @@ func k8sAnalyzePodFlagIsIssueKeywordServer(pod string) bool {
 }
 
 func allowedReadonlyDiagnosticCommand(argv []string) bool {
-	if len(argv) == 0 || argv[0] != "kubectl" {
+	if len(argv) == 0 {
+		return false
+	}
+	if argv[0] == "ai-sre" || strings.HasSuffix(argv[0], "/ai-sre") {
+		return allowedAISreReadonlyDiagnosticCommand(argv)
+	}
+	if argv[0] != "kubectl" {
 		return false
 	}
 	for _, a := range argv {
@@ -488,3 +523,52 @@ func allowedK8sFlagValues(args []string) bool {
 	}
 	return expectValue == ""
 }
+
+func allowedAISreReadonlyDiagnosticCommand(argv []string) bool {
+	if len(argv) < 3 {
+		return false
+	}
+	for _, a := range argv {
+		if strings.TrimSpace(a) == "" || strings.ContainsAny(a, ";&|`$<>") {
+			return false
+		}
+	}
+	if argv[1] != "go_runtime" || argv[2] != "diagnose" {
+		return false
+	}
+	return argsSubset(argv[3:], []string{
+		"--json", "--pod", "--deployment", "--statefulset", "--daemonset",
+		"--replicaset", "--job", "--cronjob", "--service", "--ingress", "--pvc",
+		"--pid", "--name", "--pid-name",
+	}) && allowedAISreDiagnosticFlagValues(argv[3:])
+}
+
+func allowedAISreDiagnosticFlagValues(args []string) bool {
+	allowed := map[string]struct{}{
+		"--json": {}, "--pod": {}, "--deployment": {}, "--statefulset": {}, "--daemonset": {},
+		"--replicaset": {}, "--job": {}, "--cronjob": {}, "--service": {}, "--ingress": {}, "--pvc": {},
+		"--pid": {}, "--name": {}, "--pid-name": {},
+	}
+	expectValue := ""
+	for _, a := range args {
+		if expectValue != "" {
+			if !aisreDiagnosticValueRe.MatchString(a) {
+				return false
+			}
+			expectValue = ""
+			continue
+		}
+		if !strings.HasPrefix(a, "--") {
+			return false
+		}
+		if _, ok := allowed[a]; !ok {
+			return false
+		}
+		if a != "--json" {
+			expectValue = a
+		}
+	}
+	return expectValue == ""
+}
+
+var aisreDiagnosticValueRe = regexp.MustCompile(`^[A-Za-z0-9_./:-]{0,512}$`)

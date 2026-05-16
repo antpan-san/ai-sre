@@ -36,10 +36,27 @@ type serverDiagnosticPlan struct {
 }
 
 func shouldRequestServerDiagnosticPlan(topic string, kv map[string]string) bool {
-	if !strings.EqualFold(strings.TrimSpace(topic), "k8s") && !strings.EqualFold(strings.TrimSpace(topic), "kubernetes") {
+	t := strings.ToLower(strings.TrimSpace(topic))
+	switch t {
+	case "k8s", "kubernetes":
+		return !hasKubectlEvidence(kv)
+	case "go_runtime", "go-runtime":
+		return !hasGoRuntimeDiagnosticEvidence(kv)
+	default:
 		return false
 	}
-	return !hasKubectlEvidence(kv)
+}
+
+func hasGoRuntimeDiagnosticEvidence(kv map[string]string) bool {
+	if kv == nil {
+		return false
+	}
+	for k := range kv {
+		if strings.HasPrefix(k, "go_runtime_") || strings.HasPrefix(k, "host_") {
+			return true
+		}
+	}
+	return false
 }
 
 func maybeRunServerDiagnosticPlan(ctx context.Context, topic string, kv map[string]string, yes bool) (map[string]string, bool, error) {
@@ -208,7 +225,13 @@ func executeDiagnosticPlan(ctx context.Context, plan *serverDiagnosticPlan) map[
 func runDiagnosticPlanCommand(ctx context.Context, timeout time.Duration, argv []string) string {
 	cctx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	cmd := exec.CommandContext(cctx, argv[0], argv[1:]...)
+	execArgv := append([]string(nil), argv...)
+	if execArgv[0] == "ai-sre" {
+		if self := selfExecutablePath(); self != "" {
+			execArgv[0] = self
+		}
+	}
+	cmd := exec.CommandContext(cctx, execArgv[0], execArgv[1:]...)
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -237,7 +260,13 @@ func diagnosticObservationSummary(obs map[string]string) string {
 }
 
 func allowedCLIDiagnosticPlanCommand(argv []string) bool {
-	if len(argv) == 0 || argv[0] != "kubectl" {
+	if len(argv) == 0 {
+		return false
+	}
+	if argv[0] == "ai-sre" || strings.HasSuffix(argv[0], "/ai-sre") {
+		return allowedCLIAISreDiagnosticCommand(argv)
+	}
+	if argv[0] != "kubectl" {
 		return false
 	}
 	for _, a := range argv {
@@ -359,7 +388,48 @@ func marshalStringMap(v map[string]string) []byte {
 	return b
 }
 
+func allowedCLIAISreDiagnosticCommand(argv []string) bool {
+	if len(argv) < 3 || argv[1] != "go_runtime" || argv[2] != "diagnose" {
+		return false
+	}
+	for _, a := range argv {
+		if strings.TrimSpace(a) == "" || strings.ContainsAny(a, ";&|`$<>") {
+			return false
+		}
+	}
+	return allowedCLIAISreArgs(argv[3:])
+}
+
+func allowedCLIAISreArgs(args []string) bool {
+	allowed := map[string]struct{}{
+		"--json": {}, "--pod": {}, "--deployment": {}, "--statefulset": {}, "--daemonset": {},
+		"--replicaset": {}, "--job": {}, "--cronjob": {}, "--service": {}, "--ingress": {}, "--pvc": {},
+		"--pid": {}, "--name": {}, "--pid-name": {},
+	}
+	expectValue := ""
+	for _, a := range args {
+		if expectValue != "" {
+			if !diagnosticAISreValueRe.MatchString(a) {
+				return false
+			}
+			expectValue = ""
+			continue
+		}
+		if !strings.HasPrefix(a, "--") {
+			return false
+		}
+		if _, ok := allowed[a]; !ok {
+			return false
+		}
+		if a != "--json" {
+			expectValue = a
+		}
+	}
+	return expectValue == ""
+}
+
 var (
 	diagnosticK8sSafeNameRe = regexp.MustCompile(`^[A-Za-z0-9_.-]{1,253}$`)
 	diagnosticTailRe        = regexp.MustCompile(`^--tail=[0-9]{1,5}$`)
+	diagnosticAISreValueRe  = regexp.MustCompile(`^[A-Za-z0-9_./:-]{0,512}$`)
 )

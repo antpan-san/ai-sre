@@ -55,6 +55,37 @@ func TestSanitizeSkillAssetName(t *testing.T) {
 	}
 }
 
+func TestBuildGoRuntimeReadonlyDiagnosticPlan(t *testing.T) {
+	steps := buildGoRuntimeReadonlyDiagnosticPlan(map[string]string{"namespace": "prod", "pod": "api-0"})
+	if len(steps) < 1 {
+		t.Fatalf("expected steps")
+	}
+	if !allowedReadonlyDiagnosticCommand(steps[0].Argv) {
+		t.Fatalf("unsafe go_runtime step: %#v", steps[0].Argv)
+	}
+	found := false
+	for i, a := range steps[0].Argv {
+		if a == "--pod" && i+1 < len(steps[0].Argv) && steps[0].Argv[i+1] == "prod/api-0" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected namespaced pod in argv, got %v", steps[0].Argv)
+	}
+}
+
+func TestAllowedAISreReadonlyDiagnosticCommand(t *testing.T) {
+	ok := []string{"ai-sre", "go_runtime", "diagnose", "--json", "--pod", "prod/api-0"}
+	if !allowedReadonlyDiagnosticCommand(ok) {
+		t.Fatalf("expected allowed ai-sre argv")
+	}
+	bad := []string{"ai-sre", "go_runtime", "diagnose", "--json", ";rm"}
+	if allowedReadonlyDiagnosticCommand(bad) {
+		t.Fatalf("expected reject metachar")
+	}
+}
+
 func TestCreateCLIDiagnosticPlanRequiresBearer(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()

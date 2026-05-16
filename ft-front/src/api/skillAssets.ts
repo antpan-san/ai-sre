@@ -45,8 +45,8 @@ export const getAdminSkillAsset = (id: string): Promise<{ asset: SkillAssetDetai
 
 export const approveAdminSkillAsset = (
   id: string,
-  body?: { notes?: string }
-): Promise<{ asset_id: string; status: string; path: string }> => {
+  body?: { notes?: string; merge_with_registry?: boolean }
+): Promise<{ asset_id: string; status: string; path: string; merged?: boolean }> => {
   return request.post(`/api/admin/skill-assets/${encodeURIComponent(id)}/approve`, body ?? {})
 }
 

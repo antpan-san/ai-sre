@@ -356,7 +356,7 @@ const openAssetDetail = async (id: string) => {
 const onApprove = async (row: SkillAssetListItem | SkillAssetDetail) => {
   try {
     await ElMessageBox.confirm(
-      '通过后将把诊断沉淀写入 generated 技能包并参与后续 AI 诊断匹配，是否继续？',
+      '通过后将把诊断沉淀写入 generated 技能包（默认与当前注册表同 topic 技能合并，保留原有分析步骤），是否继续？',
       '审核通过',
       { type: 'warning', confirmButtonText: '通过并发布', cancelButtonText: '取消' }
     )
@@ -365,8 +365,8 @@ const onApprove = async (row: SkillAssetListItem | SkillAssetDetail) => {
   }
   approvingId.value = row.id
   try {
-    const res = await approveAdminSkillAsset(row.id)
-    ElMessage.success(`已发布至 ${res.path || 'generated'}`)
+    const res = await approveAdminSkillAsset(row.id, { merge_with_registry: true })
+    ElMessage.success(res.merged ? `已合并发布至 ${res.path}` : `已发布至 ${res.path || 'generated'}`)
     assetDetailOpen.value = false
     await Promise.all([loadReview(), loadReviewPendingCount(), loadRegistry()])
   } catch {

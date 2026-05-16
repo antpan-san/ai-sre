@@ -107,13 +107,15 @@ func GetSkillAssetDetail(assetID uuid.UUID) (*SkillAssetDetail, error) {
 }
 
 // ApproveSkillAsset marks the asset approved, publishes a generated skill pack, and finalizes linked plans.
-func ApproveSkillAsset(assetID uuid.UUID, adminID uuid.UUID, adminName, notes string) (*SkillPack, string, error) {
+// When mergeWithRegistry is true, diagnostic content is merged into the existing builtin/generated pack for the topic.
+func ApproveSkillAsset(assetID uuid.UUID, adminID uuid.UUID, adminName, notes string, mergeWithRegistry bool) (*SkillPack, string, bool, error) {
 	reg := DefaultSkillRegistry()
 	if reg.DataDir() == "" {
-		return nil, "", fmt.Errorf("OPSFLEET_AI_SKILL_DATA_DIR 未配置，无法发布技能包")
+		return nil, "", false, fmt.Errorf("OPSFLEET_AI_SKILL_DATA_DIR 未配置，无法发布技能包")
 	}
 	var pack *SkillPack
 	var path string
+	var merged bool
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var asset models.SkillAsset
 		if err := tx.Where("id = ?", assetID).First(&asset).Error; err != nil {
@@ -158,14 +160,17 @@ func ApproveSkillAsset(assetID uuid.UUID, adminID uuid.UUID, adminName, notes st
 		return nil
 	})
 	if err != nil {
-		return nil, "", err
+		return nil, "", false, err
+	}
+	if mergeWithRegistry {
+		pack, merged = MergeSkillPackWithRegistry(reg, pack)
 	}
 	var errPub error
 	path, errPub = reg.SaveGenerated(pack)
 	if errPub != nil {
-		return pack, "", errPub
+		return pack, "", merged, errPub
 	}
-	return pack, path, nil
+	return pack, path, merged, nil
 }
 
 // RejectSkillAsset deprecates an asset pending review.
@@ -273,16 +278,26 @@ func SkillPackFromDiagnosticAsset(asset *models.SkillAsset, ver *models.SkillAss
 	}
 	steps := analysisStepsFromDiagnosticContent(content)
 	extra := buildDiagnosticExtraGuidance(content)
+	input, keywords := diagnosticPackInputsForTopic(topic)
 	return &SkillPack{
 		Name:          name,
 		DisplayName:   display,
 		Topics:        []string{topic},
-		MatchKeywords: []string{topic, "diagnose", "readonly", "kubectl"},
-		Input:         []string{"namespace", "pod", "issue"},
+		MatchKeywords: keywords,
+		Input:         input,
 		AnalysisSteps: steps,
 		OutputFormat:  []string{"root_cause", "solution", "verification_commands"},
 		ExtraGuidance: extra,
 	}, nil
+}
+
+func diagnosticPackInputsForTopic(topic string) (input, keywords []string) {
+	switch strings.ToLower(strings.TrimSpace(topic)) {
+	case "go_runtime", "go-runtime":
+		return []string{"namespace", "pod", "deployment", "pid"}, []string{"go_runtime", "go-runtime", "diagnose", "readonly"}
+	default:
+		return []string{"namespace", "pod", "issue"}, []string{topic, "diagnose", "readonly", "kubectl"}
+	}
 }
 
 func diagnosticPackName(topic string) string {
