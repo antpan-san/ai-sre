@@ -28,11 +28,6 @@ const (
 	EnvSkillAutoMaxPerDay = "OPSFLEET_SKILL_AUTO_REFINE_MAX_PER_DAY"
 	EnvJWTAccessTokenExp  = "OPSFLEET_JWT_ACCESS_TOKEN_EXP"
 	EnvJWTRefreshTokenExp = "OPSFLEET_JWT_REFRESH_TOKEN_EXP"
-	EnvDiskAlertEnabled   = "OPSFLEET_DISK_ALERT_ENABLED"
-	EnvDiskAlertWebhook   = "OPSFLEET_DISK_ALERT_DINGTALK_WEBHOOK"
-	EnvDiskAlertKeyword   = "OPSFLEET_DISK_ALERT_KEYWORD"
-	EnvDiskAlertThreshold = "OPSFLEET_DISK_ALERT_THRESHOLD_PERCENT"
-	EnvDiskAlertCooldown  = "OPSFLEET_DISK_ALERT_COOLDOWN_MINUTES"
 )
 
 // ResolvedAI LLM 配置：环境变量优先于 conf/config.yaml 的 ai 段。
@@ -255,64 +250,6 @@ func ResolvedAutoIterationConfig() ResolvedAutoIteration {
 		DingTalkWebhook:          webhook,
 		GitHubRepo:               repo,
 		CodeAgentToken:           agentToken,
-	}
-}
-
-// ResolvedDiskAlert merges yaml alerts.disk with OPSFLEET_DISK_ALERT_* env.
-type ResolvedDiskAlert struct {
-	Enabled           bool
-	ThresholdPercent  float64
-	Cooldown          time.Duration
-	Keyword           string
-	Webhook           string
-}
-
-func yamlDiskAlert() DiskAlertConfig {
-	if GlobalCfg != nil {
-		return GlobalCfg.Alerts.Disk
-	}
-	return DiskAlertConfig{}
-}
-
-// ResolvedDiskAlertConfig returns effective disk alert settings.
-func ResolvedDiskAlertConfig() ResolvedDiskAlert {
-	y := yamlDiskAlert()
-	enabled := y.Enabled
-	if v := strings.TrimSpace(os.Getenv(EnvDiskAlertEnabled)); v != "" {
-		enabled = v == "1" || strings.EqualFold(v, "true")
-	}
-	threshold := y.ThresholdPercent
-	if threshold <= 0 {
-		threshold = 85
-	}
-	if v := strings.TrimSpace(os.Getenv(EnvDiskAlertThreshold)); v != "" {
-		if f, err := strconv.ParseFloat(v, 64); err == nil && f > 0 {
-			threshold = f
-		}
-	}
-	cooldownMin := y.CooldownMinutes
-	if cooldownMin <= 0 {
-		cooldownMin = 120
-	}
-	if v := strings.TrimSpace(os.Getenv(EnvDiskAlertCooldown)); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			cooldownMin = n
-		}
-	}
-	keyword := strings.TrimSpace(y.Keyword)
-	if kw := strings.TrimSpace(os.Getenv(EnvDiskAlertKeyword)); kw != "" {
-		keyword = kw
-	}
-	webhook := strings.TrimSpace(os.Getenv(EnvDiskAlertWebhook))
-	if webhook == "" {
-		webhook = strings.TrimSpace(y.DingTalkWebhook)
-	}
-	return ResolvedDiskAlert{
-		Enabled:          enabled,
-		ThresholdPercent: threshold,
-		Cooldown:         time.Duration(cooldownMin) * time.Minute,
-		Keyword:          keyword,
-		Webhook:          webhook,
 	}
 }
 

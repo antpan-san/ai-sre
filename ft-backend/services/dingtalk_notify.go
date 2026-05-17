@@ -14,8 +14,7 @@ import (
 )
 
 // SendDingTalkText posts to a DingTalk custom robot webhook (server-side only).
-// keyword is required when the robot has a security keyword (prepended if missing from body).
-func SendDingTalkText(webhook, keyword, title, body string) error {
+func SendDingTalkText(webhook, title, body string) error {
 	webhook = strings.TrimSpace(webhook)
 	if webhook == "" {
 		return nil
@@ -32,7 +31,6 @@ func SendDingTalkText(webhook, keyword, title, body string) error {
 		}
 		content += body
 	}
-	content = ensureDingTalkKeyword(content, keyword)
 	payload, err := json.Marshal(map[string]interface{}{
 		"msgtype": "text",
 		"text": map[string]string{
@@ -69,16 +67,8 @@ func SendDingTalkText(webhook, keyword, title, body string) error {
 	return nil
 }
 
-func ensureDingTalkKeyword(content, keyword string) string {
-	kw := strings.TrimSpace(keyword)
-	if kw == "" || strings.Contains(content, kw) {
-		return content
-	}
-	return kw + "\n" + content
-}
-
 // SendAutoIterationDingTalk posts to the auto-iteration robot webhook.
 func SendAutoIterationDingTalk(title, body string) error {
 	cfg := config.ResolvedAutoIterationConfig()
-	return SendDingTalkText(cfg.DingTalkWebhook, "", title, body)
+	return SendDingTalkText(cfg.DingTalkWebhook, title, body)
 }

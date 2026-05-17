@@ -24,7 +24,6 @@ type Config struct {
 	K8s      K8sConfig      `yaml:"k8s"`
 	Skills         SkillsConfig         `yaml:"skills"`
 	AutoIteration  AutoIterationConfig  `yaml:"auto_iteration"`
-	Alerts         AlertsConfig         `yaml:"alerts"`
 	Security SecurityConfig `yaml:"security"`
 	Billing  BillingConfig  `yaml:"billing"`
 	Log      struct {
@@ -50,20 +49,6 @@ type K8sConfig struct {
 // SkillsConfig 服务端技能样本与自迭代。
 type SkillsConfig struct {
 	AutoRefine SkillAutoRefineConfig `yaml:"auto_refine"`
-}
-
-// AlertsConfig 平台侧告警（钉钉 webhook 仅环境变量）。
-type AlertsConfig struct {
-	Disk DiskAlertConfig `yaml:"disk"`
-}
-
-// DiskAlertConfig 控制台后端所在主机根分区磁盘使用率告警。
-type DiskAlertConfig struct {
-	Enabled           bool    `yaml:"enabled"`
-	ThresholdPercent  float64 `yaml:"threshold_percent"`
-	CooldownMinutes   int     `yaml:"cooldown_minutes"`
-	Keyword           string  `yaml:"keyword"`
-	DingTalkWebhook   string  `yaml:"dingtalk_webhook"`
 }
 
 // AutoIterationConfig 平台自动迭代（仅 super_admin 控制台；密钥用环境变量覆盖）。

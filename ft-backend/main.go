@@ -85,8 +85,6 @@ func main() {
 	if redis.IsConnected() {
 		go iotservice.StartHeartbeatConsumer(consumerCtx)
 	}
-	go services.RunDiskAlertMonitor(consumerCtx)
-
 	// 10. Setup router
 	router := routes.SetupRouter(cfg)
 

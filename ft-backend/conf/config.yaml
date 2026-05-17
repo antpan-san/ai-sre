@@ -78,15 +78,6 @@ auto_iteration:
     github_repo: ""
     code_agent_token: ""
 
-# 控制台主机磁盘告警（钉钉机器人须含安全关键词；webhook 仅环境变量）
-alerts:
-    disk:
-        enabled: true
-        threshold_percent: 85
-        cooldown_minutes: 120
-        keyword: "操"
-        dingtalk_webhook: ""
-
 skills:
     auto_refine:
         enabled: true

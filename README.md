@@ -48,7 +48,6 @@ Go CLI + 同仓 **OpsFleetPilot** Web/API（`ft-backend/`、`ft-front/`、`deplo
 - **诊断任务单**：已绑定 CLI 时，可向控制台申请只读采集计划（k8s / redis / kafka 等）；结果用于诊断与技能沉淀。
 - **技能包**：控制台审核「待审资产」；`skills feedback` / `skills refine` 参与技能更新。
 - **自动迭代**（仅 `super_admin`）：控制台 **订阅与计费 → 自动迭代** 单页管理任务与审批。钉钉：`OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK`（勿提交 Git）。
-- **磁盘告警**：控制台后端主机根分区超阈值时钉钉通知；`OPSFLEET_DISK_ALERT_DINGTALK_WEBHOOK` + `OPSFLEET_DISK_ALERT_KEYWORD`（机器人安全词）。
 - **登录有效期**：JWT 访问令牌默认 **24 小时**（`jwt.access_token_exp` 或 `OPSFLEET_JWT_ACCESS_TOKEN_EXP`）。
 - **错误码**：部署/安装失败可输出 `OPSFLEET_*` 码；`ai-sre analyze code <CODE>` 或控制台「错误码」页查询根因卡片。
 - **Go 运行时**：`ai-sre diagnose --pid|--name|--pod` 采样 proc/cgroup，可上传至控制台「运行时诊断」。
