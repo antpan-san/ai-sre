@@ -111,7 +111,7 @@ export interface RecentExecutionRow {
   durationMs?: number
 }
 
-/** 仅 super_admin：运行 opsfleet-backend 的本机采样元数据 */
+/** 仅 admin / super_admin：运行 opsfleet-backend 的本机采样元数据 */
 export interface HostRuntimeMeta {
   hostname: string
   sampledAt: string
@@ -130,7 +130,7 @@ export interface DashboardData {
   recentK8sClusters?: RecentK8sClusterRow[]
   recentServiceInstalls?: RecentServiceInstallRow[]
   recentExecutions?: RecentExecutionRow[]
-  /** 仅 super_admin */
+  /** 仅 admin / super_admin */
   hostRuntime?: HostRuntimeMeta
   activeAlerts?: number
 }

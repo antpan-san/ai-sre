@@ -98,10 +98,7 @@ const routes: Array<RouteRecordRaw> = [
           title: '自动迭代',
           requireAuth: true,
           roles: superAdminRoles,
-          breadcrumb: [
-            { title: '订阅与计费', path: '/admin/billing/features' },
-            { title: '自动迭代' }
-          ]
+          breadcrumb: [{ title: '自动迭代' }]
         }
       },
       {

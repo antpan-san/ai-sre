@@ -55,7 +55,7 @@ func GetDashboardData(c *gin.Context) {
 	// 台账 services 表旧路径仅写入 deploying，无任务回写终态时会永久「部署中」；读前纠偏以免概览误导。
 	_ = reconcileStaleDeployingServices(database.DB)
 
-	// 业务侧未统一上报 Machine 心跳时不在此聚合托管机；概览「服务端资源」仅 super_admin 见本机采样（见 resourceUsage / hostRuntime）。
+	// 业务侧未统一上报 Machine 心跳时不在此聚合托管机；概览「服务端资源」仅 admin/super_admin 见本机采样（见 resourceUsage / hostRuntime）。
 	var svcRunning, svcStopped, svcError, svcDeploying, svcTotal int64
 	database.DB.Model(&models.Service{}).Where("tenant_id = ?", tid).Where("status = ?", "running").Count(&svcRunning)
 	database.DB.Model(&models.Service{}).Where("tenant_id = ?", tid).Where("status = ?", "deploying").Count(&svcDeploying)
@@ -215,7 +215,7 @@ func GetDashboardData(c *gin.Context) {
 		},
 	}
 	var hostRuntime gin.H
-	if models.IsSuperAdminRole(role) {
+	if models.IsAdminRole(role) {
 		ctx, cancel := context.WithTimeout(c.Request.Context(), 2500*time.Millisecond)
 		hr := collectHostRuntime(ctx, 320*time.Millisecond)
 		cancel()

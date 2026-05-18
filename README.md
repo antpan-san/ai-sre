@@ -47,7 +47,7 @@ Go CLI + 同仓 **OpsFleetPilot** Web/API（`ft-backend/`、`ft-front/`、`deplo
 - **AI**：`analyze` / `ask` / `runbook` 优先走控制台 API；本机可配 `api_key` 作回退。`analyze` 可附带本机 `kubectl` 或 `ai-sre <topic> diagnose --json` 采集结果。
 - **诊断任务单**：已绑定 CLI 时，可向控制台申请只读采集计划（k8s / redis / kafka 等）；结果用于诊断与技能沉淀。
 - **技能包**：控制台审核「待审资产」；`skills feedback` / `skills refine` 参与技能更新。
-- **自动迭代**（仅 `super_admin`）：控制台 **订阅与计费 → 自动迭代** 单页管理任务与审批。钉钉：`OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK`（勿提交 Git）。
+- **自动迭代**（仅 `super_admin`）：控制台侧栏 **一级菜单「自动迭代」**（`/admin/auto-iterations`）单页管理任务与审批。钉钉：`OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK`（勿提交 Git）。
 - **登录有效期**：JWT 访问令牌默认 **24 小时**（`jwt.access_token_exp` 或 `OPSFLEET_JWT_ACCESS_TOKEN_EXP`）。
 - **错误码**：部署/安装失败可输出 `OPSFLEET_*` 码；`ai-sre analyze code <CODE>` 或控制台「错误码」页查询根因卡片。
 - **Go 运行时**：`ai-sre diagnose --pid|--name|--pod` 采样 proc/cgroup，可上传至控制台「运行时诊断」。
@@ -284,7 +284,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 
 **控制台**：`ft-backend/conf/config.yaml` + `npm run dev`（前端代理 `/ft-api`）。默认账号 `admin` / `password`（`super_admin`），生产请修改。CORS 须在 `security.cors_allowed_origins` 填写浏览器访问的完整 Origin。
 
-**主要功能页**：概览、K8s 部署、制品目录、执行记录、作业中心、技能包与订阅（`super_admin`）、**自动迭代**（`super_admin`）、错误码帮助、节点初始化工具。
+**主要功能页**：概览、**自动迭代**（`super_admin` 一级菜单）、K8s 部署、制品目录、执行记录、作业中心、订阅与计费（`super_admin`）、错误码帮助、节点初始化工具。**概览服务端 CPU/内存/磁盘**：`admin` 与 `super_admin` 可见（本机 opsfleet-backend 采样）。
 
 **CLI 安装**：`GET .../install-ai-sre.sh` 或顶栏「安装 ai-sre」绑定账号后，使用 `opsfleet_token` + 指纹调用 AI 与作业 API。
 

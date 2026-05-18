@@ -53,6 +53,10 @@
               <el-icon><PieChart /></el-icon>
               <template #title>概览</template>
             </el-menu-item>
+            <el-menu-item v-if="isSuperAdmin" index="/admin/auto-iterations">
+              <el-icon><Refresh /></el-icon>
+              <template #title>自动迭代</template>
+            </el-menu-item>
             <el-sub-menu v-if="isSuperAdmin" index="asm-billing">
               <template #title>
                 <el-icon><Setting /></el-icon>
@@ -65,10 +69,6 @@
               <el-menu-item index="/admin/billing/ai-sre-skills">
                 <el-icon><Collection /></el-icon>
                 <template #title>ai-sre 技能包</template>
-              </el-menu-item>
-              <el-menu-item index="/admin/auto-iterations">
-                <el-icon><Refresh /></el-icon>
-                <template #title>自动迭代</template>
               </el-menu-item>
             </el-sub-menu>
             <el-sub-menu

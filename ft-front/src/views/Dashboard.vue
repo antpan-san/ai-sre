@@ -117,7 +117,7 @@
       </div>
     </el-card>
 
-    <div v-if="isSuperAdmin" class="dash-grid dash-grid--main dash-grid--main--meters">
+    <div v-if="isConsoleAdmin" class="dash-grid dash-grid--main dash-grid--main--meters">
       <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
         <div class="meter-head">
           <span>服务端 CPU</span>
