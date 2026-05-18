@@ -117,55 +117,6 @@
       </div>
     </el-card>
 
-    <div v-if="isConsoleAdmin" class="dash-grid dash-grid--main dash-grid--main--meters">
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--cpu">
-        <div class="meter-head">
-          <span>服务端 CPU</span>
-          <el-tag :type="getUsageType(dash?.resourceUsage?.cpu ?? 0)" size="small">
-            {{ Number(dash?.resourceUsage?.cpu ?? 0).toFixed(1) }}%
-          </el-tag>
-        </div>
-        <p class="meter-sub">{{ hostRuntimeLine }}</p>
-        <p v-if="dash?.hostRuntime?.error" class="meter-sub meter-sub--err">{{ dash.hostRuntime.error }}</p>
-        <el-progress
-          :percentage="Math.round(clampPct(dash?.resourceUsage?.cpu ?? 0))"
-          :color="getUsageColor(dash?.resourceUsage?.cpu ?? 0)"
-          :show-text="false"
-          class="meter-progress"
-        />
-      </el-card>
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--mem">
-        <div class="meter-head">
-          <span>服务端内存</span>
-          <el-tag :type="getUsageType(dash?.resourceUsage?.memory ?? 0)" size="small">
-            {{ Number(dash?.resourceUsage?.memory ?? 0).toFixed(1) }}%
-          </el-tag>
-        </div>
-        <p class="meter-sub">{{ hostRuntimeLine }}</p>
-        <el-progress
-          :percentage="Math.round(clampPct(dash?.resourceUsage?.memory ?? 0))"
-          :color="getUsageColor(dash?.resourceUsage?.memory ?? 0)"
-          :show-text="false"
-          class="meter-progress"
-        />
-      </el-card>
-      <el-card v-loading="dashboardStore.loading" shadow="hover" class="meter-card meter-card--disk">
-        <div class="meter-head">
-          <span>服务端磁盘</span>
-          <el-tag :type="getUsageType(dash?.resourceUsage?.disk ?? 0)" size="small">
-            {{ Number(dash?.resourceUsage?.disk ?? 0).toFixed(1) }}%
-          </el-tag>
-        </div>
-        <p class="meter-sub">{{ diskRootHint }}</p>
-        <el-progress
-          :percentage="Math.round(clampPct(dash?.resourceUsage?.disk ?? 0))"
-          :color="getUsageColor(dash?.resourceUsage?.disk ?? 0)"
-          :show-text="false"
-          class="meter-progress"
-        />
-      </el-card>
-    </div>
-
     <div
       v-loading="dashboardStore.loading"
       class="dash-tables-shell"
@@ -334,17 +285,6 @@ const kpiColumnCount = computed(() => (isSuperAdmin.value ? 4 : 3))
 
 const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
 
-const hostRuntimeLine = computed(() => {
-  const h = dash.value?.hostRuntime
-  if (!h?.hostname) return '本机（运行 opsfleet-backend）'
-  const bits = [h.hostname]
-  if (h.sampledAt) bits.push(formatTs(h.sampledAt))
-  if (h.os) bits.push(h.os)
-  return bits.join(' · ')
-})
-
-const diskRootHint = computed(() => '根分区使用率（Linux 为 /）')
-
 const exec24hFoot = computed(() => {
   const total = dash.value?.platformSummary?.executionsLast24h ?? 0
   if (total <= 0) return '执行记录'
@@ -410,24 +350,6 @@ const fetchDashboardData = async () => {
 
 const handleRefresh = () => {
   void fetchDashboardData()
-}
-
-const clampPct = (n: number) => {
-  if (Number.isNaN(n) || n < 0) return 0
-  if (n > 100) return 100
-  return n
-}
-
-const getUsageType = (percentage: number) => {
-  if (percentage >= 80) return 'danger'
-  if (percentage >= 60) return 'warning'
-  return 'success'
-}
-
-const getUsageColor = (percentage: number) => {
-  if (percentage >= 80) return '#f56c6c'
-  if (percentage >= 60) return '#e6a23c'
-  return '#67c23a'
 }
 
 const formatTs = (iso?: string) => {
@@ -624,10 +546,6 @@ onBeforeUnmount(() => {
   margin-top: auto;
 }
 
-.dash-grid--main--meters {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 .dash-grid {
   display: grid;
   gap: 10px;
@@ -686,34 +604,6 @@ onBeforeUnmount(() => {
 .snapshot-foot--sub {
   margin-top: 2px;
   font-size: 11px;
-}
-
-.meter-card :deep(.el-card__body) {
-  padding: 12px 14px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 8px;
-  min-height: 72px;
-}
-
-.meter-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.meter-progress {
-  margin: 0;
-}
-
-.meter-progress :deep(.el-progress-bar__outer) {
-  height: 8px !important;
-  border-radius: 999px;
 }
 
 .dash-tables-shell {
@@ -828,19 +718,9 @@ onBeforeUnmount(() => {
   min-width: 0;
 }
 
-@media screen and (max-width: 1280px) {
-  .dash-grid--main--meters {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
 @media screen and (max-width: 720px) {
   .dash-grid--kpi {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .dash-grid--main--meters {
-    grid-template-columns: 1fr;
   }
 }
 </style>

@@ -223,6 +223,7 @@
             </el-breadcrumb>
           </div>
         </div>
+        <HostMetricsRings v-if="isAdminShell && isConsoleAdmin" class="layout-header-metrics" />
         <div class="layout-header-right">
           <router-link
             :to="{ path: errorCodesPath }"
@@ -346,6 +347,7 @@ import { INSTALL_AI_SRE_PLACEHOLDER, getStoredAuthToken } from '../../utils/inst
 import { useMachineStore } from '../../stores/machine'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import { createCLIInstallSession } from '../../api/cli'
+import HostMetricsRings from './HostMetricsRings.vue'
 
 type BreadcrumbMetaItem = {
   title: string
@@ -755,6 +757,16 @@ const handleLogout = () => {
 .layout-header-left {
   flex: 1;
   min-width: 0;
+}
+
+.layout-header-metrics {
+  flex-shrink: 0;
+}
+
+@media (max-width: 960px) {
+  .layout-header-metrics {
+    display: none;
+  }
 }
 
 .breadcrumb-wrap {
