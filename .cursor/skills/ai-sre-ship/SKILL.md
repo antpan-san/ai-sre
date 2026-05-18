@@ -46,6 +46,7 @@ description: >-
 - [ ] **配置方式**：密钥文件路径、`config.yaml` / `api_key` 格式（不含真实密钥）
 - [ ] **结构化输出**：`-o json` 的用途说明（若有变更须更新）
 - [ ] **远程部署与冒烟**：`./scripts/deploy-remote.sh`、`DEPLOY_REMOTE`、`DEPLOY_REMOTE_DIR`、`scripts/remote-e2e.sh`（含 `go test`、`doctor`）
+- [ ] **GitHub 推送**：`bash scripts/github-push-safe.sh`（先 `./scripts/check-skill-packs-not-in-git.sh`；禁止技能包 YAML 与密钥上 GitHub）
 - [ ] **免费版 / 配额**：`tier`、`max_llm_calls_per_day`、`doctor`、缓存路径说明是否与 `internal/config`、`internal/quota` 一致
 - [ ] **当前版本号**：与 `internal/cli/version.go` 中 `Version` 一致，并检查本次是否涉及可见行为变更；如涉及功能/接口/体验变化，**必须递增版本号**（如 `0.4.8 -> 0.4.9`）
 

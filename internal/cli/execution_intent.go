@@ -52,6 +52,8 @@ func normalizeIntentTopic(topic string) string {
 		return "go_runtime"
 	case "es":
 		return "elasticsearch"
+	case "postgres", "pg":
+		return "postgresql"
 	case "deploy", "install":
 		return "errorcode"
 	default:
@@ -87,6 +89,8 @@ func inferIntentProblem(topic string, kv map[string]string) string {
 		return "5xx"
 	case "mysql":
 		return "runtime"
+	case "postgresql":
+		return "general"
 	case "elasticsearch":
 		return "health"
 	case "errorcode":
@@ -126,6 +130,8 @@ func intentTreeCoordinates(topic, problem string) (nodePath, skillKey, capabilit
 		return "ops.incident_diagnosis.middleware.nginx.5xx", "skill.nginx.5xx", "cap.diagnosis.nginx"
 	case "mysql":
 		return "ops.incident_diagnosis.middleware.mysql.runtime", "skill.mysql.runtime", "cap.diagnosis.mysql"
+	case "postgresql":
+		return "ops.incident_diagnosis.middleware.postgresql.general", "skill.postgresql.general", "cap.diagnosis.postgresql"
 	case "elasticsearch":
 		return "ops.incident_diagnosis.middleware.elasticsearch.health", "skill.elasticsearch.health", "cap.diagnosis.elasticsearch"
 	case "errorcode":
@@ -147,6 +153,8 @@ func intentPackKey(topic string) string {
 		return "skillpack.nginx"
 	case "mysql":
 		return "skillpack.mysql"
+	case "postgresql":
+		return "skillpack.postgresql"
 	case "elasticsearch":
 		return "skillpack.elasticsearch"
 	case "go_runtime":
@@ -168,7 +176,7 @@ func intentExecutionMode(topic, problem string) string {
 			return "local_ai_fallback"
 		}
 		return "server_plan_readonly"
-	case "kafka", "redis", "nginx", "mysql", "elasticsearch":
+	case "kafka", "redis", "nginx", "mysql", "postgresql", "elasticsearch":
 		return "server_ai"
 	case "errorcode":
 		return "local_readonly"

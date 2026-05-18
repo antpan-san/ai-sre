@@ -250,8 +250,11 @@ func transitionAutoIteration(id uuid.UUID, actorType, actorName string, allowedF
 
 func StartAutoIteration(id uuid.UUID, actorName string) (*models.AutoIteration, error) {
 	return transitionAutoIteration(id, "super_admin", actorName,
-		[]string{models.AutoIterationStatusDraft, models.AutoIterationStatusPending, models.AutoIterationStatusPaused},
-		models.AutoIterationStatusRunning, "迭代已开始", nil)
+		[]string{models.AutoIterationStatusDraft, models.AutoIterationStatusPending, models.AutoIterationStatusPaused, models.AutoIterationStatusFailed},
+		models.AutoIterationStatusRunning, "迭代已开始", map[string]interface{}{
+			"assigned_agent_id": nil,
+			"last_error":        "",
+		})
 }
 
 func PauseAutoIteration(id uuid.UUID, actorName string) (*models.AutoIteration, error) {

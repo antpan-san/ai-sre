@@ -141,7 +141,7 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
 
-	cmds := []*cobra.Command{analyzeCmd(), diagnoseCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(), kafkaCmd(), redisCmd(), mysqlCmd(), nginxCmd(), elasticsearchCmd(), nodeCmd(), jobCmd()}
+	cmds := []*cobra.Command{analyzeCmd(), diagnoseCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(), kafkaCmd(), redisCmd(), mysqlCmd(), postgresqlCmd(), nginxCmd(), elasticsearchCmd(), nodeCmd(), jobCmd()}
 	if programName == "ai-sre" {
 		cmds = append(cmds, uninstallCmd())
 	}
@@ -156,7 +156,7 @@ func analyzeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "analyze [topic]",
 		Short: "故障诊断（AI 技能包；未购买时每日免费 5 次）",
-		Long: `topic 取值: kafka | k8s | nginx | redis | elasticsearch
+		Long: `topic 取值: kafka | k8s | nginx | redis | mysql | postgresql | elasticsearch
 
 k8s 场景 --pod 可填：
   · 问题类型：pending、crashloop、instability（与 --issue 一致）

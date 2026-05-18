@@ -9,10 +9,10 @@ go build -o ai-sre .
 echo "==> version / doctor / skills"
 ./ai-sre version
 ./ai-sre doctor
-./ai-sre skills list | head -8
+head -8 < <(./ai-sre skills list)
 if [[ "${OPSFLEET_SKIP_REMOTE:-}" != 1 ]]; then
   echo "==> server skills registry"
-  if ! ./ai-sre skills server | head -12; then
+  if ! head -12 < <(./ai-sre skills server); then
     echo "WARN: ai-sre skills server failed (服务端 /api/ai/skills 不可达？可在 OPSFLEET_API_URL 处确认)" >&2
   fi
 fi

@@ -34,6 +34,8 @@ func gatherTopicEvidence(ctx context.Context, topic string, flags map[string]str
 		gatherRedisEvidence(ctx, flags, collected)
 	case "mysql":
 		gatherMySQLEvidence(ctx, flags, collected)
+	case "postgresql", "postgres", "pg":
+		gatherPostgreSQLEvidence(ctx, flags, collected)
 	case "nginx":
 		gatherNginxEvidence(ctx, flags, collected)
 	case "elasticsearch", "es":
@@ -50,6 +52,7 @@ func hasTopicEvidence(kv map[string]string) bool {
 	for k := range kv {
 		if strings.HasPrefix(k, "host_") || strings.HasPrefix(k, "kafka_") ||
 			strings.HasPrefix(k, "redis_") || strings.HasPrefix(k, "mysql_") ||
+			strings.HasPrefix(k, "postgresql_") || strings.HasPrefix(k, "postgres_") ||
 			strings.HasPrefix(k, "nginx_") || strings.HasPrefix(k, "es_") {
 			return true
 		}
@@ -139,6 +142,18 @@ func gatherMySQLEvidence(ctx context.Context, flags map[string]string, out map[s
 	body := runSelfSubcommand(ctx, 25*time.Second, args...)
 	if body != "" {
 		out["mysql_diagnose_json"] = body
+	}
+}
+
+func gatherPostgreSQLEvidence(ctx context.Context, flags map[string]string, out map[string]string) {
+	dsn := strings.TrimSpace(flags["dsn"])
+	if dsn == "" {
+		return
+	}
+	args := []string{"postgresql", "diagnose", dsn, "--json"}
+	body := runSelfSubcommand(ctx, 25*time.Second, args...)
+	if body != "" {
+		out["postgresql_diagnose_json"] = body
 	}
 }
 

@@ -26,6 +26,7 @@ examples/memleak-demo/memleak-demo-linux
 
 # 技能包核心资产：禁止进入 GitHub（仅本地 / 实验室 / 生产 rsync；见 .cursor/skills/skill-pack-assets/SKILL.md）
 ft-backend/skills/builtin/*.yaml
+scripts/code-agent-worker.env
 internal/assets/skills/*.yaml
 !ft-backend/skills/builtin/README.md
 !internal/assets/skills/README.md

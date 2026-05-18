@@ -79,6 +79,19 @@
               <el-descriptions-item label="审批人">{{ iteration.approved_by || '—' }}</el-descriptions-item>
             </el-descriptions>
 
+            <div v-if="iteration.description" class="md-block">
+              <div class="md-label">说明</div>
+              <SafeMarkdown :content="iteration.description" />
+            </div>
+            <div v-if="iteration.summary" class="md-block">
+              <div class="md-label">摘要</div>
+              <SafeMarkdown :content="iteration.summary" />
+            </div>
+            <div v-if="iteration.command" class="md-block">
+              <div class="md-label">需求与命令</div>
+              <SafeMarkdown :content="iteration.command" />
+            </div>
+
             <div class="actions">
               <el-button type="primary" size="small" @click="act('start')">开始</el-button>
               <el-button size="small" @click="act('pause')">暂停</el-button>
@@ -122,6 +135,7 @@ import { onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { connectSSE } from '../../utils/sseFetch'
+import SafeMarkdown from '../../components/markdown/SafeMarkdown.vue'
 import {
   approveAutoIteration,
   cancelAutoIteration,
@@ -433,5 +447,18 @@ onUnmounted(() => stopSSE())
 }
 .sse-tag {
   margin-left: 8px;
+}
+.md-block {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: var(--el-fill-color-lighter);
+  border-radius: 6px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.md-label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--el-text-color-primary);
 }
 </style>

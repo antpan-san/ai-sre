@@ -31,6 +31,7 @@ const (
 	SkillPackRedis         = "skillpack.redis"
 	SkillPackNginx         = "skillpack.nginx"
 	SkillPackMySQL         = "skillpack.mysql"
+	SkillPackPostgreSQL    = "skillpack.postgresql"
 	SkillPackElasticsearch = "skillpack.elasticsearch"
 )
 
@@ -58,6 +59,7 @@ var knownPackKeys = map[string]struct{}{
 	SkillPackRedis:           {},
 	SkillPackNginx:           {},
 	SkillPackMySQL:           {},
+	SkillPackPostgreSQL:      {},
 	SkillPackElasticsearch:   {},
 }
 
@@ -104,6 +106,7 @@ func AllPackKeysStable() []string {
 		SkillPackRedis,
 		SkillPackNginx,
 		SkillPackMySQL,
+		SkillPackPostgreSQL,
 		SkillPackElasticsearch,
 	}
 }

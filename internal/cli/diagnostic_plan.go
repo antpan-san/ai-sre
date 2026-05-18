@@ -48,7 +48,7 @@ func shouldRequestServerDiagnosticPlan(topic string, kv map[string]string) bool 
 		return !hasKubectlEvidence(kv)
 	case "go_runtime", "go-runtime":
 		return !hasGoRuntimeDiagnosticEvidence(kv)
-	case "redis", "kafka", "nginx", "mysql", "elasticsearch", "es":
+	case "redis", "kafka", "nginx", "mysql", "postgresql", "postgres", "pg", "elasticsearch", "es":
 		return !hasMiddlewareDiagnosticEvidence(t, kv)
 	default:
 		return false
@@ -433,7 +433,7 @@ func allowedCLIAISreDiagnosticCommand(argv []string) bool {
 			return false
 		}
 		return allowedCLIAISreArgs(argv[3:])
-	case "redis", "kafka", "mysql", "elasticsearch":
+	case "redis", "kafka", "mysql", "postgresql", "postgres", "pg", "elasticsearch":
 		if argv[2] != "diagnose" || len(argv) < 4 {
 			return false
 		}
@@ -465,7 +465,7 @@ func allowedCLITopicDiagnoseFlags(topic string, args []string) bool {
 	case "nginx":
 		allowed["--access-log"] = struct{}{}
 		allowed["--tail"] = struct{}{}
-	case "mysql":
+	case "mysql", "postgresql", "postgres", "pg":
 		allowed["--timeout"] = struct{}{}
 	case "elasticsearch":
 		allowed["--timeout"] = struct{}{}
