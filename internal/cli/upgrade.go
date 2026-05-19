@@ -77,9 +77,9 @@ func upgradeCheckVerbose() bool {
 	return os.Getenv("OPSFLEET_AUTO_UPGRADE_VERBOSE") == "1" || os.Getenv("OPSFLEET_UPGRADE_CHECK_VERBOSE") == "1"
 }
 
-// reportUpgradeCheckResult 在自动升级尝试后打印本地与 GET .../cli/ai-sre/version 的对比，便于排查「服务端已升但客户端未拉取」。
+// reportUpgradeCheckResult 在 OPSFLEET_AUTO_UPGRADE_VERBOSE=1 时打印版本对比。
 func reportUpgradeCheckResult(preferredBase string) {
-	if os.Getenv("OPSFLEET_NO_AUTO_UPGRADE") == "1" && !upgradeCheckVerbose() {
+	if !upgradeCheckVerbose() {
 		return
 	}
 	remote, base, err := fetchRemoteVersionFast(preferredBase)
@@ -92,13 +92,11 @@ func reportUpgradeCheckResult(preferredBase string) {
 	}
 	switch {
 	case versionIsOlder(Version, remote):
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 控制台分发版 %s 高于本机 %s（%s），若未自动升级请执行: %s upgrade\n",
-			progName, remote, Version, base, progName)
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 可升级 %s → %s（%s）\n", progName, Version, remote, opsfleetEnvLabel(base))
 	case versionIsOlder(remote, Version):
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 本机 %s 高于控制台分发版 %s（%s）；不会从服务端降级。请在该环境部署 bin/ai-sre 或换用对应 API 基址\n",
-			progName, Version, remote, base)
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 本机 %s 高于 %s 分发版 %s，不会降级\n", progName, Version, opsfleetEnvLabel(base), remote)
 	default:
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 版本已对齐：%s（%s）\n", progName, Version, base)
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 版本 %s（%s）\n", progName, Version, opsfleetEnvLabel(base))
 	}
 }
 
@@ -205,8 +203,8 @@ func upgradeCmd() *cobra.Command {
 		Long: "向 GET .../api/k8s/deploy/cli/ai-sre/version 拉取元数据，与当前可执行文件比对；\n" +
 			"若服务器版本更新，则下载 GET .../api/k8s/deploy/cli/ai-sre?arch=... 并覆盖正在使用的二进制\n" +
 			"（同 curl 安装脚本，通常需 root，目标路径为 which ai-sre，一般为 /usr/local/bin/ai-sre）。\n\n" +
-			"默认基址为内建 " + EmbeddedOpsfleetAPIBase + "；仅当需联调其它控制台时设置 OPSFLEET_API_URL。\n" +
-			"OPSFLEET_NO_AUTO_UPGRADE=1 可关闭自升级，仅当另设 OPSFLEET_UPGRADE_HINT=1 时提示。",
+			"API 基址仅使用 install 写入的 opsfleet_api_url 或 OPSFLEET_API_URL（实验 192.168.56.11 与生产 opsfleetpilot.com 禁止混用）。\n" +
+			"未 install 时默认 " + EmbeddedOpsfleetAPIBase + "。OPSFLEET_AUTO_UPGRADE_VERBOSE=1 可打印版本检查详情。",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			base := strings.TrimSpace(apiURL)
 			base = strings.TrimRight(base, "/")
@@ -332,36 +330,28 @@ func upgradeDownloadHTTPClient() *http.Client {
 	}
 }
 
-// fetchRemoteVersionFast 依次探测多个 OpsFleet 基址（单址约 1.2s 超时），返回首个可用版本与基址。
+// fetchRemoteVersionFast 仅查询当前绑定环境的一个 API 基址（禁止实验/生产串联探测）。
 func fetchRemoteVersionFast(preferredBase string) (version string, base string, err error) {
-	bases := resolveOpsfleetAPIBasesForUpgrade()
-	if preferredBase != "" {
-		preferredBase = strings.TrimRight(strings.TrimSpace(preferredBase), "/")
-		merged := []string{preferredBase}
-		for _, b := range bases {
-			if b != preferredBase {
-				merged = append(merged, b)
-			}
+	base = normalizeOpsfleetAPIBase(preferredBase)
+	if base == "" {
+		base, err = resolveOpsfleetAPIBaseStrict()
+		if err != nil {
+			return "", "", err
 		}
-		bases = merged
 	}
-	if len(bases) == 0 {
+	if base == "" {
 		return "", "", fmt.Errorf("未配置 OpsFleet API 基址")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
 	defer cancel()
-	var lastErr error
-	for _, b := range bases {
-		v, e := fetchRemoteVersion(ctx, b, upgradeHTTPClient)
-		if e == nil && v != "" && v != "unknown" {
-			return v, b, nil
-		}
-		lastErr = e
+	v, e := fetchRemoteVersion(ctx, base, upgradeHTTPClient)
+	if e != nil {
+		return "", base, e
 	}
-	if lastErr == nil {
-		lastErr = fmt.Errorf("所有基址均未返回有效版本")
+	if v == "" || v == "unknown" {
+		return "", base, fmt.Errorf("未返回有效版本")
 	}
-	return "", "", lastErr
+	return v, base, nil
 }
 
 // fetchRemoteVersion returns JSON .version from OpsFleet.

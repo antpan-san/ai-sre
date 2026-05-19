@@ -88,7 +88,11 @@ func doctorCmd() *cobra.Command {
 
 func printOpsfleetDoctorSummary(probe bool, ctx context.Context) {
 	base := strings.TrimSpace(resolveOpsfleetAPIBase())
-	fmt.Printf("opsfleet_api_base: %s\n", orDash(base))
+	if _, err := resolveOpsfleetAPIBaseStrict(); err != nil {
+		fmt.Printf("opsfleet_api_base: ERROR %v\n", err)
+	} else {
+		fmt.Printf("opsfleet_api_base: %s (%s)\n", orDash(base), opsfleetEnvLabel(base))
+	}
 	tok := strings.TrimSpace(resolveOpsfleetToken())
 	if tok != "" {
 		fmt.Printf("opsfleet_token: OK (len=%d)\n", len(tok))

@@ -94,6 +94,9 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 		return nil, err
 	}
 
+	if _, err := resolveOpsfleetAPIBaseStrict(); err != nil {
+		return nil, err
+	}
 	base := strings.TrimSpace(resolveOpsfleetAPIBase())
 	var serverErr error
 	if base != "" {
@@ -154,9 +157,9 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 			recordDiagnoseMetric("local_hit")
 			return resp, nil
 		} else if isCredentialError(err) {
-			return nil, fmt.Errorf("服务端 AI 不可用（%v）；本机未配置 LLM 凭据（~/.config/ai-sre/config.yaml 的 api_key）: %w", serverErr, err)
+			return nil, fmt.Errorf("服务端 AI 不可用；本机未配置 api_key: %w", err)
 		}
-		return nil, fmt.Errorf("服务端 AI 不可用（%v）；本机 LLM 回退失败: %w", serverErr, err)
+		return nil, fmt.Errorf("服务端 AI 不可用；本机 LLM 回退失败: %w", err)
 	}
 	if serverErr != nil {
 		return nil, serverErr
@@ -186,7 +189,7 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 		return nil, fmt.Errorf("未配置 OpsFleet API 基址且本机无 LLM 凭据")
 	}
 
-	return nil, fmt.Errorf("服务端 AI 不可用（请检查控制台 OPSFLEET_AI_API_KEY 与出网）；网络故障时可配置本机 api_key 作为回退")
+	return nil, fmt.Errorf("服务端 AI 不可用（%s）；请检查控制台 AI 配置或网络", opsfleetEnvLabel(base))
 }
 
 func applyDiagnoseSkillDraft(resp *diagnoseResponse, ev evolutionConfig) {

@@ -24,7 +24,7 @@ func TestFormatMissingOpsfleetTokenMentionsAPIKey(t *testing.T) {
 		t.Fatal("expected error")
 	}
 	msg := err.Error()
-	if !strings.Contains(msg, "api_key") || !strings.Contains(msg, "opsfleet_token") {
+	if !strings.Contains(msg, "api_key") || !strings.Contains(msg, "install-ai-sre") {
 		t.Fatalf("message=%q", msg)
 	}
 	_ = oldHome
@@ -37,8 +37,8 @@ func TestFormatOpsfleetAPIErrorIdempotent(t *testing.T) {
 	if once.Error() != twice.Error() {
 		t.Fatalf("formatted twice:\n1=%q\n2=%q", once, twice)
 	}
-	if strings.Count(once.Error(), "可能原因:") != 1 {
-		t.Fatalf("want single 可能原因 block: %q", once)
+	if strings.Count(once.Error(), "install-ai-sre") != 1 {
+		t.Fatalf("want single hint: %q", once)
 	}
 }
 

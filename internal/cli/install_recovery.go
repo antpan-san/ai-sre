@@ -91,9 +91,9 @@ func operationLabel(op string) string {
 }
 
 func printInstallManualFallback(operation string, cause error, extra map[string]string) {
-	base := strings.TrimSpace(resolveOpsfleetAPIBase())
-	if base == "" {
-		base = EmbeddedOpsfleetAPIBaseProduction
+	base, err := resolveOpsfleetAPIBaseStrict()
+	if err != nil || base == "" {
+		base = EmbeddedOpsfleetAPIBase
 	}
 	arch := goArchToAiSreArch()
 	if v := extra["arch"]; strings.TrimSpace(v) != "" {

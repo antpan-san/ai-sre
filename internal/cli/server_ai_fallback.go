@@ -119,7 +119,7 @@ func notifyLocalAIFallback(reason error) {
 	if reason == nil || os.Getenv("OPSFLEET_QUIET_LOCAL_FALLBACK") == "1" {
 		return
 	}
-	_, _ = fmt.Fprintf(os.Stderr, "[%s] 服务端 AI 暂不可用（%v），改用本机 LLM\n", progName, reason)
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] 服务端 AI 不可用，回退本机 LLM\n", progName)
 }
 
 func tryLocalAnalyzeDiagnose(ctx context.Context, topic string, kv map[string]string) (*diagnoseResponse, error) {

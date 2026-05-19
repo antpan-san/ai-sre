@@ -10,46 +10,6 @@ import (
 	"github.com/panshuai/ai-sre/internal/config"
 )
 
-// EmbeddedOpsfleetAPIBase 内建 OpsFort 控制台 API 基址（须含 /ft-api 前缀，与 Nginx 反代一致）。
-// 实验室默认；生产环境 install-ai-sre 会写入 ~/.config/ai-sre/opsfleet_api_url。
-const EmbeddedOpsfleetAPIBase = "http://192.168.56.11:9080/ft-api"
-
-// EmbeddedOpsfleetAPIBaseProduction 生产控制台（自升级探测回退，避免仅内嵌实验室 IP 时外网客户端永远连不上）。
-const EmbeddedOpsfleetAPIBaseProduction = "http://opsfleetpilot.com/ft-api"
-
-func resolveOpsfleetAPIBase() string {
-	bases := resolveOpsfleetAPIBasesForUpgrade()
-	if len(bases) == 0 {
-		return ""
-	}
-	return bases[0]
-}
-
-// resolveOpsfleetAPIBasesForUpgrade 返回自升级/版本探测用的 API 基址列表（按优先级，去重）。
-func resolveOpsfleetAPIBasesForUpgrade() []string {
-	if strings.EqualFold(strings.TrimSpace(os.Getenv("OPSFLEET_SKIP_REMOTE")), "1") {
-		return nil
-	}
-	var out []string
-	add := func(b string) {
-		b = strings.TrimRight(strings.TrimSpace(b), "/")
-		if b == "" {
-			return
-		}
-		for _, x := range out {
-			if x == b {
-				return
-			}
-		}
-		out = append(out, b)
-	}
-	add(os.Getenv("OPSFLEET_API_URL"))
-	add(config.LoadOptionalOpsfleetAPIBase())
-	add(EmbeddedOpsfleetAPIBase)
-	add(EmbeddedOpsfleetAPIBaseProduction)
-	return out
-}
-
 // resolveOpsfleetToken 用于访问 OpsFleet 受保护 API（含服务端 AI）；优先环境变量，其次 install 脚本写入的 ~/.config/ai-sre/opsfleet_token。
 func resolveOpsfleetToken() string {
 	if v := strings.TrimSpace(os.Getenv("OPSFLEET_TOKEN")); v != "" {

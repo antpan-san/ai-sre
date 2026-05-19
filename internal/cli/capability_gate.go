@@ -12,6 +12,9 @@ func ensureExecutionAllowed(ctx context.Context, intent executionIntent, refresh
 }
 
 func ensureExecutionAllowedWithContext(ctx context.Context, intent executionIntent, refresh bool, contextKV map[string]string) error {
+	if _, err := resolveOpsfleetAPIBaseStrict(); err != nil {
+		return err
+	}
 	if strings.TrimSpace(resolveOpsfleetAPIBase()) == "" {
 		return nil
 	}
