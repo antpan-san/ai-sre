@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"strconv"
+	"strings"
 
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
@@ -39,4 +40,41 @@ func AdminSkillEnhancementSummary(c *gin.Context) {
 		return
 	}
 	response.OK(c, sum)
+}
+
+type adminEnhancementStatusRequest struct {
+	RequestID string `json:"request_id" binding:"required"`
+	Topic     string `json:"topic" binding:"required"`
+	Status    string `json:"status" binding:"required"`
+	Note      string `json:"note"`
+}
+
+// AdminUpdateSkillEnhancementStatus marks a review as refined or dismissed.
+func AdminUpdateSkillEnhancementStatus(c *gin.Context) {
+	var req adminEnhancementStatusRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效参数")
+		return
+	}
+	if err := services.UpdateEnhancementReviewStatus(services.DefaultSkillRegistry(), req.RequestID, req.Topic, req.Status, req.Note); err != nil {
+		logger.Error("AdminUpdateSkillEnhancementStatus: %v", err)
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"updated": true, "status": req.Status})
+}
+
+// AdminLookupExecutionByRequestID resolves client execution id from AI request_id.
+func AdminLookupExecutionByRequestID(c *gin.Context) {
+	rid := strings.TrimSpace(c.Param("request_id"))
+	if rid == "" {
+		response.BadRequest(c, "request_id 不能为空")
+		return
+	}
+	parentID, childID, _ := services.FindClientExecutionIDByRequestID(rid)
+	response.OK(c, gin.H{
+		"request_id":           rid,
+		"execution_id":         parentID,
+		"ai_child_execution_id": childID,
+	})
 }

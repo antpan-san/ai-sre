@@ -2,9 +2,11 @@ package services
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 )
@@ -290,25 +292,61 @@ func ListEnhancementReviews(reg *SkillRegistry, limit int, openOnly bool) ([]Ski
 		return nil, nil
 	}
 	full := filepath.Join(dir, "enhancement_reviews.jsonl")
-	lines, err := readRecentJSONLines(full, limit*3)
+	lines, err := readRecentJSONLines(full, limit*5)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, nil
 		}
 		return nil, err
 	}
-	out := make([]SkillEnhancementReview, 0, limit)
-	for i := len(lines) - 1; i >= 0 && len(out) < limit; i-- {
+	latest := map[string]SkillEnhancementReview{}
+	for _, ln := range lines {
 		var r SkillEnhancementReview
-		if json.Unmarshal([]byte(lines[i]), &r) != nil {
+		if json.Unmarshal([]byte(ln), &r) != nil {
 			continue
 		}
+		key := strings.ToLower(strings.TrimSpace(r.Topic)) + "|" + strings.TrimSpace(r.RequestID)
+		if key == "|" {
+			key = r.Time.Format(time.RFC3339Nano)
+		}
+		if prev, ok := latest[key]; !ok || r.Time.After(prev.Time) {
+			latest[key] = r
+		}
+	}
+	out := make([]SkillEnhancementReview, 0, limit)
+	for _, r := range latest {
 		if openOnly && (!r.NeedsEnhancement || r.EnhancementStatus == "refined" || r.EnhancementStatus == "dismissed") {
 			continue
 		}
 		out = append(out, r)
 	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Time.After(out[j].Time) })
+	if len(out) > limit {
+		out = out[:limit]
+	}
 	return out, nil
+}
+
+// UpdateEnhancementReviewStatus records a refined/dismissed decision for a review.
+func UpdateEnhancementReviewStatus(reg *SkillRegistry, requestID, topic, status, note string) error {
+	if reg == nil {
+		reg = DefaultSkillRegistry()
+	}
+	status = strings.ToLower(strings.TrimSpace(status))
+	if status != "refined" && status != "dismissed" {
+		return fmt.Errorf("status must be refined or dismissed")
+	}
+	review := SkillEnhancementReview{
+		Time:              time.Now().UTC(),
+		RequestID:         strings.TrimSpace(requestID),
+		Topic:             strings.ToLower(strings.TrimSpace(topic)),
+		CommandKind:       "admin_review",
+		NeedsEnhancement:  false,
+		Priority:          "low",
+		EnhancementStatus: status,
+		Recommendations:   []string{limitAuditText(note, 300)},
+	}
+	return appendEnhancementReviewLog(reg, review)
 }
 
 // EnhancementReviewSummary aggregates pending enhancement work for console.

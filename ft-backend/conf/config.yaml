@@ -95,6 +95,10 @@ skills:
             - elasticsearch
             - domain
         max_per_day: 3
+    feedback:
+        helpful_threshold: 5
+        unhelpful_threshold: 3
+        window_days: 7
 
 log:
     level: debug

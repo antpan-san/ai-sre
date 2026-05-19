@@ -120,7 +120,18 @@ func AISkillsFeedback(c *gin.Context) {
 		response.ServerError(c, "记录反馈失败: "+err.Error())
 		return
 	}
-	response.OK(c, gin.H{"recorded": true})
+	eval, _ := services.ProcessSkillFeedback(reg, services.SkillFeedback{
+		Topic:     topic,
+		SkillName: strings.TrimSpace(req.SkillName),
+		RequestID: strings.TrimSpace(req.RequestID),
+		Helpful:   req.Helpful,
+		Note:      strings.TrimSpace(req.Note),
+	})
+	out := gin.H{"recorded": true}
+	if eval != nil {
+		out["evaluation"] = eval
+	}
+	response.OK(c, out)
 }
 
 // errDataDirUnset is kept for symmetry; AppendFeedback currently returns nil when not configured.

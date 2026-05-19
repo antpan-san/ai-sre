@@ -48,7 +48,15 @@ type K8sConfig struct {
 
 // SkillsConfig 服务端技能样本与自迭代。
 type SkillsConfig struct {
-	AutoRefine SkillAutoRefineConfig `yaml:"auto_refine"`
+	AutoRefine SkillAutoRefineConfig   `yaml:"auto_refine"`
+	Feedback   SkillFeedbackConfig     `yaml:"feedback"`
+}
+
+// SkillFeedbackConfig 用户反馈累计阈值（驱动精炼审查）。
+type SkillFeedbackConfig struct {
+	HelpfulThreshold   int `yaml:"helpful_threshold"`
+	UnhelpfulThreshold int `yaml:"unhelpful_threshold"`
+	WindowDays         int `yaml:"window_days"`
 }
 
 // AutoIterationConfig 平台自动迭代（仅 super_admin 控制台；密钥用环境变量覆盖）。

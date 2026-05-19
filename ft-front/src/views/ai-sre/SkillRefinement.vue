@@ -63,9 +63,12 @@
           <el-table-column label="建议" min-width="200" show-overflow-tooltip>
             <template #default="{ row }">{{ (row.recommendations || []).join('；') || '—' }}</template>
           </el-table-column>
-          <el-table-column label="操作" width="100" align="center">
+          <el-table-column label="操作" width="220" align="center">
             <template #default="{ row }">
-              <el-button v-if="row.request_id" link type="primary" size="small" @click="goExecutions">执行</el-button>
+              <el-button v-if="row.request_id" link type="primary" size="small" @click="openByRequest(row.request_id)">复盘</el-button>
+              <el-button link type="primary" size="small" @click="openRefine(row.topic)">精炼</el-button>
+              <el-button link size="small" @click="markReview(row, 'refined')">已精炼</el-button>
+              <el-button link type="danger" size="small" @click="markReview(row, 'dismissed')">忽略</el-button>
             </template>
           </el-table-column>
         </el-table>
@@ -119,17 +122,39 @@
         </el-table>
       </el-tab-pane>
     </el-tabs>
+
+    <el-dialog v-model="refineOpen" title="触发技能精炼" width="480px">
+      <el-form label-width="88px" size="small">
+        <el-form-item label="Topic">
+          <el-input v-model="refineTopic" />
+        </el-form-item>
+        <el-form-item label="提示">
+          <el-input v-model="refineHint" type="textarea" :rows="3" placeholder="可选：补充精炼方向" />
+        </el-form-item>
+        <el-form-item label="Dry run">
+          <el-switch v-model="refineDryRun" />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="refineOpen = false">取消</el-button>
+        <el-button type="primary" :loading="refineLoading" @click="submitRefine">开始精炼</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import {
+  adminRefineSkill,
   getAdminDiagnoseSampleSummary,
   getAdminSkillEnhancementSummary,
   listAdminDiagnoseSamples,
   listAdminSkillEnhancementReviews,
+  lookupExecutionByRequestID,
+  updateSkillEnhancementStatus,
   type DiagnoseSample,
   type DiagnoseSampleSummary,
   type SkillEnhancementReview,
@@ -146,6 +171,11 @@ const sampleSummary = ref<DiagnoseSampleSummary | null>(null)
 const enhancementSummary = ref<SkillEnhancementSummary | null>(null)
 const reviews = ref<SkillEnhancementReview[]>([])
 const samples = ref<DiagnoseSample[]>([])
+const refineOpen = ref(false)
+const refineLoading = ref(false)
+const refineTopic = ref('')
+const refineHint = ref('')
+const refineDryRun = ref(true)
 
 const formatTime = (t?: string) => (t ? String(t).replace('T', ' ').slice(0, 19) : '—')
 const priorityTag = (p?: string) => (p === 'high' ? 'danger' : p === 'medium' ? 'warning' : 'info')
@@ -191,8 +221,69 @@ const reload = async () => {
 
 const goSkillsCatalog = () => router.push({ path: '/admin/billing/ai-sre-skills', query: { tab: 'enhancement' } })
 const goAutoIterations = () => router.push('/admin/auto-iterations')
-const goExecutions = () => router.push('/admin/ai-sre/executions')
 const openExecution = (id: string) => router.push(`/admin/ai-sre/executions/${id}`)
+
+const openByRequest = async (requestId: string) => {
+  try {
+    const data = await lookupExecutionByRequestID(requestId)
+    if (data.execution_id) {
+      openExecution(data.execution_id)
+      return
+    }
+    ElMessage.warning('未找到关联执行记录')
+  } catch {
+    ElMessage.error('查询执行记录失败')
+  }
+}
+
+const openRefine = (topic: string) => {
+  refineTopic.value = topic
+  refineHint.value = ''
+  refineDryRun.value = true
+  refineOpen.value = true
+}
+
+const submitRefine = async () => {
+  const topic = refineTopic.value.trim()
+  if (!topic) return
+  refineLoading.value = true
+  try {
+    await adminRefineSkill({
+      topic,
+      user_hint: refineHint.value.trim() || undefined,
+      dry_run: refineDryRun.value,
+      max_samples: 12,
+      max_feedback: 8,
+      timeout_sec: 120
+    })
+    ElMessage.success(refineDryRun.value ? 'Dry run 完成' : '精炼任务已完成')
+    refineOpen.value = false
+    await reload()
+  } catch {
+    ElMessage.error('精炼失败')
+  } finally {
+    refineLoading.value = false
+  }
+}
+
+const markReview = async (row: SkillEnhancementReview, status: 'refined' | 'dismissed') => {
+  if (!row.request_id) {
+    ElMessage.warning('缺少 request_id，无法更新状态')
+    return
+  }
+  try {
+    await updateSkillEnhancementStatus({
+      request_id: row.request_id,
+      topic: row.topic,
+      status,
+      note: status === 'refined' ? '管理员标记已精炼' : '管理员忽略'
+    })
+    ElMessage.success('已更新')
+    await reload()
+  } catch {
+    ElMessage.error('更新失败')
+  }
+}
 
 onMounted(() => {
   void reload()

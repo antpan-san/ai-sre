@@ -265,6 +265,10 @@ func applyClientExecutionListFilters(db *gorm.DB, q ClientExecutionListQuery) *g
 		db = db.Where("status IN ?", []string{models.ExecutionStatusFailed, models.ExecutionStatusCancelled})
 	case "auto_iteration":
 		db = db.Where("COALESCE(metadata->>'auto_iteration_id','') <> ''")
+	case "skill_sample":
+		db = db.Where("COALESCE(metadata->>'skill_sample_recorded','') IN ('true','1')")
+	case "enhancement":
+		db = db.Where("COALESCE(metadata->>'enhancement_review_triggered','') IN ('true','1') OR COALESCE(metadata->'skill_enhancement_review'->>'needs_enhancement','') IN ('true','1')")
 	}
 	if s := strings.TrimSpace(q.Status); s != "" {
 		db = db.Where("status = ?", s)

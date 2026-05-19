@@ -45,3 +45,29 @@ export function listAdminSkillEnhancementReviews(limit = 50, openOnly = true) {
     params: { limit, open_only: openOnly }
   })
 }
+
+export function updateSkillEnhancementStatus(body: {
+  request_id: string
+  topic: string
+  status: 'refined' | 'dismissed'
+  note?: string
+}) {
+  return request.post<{ updated: boolean; status: string }>('/api/admin/skill-enhancement-reviews/status', body)
+}
+
+export function lookupExecutionByRequestID(requestId: string) {
+  return request.get<{ execution_id?: string; ai_child_execution_id?: string }>(
+    `/api/admin/executions/by-request/${encodeURIComponent(requestId)}`
+  )
+}
+
+export function adminRefineSkill(body: {
+  topic: string
+  user_hint?: string
+  dry_run?: boolean
+  max_samples?: number
+  max_feedback?: number
+  timeout_sec?: number
+}) {
+  return request.post<Record<string, unknown>>('/api/admin/skills/refine', body)
+}

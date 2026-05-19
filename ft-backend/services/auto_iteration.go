@@ -570,7 +570,7 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 		Classification: classification,
 		NeedIteration:  needIteration,
 		UserMessage:    userMessage,
-		RawPayload:     models.NewJSONBFromMap(sanitizeFeedbackPayload(payload)),
+		RawPayload:     models.NewJSONBFromMap(enrichFeedbackPayload(topic, command, summary, payload)),
 	}
 	if err := database.DB.Create(&fb).Error; err != nil {
 		return nil, err
@@ -599,6 +599,13 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 							"auto_iteration_id": uid,
 							"user_message":      userMessage,
 						})
+						_ = database.DB.Model(&models.AutoIteration{}).Where("id = ?", uid).Update("feedback_id", fb.ID).Error
+						if execID := feedbackExecutionID(payload); execID != "" {
+							_ = PatchExecutionRecordMetadata(execID, map[string]interface{}{
+								"auto_iteration_id": autoID,
+								"feedback_id":       fb.ID.String(),
+							})
+						}
 					}
 				}
 			case FulfillmentActionManualReview:
@@ -678,6 +685,38 @@ func sanitizeFeedbackPayload(payload map[string]interface{}) map[string]interfac
 		out[k] = v
 	}
 	return out
+}
+
+func enrichFeedbackPayload(topic, command, summary string, payload map[string]interface{}) map[string]interface{} {
+	out := sanitizeFeedbackPayload(payload)
+	if strings.TrimSpace(topic) != "" {
+		out["topic"] = strings.TrimSpace(topic)
+	}
+	if strings.TrimSpace(command) != "" {
+		out["command"] = limitAuditText(command, 500)
+	}
+	if strings.TrimSpace(summary) != "" {
+		out["summary"] = limitAuditText(summary, 500)
+	}
+	for _, k := range []string{"request_id", "execution_id", "evidence_digest", "root_cause_digest", "recommendation_digest", "used_ai", "rule_hit", "evidence_completeness", "classification"} {
+		if payload == nil {
+			continue
+		}
+		if v, ok := payload[k]; ok && v != nil && fmt.Sprint(v) != "" {
+			out[k] = v
+		}
+	}
+	return out
+}
+
+func feedbackExecutionID(payload map[string]interface{}) string {
+	if payload == nil {
+		return ""
+	}
+	if v, ok := payload["execution_id"].(string); ok {
+		return strings.TrimSpace(v)
+	}
+	return strings.TrimSpace(fmt.Sprint(payload["execution_id"]))
 }
 
 func CodeAgentHeartbeat(bindingID uuid.UUID) error {

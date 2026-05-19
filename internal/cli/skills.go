@@ -188,7 +188,17 @@ func skillsFeedbackCmd() *cobra.Command {
 			if err := callServerSkillsFeedback(ctx, topic, skill, reqID, helpfulPtr, note); err != nil {
 				return err
 			}
-			fmt.Println("反馈已上报。可执行 ai-sre skills refine --topic " + topic + " 触发服务端精炼。")
+			if helpfulPtr != nil && !*helpfulPtr {
+				classification := "product_gap"
+				if strings.TrimSpace(note) != "" {
+					_, _ = callCLIFeedbackAnalyze(ctx, topic, "ai-sre expert skills feedback", note, map[string]interface{}{
+						"classification": classification,
+						"request_id":     strings.TrimSpace(reqID),
+						"helpful":        false,
+					})
+				}
+			}
+			fmt.Println("反馈已上报。可执行 ai-sre expert skills refine --topic " + topic + " 触发服务端精炼。")
 			return nil
 		},
 	}

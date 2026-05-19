@@ -71,6 +71,7 @@ func formatCheckStructuredText(r checkStructuredResult) string {
 
 func buildCheckJSONResult(topic, target string, diag *diagnoseResponse, ctx map[string]string, usedAI bool) map[string]interface{} {
 	root, evidence, recs := splitAnswerSections(diag)
+	ruleHit := diag != nil && strings.EqualFold(strings.TrimSpace(diag.Source), "local-rule")
 	out := map[string]interface{}{
 		"topic":              normalizeCheckTopicAlias(topic),
 		"target":             target,
@@ -80,9 +81,11 @@ func buildCheckJSONResult(topic, target string, diag *diagnoseResponse, ctx map[
 		"evidence":           evidence,
 		"recommendations":    recs,
 		"used_ai":            usedAI,
+		"rule_hit":           ruleHit,
+		"ai_source":          aiSourceLabel(diag),
 		"evidence_complete":  evidenceCompletenessForContext(ctx),
 		"skill_pack":         "",
-		"execution_id":       ActiveExecutionCorrelationID(),
+		"execution_id":       ActiveExecutionRecordID(),
 	}
 	if diag != nil {
 		out["skill_pack"] = diag.SkillName

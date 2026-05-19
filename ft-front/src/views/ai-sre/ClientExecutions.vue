@@ -55,6 +55,8 @@
       <el-tab-pane label="部署/初始化" name="deploy" />
       <el-tab-pane label="失败/待处理" name="failed" />
       <el-tab-pane label="触发自动迭代" name="auto_iteration" />
+      <el-tab-pane label="已入样本池" name="skill_sample" />
+      <el-tab-pane label="待增强" name="enhancement" />
     </el-tabs>
 
     <div class="toolbar">

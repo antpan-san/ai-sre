@@ -40,4 +40,4 @@ export function listAdminDiagnoseSamples(params: { topic?: string; limit?: numbe
 
 export type { SkillEnhancementSummary, SkillEnhancementReview }
 
-export { getAdminSkillEnhancementSummary, listAdminSkillEnhancementReviews } from './skillEnhancement'
+export { getAdminSkillEnhancementSummary, listAdminSkillEnhancementReviews, updateSkillEnhancementStatus, lookupExecutionByRequestID, adminRefineSkill } from './skillEnhancement'

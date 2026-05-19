@@ -128,7 +128,7 @@ func handleProductGapFulfillment(userID uuid.UUID, createdBy, command, topic, fa
 		Description:                desc,
 		Command:                    formattedCmd,
 		Status:                     status,
-		Source:                     models.AutoIterationSourceCLIFeedback,
+		Source:                     autoIterationSourceForFailure(failureKind),
 		RiskLevel:                  risk,
 		RequiresSuperAdminApproval: requiresApproval,
 		Topic:                      strings.TrimSpace(topic),
@@ -204,4 +204,21 @@ func publicFulfillmentMessage(raw, fallback string) string {
 		}
 	}
 	return limitAuditText(msg, 500)
+}
+
+func autoIterationSourceForFailure(failureKind string) string {
+	switch strings.ToLower(strings.TrimSpace(failureKind)) {
+	case "diagnosis_insufficient":
+		return models.AutoIterationSourceDiagnosisGap
+	case "product_gap", "capability_not_found":
+		return models.AutoIterationSourceCLIFeedback
+	case "rule_candidate":
+		return models.AutoIterationSourceRuleCandidate
+	case "ai_failure", "ai_cost_reduction":
+		return models.AutoIterationSourceAICostReduce
+	case "skill_refine":
+		return models.AutoIterationSourceSkillRefine
+	default:
+		return models.AutoIterationSourceCLIFeedback
+	}
 }

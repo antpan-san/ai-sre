@@ -196,6 +196,33 @@ func ResolvedSkillAutoRefineConfig() ResolvedSkillAutoRefine {
 	}
 }
 
+type ResolvedSkillFeedback struct {
+	HelpfulThreshold   int
+	UnhelpfulThreshold int
+	WindowDays         int
+}
+
+func ResolvedSkillFeedbackConfig() ResolvedSkillFeedback {
+	y := yamlSkills().Feedback
+	helpful := y.HelpfulThreshold
+	if helpful <= 0 {
+		helpful = 5
+	}
+	unhelpful := y.UnhelpfulThreshold
+	if unhelpful <= 0 {
+		unhelpful = 3
+	}
+	window := y.WindowDays
+	if window <= 0 {
+		window = 7
+	}
+	return ResolvedSkillFeedback{
+		HelpfulThreshold:   helpful,
+		UnhelpfulThreshold: unhelpful,
+		WindowDays:         window,
+	}
+}
+
 // ResolvedAutoIteration merges yaml auto_iteration with OPSFLEET_AUTO_ITERATION_* env.
 type ResolvedAutoIteration struct {
 	Enabled                  bool
