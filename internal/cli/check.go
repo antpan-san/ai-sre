@@ -43,9 +43,10 @@ func newCheckTopicCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Long: `topic 取值: kafka | k8s | nginx | redis | mysql | postgresql | elasticsearch | domain | dns
 
-domain / dns：诊断公网或内网域名（DNS、HTTP(S)、TLS）
+domain / dns：DNS、HTTP(S)、TLS 只读采集（纯文本报告）+ 服务端 AI 分析（非 K8s）
   · ai-sre check domain <fqdn>  例: check domain opsfleetpilot.com
   · 或 check domain -d domain=<fqdn>  可选 -d scheme=https -d port=443
+  · 仅采集不调用 AI: ai-sre probe domain <fqdn>
 
 k8s 场景 --pod 可填：
   · 问题类型：pending、crashloop、instability（与 --issue 一致）
@@ -108,15 +109,23 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 			}
 		}
 	}
-	if hasTopicEvidence(ctx) {
+	if isDomainTopic(topic) {
+		ctx["diagnosis_style"] = "domain_connectivity"
+	} else if hasTopicEvidence(ctx) {
 		ctx["diagnosis_style"] = "evidence_root_cause"
 	}
 	diag, err := runAnalyzeWithOrchestrator(context.Background(), topic, ctx)
 	if err != nil {
 		return err
 	}
+	answer := diag.Answer
+	if isDomainTopic(topic) && !strings.EqualFold(outputFormat, "json") {
+		if probe := strings.TrimSpace(ctx["domain_probe_text"]); probe != "" {
+			answer = probe + "\n\n--- AI 分析 ---\n\n" + strings.TrimSpace(answer)
+		}
+	}
 	res := &engine.RunResult{
-		Answer:       diag.Answer,
+		Answer:       answer,
 		SkillName:    diag.SkillName,
 		SkillDisplay: diag.SkillDisplay,
 	}

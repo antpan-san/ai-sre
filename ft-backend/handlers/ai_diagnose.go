@@ -416,9 +416,53 @@ func buildServerDiagnosePromptWithSkill(topic string, kv map[string]string, matc
 		return buildEvidenceRootCausePromptWithSkill(topic, kv, false, matched)
 	case "evidence_root_cause_refine":
 		return buildEvidenceRootCausePromptWithSkill(topic, kv, true, matched)
+	case "domain_connectivity":
+		return buildDomainConnectivityPromptWithSkill(topic, kv, matched)
 	default:
 		return buildDefaultServerDiagnosePromptWithSkill(topic, kv, matched)
 	}
+}
+
+func buildDomainConnectivityPromptWithSkill(topic string, kv map[string]string, matched *services.RegisteredSkill) string {
+	var b strings.Builder
+	probe := ""
+	domain := ""
+	if kv != nil {
+		probe = strings.TrimSpace(kv["domain_probe_text"])
+		domain = strings.TrimSpace(kv["domain"])
+	}
+	b.WriteString("你是资深网络/SRE，对公网或内网域名做连通性与证书诊断。\n\n")
+	b.WriteString("硬性要求：\n")
+	b.WriteString("1) **禁止**编造 Kubernetes、Ingress、Pod、kubectl 等内容；本任务不是 K8s 集群诊断。\n")
+	b.WriteString("2) 必须基于下方「域名采集报告」中的 DNS / HTTP / TLS 原文；不得虚构未出现的 IP、端口或错误。\n")
+	b.WriteString("3) 输出为**纯文本**（不要用 Markdown # 标题），固定小节名：\n")
+	b.WriteString("【结论】一句话说明访问是否正常、主要问题在哪一层（DNS / HTTP / HTTPS / 证书）。\n")
+	b.WriteString("【DNS】列出解析到的记录及含义。\n")
+	b.WriteString("【HTTP】分别说明 http 与 https（若有）的状态、延迟、Server 头、重定向。\n")
+	b.WriteString("【TLS】证书有效期、SAN、错误或 443 不可达原因。\n")
+	b.WriteString("【建议】面向运维的修复方向（如开放 443、配置 TLS、修正 DNS），避免 kubectl/集群术语。\n")
+	if matched != nil {
+		b.WriteString("\n")
+		writeSkillSection(&b, matched)
+	}
+	b.WriteString("\ntopic=" + topic)
+	if domain != "" {
+		b.WriteString(" domain=" + domain)
+	}
+	b.WriteString("\n\n")
+	if probe != "" {
+		b.WriteString("=== 域名采集报告（原文） ===\n")
+		b.WriteString(probe)
+		b.WriteString("\n")
+	} else if kv != nil {
+		b.WriteString("（缺少 domain_probe_text；请根据 context 中的 domain_probe_json 分析。）\n")
+		for _, k := range sortedStringKeys(kv) {
+			if k == "domain_probe_json" || strings.HasPrefix(k, "domain_") {
+				b.WriteString(fmt.Sprintf("- %s=%s\n", k, kv[k]))
+			}
+		}
+	}
+	return b.String()
 }
 
 func buildDefaultServerDiagnosePromptWithSkill(topic string, kv map[string]string, matched *services.RegisteredSkill) string {

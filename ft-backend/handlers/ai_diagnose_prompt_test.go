@@ -56,6 +56,23 @@ func TestBuildEvidenceRootCausePromptFocusOrderingAndRule(t *testing.T) {
 	}
 }
 
+func TestBuildServerDiagnosePromptDomainConnectivity(t *testing.T) {
+	p := buildServerDiagnosePrompt("domain", map[string]string{
+		"diagnosis_style":  "domain_connectivity",
+		"domain":           "opsfleetpilot.com",
+		"domain_probe_text": "=== 域名诊断：opsfleetpilot.com ===\n【DNS 解析】\n  A  204.44.123.101",
+	})
+	if strings.Contains(p, "集群采集输出") || strings.Contains(p, "资深 Kubernetes SRE") {
+		t.Fatalf("domain prompt must not use k8s evidence template")
+	}
+	if !strings.Contains(p, "域名采集报告") || !strings.Contains(p, "204.44.123.101") {
+		t.Fatalf("expected domain probe text in prompt: %s", p[:min(300, len(p))])
+	}
+	if !strings.Contains(p, "【结论】") {
+		t.Fatalf("expected plain-text section headers")
+	}
+}
+
 func TestKvForSkillDraftStripsBulkEvidence(t *testing.T) {
 	in := map[string]string{
 		"pod":             "pending",

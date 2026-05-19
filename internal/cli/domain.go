@@ -328,9 +328,71 @@ func gatherDomainEvidence(ctx context.Context, flags map[string]string, out map[
 	}
 	opts := domainDiagnoseOptions{Domain: d, Scheme: flags["scheme"], Port: flags["port"]}
 	report := runDomainDiagnose(opts)
+	text := formatDomainProbeText(report)
+	if text != "" {
+		out["domain_probe_text"] = truncateBytes(text, maxBytesPerTopicEvidence)
+	}
 	b, err := json.Marshal(report)
 	if err != nil {
 		return
 	}
 	out["domain_probe_json"] = truncateBytes(string(b), maxBytesPerTopicEvidence)
+}
+
+// formatDomainProbeText 生成域名诊断的纯文本报告（供 check 直出与服务端 AI 引用）。
+func formatDomainProbeText(r *domainDiagnoseReport) string {
+	if r == nil || strings.TrimSpace(r.Domain) == "" {
+		return ""
+	}
+	var b strings.Builder
+	fmt.Fprintf(&b, "=== 域名诊断：%s ===\n", r.Domain)
+	fmt.Fprintf(&b, "采集时间: %s\n\n", time.Now().Format("2006-01-02 15:04:05 MST"))
+
+	b.WriteString("【DNS 解析】\n")
+	if len(r.DNS) == 0 {
+		b.WriteString("  (无 A/AAAA/CNAME 记录)\n")
+	} else {
+		for _, rec := range r.DNS {
+			fmt.Fprintf(&b, "  %-6s %s\n", rec.Type, rec.Value)
+		}
+	}
+	b.WriteString("\n【HTTP(S) 探测】\n")
+	if len(r.HTTP) == 0 {
+		b.WriteString("  (未执行)\n")
+	} else {
+		for _, h := range r.HTTP {
+			if h.Error != "" {
+				fmt.Fprintf(&b, "  %s\n    结果: 失败\n    错误: %s\n", h.URL, h.Error)
+				continue
+			}
+			fmt.Fprintf(&b, "  %s\n    状态: %d  耗时: %dms\n", h.URL, h.StatusCode, h.LatencyMs)
+			if h.ServerHeader != "" {
+				fmt.Fprintf(&b, "    Server: %s\n", h.ServerHeader)
+			}
+			if h.RedirectTo != "" {
+				fmt.Fprintf(&b, "    重定向: %s\n", h.RedirectTo)
+			}
+		}
+	}
+	b.WriteString("\n【TLS / 443】\n")
+	if r.TLS == nil {
+		b.WriteString("  (未探测)\n")
+	} else if r.TLS.Error != "" {
+		fmt.Fprintf(&b, "  目标: %s\n    结果: %s\n", r.TLS.Host, r.TLS.Error)
+	} else {
+		fmt.Fprintf(&b, "  目标: %s\n    有效期: %s ~ %s\n", r.TLS.Host, r.TLS.NotBefore, r.TLS.NotAfter)
+		if r.TLS.Issuer != "" {
+			fmt.Fprintf(&b, "    颁发者: %s\n", r.TLS.Issuer)
+		}
+		if r.TLS.DNSNames != "" {
+			fmt.Fprintf(&b, "    SAN: %s\n", r.TLS.DNSNames)
+		}
+	}
+	if len(r.Findings) > 0 {
+		b.WriteString("\n【采集结论】\n")
+		for _, f := range r.Findings {
+			fmt.Fprintf(&b, "  - %s\n", f)
+		}
+	}
+	return strings.TrimSpace(b.String())
 }
