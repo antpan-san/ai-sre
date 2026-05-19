@@ -98,3 +98,37 @@ func GetAISreExecutionDetail(c *gin.Context) {
 	}
 	response.OK(c, detail)
 }
+
+type executionFeedbackRequest struct {
+	Helpful bool   `json:"helpful"`
+	Note    string `json:"note"`
+}
+
+// PostAISreExecutionFeedback records user helpful/unhelpful feedback for an execution session.
+func PostAISreExecutionFeedback(c *gin.Context) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.BadRequest(c, "无效的执行 ID")
+		return
+	}
+	var req executionFeedbackRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效参数")
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	userVal, _ := c.Get("username")
+	username, _ := userVal.(string)
+	out, err := services.SubmitExecutionSkillFeedback(id, role, username, req.Helpful, req.Note)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.NotFound(c, "执行记录不存在或无权操作")
+			return
+		}
+		logger.Error("PostAISreExecutionFeedback: %v", err)
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, out)
+}

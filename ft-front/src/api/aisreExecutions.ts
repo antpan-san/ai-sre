@@ -73,3 +73,11 @@ export function getAISreExecutionStats(hours = 24) {
 export function getAISreExecutionDetail(id: string) {
   return request.get<ClientExecutionDetail>(`/api/ai-sre/executions/${encodeURIComponent(id)}`)
 }
+
+export function submitAISreExecutionFeedback(id: string, body: { helpful: boolean; note?: string }) {
+  return request.post<{
+    recorded: boolean
+    topic?: string
+    evaluation?: { review_triggered?: boolean; classification?: string }
+  }>(`/api/ai-sre/executions/${encodeURIComponent(id)}/feedback`, body)
+}

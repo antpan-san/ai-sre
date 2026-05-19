@@ -66,6 +66,12 @@
             <span v-else>—</span>
           </el-descriptions-item>
         </el-descriptions>
+        <div class="feedback-actions">
+          <span class="feedback-label">本次诊断是否有帮助？</span>
+          <el-button size="small" type="success" :loading="feedbackLoading" @click="submitFeedback(true)">有用</el-button>
+          <el-button size="small" type="warning" :loading="feedbackLoading" @click="submitFeedback(false)">无用</el-button>
+          <el-button size="small" link type="primary" @click="copySummary">复制结论</el-button>
+        </div>
       </el-card>
 
       <el-card v-if="enhancement" shadow="never" class="block">
@@ -151,7 +157,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAISreExecutionDetail, type ClientExecutionDetail } from '../../api/aisreExecutions'
+import { ElMessage } from 'element-plus'
+import { getAISreExecutionDetail, submitAISreExecutionFeedback, type ClientExecutionDetail } from '../../api/aisreExecutions'
+import { copyTextToClipboard } from '../../utils/clipboard'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,6 +174,7 @@ const isSuperAdmin = computed(() => {
 })
 
 const loading = ref(false)
+const feedbackLoading = ref(false)
 const detail = ref<ClientExecutionDetail | null>(null)
 const rec = computed(() => (detail.value?.record || {}) as Record<string, any>)
 const meta = computed(() => (rec.value.metadata || {}) as Record<string, any>)
@@ -195,6 +204,35 @@ const load = async () => {
     detail.value = null
   } finally {
     loading.value = false
+  }
+}
+
+const submitFeedback = async (helpful: boolean) => {
+  const id = String(route.params.id || '')
+  if (!id) return
+  feedbackLoading.value = true
+  try {
+    const res = await submitAISreExecutionFeedback(id, { helpful })
+    ElMessage.success(res.evaluation?.review_triggered ? '感谢反馈，已触发精炼审查' : '感谢反馈')
+    await load()
+  } catch {
+    ElMessage.error('反馈提交失败')
+  } finally {
+    feedbackLoading.value = false
+  }
+}
+
+const copySummary = async () => {
+  const text = String(meta.value.root_cause || meta.value.summary || rec.value.stdout_summary || '').trim()
+  if (!text) {
+    ElMessage.warning('无可复制结论')
+    return
+  }
+  try {
+    await copyTextToClipboard(text)
+    ElMessage.success('已复制结论')
+  } catch {
+    ElMessage.error('复制失败')
   }
 }
 
@@ -300,5 +338,16 @@ onMounted(() => {
 }
 .events-table {
   margin-top: 12px;
+}
+.feedback-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+.feedback-label {
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 </style>

@@ -19,6 +19,7 @@ type RefineSkillInput struct {
 	MaxFeedback     int
 	UserHint        string
 	ForceLLMTimeout time.Duration
+	DryRun          bool
 }
 
 // RefineSkillResult bundles the produced + persisted pack.
@@ -28,6 +29,8 @@ type RefineSkillResult struct {
 	SamplesUsed   int        `json:"samples_used"`
 	FeedbackUsed  int        `json:"feedback_used"`
 	PersistedPath string     `json:"persisted_path,omitempty"`
+	DraftYAML     string     `json:"draft_yaml,omitempty"`
+	DryRun        bool       `json:"dry_run,omitempty"`
 	Notes         string     `json:"notes,omitempty"`
 }
 
@@ -96,6 +99,18 @@ func RefineSkill(ctx context.Context, reg *SkillRegistry, in RefineSkillInput) (
 	}
 	if !ValidateSkillDraft(&newPack) {
 		return nil, errors.New("模型产出的技能包未通过最小 schema 校验")
+	}
+
+	if in.DryRun {
+		return &RefineSkillResult{
+			NewPack:      &newPack,
+			OldPackName:  cur.Pack.Name,
+			SamplesUsed:  len(samples),
+			FeedbackUsed: len(feedback),
+			DraftYAML:    yamlText,
+			DryRun:       true,
+			Notes:        "dry run: YAML validated, not written to generated/",
+		}, nil
 	}
 
 	persisted, err := reg.SaveGenerated(&newPack)

@@ -50,6 +50,7 @@ func AdminRefineSkill(c *gin.Context) {
 		MaxFeedback:     req.MaxFeedback,
 		UserHint:        req.UserHint,
 		ForceLLMTimeout: timeout,
+		DryRun:          req.DryRun,
 	})
 	if err != nil {
 		logger.Error("AdminRefineSkill topic=%s: %v", topic, err)

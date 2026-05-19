@@ -38,6 +38,25 @@ export function listAdminDiagnoseSamples(params: { topic?: string; limit?: numbe
   return request.get<{ samples: DiagnoseSample[] }>('/api/admin/diagnose-samples', { params })
 }
 
+export interface AutoIterationFeedbackItem {
+  id: string
+  created_at?: string
+  topic: string
+  classification?: string
+  need_iteration?: boolean
+  user_message?: string
+  auto_iteration_id?: string
+  request_id?: string
+  execution_id?: string
+  command?: string
+  summary?: string
+  helpful?: boolean
+}
+
+export function listAdminAutoIterationFeedbacks(limit = 50) {
+  return request.get<{ feedbacks: AutoIterationFeedbackItem[] }>('/api/admin/auto-iteration-feedbacks', { params: { limit } })
+}
+
 export type { SkillEnhancementSummary, SkillEnhancementReview }
 
 export { getAdminSkillEnhancementSummary, listAdminSkillEnhancementReviews, updateSkillEnhancementStatus, lookupExecutionByRequestID, adminRefineSkill } from './skillEnhancement'

@@ -69,5 +69,11 @@ export function adminRefineSkill(body: {
   max_feedback?: number
   timeout_sec?: number
 }) {
-  return request.post<Record<string, unknown>>('/api/admin/skills/refine', body)
+  return request.post<{
+    draft_yaml?: string
+    dry_run?: boolean
+    persisted_path?: string
+    samples_used?: number
+    feedback_used?: number
+  }>('/api/admin/skills/refine', body)
 }

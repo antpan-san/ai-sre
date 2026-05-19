@@ -112,6 +112,38 @@
         </el-table>
       </el-tab-pane>
 
+      <el-tab-pane label="CLI 反馈" name="feedbacks">
+        <el-table :data="feedbacks" stripe border size="small" empty-text="暂无 CLI 反馈">
+          <el-table-column label="时间" width="150">
+            <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+          </el-table-column>
+          <el-table-column prop="topic" label="Topic" width="96" />
+          <el-table-column prop="classification" label="分类" width="140" show-overflow-tooltip />
+          <el-table-column label="有用" width="72" align="center">
+            <template #default="{ row }">
+              <el-tag v-if="row.helpful === true" type="success" size="small">是</el-tag>
+              <el-tag v-else-if="row.helpful === false" type="warning" size="small">否</el-tag>
+              <span v-else>—</span>
+            </template>
+          </el-table-column>
+          <el-table-column label="需迭代" width="80" align="center">
+            <template #default="{ row }">
+              <el-tag :type="row.need_iteration ? 'warning' : 'info'" size="small">{{ row.need_iteration ? '是' : '否' }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="摘要" min-width="180" show-overflow-tooltip>
+            <template #default="{ row }">{{ row.summary || row.user_message || '—' }}</template>
+          </el-table-column>
+          <el-table-column label="操作" width="160" align="center">
+            <template #default="{ row }">
+              <el-button v-if="row.execution_id" link type="primary" size="small" @click="openExecution(row.execution_id)">复盘</el-button>
+              <el-button v-else-if="row.request_id" link type="primary" size="small" @click="openByRequest(row.request_id)">复盘</el-button>
+              <el-button v-if="row.auto_iteration_id" link type="primary" size="small" @click="goAutoIterationDetail(row.auto_iteration_id)">迭代</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </el-tab-pane>
+
       <el-tab-pane label="高频 Topic" name="topics">
         <el-table :data="sampleSummary?.top_topics || []" stripe border size="small" empty-text="暂无数据">
           <el-table-column prop="topic" label="Topic" />
@@ -123,7 +155,7 @@
       </el-tab-pane>
     </el-tabs>
 
-    <el-dialog v-model="refineOpen" title="触发技能精炼" width="480px">
+    <el-dialog v-model="refineOpen" title="触发技能精炼" width="640px" @closed="refineDraftYaml = ''">
       <el-form label-width="88px" size="small">
         <el-form-item label="Topic">
           <el-input v-model="refineTopic" />
@@ -135,8 +167,12 @@
           <el-switch v-model="refineDryRun" />
         </el-form-item>
       </el-form>
+      <div v-if="refineDraftYaml" class="draft-block">
+        <h4>Dry run 草稿 YAML</h4>
+        <pre class="draft-yaml">{{ refineDraftYaml }}</pre>
+      </div>
       <template #footer>
-        <el-button @click="refineOpen = false">取消</el-button>
+        <el-button @click="refineOpen = false">关闭</el-button>
         <el-button type="primary" :loading="refineLoading" @click="submitRefine">开始精炼</el-button>
       </template>
     </el-dialog>
@@ -144,17 +180,19 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   adminRefineSkill,
   getAdminDiagnoseSampleSummary,
   getAdminSkillEnhancementSummary,
+  listAdminAutoIterationFeedbacks,
   listAdminDiagnoseSamples,
   listAdminSkillEnhancementReviews,
   lookupExecutionByRequestID,
   updateSkillEnhancementStatus,
+  type AutoIterationFeedbackItem,
   type DiagnoseSample,
   type DiagnoseSampleSummary,
   type SkillEnhancementReview,
@@ -171,11 +209,13 @@ const sampleSummary = ref<DiagnoseSampleSummary | null>(null)
 const enhancementSummary = ref<SkillEnhancementSummary | null>(null)
 const reviews = ref<SkillEnhancementReview[]>([])
 const samples = ref<DiagnoseSample[]>([])
+const feedbacks = ref<AutoIterationFeedbackItem[]>([])
 const refineOpen = ref(false)
 const refineLoading = ref(false)
 const refineTopic = ref('')
 const refineHint = ref('')
 const refineDryRun = ref(true)
+const refineDraftYaml = ref('')
 
 const formatTime = (t?: string) => (t ? String(t).replace('T', ' ').slice(0, 19) : '—')
 const priorityTag = (p?: string) => (p === 'high' ? 'danger' : p === 'medium' ? 'warning' : 'info')
@@ -196,6 +236,15 @@ const loadSamples = async () => {
   }
 }
 
+const loadFeedbacks = async () => {
+  try {
+    const data = await listAdminAutoIterationFeedbacks(50)
+    feedbacks.value = data.feedbacks || []
+  } catch {
+    feedbacks.value = []
+  }
+}
+
 const reload = async () => {
   loading.value = true
   try {
@@ -210,6 +259,9 @@ const reload = async () => {
     if (activeTab.value === 'samples') {
       await loadSamples()
     }
+    if (activeTab.value === 'feedbacks') {
+      await loadFeedbacks()
+    }
   } catch {
     sampleSummary.value = null
     enhancementSummary.value = null
@@ -221,6 +273,7 @@ const reload = async () => {
 
 const goSkillsCatalog = () => router.push({ path: '/admin/billing/ai-sre-skills', query: { tab: 'enhancement' } })
 const goAutoIterations = () => router.push('/admin/auto-iterations')
+const goAutoIterationDetail = (id: string) => router.push(`/admin/auto-iterations?id=${id}`)
 const openExecution = (id: string) => router.push(`/admin/ai-sre/executions/${id}`)
 
 const openByRequest = async (requestId: string) => {
@@ -240,6 +293,7 @@ const openRefine = (topic: string) => {
   refineTopic.value = topic
   refineHint.value = ''
   refineDryRun.value = true
+  refineDraftYaml.value = ''
   refineOpen.value = true
 }
 
@@ -248,7 +302,7 @@ const submitRefine = async () => {
   if (!topic) return
   refineLoading.value = true
   try {
-    await adminRefineSkill({
+    const res = await adminRefineSkill({
       topic,
       user_hint: refineHint.value.trim() || undefined,
       dry_run: refineDryRun.value,
@@ -256,8 +310,15 @@ const submitRefine = async () => {
       max_feedback: 8,
       timeout_sec: 120
     })
-    ElMessage.success(refineDryRun.value ? 'Dry run 完成' : '精炼任务已完成')
-    refineOpen.value = false
+    const draft = String(res.draft_yaml || '')
+    if (refineDryRun.value && draft) {
+      refineDraftYaml.value = draft
+      ElMessage.success('Dry run 完成，草稿 YAML 已展示')
+    } else {
+      refineDraftYaml.value = ''
+      ElMessage.success('精炼任务已完成')
+      refineOpen.value = false
+    }
     await reload()
   } catch {
     ElMessage.error('精炼失败')
@@ -287,6 +348,15 @@ const markReview = async (row: SkillEnhancementReview, status: 'refined' | 'dism
 
 onMounted(() => {
   void reload()
+})
+
+watch(activeTab, (tab) => {
+  if (tab === 'feedbacks' && !feedbacks.value.length) {
+    void loadFeedbacks()
+  }
+  if (tab === 'samples' && !samples.value.length) {
+    void loadSamples()
+  }
 })
 </script>
 
@@ -342,5 +412,24 @@ onMounted(() => {
 }
 .muted {
   color: var(--el-text-color-placeholder);
+}
+.draft-block {
+  margin-top: 8px;
+}
+.draft-block h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.draft-yaml {
+  max-height: 320px;
+  overflow: auto;
+  margin: 0;
+  padding: 10px;
+  font-size: 12px;
+  line-height: 1.45;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

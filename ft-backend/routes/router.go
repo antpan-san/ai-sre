@@ -184,6 +184,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.POST("/admin/skills/refine", handlers.AdminRefineSkill)
 		superAdmin.POST("/admin/skill-enhancement-reviews/status", handlers.AdminUpdateSkillEnhancementStatus)
 		superAdmin.GET("/admin/executions/by-request/:request_id", handlers.AdminLookupExecutionByRequestID)
+		superAdmin.GET("/admin/auto-iteration-feedbacks", handlers.AdminListAutoIterationFeedbacks)
 
 		superAdmin.GET("/admin/auto-iterations/settings", handlers.AdminGetAutoIterationSettings)
 		superAdmin.PUT("/admin/auto-iterations/settings", handlers.AdminUpdateAutoIterationSettings)
@@ -233,6 +234,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/ai-sre/executions", handlers.ListAISreExecutions)
 		protected.GET("/ai-sre/executions/stats", handlers.GetAISreExecutionStats)
 		protected.GET("/ai-sre/executions/:id", handlers.GetAISreExecutionDetail)
+		protected.POST("/ai-sre/executions/:id/feedback", handlers.PostAISreExecutionFeedback)
 		adminOnly.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
 		adminOnly.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
 
