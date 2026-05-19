@@ -13,5 +13,4 @@ export function getStoredAuthToken(): string | null {
   }
 }
 
-export const INSTALL_AI_SRE_PLACEHOLDER =
-  '# 点击“生成并复制命令”创建 15 分钟有效的一次性安装命令。'
+export const INSTALL_AI_SRE_PLACEHOLDER = '# 点击「生成复制」'

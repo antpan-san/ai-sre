@@ -258,7 +258,7 @@
 
           <el-popover
             placement="bottom-end"
-            :width="440"
+            :width="268"
             trigger="hover"
             :show-after="180"
             popper-class="install-ai-sre-popover"
@@ -271,33 +271,29 @@
                 aria-haspopup="true"
                 :aria-label="installAiSreTriggerAriaLabel"
               >
-                <el-icon :size="18"><Download /></el-icon>
-                <span class="install-ai-sre-trigger__text">
-                  安装 ai-sre
-                  <span v-if="installAiSreAdvertisedVersion" class="install-ai-sre-trigger__ver">v{{ installAiSreAdvertisedVersion }}</span>
-                </span>
-                <el-icon class="install-ai-sre-trigger__caret" :size="12"><ArrowDown /></el-icon>
+                <el-icon :size="16"><Download /></el-icon>
+                <span class="install-ai-sre-trigger__text">ai-sre</span>
               </button>
             </template>
             <div class="install-ai-sre-panel">
-              <p class="install-ai-sre-panel__desc">
-                当前控制台分发的 CLI 版本：
-                <strong v-if="installAiSreAdvertisedVersion">v{{ installAiSreAdvertisedVersion }}</strong>
-                <span v-else-if="installAiSreVersionLoading">加载中…</span>
-                <span v-else>未知（请检查 bin/ai-sre 与 OPSFLEET_AISRE_BINARY_PATH）</span>。
-                生成一次性安装命令，15 分钟内在控制机执行；安装后写入专用 CLI token，并绑定当前账号与机器指纹。
+              <p class="install-ai-sre-panel__meta">
+                <template v-if="installAiSreAdvertisedVersion">v{{ installAiSreAdvertisedVersion }}</template>
+                <span v-else-if="installAiSreVersionLoading">…</span>
+                <span v-else>—</span>
+                <span class="install-ai-sre-panel__dot">·</span>
+                15 分钟有效
               </p>
               <el-input
                 class="install-ai-sre-panel__input"
                 type="textarea"
                 :model-value="installAiSreCommand || INSTALL_AI_SRE_PLACEHOLDER"
-                :autosize="{ minRows: 3, maxRows: 6 }"
+                :autosize="{ minRows: 2, maxRows: 3 }"
                 readonly
               />
-              <p v-if="installAiSreExpiresAt" class="install-ai-sre-panel__expires">
-                有效期至 {{ formatInstallExpiresAt(installAiSreExpiresAt) }}
-              </p>
               <div class="install-ai-sre-panel__actions">
+                <span v-if="installAiSreExpiresAt" class="install-ai-sre-panel__expires">
+                  {{ formatInstallExpiresAt(installAiSreExpiresAt) }} 前
+                </span>
                 <el-button
                   type="primary"
                   size="small"
@@ -305,7 +301,7 @@
                   :disabled="!installAiSreCommandHasToken"
                   @click="copyInstallAiSreCommand"
                 >
-                  生成并复制命令
+                  生成复制
                 </el-button>
               </div>
             </div>
@@ -920,14 +916,15 @@ const handleLogout = () => {
 .install-ai-sre-trigger {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   margin: 0;
-  padding: 6px 12px;
+  padding: 4px 8px;
   border: 1px solid var(--el-border-color);
   border-radius: var(--el-border-radius-base);
   background: var(--el-fill-color-blank);
   font: inherit;
-  font-size: 13px;
+  font-size: 12px;
+  font-weight: 500;
   color: var(--el-color-primary);
   cursor: pointer;
 }
@@ -937,24 +934,10 @@ const handleLogout = () => {
 }
 
 .install-ai-sre-trigger__text {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-  max-width: 220px;
+  max-width: 4.5rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.install-ai-sre-trigger__ver {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--el-color-primary);
-  flex-shrink: 0;
-}
-
-.install-ai-sre-trigger__caret {
-  color: var(--el-text-color-secondary);
 }
 
 .user-trigger {
