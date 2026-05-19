@@ -210,8 +210,15 @@ func upgradeCmd() *cobra.Command {
 				return fmt.Errorf("服务端未返回有效版本，请检查 OpsFleet 是否配置 opsfleet.ai_sre_binary_path 与 OPSFLEET_AISRE_VERSION（可选）")
 			}
 			if !versionIsOlder(Version, remote) {
-				if verboseU {
-					_, _ = fmt.Fprintf(os.Stdout, "当前已是最新或较新：本地 %s，服务端 %s\n", Version, remote)
+				if versionIsOlder(remote, Version) {
+					msg := fmt.Sprintf("本地 %s 已高于 OpsFleet 当前分发版 %s，不会从服务端降级", Version, remote)
+					if verboseU {
+						_, _ = fmt.Fprintf(os.Stdout, "%s（GET .../cli/ai-sre/version 读的是控制台 bin/ai-sre）\n", msg)
+					} else {
+						fmt.Println(msg)
+					}
+				} else if verboseU {
+					_, _ = fmt.Fprintf(os.Stdout, "当前已是最新：本地 %s，服务端 %s\n", Version, remote)
 				} else {
 					fmt.Println("已是最新，无需升级（本地", Version+"，OpsFleet", remote+"）")
 				}
