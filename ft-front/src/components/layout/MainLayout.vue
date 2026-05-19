@@ -464,24 +464,26 @@ const isAdminUser = computed(() => ['admin', 'super_admin'].includes(String(curr
 const isCollapse = ref(false)
 const capabilityByFeature = ref<Record<string, BillingCapabilityFeature>>({})
 
+const isRuntimeObservePath = (p: string) => p.includes('/advanced/runtime-observe')
+
 const menuDefaultOpeneds = computed(() => {
   const p = route.path
   const open: string[] = []
   if (p.startsWith('/app')) {
-    if (p.includes('/app/ai-sre') || p.includes('/app/execution-records') || p.includes('/app/advanced/runtime-observe')) {
+    if (p.includes('/app/ai-sre') || p.includes('/app/execution-records') || isRuntimeObservePath(p)) {
       open.push('app-aisre')
     }
-    if (p.includes('/app/advanced')) open.push('app-advanced')
+    if (p.includes('/app/advanced') && !isRuntimeObservePath(p)) open.push('app-advanced')
     return open
   }
-  if (p.includes('/admin/ai-sre') || p.includes('/admin/execution-records') || p.includes('/admin/advanced/runtime-observe')) {
+  if (p.includes('/admin/ai-sre') || p.includes('/admin/execution-records') || isRuntimeObservePath(p)) {
     open.push('asm-aisre')
   }
   if (p.includes('/admin/service')) open.push('asm-workloads')
   if (p.includes('/admin/monitoring')) open.push('asm-observe')
   if (p.includes('/admin/job')) open.push('asm-run')
   if (p.includes('/admin/security-audit')) open.push('asm-security')
-  if (p.includes('/admin/advanced')) open.push('asm-advanced')
+  if (p.includes('/admin/advanced') && !isRuntimeObservePath(p)) open.push('asm-advanced')
   if (p.includes('/admin/billing')) open.push('asm-billing')
   return open
 })
