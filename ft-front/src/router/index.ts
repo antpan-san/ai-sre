@@ -109,6 +109,35 @@ const routes: Array<RouteRecordRaw> = [
         })
       },
       {
+        path: 'ai-sre/executions',
+        name: 'AdminAISreExecutions',
+        component: () => import('../views/ai-sre/ClientExecutions.vue'),
+        meta: {
+          title: '客户端执行',
+          requireAuth: true,
+          roles: appRoles,
+          breadcrumb: [{ title: 'ai-sre 中心' }, { title: '客户端执行' }]
+        }
+      },
+      {
+        path: 'ai-sre/executions/:id',
+        name: 'AdminAISreExecutionDetail',
+        component: () => import('../views/ai-sre/ClientExecutionDetail.vue'),
+        meta: {
+          title: '执行复盘',
+          requireAuth: true,
+          roles: appRoles,
+          breadcrumb: [
+            { title: 'ai-sre 中心', path: '/admin/ai-sre/executions' },
+            { title: '执行复盘' }
+          ]
+        }
+      },
+      {
+        path: 'ai-sre/skills',
+        redirect: '/admin/billing/ai-sre-skills'
+      },
+      {
         path: 'service/deploy',
         name: 'AdminServiceDeploy',
         component: () => import('../views/service/ServiceDeploy.vue'),
@@ -282,6 +311,18 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AppJobCenter',
         component: () => import('../views/job/JobCenter.vue'),
         meta: { title: '作业中心', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'ai-sre/executions',
+        name: 'AppAISreExecutions',
+        component: () => import('../views/ai-sre/ClientExecutions.vue'),
+        meta: { title: '客户端执行', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'ai-sre/executions/:id',
+        name: 'AppAISreExecutionDetail',
+        component: () => import('../views/ai-sre/ClientExecutionDetail.vue'),
+        meta: { title: '执行复盘', requireAuth: true, roles: appRoles }
       },
       {
         path: 'execution-records',

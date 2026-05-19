@@ -53,10 +53,28 @@
               <el-icon><PieChart /></el-icon>
               <template #title>概览</template>
             </el-menu-item>
-            <el-menu-item v-if="isSuperAdmin" index="/admin/auto-iterations">
-              <el-icon><Refresh /></el-icon>
-              <template #title>自动迭代</template>
-            </el-menu-item>
+            <el-sub-menu index="asm-aisre">
+              <template #title>
+                <el-icon><Collection /></el-icon>
+                <span>ai-sre 中心</span>
+              </template>
+              <el-menu-item index="/admin/ai-sre/executions">
+                <el-icon><List /></el-icon>
+                <template #title>客户端执行</template>
+              </el-menu-item>
+              <el-menu-item v-if="isSuperAdmin" index="/admin/ai-sre/skills">
+                <el-icon><Collection /></el-icon>
+                <template #title>技能包资产</template>
+              </el-menu-item>
+              <el-menu-item v-if="isSuperAdmin" index="/admin/auto-iterations">
+                <el-icon><Refresh /></el-icon>
+                <template #title>自动迭代</template>
+              </el-menu-item>
+              <el-menu-item index="/admin/help/error-codes">
+                <el-icon><DocumentCopy /></el-icon>
+                <template #title>错误码</template>
+              </el-menu-item>
+            </el-sub-menu>
             <el-sub-menu v-if="isSuperAdmin" index="asm-billing">
               <template #title>
                 <el-icon><Setting /></el-icon>
@@ -68,7 +86,7 @@
               </el-menu-item>
               <el-menu-item index="/admin/billing/ai-sre-skills">
                 <el-icon><Collection /></el-icon>
-                <template #title>ai-sre 技能包</template>
+                <template #title>ai-sre 技能包（旧入口）</template>
               </el-menu-item>
             </el-sub-menu>
             <el-sub-menu
@@ -120,7 +138,7 @@
                 <span>任务</span>
               </template>
               <el-menu-item index="/admin/job/center">作业中心</el-menu-item>
-              <el-menu-item index="/admin/execution-records">执行记录</el-menu-item>
+              <el-menu-item index="/admin/execution-records">通用执行审计</el-menu-item>
             </el-sub-menu>
             <el-sub-menu index="asm-security">
               <template #title>
@@ -159,13 +177,27 @@
               <el-icon><PieChart /></el-icon>
               <template #title>概览</template>
             </el-menu-item>
+            <el-sub-menu index="app-aisre">
+              <template #title>
+                <el-icon><Collection /></el-icon>
+                <span>ai-sre 中心</span>
+              </template>
+              <el-menu-item index="/app/ai-sre/executions">
+                <el-icon><List /></el-icon>
+                <template #title>客户端执行</template>
+              </el-menu-item>
+              <el-menu-item index="/app/help/error-codes">
+                <el-icon><DocumentCopy /></el-icon>
+                <template #title>错误码</template>
+              </el-menu-item>
+            </el-sub-menu>
             <el-menu-item index="/app/job/center">
               <el-icon><Management /></el-icon>
               <template #title>作业中心</template>
             </el-menu-item>
             <el-menu-item index="/app/execution-records">
               <el-icon><List /></el-icon>
-              <template #title>执行记录</template>
+              <template #title>通用执行审计</template>
             </el-menu-item>
             <el-menu-item v-if="featureVisible('feature.node_ops')" index="/app/init-tools">
               <el-icon><Tools /></el-icon>

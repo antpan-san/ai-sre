@@ -2,13 +2,13 @@
   <div class="execution-records page-shell">
     <header class="page-header page-header--row">
       <div class="page-header-copy">
-        <h2 class="page-title">执行记录</h2>
+        <h2 class="page-title">通用执行审计</h2>
         <el-popover placement="bottom-start" :width="280" trigger="click">
           <template #reference>
             <el-button text type="primary" size="small">说明</el-button>
           </template>
           <p class="page-desc--muted" style="margin: 0">
-            CLI、脚本副本、作业或 K8s 操作的统一历史；开启 K8s 交付能力时可在「K8s 集群」查看已登记集群。
+            脚本副本、作业、K8s 安装等非 ai-sre CLI 主路径的审计流水。ai-sre CLI 复盘请使用「ai-sre 中心 → 客户端执行」。
           </p>
         </el-popover>
       </div>

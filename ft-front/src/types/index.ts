@@ -163,6 +163,8 @@ export interface User {
   createTime?: string
   updateTime?: string
 }
+
+export interface UserListQuery {
   page?: number
   pageSize?: number
   username?: string

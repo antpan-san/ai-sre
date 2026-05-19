@@ -13,7 +13,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=15 "$REMOTE_USER_HOST" "mkdir -p '$REMOTE
 echo "==> Rsync project -> $REMOTE_USER_HOST:$REMOTE_DIR"
 rsync -avz \
   --exclude '.git' \
-  --exclude 'ai-sre' \
+  --exclude '/ai-sre' \
   --exclude '.DS_Store' \
   --exclude '.env' \
   --exclude 'bin' \

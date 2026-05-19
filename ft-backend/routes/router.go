@@ -223,6 +223,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/execution-records/:id", handlers.GetExecutionRecordDetail)
 		protected.GET("/execution-records/:id/events", handlers.GetExecutionRecordEvents)
 		protected.GET("/execution-records/:id/dependencies", handlers.GetExecutionRecordDependencies)
+		protected.GET("/ai-sre/executions", handlers.ListAISreExecutions)
+		protected.GET("/ai-sre/executions/stats", handlers.GetAISreExecutionStats)
+		protected.GET("/ai-sre/executions/:id", handlers.GetAISreExecutionDetail)
 		adminOnly.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
 		adminOnly.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
 

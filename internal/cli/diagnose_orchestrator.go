@@ -100,7 +100,10 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 	base := strings.TrimSpace(resolveOpsfleetAPIBase())
 	var serverErr error
 	if base != "" {
-		reqID := uuid.NewString()
+		reqID := ActiveExecutionCorrelationID()
+		if reqID == "" {
+			reqID = uuid.NewString()
+		}
 		intent := buildExecutionIntent("analyze", topic, kv)
 		gateErr := ensureExecutionAllowedWithContext(ctx, intent, false, kv)
 		if gateErr != nil {

@@ -20,6 +20,8 @@ type opsfleetAIClientInfo struct {
 	Version         string `json:"version"`
 	BindingID       string `json:"binding_id,omitempty"`
 	FingerprintHash string `json:"fingerprint_hash,omitempty"`
+	ExecutionID     string `json:"execution_id,omitempty"`
+	CorrelationID   string `json:"correlation_id,omitempty"`
 }
 
 // serverAIResult builds a minimal engine result for ask/runbook/analyze when served by OpsFleet.
@@ -50,6 +52,8 @@ func opsfleetAIClient() opsfleetAIClientInfo {
 		Version:         Version,
 		BindingID:       resolveOpsfleetBindingID(),
 		FingerprintHash: resolveOpsfleetFingerprint(),
+		ExecutionID:     ActiveExecutionRecordID(),
+		CorrelationID:   ActiveExecutionCorrelationID(),
 	}
 }
 

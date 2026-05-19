@@ -18,7 +18,7 @@ ssh -o BatchMode=yes -o ConnectTimeout=20 "$REMOTE" "mkdir -p '$REMOTE_DIR'"
 echo "==> Rsync source (exclude build artifacts)"
 rsync -avz \
   --exclude '.git' \
-  --exclude 'ai-sre' \
+  --exclude '/ai-sre' \
   --exclude 'bin' \
   --exclude 'dist' \
   --exclude 'ft-front/node_modules' \

@@ -11,17 +11,17 @@ import (
 
 	"ft-backend/database"
 	"ft-backend/models"
+	"ft-backend/services"
 
 	"gorm.io/gorm"
 )
 
 func scopedExecutionRecords24h(tenantID uuid.UUID, since time.Time, role, username string) *gorm.DB {
-	return applyExecutionConsoleMemberScope(
-		database.DB.Model(&models.ExecutionRecord{}).
-			Where("tenant_id = ?", tenantID).
-			Where("created_at >= ?", since),
-		role, username,
-	)
+	db := database.DB.Model(&models.ExecutionRecord{}).
+		Where("tenant_id = ?", tenantID).
+		Where("created_at >= ?", since)
+	db = services.ApplyClientExecutionTopLevelScope(db)
+	return services.ApplyClientExecutionMemberScope(db, role, username)
 }
 
 func defaultTenantUUID() uuid.UUID {
@@ -159,7 +159,8 @@ func GetDashboardData(c *gin.Context) {
 
 	var recentExec []models.ExecutionRecord
 	qExec := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tid)
-	qExec = applyExecutionConsoleMemberScope(qExec, role, username)
+	qExec = services.ApplyClientExecutionTopLevelScope(qExec)
+	qExec = services.ApplyClientExecutionMemberScope(qExec, role, username)
 	qExec.Order("created_at DESC").Limit(12).Find(&recentExec)
 
 	recentExecutions := make([]gin.H, 0, len(recentExec))

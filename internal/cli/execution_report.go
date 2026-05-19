@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"os"
 	"strings"
@@ -50,11 +51,12 @@ func newExecutionReporter(programName string, args []string) *executionReporter 
 	if len(args) > 0 {
 		cmd += " " + strings.Join(args, " ")
 	}
+	corr := uuid.NewString()
 	return &executionReporter{
 		apiBase:       apiBase,
 		inviteID:      inviteID,
 		token:         token,
-		correlationID: uuid.NewString(),
+		correlationID: corr,
 		command:       redactExecutionCommand(cmd),
 		source:        "cli",
 		category:      executionCategory(args),
@@ -71,6 +73,7 @@ func (r *executionReporter) start() {
 	if target == "" {
 		target = host
 	}
+	topic := executionTopicFromArgv(os.Args[1:])
 	payload := map[string]interface{}{
 		"correlation_id":      r.correlationID,
 		"source":              r.source,
@@ -87,15 +90,32 @@ func (r *executionReporter) start() {
 		"rollback_plan":       rollbackPlanForArgs(os.Args[1:]),
 		"rollback_advice":     rollbackAdviceForArgs(os.Args[1:]),
 		"metadata": map[string]interface{}{
-			"argv0":   os.Args[0],
-			"version": Version,
+			"record_kind":        "client_execution",
+			"argv0":                os.Args[0],
+			"version":              Version,
+			"topic":                topic,
+			"normalized_command":   r.category,
+			"hostname":             host,
+			"binding_id":           resolveOpsfleetBindingID(),
+			"fingerprint_hash":     resolveOpsfleetFingerprint(),
+			"diagnosis_target":     target,
 		},
 	}
 	if u := strings.TrimSpace(os.Getenv("OPSFLEET_EXECUTION_USERNAME")); u != "" {
 		payload["created_by"] = u
 		payload["trigger_user"] = u
 	}
-	r.post("/api/execution-records/report/start", payload)
+	if data := r.post("/api/execution-records/report/start", payload); data != nil {
+		id, _ := data["id"].(string)
+		if id == "" {
+			if nested, ok := data["data"].(map[string]interface{}); ok {
+				id, _ = nested["id"].(string)
+			}
+		}
+		setActiveExecution(r.correlationID, id)
+	} else {
+		setActiveExecution(r.correlationID, "")
+	}
 }
 
 func (r *executionReporter) finish(err error) {
@@ -110,36 +130,70 @@ func (r *executionReporter) finish(err error) {
 		status = "failed"
 		stderr = err.Error()
 	}
+	meta := map[string]interface{}{
+		"duration_ms": time.Since(r.started).Milliseconds(),
+		"topic":       executionTopicFromArgv(os.Args[1:]),
+	}
+	for k, v := range drainExecutionFinishMeta() {
+		meta[k] = v
+	}
 	payload := map[string]interface{}{
 		"correlation_id": r.correlationID,
+		"record_id":      ActiveExecutionRecordID(),
 		"invite_id":      r.inviteID,
 		"token":          r.token,
 		"status":         status,
 		"exit_code":      exitCode,
 		"stderr_summary": stderr,
-		"metadata": map[string]interface{}{
-			"duration_ms": time.Since(r.started).Milliseconds(),
-		},
+		"metadata":       meta,
+	}
+	if s, ok := meta["summary"].(string); ok && strings.TrimSpace(s) != "" {
+		payload["stdout_summary"] = s
 	}
 	r.post("/api/execution-records/report/finish", payload)
 }
 
-func (r *executionReporter) post(path string, payload map[string]interface{}) {
+func (r *executionReporter) post(path string, payload map[string]interface{}) map[string]interface{} {
 	body, err := json.Marshal(payload)
 	if err != nil {
-		return
+		return nil
 	}
-	client := &http.Client{Timeout: 2 * time.Second}
+	client := &http.Client{Timeout: 3 * time.Second}
 	req, err := http.NewRequest(http.MethodPost, r.apiBase+path, bytes.NewReader(body))
 	if err != nil {
-		return
+		return nil
 	}
 	req.Header.Set("Content-Type", "application/json")
 	resp, err := client.Do(req)
 	if err != nil {
-		return
+		return nil
 	}
-	_ = resp.Body.Close()
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil
+	}
+	var env struct {
+		Code int                    `json:"code"`
+		Data map[string]interface{} `json:"data"`
+	}
+	if json.Unmarshal(raw, &env) != nil || env.Data == nil {
+		return nil
+	}
+	return env.Data
+}
+
+func executionTopicFromArgv(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	switch args[0] {
+	case "check", "analyze", "probe":
+		if len(args) >= 2 {
+			return strings.ToLower(strings.TrimSpace(args[1]))
+		}
+	}
+	return ""
 }
 
 func executionTargetFromArgv(args []string) string {

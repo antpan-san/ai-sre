@@ -24,6 +24,8 @@ type aiClientInfo struct {
 	Version         string `json:"version"`
 	BindingID       string `json:"binding_id"`
 	FingerprintHash string `json:"fingerprint_hash"`
+	ExecutionID     string `json:"execution_id,omitempty"`
+	CorrelationID   string `json:"correlation_id,omitempty"`
 }
 
 type aiIdentity struct {
@@ -232,7 +234,7 @@ func recordAIExecution(ident *aiIdentity, category, name, command, requestID, pa
 		effects["error"] = limitText(errText, 1200)
 	}
 	rec := models.ExecutionRecord{
-		CorrelationID:      defaultString(requestID, uuid.NewString()),
+		CorrelationID:      defaultString(strings.TrimSpace(client.CorrelationID), defaultString(requestID, uuid.NewString())),
 		Source:             "ai",
 		Category:           category,
 		Name:               name,
@@ -255,6 +257,12 @@ func recordAIExecution(ident *aiIdentity, category, name, command, requestID, pa
 		RollbackStatus:     models.RollbackStatusNotStarted,
 		RollbackPlan:       models.NewJSONBFromMap(map[string]interface{}{}),
 		RollbackAdvice:     "AI 调用记录不可回滚。",
+	}
+	if pid := strings.TrimSpace(client.ExecutionID); pid != "" {
+		if uid, err := uuid.Parse(pid); err == nil {
+			rec.ParentExecutionID = &uid
+			rec.CorrelationID = defaultString(strings.TrimSpace(client.CorrelationID), rec.CorrelationID)
+		}
 	}
 	if err := database.DB.Create(&rec).Error; err != nil {
 		logger.Error("record ai execution: %v", err)

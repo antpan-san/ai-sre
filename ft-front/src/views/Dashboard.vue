@@ -71,7 +71,7 @@
           @click="goExecRecords"
           @keydown.enter="goExecRecords"
         >
-          <span class="kpi-tile__label">近 24h 执行</span>
+          <span class="kpi-tile__label">近 24h ai-sre 执行</span>
           <div class="kpi-tile__value">{{ dash?.platformSummary?.executionsLast24h ?? 0 }}</div>
           <div class="kpi-tile__meta kpi-tile__meta--exec">
             <span>成功 {{ execSuccess24h }}</span>
@@ -185,7 +185,7 @@
       <el-card shadow="never" class="panel-card panel-card--exec">
         <template #header>
           <div class="panel-head">
-            <span>最近执行记录</span>
+            <span>最近 ai-sre 执行</span>
             <el-link type="primary" :underline="false" @click="goExecRecords">全部</el-link>
           </div>
         </template>
@@ -293,7 +293,7 @@ const goK8sClusters = () => {
   router.push({ path: '/admin/execution-records', query: { tab: 'k8s' } })
 }
 const goExecRecords = () => {
-  router.push(`${shellPrefix.value}/execution-records`)
+  router.push(`${shellPrefix.value}/ai-sre/executions`)
 }
 const goServiceDeploy = () => {
   if (!isConsoleAdmin.value) {

@@ -96,6 +96,33 @@ func checkTopicArgs(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func aiSourceLabel(d *diagnoseResponse) string {
+	if d == nil {
+		return ""
+	}
+	switch strings.ToLower(strings.TrimSpace(d.Source)) {
+	case "server-ai":
+		return "platform_ai"
+	case "local", "local-rule", "local_skill":
+		return "local_rule"
+	default:
+		if strings.TrimSpace(d.Source) != "" {
+			return "mixed"
+		}
+	}
+	return "local_rule"
+}
+
+func evidenceCompletenessForContext(ctx map[string]string) string {
+	if len(ctx) == 0 {
+		return "missing"
+	}
+	if hasTopicEvidence(ctx) {
+		return "complete"
+	}
+	return "partial"
+}
+
 func runCheckTopic(cmd *cobra.Command, args []string) error {
 	ctx := buildContextMap()
 	topic := args[0]
@@ -162,6 +189,21 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	if err := output.Print(outputFormat, p); err != nil {
 		return err
 	}
+	finishMeta := map[string]interface{}{
+		"topic":        topic,
+		"used_ai":      strings.EqualFold(strings.TrimSpace(diag.Source), "server-ai") || strings.TrimSpace(diag.Answer) != "",
+		"ai_source":    aiSourceLabel(diag),
+		"skill_name":   diag.SkillName,
+		"skill_pack":   diag.SkillName,
+		"summary":      truncateBytes(strings.TrimSpace(diag.Answer), 400),
+	}
+	if diag.Metadata != nil {
+		if r, ok := diag.Metadata["skill_enhancement_review"].(map[string]interface{}); ok {
+			finishMeta["skill_enhancement_review"] = r
+		}
+	}
+	finishMeta["evidence_completeness"] = evidenceCompletenessForContext(ctx)
+	MergeExecutionFinishMeta(finishMeta)
 	return nil
 }
 
