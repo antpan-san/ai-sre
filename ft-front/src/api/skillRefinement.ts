@@ -26,6 +26,9 @@ export interface DiagnoseSampleSummary {
   rule_hit_count: number
   used_ai_count: number
   since_hours: number
+  rule_hit_rate_pct?: number
+  ai_call_rate_pct?: number
+  ai_avoidance_pct?: number
   by_topic: Record<string, number>
   top_topics: { topic: string; count: number }[]
 }
@@ -60,6 +63,12 @@ export interface AutoIterationFeedbackItem {
 
 export function listAdminAutoIterationFeedbacks(limit = 50) {
   return request.get<{ feedbacks: AutoIterationFeedbackItem[] }>('/api/admin/auto-iteration-feedbacks', { params: { limit } })
+}
+
+export function backfillAdminDiagnoseSamples() {
+  return request.post<{ topics_scanned: number; lines_read: number; inserted: number; skipped: number; errors: number }>(
+    '/api/admin/diagnose-samples/backfill'
+  )
 }
 
 export type { SkillEnhancementSummary, SkillEnhancementReview }

@@ -49,3 +49,14 @@ func AdminDiagnoseSampleSummary(c *gin.Context) {
 	}
 	response.OK(c, sum)
 }
+
+// AdminBackfillDiagnoseSamples imports JSONL skill samples into PostgreSQL.
+func AdminBackfillDiagnoseSamples(c *gin.Context) {
+	out, err := services.BackfillDiagnoseSamplesFromJSONL(services.DefaultSkillRegistry())
+	if err != nil {
+		logger.Error("AdminBackfillDiagnoseSamples: %v", err)
+		response.ServerError(c, "回填样本失败")
+		return
+	}
+	response.OK(c, out)
+}

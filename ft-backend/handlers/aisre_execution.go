@@ -138,3 +138,35 @@ func PostAISreExecutionFeedback(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+type executionEngagementRequest struct {
+	Action string `json:"action" binding:"required"`
+}
+
+// PostAISreExecutionEngagement records view/copy engagement as skill samples.
+func PostAISreExecutionEngagement(c *gin.Context) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.BadRequest(c, "无效的执行 ID")
+		return
+	}
+	var req executionEngagementRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response.BadRequest(c, "无效参数")
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	userVal, _ := c.Get("username")
+	username, _ := userVal.(string)
+	if err := services.RecordExecutionEngagementSample(id, role, username, req.Action); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.NotFound(c, "执行记录不存在或无权操作")
+			return
+		}
+		logger.Error("PostAISreExecutionEngagement: %v", err)
+		response.BadRequest(c, err.Error())
+		return
+	}
+	response.OK(c, gin.H{"recorded": true, "action": req.Action})
+}

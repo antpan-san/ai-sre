@@ -181,6 +181,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.GET("/admin/skill-enhancement-reviews/summary", handlers.AdminSkillEnhancementSummary)
 		superAdmin.GET("/admin/diagnose-samples", handlers.AdminListDiagnoseSamples)
 		superAdmin.GET("/admin/diagnose-samples/summary", handlers.AdminDiagnoseSampleSummary)
+		superAdmin.POST("/admin/diagnose-samples/backfill", handlers.AdminBackfillDiagnoseSamples)
 		superAdmin.POST("/admin/skills/refine", handlers.AdminRefineSkill)
 		superAdmin.POST("/admin/skill-enhancement-reviews/status", handlers.AdminUpdateSkillEnhancementStatus)
 		superAdmin.GET("/admin/executions/by-request/:request_id", handlers.AdminLookupExecutionByRequestID)
@@ -190,6 +191,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.PUT("/admin/auto-iterations/settings", handlers.AdminUpdateAutoIterationSettings)
 		superAdmin.POST("/admin/auto-iterations/manual", handlers.AdminCreateManualAutoIteration)
 		superAdmin.GET("/admin/auto-iterations", handlers.AdminListAutoIterations)
+		superAdmin.GET("/admin/auto-iterations/:id/samples", handlers.AdminGetAutoIterationSamples)
 		superAdmin.GET("/admin/auto-iterations/:id/events/stream", handlers.AdminStreamAutoIterationEvents)
 		superAdmin.GET("/admin/auto-iterations/:id", handlers.AdminGetAutoIteration)
 		superAdmin.POST("/admin/auto-iterations/:id/start", handlers.AdminStartAutoIteration)
@@ -235,6 +237,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		protected.GET("/ai-sre/executions/stats", handlers.GetAISreExecutionStats)
 		protected.GET("/ai-sre/executions/:id", handlers.GetAISreExecutionDetail)
 		protected.POST("/ai-sre/executions/:id/feedback", handlers.PostAISreExecutionFeedback)
+		protected.POST("/ai-sre/executions/:id/engagement", handlers.PostAISreExecutionEngagement)
 		adminOnly.POST("/execution-records/:id/rollback-preview", handlers.PreviewExecutionRollback)
 		adminOnly.POST("/execution-records/:id/rollback", handlers.RollbackExecutionRecord)
 

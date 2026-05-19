@@ -58,6 +58,25 @@ func AdminGetAutoIteration(c *gin.Context) {
 	response.OK(c, gin.H{"iteration": row, "events": events})
 }
 
+func AdminGetAutoIterationSamples(c *gin.Context) {
+	id, err := uuid.Parse(strings.TrimSpace(c.Param("id")))
+	if err != nil {
+		response.BadRequest(c, "无效任务 ID")
+		return
+	}
+	ctx, err := services.GetAutoIterationSampleContext(id)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			response.NotFound(c, "任务不存在")
+			return
+		}
+		logger.Error("AdminGetAutoIterationSamples: %v", err)
+		response.ServerError(c, "查询触发样本失败")
+		return
+	}
+	response.OK(c, ctx)
+}
+
 func AdminGetAutoIterationSettings(c *gin.Context) {
 	settings, err := services.GetAutoIterationSettings()
 	if err != nil {

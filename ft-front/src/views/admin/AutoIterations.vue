@@ -229,6 +229,33 @@
                   <span class="block-label">错误</span>{{ iteration.last_error }}
                 </div>
               </el-collapse-item>
+              <el-collapse-item v-if="sampleContext?.similar_samples?.length" name="samples">
+                <template #title>
+                  <span class="collapse-title">触发样本</span>
+                  <el-tag size="small" type="info" class="log-count">
+                    {{ sampleContext.similar_samples?.length ?? 0 }}
+                  </el-tag>
+                </template>
+                <p v-if="sampleContext?.sample_classification" class="text-block">
+                  分类：{{ sampleContext.sample_classification }}
+                  <span v-if="sampleContext.similar_recent_count != null"> · 相似 {{ sampleContext.similar_recent_count }}</span>
+                </p>
+                <el-table :data="sampleContext?.similar_samples || []" size="small" stripe empty-text="暂无样本">
+                  <el-table-column label="时间" width="148">
+                    <template #default="{ row }">{{ formatTime(String(row.time || '')) }}</template>
+                  </el-table-column>
+                  <el-table-column prop="target" label="Target" width="120" show-overflow-tooltip />
+                  <el-table-column label="规则" width="72" align="center">
+                    <template #default="{ row }">{{ row.local_rule_hit || row.rule_hit ? '命中' : '—' }}</template>
+                  </el-table-column>
+                  <el-table-column label="AI" width="56" align="center">
+                    <template #default="{ row }">{{ row.used_ai ? '是' : '否' }}</template>
+                  </el-table-column>
+                  <el-table-column label="摘要" min-width="160" show-overflow-tooltip>
+                    <template #default="{ row }">{{ row.answer_head || row.root_cause_digest || '—' }}</template>
+                  </el-table-column>
+                </el-table>
+              </el-collapse-item>
               <el-collapse-item name="logs">
                 <template #title>
                   <span class="collapse-title">执行日志</span>
@@ -311,6 +338,7 @@ import {
   cancelAutoIteration,
   createManualAutoIteration,
   getAutoIteration,
+  getAutoIterationSamples,
   getAutoIterationSettings,
   listAutoIterations,
   pauseAutoIteration,
@@ -346,6 +374,12 @@ const listFilters = reactive({
 })
 const selectedId = ref('')
 const iteration = ref<AutoIteration | null>(null)
+const sampleContext = ref<{
+  topic?: string
+  similar_recent_count?: number
+  sample_classification?: string
+  similar_samples?: Record<string, unknown>[]
+} | null>(null)
 const events = ref<AutoIterationEvent[]>([])
 const sseConnected = ref(false)
 let sseAbort: AbortController | null = null
@@ -745,14 +779,19 @@ const loadDetail = async (opts?: { initial?: boolean }) => {
     const data = await getAutoIteration(selectedId.value)
     iteration.value = data.iteration
     events.value = data.events || []
+    try {
+      sampleContext.value = await getAutoIterationSamples(selectedId.value)
+    } catch {
+      sampleContext.value = null
+    }
     seenEventIds.clear()
     for (const ev of events.value) {
       if (ev.id) seenEventIds.add(ev.id)
     }
     if (!displayRequirement.value && !iteration.value?.summary && !iteration.value?.last_error) {
-      detailCollapse.value = ['logs']
+      detailCollapse.value = sampleContext.value?.similar_samples?.length ? ['samples', 'logs'] : ['logs']
     } else {
-      detailCollapse.value = ['req', 'logs']
+      detailCollapse.value = sampleContext.value?.similar_samples?.length ? ['req', 'samples', 'logs'] : ['req', 'logs']
     }
     startSSE()
     startDetailPoll()

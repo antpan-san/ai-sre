@@ -11,6 +11,7 @@
         <el-button size="small" :loading="loading" @click="reload">刷新</el-button>
         <el-button size="small" link type="primary" @click="goSkillsCatalog">技能包目录</el-button>
         <el-button size="small" link type="primary" @click="goAutoIterations">自动迭代</el-button>
+        <el-button size="small" :loading="backfillLoading" @click="runBackfill">回填 PG 样本</el-button>
       </div>
     </header>
 
@@ -24,12 +25,16 @@
         <strong>{{ sampleSummary?.cli_check_count ?? 0 }}</strong>
       </article>
       <article class="stat-tile stat-tile--ok">
-        <span class="stat-label">本地规则命中</span>
-        <strong>{{ sampleSummary?.rule_hit_count ?? 0 }}</strong>
+        <span class="stat-label">本地规则命中率</span>
+        <strong>{{ sampleSummary?.rule_hit_rate_pct ?? 0 }}%</strong>
       </article>
       <article class="stat-tile">
-        <span class="stat-label">调用 AI</span>
-        <strong>{{ sampleSummary?.used_ai_count ?? 0 }}</strong>
+        <span class="stat-label">AI 调用占比</span>
+        <strong>{{ sampleSummary?.ai_call_rate_pct ?? 0 }}%</strong>
+      </article>
+      <article class="stat-tile">
+        <span class="stat-label">降本潜力（规则替代）</span>
+        <strong>{{ sampleSummary?.ai_avoidance_pct ?? 0 }}%</strong>
       </article>
       <article class="stat-tile stat-tile--warn">
         <span class="stat-label">待增强</span>
@@ -186,6 +191,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
   adminRefineSkill,
+  backfillAdminDiagnoseSamples,
   getAdminDiagnoseSampleSummary,
   getAdminSkillEnhancementSummary,
   listAdminAutoIterationFeedbacks,
@@ -217,6 +223,7 @@ const refineTopic = ref('')
 const refineHint = ref('')
 const refineDryRun = ref(true)
 const refineDraftYaml = ref('')
+const backfillLoading = ref(false)
 
 const formatTime = (t?: string) => (t ? String(t).replace('T', ' ').slice(0, 19) : '—')
 const priorityTag = (p?: string) => (p === 'high' ? 'danger' : p === 'medium' ? 'warning' : 'info')
@@ -274,6 +281,18 @@ const reload = async () => {
 
 const goSkillsCatalog = () => router.push({ path: '/admin/billing/ai-sre-skills', query: { tab: 'enhancement' } })
 const goAutoIterations = () => router.push('/admin/auto-iterations')
+const runBackfill = async () => {
+  backfillLoading.value = true
+  try {
+    const res = await backfillAdminDiagnoseSamples()
+    ElMessage.success(`回填完成：新增 ${res.inserted}，跳过 ${res.skipped}`)
+    await reload()
+  } catch {
+    ElMessage.error('回填失败')
+  } finally {
+    backfillLoading.value = false
+  }
+}
 const goAutoIterationDetail = (id: string) => router.push(`/admin/auto-iterations?id=${id}`)
 const openExecution = (id: string) => router.push(`/admin/ai-sre/executions/${id}`)
 

@@ -53,6 +53,7 @@
             </el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="样本分类">{{ sampleClassificationLabel(detail.skill_sample_classification) }}</el-descriptions-item>
+          <el-descriptions-item label="相似样本">{{ meta.skill_sample_similar_count ?? '—' }}</el-descriptions-item>
           <el-descriptions-item label="精炼审查">
             <el-tag :type="detail.enhancement_review_triggered ? 'warning' : 'success'" size="small">
               {{ detail.enhancement_review_triggered ? '已触发' : '未触发' }}
@@ -166,7 +167,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { getAISreExecutionDetail, submitAISreExecutionFeedback, type ClientExecutionDetail } from '../../api/aisreExecutions'
+import { getAISreExecutionDetail, recordAISreExecutionEngagement, submitAISreExecutionFeedback, type ClientExecutionDetail } from '../../api/aisreExecutions'
 import { copyTextToClipboard } from '../../utils/clipboard'
 
 const route = useRoute()
@@ -235,7 +236,7 @@ const parseSectionFromStdout = (text: string, title: string): string[] => {
     .filter(Boolean)
 }
 
-const copyText = async (text: string, label: string) => {
+const copyText = async (text: string, label: string, action?: string) => {
   if (!text.trim()) {
     ElMessage.warning(`无可复制的${label}`)
     return
@@ -243,14 +244,27 @@ const copyText = async (text: string, label: string) => {
   try {
     await copyTextToClipboard(text)
     ElMessage.success(`已复制${label}`)
+    if (action) {
+      void recordEngagement(action)
+    }
   } catch {
     ElMessage.error('复制失败')
   }
 }
 
-const copyRootCause = () => void copyText(diagnosisRootCause.value, '根因')
-const copyRecommendations = () => void copyText(diagnosisRecommendations.value.map((l) => `- ${l}`).join('\n'), '修复建议')
-const copyEvidence = () => void copyText(diagnosisEvidence.value.map((l) => `- ${l}`).join('\n'), '关键证据')
+const recordEngagement = async (action: string) => {
+  const id = String(route.params.id || '')
+  if (!id) return
+  try {
+    await recordAISreExecutionEngagement(id, action)
+  } catch {
+    // best-effort
+  }
+}
+
+const copyRootCause = () => void copyText(diagnosisRootCause.value, '根因', 'copy_root_cause')
+const copyRecommendations = () => void copyText(diagnosisRecommendations.value.map((l) => `- ${l}`).join('\n'), '修复建议', 'copy_recommendations')
+const copyEvidence = () => void copyText(diagnosisEvidence.value.map((l) => `- ${l}`).join('\n'), '关键证据', 'copy_evidence')
 const copyEnhancementRecs = () => void copyText(enhancementRecommendations.value.map((l) => `- ${l}`).join('\n'), '沉淀建议')
 const copyEnhancementActions = () => void copyText(enhancementActions.value.map((l) => `- ${l}`).join('\n'), '建议动作')
 
@@ -271,7 +285,7 @@ const copyFullReport = async () => {
   if (enhancementActions.value.length) {
     parts.push('', '【建议动作】', ...enhancementActions.value.map((l) => `- ${l}`))
   }
-  await copyText(parts.join('\n'), '完整结论')
+  await copyText(parts.join('\n'), '完整结论', 'copy_full')
 }
 
 const load = async () => {
@@ -280,6 +294,10 @@ const load = async () => {
   loading.value = true
   try {
     detail.value = await getAISreExecutionDetail(id)
+    const viewed = Boolean((detail.value?.record as Record<string, any>)?.metadata?.execution_view_recorded)
+    if (!viewed) {
+      void recordEngagement('view')
+    }
   } catch {
     detail.value = null
   } finally {

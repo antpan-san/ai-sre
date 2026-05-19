@@ -43,6 +43,17 @@ export interface AutoIterationEvent {
   created_at: string
 }
 
+export const getAutoIterationSamples = (id: string) =>
+  request.get<{
+    topic?: string
+    execution_id?: string
+    root_cause_digest?: string
+    similar_recent_count?: number
+    sample_classification?: string
+    trigger_sample?: Record<string, unknown>
+    similar_samples?: Record<string, unknown>[]
+  }>(`/api/admin/auto-iterations/${encodeURIComponent(id)}/samples`)
+
 export const listAutoIterations = (params?: {
   status?: string
   topic?: string

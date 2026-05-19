@@ -81,3 +81,10 @@ export function submitAISreExecutionFeedback(id: string, body: { helpful: boolea
     evaluation?: { review_triggered?: boolean; classification?: string }
   }>(`/api/ai-sre/executions/${encodeURIComponent(id)}/feedback`, body)
 }
+
+export function recordAISreExecutionEngagement(id: string, action: string) {
+  return request.post<{ recorded: boolean; action: string }>(
+    `/api/ai-sre/executions/${encodeURIComponent(id)}/engagement`,
+    { action }
+  )
+}

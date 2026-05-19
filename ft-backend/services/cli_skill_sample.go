@@ -105,6 +105,7 @@ func IngestCLISkillSample(userID uuid.UUID, in CLISkillSampleInput) (*CLISkillSa
 		MatchedSkill: strings.TrimSpace(in.SkillName) != "" && !strings.Contains(in.SkillName, "_auto"),
 	})
 	review = adjustCLIEnhancementReview(review, in)
+	noteNewTargetKindIfNeeded(reg, topic, in.Target, &review)
 	similar := countSimilarCLISamples(reg, topic, in.RootCauseDigest, cliSkillSampleReview24hWindow)
 	review.SimilarRecentCount = similar
 
@@ -296,7 +297,7 @@ func maybeCreateSkillRefineAutoIteration(userID uuid.UUID, in CLISkillSampleInpu
 		return "", false, err
 	}
 	if settings.DingTalkNotifyEnabled {
-		notifyAutoIterationDingTalkKind(DingTalkKindCLIFeedbackQueued, row, "", classification)
+		notifyAutoIterationDingTalkKind(DingTalkKindTaskCreated, row, "", classification)
 	}
 	return row.ID.String(), status == models.AutoIterationStatusPending || status == models.AutoIterationStatusAwaitingApproval, nil
 }

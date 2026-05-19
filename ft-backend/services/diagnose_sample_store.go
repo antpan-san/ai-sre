@@ -184,5 +184,6 @@ func summarizeDiagnoseSamplesPG(since time.Time, sinceHours int) (DiagnoseSample
 	for i := 0; i < len(ranked) && i < 12; i++ {
 		out.TopTopics = append(out.TopTopics, DiagnoseTopicCount{Topic: ranked[i].topic, Count: ranked[i].count})
 	}
+	applyDiagnoseSampleRates(&out)
 	return out, nil
 }

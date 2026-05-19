@@ -17,6 +17,9 @@ type DiagnoseSampleSummary struct {
 	SinceHours     int                   `json:"since_hours"`
 	ByTopic        map[string]int        `json:"by_topic"`
 	TopTopics      []DiagnoseTopicCount  `json:"top_topics"`
+	RuleHitRatePct int                   `json:"rule_hit_rate_pct"`
+	AICallRatePct  int                   `json:"ai_call_rate_pct"`
+	AIAvoidancePct int                   `json:"ai_avoidance_pct"`
 }
 
 type DiagnoseTopicCount struct {
@@ -139,7 +142,19 @@ func SummarizeDiagnoseSamples(reg *SkillRegistry, since time.Time, sinceHours in
 	for i := 0; i < len(ranked) && i < 12; i++ {
 		out.TopTopics = append(out.TopTopics, DiagnoseTopicCount{Topic: ranked[i].topic, Count: ranked[i].count})
 	}
+	applyDiagnoseSampleRates(&out)
 	return out, nil
+}
+
+func applyDiagnoseSampleRates(out *DiagnoseSampleSummary) {
+	if out == nil || out.TotalSamples <= 0 {
+		return
+	}
+	out.RuleHitRatePct = out.RuleHitCount * 100 / out.TotalSamples
+	out.AICallRatePct = out.UsedAICount * 100 / out.TotalSamples
+	if out.UsedAICount+out.RuleHitCount > 0 {
+		out.AIAvoidancePct = out.RuleHitCount * 100 / (out.UsedAICount + out.RuleHitCount)
+	}
 }
 
 func resolveSampleTopics(reg *SkillRegistry, topic string) ([]string, error) {
