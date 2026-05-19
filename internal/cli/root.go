@@ -104,7 +104,7 @@ func preflightAutoUpgradeIfUnknown(root *cobra.Command) {
 	case "upgrade", "version", "help", "completion", "doctor":
 		return
 	}
-	if _, _, err := root.Find(args); err == nil {
+	if _, _, err := root.Find(args); err == nil && !argvHasUnresolvedSubcommand(root, args) {
 		return
 	}
 	preferred, warn := resolveOpsfleetAPIBaseForUpgrade()
