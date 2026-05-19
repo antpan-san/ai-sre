@@ -599,7 +599,7 @@ run() {
     code="OPSFLEET_K8S_E_PLAYBOOK_$(basename "${pb}" .yml | tr 'a-z' 'A-Z' | tr '_' '_')"
     echo "[ERROR-CODE] ${code} step=${step} pb=${pb}"
     echo "FAILED at ${pb}"
-    echo "→ 立即诊断: ai-sre analyze code ${code}  (或粘贴 [ERROR-CODE] 行内具体 OPSFLEET_* 子码)"
+    echo "→ 立即诊断: ai-sre check code ${code}  (或粘贴 [ERROR-CODE] 行内具体 OPSFLEET_* 子码)"
     exit 1
   fi
   echo "${step}" >> "$STATE_FILE"

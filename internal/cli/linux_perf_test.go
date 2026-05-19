@@ -70,7 +70,7 @@ func TestDiskstatsDelta(t *testing.T) {
 
 func TestCollectLinuxProbeJSONKey(t *testing.T) {
 	root := newRoot("ai-sre")
-	cmd, _, err := root.Find([]string{"probe", "linux"})
+	cmd, _, err := root.Find([]string{"expert", "probe", "linux"})
 	if err != nil {
 		t.Fatalf("probe linux missing: %v", err)
 	}
@@ -96,12 +96,12 @@ func TestCommandCatalogIncludesProbeLinux(t *testing.T) {
 	cat := BuildCommandCatalog(root)
 	found := false
 	for _, c := range cat.Commands {
-		if c.Path == "probe linux" {
+		if c.Path == "expert probe linux" {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Fatal("probe linux not in catalog")
+		t.Fatal("expert probe linux not in catalog")
 	}
 }

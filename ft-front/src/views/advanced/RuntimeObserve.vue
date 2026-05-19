@@ -3,7 +3,7 @@
     <div class="page-header">
       <h2>运行时诊断</h2>
       <p class="page-desc--muted">
-        每次执行 <code>ai-sre diagnose</code> 产生<strong>一条独立报告</strong>（根因 + 证据），按时间倒序排列；不会对同一目标做历史对比或合并。
+        每次执行 <code>ai-sre check go</code> 产生<strong>一条独立报告</strong>（根因 + 证据），按时间倒序排列；不会对同一目标做历史对比或合并。
       </p>
     </div>
 

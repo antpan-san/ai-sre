@@ -73,7 +73,10 @@ func TestCheckTopicAcceptsOptionalTarget(t *testing.T) {
 	if !checkTopicAcceptsOptionalTarget("redis") {
 		t.Fatal("redis should accept target")
 	}
-	if checkTopicAcceptsOptionalTarget("k8s") {
-		t.Fatal("k8s should not use positional target")
+	if !checkTopicAcceptsOptionalTarget("k8s") {
+		t.Fatal("k8s should accept positional target")
+	}
+	if !checkTopicAcceptsOptionalTarget("go") {
+		t.Fatal("go should accept positional target")
 	}
 }

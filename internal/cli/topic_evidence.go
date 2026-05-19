@@ -107,7 +107,7 @@ func gatherKafkaEvidence(ctx context.Context, flags map[string]string, out map[s
 	if boot == "" {
 		return
 	}
-	args := []string{"probe", "kafka", boot, "--json"}
+	args := []string{"expert", "probe", "kafka", boot, "--json"}
 	if t := strings.TrimSpace(flags["topic"]); t != "" {
 		args = append(args, "--topic", t)
 	}
@@ -137,7 +137,7 @@ func gatherMySQLEvidence(ctx context.Context, flags map[string]string, out map[s
 	if dsn == "" {
 		return
 	}
-	args := []string{"probe", "mysql", dsn, "--json"}
+	args := []string{"expert", "probe", "mysql", dsn, "--json"}
 	body := runSelfSubcommand(ctx, 25*time.Second, args...)
 	if body != "" {
 		out["mysql_diagnose_json"] = body
@@ -149,7 +149,7 @@ func gatherPostgreSQLEvidence(ctx context.Context, flags map[string]string, out 
 	if dsn == "" {
 		return
 	}
-	args := []string{"probe", "postgresql", dsn, "--json"}
+	args := []string{"expert", "probe", "postgresql", dsn, "--json"}
 	body := runSelfSubcommand(ctx, 25*time.Second, args...)
 	if body != "" {
 		out["postgresql_diagnose_json"] = body
@@ -161,7 +161,7 @@ func gatherNginxEvidence(ctx context.Context, flags map[string]string, out map[s
 	if logFile == "" {
 		return
 	}
-	args := []string{"probe", "nginx", "--access-log", logFile, "--json"}
+	args := []string{"expert", "probe", "nginx", "--access-log", logFile, "--json"}
 	if u := strings.TrimSpace(flags["upstream"]); u != "" {
 		args = append(args, "--upstream", u)
 	}
@@ -182,7 +182,7 @@ func gatherElasticsearchEvidence(ctx context.Context, flags map[string]string, o
 	if url == "" {
 		return
 	}
-	args := []string{"probe", "elasticsearch", url, "--json"}
+	args := []string{"expert", "probe", "elasticsearch", url, "--json"}
 	body := runSelfSubcommand(ctx, 25*time.Second, args...)
 	if body != "" {
 		out["es_diagnose_json"] = body

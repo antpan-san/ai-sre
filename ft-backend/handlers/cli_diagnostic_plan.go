@@ -61,7 +61,7 @@ func CreateCLIDiagnosticPlan(c *gin.Context) {
 	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, packKey, ident)
 	if !quotaOK {
 		_ = commitQuota
-		recordAIExecution(ident, "diagnostic_plan", "诊断任务单: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, quotaDecision.PackKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
+		recordAIExecution(ident, "diagnostic_plan", "诊断任务单: "+topic, defaultString(req.Command, "ai-sre check "+topic), req.RequestID, quotaDecision.PackKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
 		return
 	}
 
@@ -109,7 +109,7 @@ func CreateCLIDiagnosticPlan(c *gin.Context) {
 		return
 	}
 	commitQuota(true)
-	recordAIExecution(ident, "diagnostic_plan", "诊断任务单: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, quotaDecision.PackKey, models.ExecutionStatusSuccess, "", "", req.Context, req.Client, quotaDecision)
+	recordAIExecution(ident, "diagnostic_plan", "诊断任务单: "+topic, defaultString(req.Command, "ai-sre check "+topic), req.RequestID, quotaDecision.PackKey, models.ExecutionStatusSuccess, "", "", req.Context, req.Client, quotaDecision)
 	response.OK(c, gin.H{
 		"plan_id":               plan.ID.String(),
 		"plan_token":            token,
@@ -574,33 +574,31 @@ func allowedAISreReadonlyDiagnosticCommand(argv []string) bool {
 		}
 	}
 	switch argv[1] {
-	case "probe":
-		return allowedAISreProbeCommand(argv)
+	case "expert":
+		if len(argv) >= 3 && argv[2] == "probe" {
+			return allowedAISreProbeCommand(append([]string{argv[0], "probe"}, argv[3:]...))
+		}
+		return false
 	case "check":
-		if argv[2] != "go" {
+		if len(argv) < 3 {
 			return false
 		}
-		return allowedAISreGoRuntimeArgs(argv[3:])
-	case "diagnose":
-		return allowedAISreGoRuntimeArgs(argv[2:])
+		topic := strings.ToLower(strings.TrimSpace(argv[2]))
+		switch topic {
+		case "go":
+			return allowedAISreGoRuntimeArgs(argv[3:])
+		case "linux", "nginx", "redis", "kafka", "mysql", "postgresql", "postgres", "elasticsearch", "domain", "k8s", "code":
+			return true
+		default:
+			return false
+		}
+	case "ops":
+		return len(argv) >= 4
 	case "go_runtime":
-		if !aisreReadonlySubcommand(argv[2]) {
+		if len(argv) < 3 || !aisreReadonlySubcommand(argv[2]) {
 			return false
 		}
 		return allowedAISreGoRuntimeArgs(argv[3:])
-	case "redis", "kafka", "mysql", "postgresql", "postgres", "elasticsearch":
-		if !aisreReadonlySubcommand(argv[2]) || len(argv) < 4 {
-			return false
-		}
-		if !aisreDiagnosticValueRe.MatchString(argv[3]) {
-			return false
-		}
-		return allowedAISreTopicDiagnoseFlags(argv[1], argv[4:])
-	case "nginx":
-		if !aisreReadonlySubcommand(argv[2]) {
-			return false
-		}
-		return allowedAISreTopicDiagnoseFlags(argv[1], argv[3:])
 	default:
 		return false
 	}

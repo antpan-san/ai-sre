@@ -3,7 +3,7 @@
     <div class="page-header">
       <div class="page-header__titles">
         <h2>作业中心</h2>
-        <p class="page-header__sub">对在线 Agent 执行 shell；CLI：<code>ai-sre job run</code>，<code>?jobId=</code> 可同步结果。</p>
+        <p class="page-header__sub">对在线 Agent 执行 shell；CLI：<code>ai-sre ops job run</code>，<code>?jobId=</code> 可同步结果。</p>
       </div>
       <div class="page-header__actions">
         <el-tooltip content="刷新在线列表" placement="bottom-end">
@@ -678,7 +678,7 @@ if ! command -v ai-sre >/dev/null 2>&1; then
   exit 1
 fi
 
-ai-sre job run --machines "${ids}" --timeout ${jobTimeoutSec.value} --print-console-url --wait -c '${escaped}'
+ai-sre ops job run --machines "${ids}" --timeout ${jobTimeoutSec.value} --print-console-url --wait -c '${escaped}'
 
 # ─── 备选：curl + base64 请求体（BODY_B64 为当前页面生成的 JSON 经 base64）───
 # BODY_B64='${b64}'

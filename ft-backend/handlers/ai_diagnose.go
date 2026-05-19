@@ -74,7 +74,7 @@ func AIDiagnose(c *gin.Context) {
 	packKey := defaultString(intent.PackKey, skillPackForTopic(topic))
 	commitQuota, quotaDecision, quotaOK := beginAIQuotaForIdentity(c, packKey, ident)
 	if !quotaOK {
-		recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, packKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
+		recordAIExecution(ident, "check", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre check "+topic), req.RequestID, packKey, models.ExecutionStatusFailed, "", "ai_free_quota_exhausted", req.Context, req.Client, quotaDecision)
 		return
 	}
 	reg := services.DefaultSkillRegistry()
@@ -89,7 +89,7 @@ func AIDiagnose(c *gin.Context) {
 	answer, err := runServerDeepSeek(c.Request.Context(), prompt)
 	if err != nil {
 		logger.Error("AIDiagnose deepseek failed: %v", err)
-		recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), req.RequestID, packKey, models.ExecutionStatusFailed, "", err.Error(), req.Context, req.Client, quotaDecision)
+		recordAIExecution(ident, "check", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre check "+topic), req.RequestID, packKey, models.ExecutionStatusFailed, "", err.Error(), req.Context, req.Client, quotaDecision)
 		response.ServerError(c, "服务端 AI 诊断失败: "+err.Error())
 		return
 	}
@@ -127,11 +127,11 @@ func AIDiagnose(c *gin.Context) {
 			meta["diagnosis_style"] = s
 		}
 	}
-	recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), reqID, packKey, models.ExecutionStatusSuccess, answer, "", req.Context, req.Client, quotaDecision)
+	recordAIExecution(ident, "check", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre check "+topic), reqID, packKey, models.ExecutionStatusSuccess, answer, "", req.Context, req.Client, quotaDecision)
 
 	review := recordPostAISuccess(services.PostAICallRecord{
 		Topic:        topic,
-		CommandKind:  "analyze",
+		CommandKind:  "check",
 		SkillName:    skillName,
 		PackKey:      packKey,
 		ProblemKey:   intent.ProblemKey,

@@ -72,7 +72,7 @@ func CreateServiceDeployment(c *gin.Context) {
 	base := publicAPIBaseFromRequest(c)
 	id := dep.ID.String()
 	curlCmd := fmt.Sprintf("curl -fsSL '%s/api/service-deploy/deployments/%s/bootstrap.sh?token=%s' | sudo bash", base, id, token)
-	aiSreCmd := fmt.Sprintf("sudo ai-sre service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(id), quoteShellSingleLine(token))
+	aiSreCmd := fmt.Sprintf("sudo ai-sre ops service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(id), quoteShellSingleLine(token))
 	aiSreUpdateCmd := serviceDeploymentUpdateCommand(req.Service)
 	response.OK(c, gin.H{
 		"deploymentId":       id,
@@ -133,7 +133,7 @@ func UpdateServiceDeployment(c *gin.Context) {
 	aiSreCmd := ""
 	if req.Token != "" {
 		curlCmd = fmt.Sprintf("curl -fsSL '%s/api/service-deploy/deployments/%s/bootstrap.sh?token=%s' | sudo bash", base, dep.ID.String(), req.Token)
-		aiSreCmd = fmt.Sprintf("sudo ai-sre service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(dep.ID.String()), quoteShellSingleLine(req.Token))
+		aiSreCmd = fmt.Sprintf("sudo ai-sre ops service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(dep.ID.String()), quoteShellSingleLine(req.Token))
 	}
 	response.OK(c, gin.H{
 		"deploymentId":       dep.ID.String(),
@@ -165,7 +165,7 @@ else
   echo "[ai-sre] ai-sre found: $(command -v ai-sre)"
 fi
 
-exec ai-sre service install --api-url "$API_BASE" --deploy-id "$DEPLOY_ID" --token "$TOKEN"
+exec ai-sre ops service install --api-url "$API_BASE" --deploy-id "$DEPLOY_ID" --token "$TOKEN"
 `, quoteShellSingleLine(base), quoteShellSingleLine(dep.ID.String()), quoteShellSingleLine(token))
 	c.Header("Content-Type", "text/plain; charset=utf-8")
 	c.Header("Cache-Control", "no-store")

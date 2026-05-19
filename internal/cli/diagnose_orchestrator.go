@@ -104,7 +104,7 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 		if reqID == "" {
 			reqID = uuid.NewString()
 		}
-		intent := buildExecutionIntent("analyze", topic, kv)
+		intent := buildExecutionIntent("check", topic, kv)
 		gateErr := ensureExecutionAllowedWithContext(ctx, intent, false, kv)
 		if gateErr != nil {
 			if !serverAIFallbackEligible(gateErr) {

@@ -202,7 +202,7 @@ async function copyCode(text: string) {
 }
 
 async function copyCliHint(code: string) {
-  const line = `ai-sre analyze code ${code}`
+  const line = `ai-sre check code ${code}`
   await copyCode(line)
 }
 

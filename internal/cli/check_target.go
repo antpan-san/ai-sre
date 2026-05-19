@@ -49,25 +49,15 @@ var checkTargetSpecs = map[string]checkTargetSpec{
 		PrimaryKey: "url",
 		AliasKeys:  []string{"base_url", "addr"},
 	},
+	"nginx": {
+		Default:    "/var/log/nginx/access.log",
+		EnvKeys:    []string{"AI_SRE_NGINX_ACCESS_LOG", "NGINX_ACCESS_LOG"},
+		PrimaryKey: "access_log",
+	},
 }
 
 func normalizeCheckTopic(topic string) string {
-	t := strings.ToLower(strings.TrimSpace(topic))
-	if t == "postgres" {
-		return "postgresql"
-	}
-	if t == "es" {
-		return "elasticsearch"
-	}
-	return t
-}
-
-func checkTopicAcceptsOptionalTarget(topic string) bool {
-	_, ok := checkTargetSpecs[normalizeCheckTopic(topic)]
-	if ok {
-		return true
-	}
-	return isDomainTopic(topic)
+	return normalizeCheckTopicAlias(topic)
 }
 
 func applyCheckTargetContext(ctx map[string]string, topic string, args []string) {

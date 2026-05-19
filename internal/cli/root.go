@@ -117,32 +117,26 @@ func newRoot(programName string) *cobra.Command {
 	var short, long string
 	if programName == "opsfleet-executor" {
 		short = "OpsFleet 本地执行器 — 与 ai-sre 相同的技能包与执行语义"
-		long = fmt.Sprintf(`在需要部署或运维的受管机器上运行；与 ai-sre 共用同一套技能包（YAML）、Prompt、轻量 RAG 与 LLM 编排（需凭据）。
-子命令：check（AI 诊断）/ probe（只读快采）/ ask / runbook / skills / doctor / k8s / job。
-示例:
-  %s check kafka --lag 100000
-  %s check k8s --pod pending
-  %s probe elasticsearch 127.0.0.1:9200
-  %s ask "kafka lag 高怎么办"
-  %s runbook "pod频繁重启"
-  %s skills list
-  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName, programName)
+		long = `在需要部署或运维的受管机器上运行；与 ai-sre 共用同一套技能包与执行语义。
+
+  check / ops / expert / doctor / job（经 ops job run）`
 	} else {
-		short = "AI SRE Copilot — 故障诊断、Runbook、知识问答"
-		long = fmt.Sprintf(`CLI 工具：技能包 + Prompt + 可选 RAG + LLM；支持 OpsFleet K8s 离线包与安装（见 k8s）。
+		short = "AI SRE Copilot — 故障诊断与运维变更"
+		long = fmt.Sprintf(`最少命令、统一排查：
 
-命令分层（尽量少记）：
-  check [topic]   AI 故障诊断（kafka/k8s/redis/linux/…）
-  probe <topic>   只读快采，不调 LLM
-  check go        Go 运行时诊断（原 diagnose）
-  doctor          CLI 环境自检（凭据/技能，不调 LLM）
+  check    统一排查（redis/linux/domain/k8s/go/…）
+  ops      部署、安装、变更、作业
+  expert   高级：probe / skills / ask / runbook
+  doctor   环境自检
+  upgrade  升级 CLI
+  version  版本
 
 示例:
-  %s check kafka --lag 100000
-  %s check k8s --pod pending
-  %s probe redis 127.0.0.1:6379
-  %s check go --pod default/api-0
-  %s ask "kafka lag 高怎么办"
+  %s check redis 127.0.0.1:6379
+  %s check k8s pod/default/api-0
+  %s check go pid/1234
+  sudo %s ops k8s install 'ofpk8s1.…'
+  %s expert probe redis 127.0.0.1:6379 --json
   %s doctor`, programName, programName, programName, programName, programName, programName)
 	}
 	root := &cobra.Command{
@@ -166,14 +160,7 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().BoolVar(&noAutoUpgrade, "no-auto-upgrade", false, "跳过每次命令前的 OpsFleet 版本快检与自动升级（等同 OPSFLEET_NO_AUTO_UPGRADE=1）")
 
 	cmds := []*cobra.Command{
-		checkCmd(), probeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(),
-		analyzeCmd(), diagnoseCmd(), // deprecated aliases
-		versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(),
-		kafkaCmd(), redisCmd(), mysqlCmd(), postgresqlCmd(), nginxCmd(), elasticsearchCmd(),
-		nodeCmd(), jobCmd(),
-	}
-	if programName == "ai-sre" {
-		cmds = append(cmds, uninstallCmd())
+		checkCmd(), opsCmd(), expertCmd(), doctorCmd(), versionCmd(), upgradeCmd(),
 	}
 	root.AddCommand(cmds...)
 	if programName == "ai-sre" {

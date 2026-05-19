@@ -277,7 +277,7 @@
         <template #default>
           <div>
             页面只保存服务端部署规格，目标机执行 <code>curl | sudo bash</code> 后会安装/升级 ai-sre，
-            再由 <code>ai-sre service install</code> 从服务端拉取完整参数并回传执行状态。
+            再由 <code>ai-sre ops service install</code> 从服务端拉取完整参数并回传执行状态。
           </div>
         </template>
       </el-alert>

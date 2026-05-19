@@ -33,7 +33,7 @@ func buildRedisReadonlyDiagnosticPlan(kv map[string]string) ([]diagnosticPlanSte
 	if addr == "" {
 		return nil, fmt.Errorf("redis 诊断需要 context.addr（或 host+port）")
 	}
-	argv := []string{"ai-sre", "probe", "redis", addr, "--json"}
+	argv := []string{"ai-sre", "expert", "probe", "redis", addr, "--json"}
 	if pass := strings.TrimSpace(kv["password"]); pass != "" && diagnosticSafeLiteral(pass) {
 		argv = append(argv, "--password", pass)
 	}
@@ -47,7 +47,7 @@ func buildKafkaReadonlyDiagnosticPlan(kv map[string]string) ([]diagnosticPlanSte
 	if bs == "" {
 		return nil, fmt.Errorf("kafka 诊断需要 context.bootstrap（bootstrap-server）")
 	}
-	argv := []string{"ai-sre", "probe", "kafka", bs, "--json"}
+	argv := []string{"ai-sre", "expert", "probe", "kafka", bs, "--json"}
 	if dir := strings.TrimSpace(kv["command_dir"]); dir != "" && diagnosticSafePath(dir) {
 		argv = append(argv, "--command-dir", dir)
 	}
@@ -60,7 +60,7 @@ func buildKafkaReadonlyDiagnosticPlan(kv map[string]string) ([]diagnosticPlanSte
 }
 
 func buildNginxReadonlyDiagnosticPlan(kv map[string]string) ([]diagnosticPlanStep, error) {
-	argv := []string{"ai-sre", "probe", "nginx", "--json"}
+	argv := []string{"ai-sre", "expert", "probe", "nginx", "--json"}
 	if log := strings.TrimSpace(kv["access_log"]); log != "" && diagnosticSafePath(log) {
 		argv = append(argv, "--access-log", log)
 	}
@@ -77,7 +77,7 @@ func buildMySQLReadonlyDiagnosticPlan(kv map[string]string) ([]diagnosticPlanSte
 	return []diagnosticPlanStep{
 		{
 			ID: "mysql_diagnose_json", Title: "MySQL 只读快诊（JSON）",
-			Argv:           []string{"ai-sre", "probe", "mysql", dsn, "--json"},
+			Argv:           []string{"ai-sre", "expert", "probe", "mysql", dsn, "--json"},
 			TimeoutSeconds: 45, EvidenceKey: "mysql_diagnose_json",
 		},
 	}, nil
@@ -91,7 +91,7 @@ func buildPostgreSQLReadonlyDiagnosticPlan(kv map[string]string) ([]diagnosticPl
 	return []diagnosticPlanStep{
 		{
 			ID: "postgresql_diagnose_json", Title: "PostgreSQL 只读快诊（JSON）",
-			Argv:           []string{"ai-sre", "probe", "postgresql", dsn, "--json"},
+			Argv:           []string{"ai-sre", "expert", "probe", "postgresql", dsn, "--json"},
 			TimeoutSeconds: 45, EvidenceKey: "postgresql_diagnose_json",
 		},
 	}, nil
@@ -102,7 +102,7 @@ func buildElasticsearchReadonlyDiagnosticPlan(kv map[string]string) ([]diagnosti
 	if url == "" {
 		return nil, fmt.Errorf("elasticsearch 诊断需要 context.url（或 host:port）")
 	}
-	argv := []string{"ai-sre", "probe", "elasticsearch", url, "--json"}
+	argv := []string{"ai-sre", "expert", "probe", "elasticsearch", url, "--json"}
 	if strings.EqualFold(strings.TrimSpace(kv["insecure"]), "true") {
 		argv = append(argv, "--insecure")
 	}

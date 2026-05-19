@@ -428,7 +428,7 @@ func marshalStringMap(v map[string]string) []byte {
 }
 
 func allowedCLIAISreDiagnosticCommand(argv []string) bool {
-	if len(argv) < 3 {
+	if len(argv) < 2 {
 		return false
 	}
 	for _, a := range argv {
@@ -437,39 +437,77 @@ func allowedCLIAISreDiagnosticCommand(argv []string) bool {
 		}
 	}
 	switch argv[1] {
-	case "probe":
-		return allowedCLIAISreProbeCommand(argv)
-	case "check":
-		if argv[2] == "go" {
-			return allowedCLIAISreGoRuntimeArgs(argv[3:])
-		}
-		if argv[2] == "linux" {
-			return allowedCLITopicDiagnoseFlags("linux", argv[3:])
+	case "expert":
+		if len(argv) >= 3 && argv[2] == "probe" {
+			return allowedCLIAISreProbeCommand(append([]string{argv[0], "probe"}, argv[3:]...))
 		}
 		return false
-	case "diagnose":
-		return allowedCLIAISreGoRuntimeArgs(argv[2:])
+	case "check":
+		if len(argv) < 3 {
+			return false
+		}
+		topic := normalizeCheckTopicAlias(argv[2])
+		switch topic {
+		case "go":
+			if len(argv) >= 4 {
+				if err := validateCheckTargetForTopic("go", argv[3]); err != nil {
+					return false
+				}
+				return allowedCLIAISreGoRuntimeArgs(argv[4:])
+			}
+			return allowedCLIAISreGoRuntimeArgs(argv[3:])
+		case "linux", "nginx":
+			return allowedCLITopicDiagnoseFlags(topic, argv[3:])
+		case "code":
+			return len(argv) >= 4 && diagnosticAISreValueRe.MatchString(argv[3])
+		case "redis", "kafka", "mysql", "postgresql", "elasticsearch", "domain", "k8s":
+			if len(argv) >= 4 && !diagnosticAISreValueRe.MatchString(argv[3]) {
+				return false
+			}
+			return allowedCLITopicDiagnoseFlags(topic, argv[4:])
+		default:
+			return false
+		}
+	case "ops":
+		return allowedCLIAISreOpsCommand(argv)
 	case "go_runtime":
-		if !aisreReadonlySubcommand(argv[2]) {
+		if len(argv) < 3 || !aisreReadonlySubcommand(argv[2]) {
 			return false
 		}
 		return allowedCLIAISreGoRuntimeArgs(argv[3:])
-	case "redis", "kafka", "mysql", "postgresql", "postgres", "elasticsearch":
-		if !aisreReadonlySubcommand(argv[2]) || len(argv) < 4 {
-			return false
-		}
-		if !diagnosticAISreValueRe.MatchString(argv[3]) {
-			return false
-		}
-		return allowedCLITopicDiagnoseFlags(argv[1], argv[4:])
-	case "nginx":
-		if !aisreReadonlySubcommand(argv[2]) {
-			return false
-		}
-		return allowedCLITopicDiagnoseFlags(argv[1], argv[3:])
 	default:
 		return false
 	}
+}
+
+func allowedCLIAISreOpsCommand(argv []string) bool {
+	if len(argv) < 3 {
+		return false
+	}
+	switch argv[2] {
+	case "k8s":
+		if len(argv) < 4 {
+			return false
+		}
+		switch argv[3] {
+		case "install", "cleanup", "uninstall", "download", "diagnose":
+			return true
+		}
+	case "service":
+		return len(argv) >= 4 && argv[3] == "install"
+	case "node":
+		return len(argv) >= 5 && argv[3] == "tune"
+	case "job":
+		return len(argv) >= 4 && argv[3] == "run"
+	case "nginx", "elasticsearch":
+		if len(argv) >= 4 {
+			switch argv[3] {
+			case "update", "uninstall":
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func aisreReadonlySubcommand(word string) bool {

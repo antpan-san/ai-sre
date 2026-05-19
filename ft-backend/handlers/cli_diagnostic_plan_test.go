@@ -111,11 +111,11 @@ func TestAllowedAISreReadonlyDiagnosticCommand(t *testing.T) {
 	if allowedReadonlyDiagnosticCommand(bad) {
 		t.Fatalf("expected reject metachar")
 	}
-	redisOK := []string{"ai-sre", "probe", "redis", "127.0.0.1:6379", "--json"}
+	redisOK := []string{"ai-sre", "expert", "probe", "redis", "127.0.0.1:6379", "--json"}
 	if !allowedReadonlyDiagnosticCommand(redisOK) {
 		t.Fatalf("expected allowed probe redis argv")
 	}
-	nginxOK := []string{"ai-sre", "probe", "nginx", "--json", "--access-log", "/var/log/nginx/access.log"}
+	nginxOK := []string{"ai-sre", "expert", "probe", "nginx", "--json", "--access-log", "/var/log/nginx/access.log"}
 	if !allowedReadonlyDiagnosticCommand(nginxOK) {
 		t.Fatalf("expected allowed probe nginx argv")
 	}

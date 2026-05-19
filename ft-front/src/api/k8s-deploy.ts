@@ -126,7 +126,7 @@ export const submitDeployConfig = (config: DeployConfig): Promise<SubmitDeployCo
  * 生成离线 zip 安装包（Ubuntu 24.04 上一键 sudo bash install.sh），浏览器直接下载。
  * 依赖 masterHosts / workerHosts，不经 Agent。
  */
-/** 登记离线配置并返回一键安装引用（目标机执行 sudo ai-sre k8s install '<installRef>'） */
+/** 登记离线配置并返回一键安装引用（目标机执行 sudo ai-sre ops k8s install '<installRef>'） */
 export function createK8sBundleInvite(
   config: DeployConfig,
   publicApiBase: string

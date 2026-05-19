@@ -255,7 +255,7 @@ PLAYBOOK
 ${runPlaybook()}
 `
 
-  const aiSreCommand = `ai-sre node tune time-sync \\
+  const aiSreCommand = `ai-sre ops node tune time-sync \\
   --ntp-mode ${opts.ntpMode} \\
 ${isSelfHosted ? `  --master-node ${shellQuote(masterIp)} \\\n` : ''}  --clients ${shellQuote(clientIps.join(',') || 'localhost')} \\
   --ntp-server ${shellQuote(ntpTarget)} \\
@@ -379,7 +379,7 @@ ${runPlaybook()}
   return {
     subtitle: `写入 ${opts.rows.length} 项 sysctl + 内核模块${opts.disableSwap ? ' + 关 swap' : ''}${opts.raiseUlimit ? ' + ulimit' : ''} → ${nodeDesc}`,
     fullScript,
-    aiSreCommand: `ai-sre node tune sys-param \\
+    aiSreCommand: `ai-sre ops node tune sys-param \\
   --nodes ${shellQuote(nodeIps.join(',') || 'localhost')} \\
   --on-conflict ${opts.onConflict} \\
   --disable-swap=${opts.disableSwap} \\
@@ -494,7 +494,7 @@ ${runPlaybook()}
   return {
     subtitle: `SSH/防火墙${opts.installFail2ban ? '/Fail2ban' : ''} 加固 → ${nodeDesc}`,
     fullScript,
-    aiSreCommand: `ai-sre node tune security \\
+    aiSreCommand: `ai-sre ops node tune security \\
   --nodes ${shellQuote(nodeIps.join(',') || 'localhost')} \\
   --on-conflict ${opts.onConflict} \\
   --disable-root-ssh=${opts.disableSshRoot} \\
@@ -590,7 +590,7 @@ ${runPlaybook()}
   return {
     subtitle: `磁盘优化（${[opts.enableSsdTrim && 'TRIM', opts.tuneFilesystem && 'noatime', opts.setupSwap && 'swap'].filter(Boolean).join('/')}）→ ${nodeDesc}`,
     fullScript,
-    aiSreCommand: `ai-sre node tune disk \\
+    aiSreCommand: `ai-sre ops node tune disk \\
   --nodes ${shellQuote(nodeIps.join(',') || 'localhost')} \\
   --on-conflict ${opts.onConflict} \\
   --ssd-trim=${opts.enableSsdTrim} \\

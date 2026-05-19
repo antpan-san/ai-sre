@@ -2,9 +2,9 @@ package cli
 
 import "testing"
 
-func TestCobraFindProbeRedis(t *testing.T) {
+func TestCobraFindExpertProbeRedis(t *testing.T) {
 	root := newRoot("ai-sre")
-	cmd, remaining, err := root.Find([]string{"probe", "redis", "127.0.0.1:6379", "--json"})
+	cmd, remaining, err := root.Find([]string{"expert", "probe", "redis", "127.0.0.1:6379", "--json"})
 	if err != nil {
 		t.Fatalf("find: %v", err)
 	}
@@ -14,30 +14,30 @@ func TestCobraFindProbeRedis(t *testing.T) {
 	_ = remaining
 }
 
-func TestCobraFindProbeLinuxOK(t *testing.T) {
+func TestCobraFindExpertProbeLinuxOK(t *testing.T) {
 	root := newRoot("ai-sre")
-	_, _, err := root.Find([]string{"probe", "linux", "-o", "json"})
+	_, _, err := root.Find([]string{"expert", "probe", "linux", "-o", "json"})
 	if err != nil {
 		t.Fatalf("expected find ok: %v", err)
 	}
 }
 
-func TestArgvHasUnresolvedSubcommandProbeLinux(t *testing.T) {
+func TestArgvHasUnresolvedSubcommandExpertProbeLinux(t *testing.T) {
 	root := newRoot("ai-sre")
-	if !argvHasUnresolvedSubcommand(root, []string{"probe", "not-a-real-topic", "-o", "json"}) {
-		t.Fatal("expected unresolved probe subcommand")
+	if !argvHasUnresolvedSubcommand(root, []string{"expert", "probe", "not-a-real-topic", "-o", "json"}) {
+		t.Fatal("expected unresolved expert probe subcommand")
 	}
-	if argvHasUnresolvedSubcommand(root, []string{"probe", "linux", "-o", "json"}) {
-		t.Fatal("probe linux should resolve")
+	if argvHasUnresolvedSubcommand(root, []string{"expert", "probe", "linux", "-o", "json"}) {
+		t.Fatal("expert probe linux should resolve")
 	}
-	if argvHasUnresolvedSubcommand(root, []string{"probe", "redis", "127.0.0.1:6379"}) {
-		t.Fatal("probe redis should resolve")
+	if argvHasUnresolvedSubcommand(root, []string{"expert", "probe", "redis", "127.0.0.1:6379"}) {
+		t.Fatal("expert probe redis should resolve")
 	}
 }
 
-func TestCobraFindProbeUnknownFails(t *testing.T) {
+func TestCobraFindExpertProbeUnknownFails(t *testing.T) {
 	root := newRoot("ai-sre")
-	cmd, remaining, err := root.Find([]string{"probe", "not-a-real-topic", "-o", "json"})
+	cmd, remaining, err := root.Find([]string{"expert", "probe", "not-a-real-topic", "-o", "json"})
 	if err != nil {
 		t.Fatalf("cobra Find err=%v", err)
 	}

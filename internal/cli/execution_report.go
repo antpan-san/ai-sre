@@ -259,7 +259,7 @@ func rollbackPlanForArgs(args []string) map[string]interface{} {
 		return map[string]interface{}{
 			"mode":           "manual_command",
 			"command":        "sudo ai-sre uninstall k8s",
-			"manual_command": "sudo ai-sre k8s cleanup '<same ofpk8s1 ref>'",
+			"manual_command": "sudo ai-sre ops k8s cleanup '<same ofpk8s1 ref>'",
 		}
 	}
 	if len(args) >= 3 && args[0] == "node" && args[1] == "tune" {
@@ -273,7 +273,7 @@ func rollbackPlanForArgs(args []string) map[string]interface{} {
 
 func rollbackAdviceForArgs(args []string) string {
 	if len(args) >= 2 && args[0] == "k8s" && args[1] == "install" {
-		return "可在控制机执行 sudo ai-sre uninstall k8s；如仍持有同一安装引用，也可执行 sudo ai-sre k8s cleanup '<ref>'。"
+		return "可在控制机执行 sudo ai-sre ops k8s uninstall；如仍持有同一安装引用，也可执行 sudo ai-sre ops k8s cleanup '<ref>'。"
 	}
 	if len(args) >= 3 && args[0] == "node" && args[1] == "tune" {
 		return "node tune 属于系统配置变更，当前提供人工回滚建议，不自动恢复。"

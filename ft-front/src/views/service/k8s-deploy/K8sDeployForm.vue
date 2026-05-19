@@ -52,7 +52,7 @@
                 <span>建议在生成命令或开始部署前完成</span>
               </div>
               <div class="k8s-prereq-body">
-                <p class="k8s-prereq-lead">建议先确认下列项目，避免安装后出现 etcd 慢、CNI 抖动或 CoreDNS 反复重启。需要自动诊断时可在 master 上执行 <code>sudo ai-sre k8s diagnose</code>。</p>
+                <p class="k8s-prereq-lead">建议先确认下列项目，避免安装后出现 etcd 慢、CNI 抖动或 CoreDNS 反复重启。需要自动诊断时可在 master 上执行 <code>sudo ai-sre ops k8s diagnose</code>。</p>
                 <el-table :data="preflightRows" size="small" class="k8s-preflight-table" border>
                   <el-table-column prop="item" label="检查项" min-width="170" />
                   <el-table-column prop="why" label="不满足时的症状" min-width="240" />
@@ -611,7 +611,7 @@
               <p class="confirm-cmd-card__meta">
                 资源 ID {{ lastInvite.id }} · 有效期至 {{ formatInviteExpiry(lastInvite.expiresAt) }}
               </p>
-              <p class="confirm-cmd-card__hint">推荐（curl + python3，与 <code>ai-sre k8s install</code> 等价）。命令含密钥勿外泄。</p>
+              <p class="confirm-cmd-card__hint">推荐（curl + python3，与 <code>ai-sre ops k8s install</code> 等价）。命令含密钥勿外泄。</p>
               <el-input
                 type="textarea"
                 :rows="3"
@@ -1495,7 +1495,7 @@ const handleCreateInstallRef = async () => {
       installRef: data.installRef,
       installCommand: data.installCommand,
       bootstrapCommand: data.bootstrapCommand,
-      cleanupCommand: data.cleanupCommand || `sudo ai-sre k8s cleanup '${data.installRef}'`
+      cleanupCommand: data.cleanupCommand || `sudo ai-sre ops k8s cleanup '${data.installRef}'`
     }
     try {
       await navigator.clipboard.writeText(data.bootstrapCommand)
