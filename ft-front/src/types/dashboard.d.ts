@@ -3,8 +3,12 @@
 // 资源使用情况统计
 export interface ResourceUsage {
   cpu: number
+  /** 1 分钟 load average 相对 CPU 核数，0–100 */
+  load?: number
   memory: number
   disk: number
+  /** 磁盘 IO 忙百分比，0–100 */
+  diskIo?: number
   network: {
     in: number
     out: number
@@ -116,6 +120,8 @@ export interface HostRuntimeMeta {
   hostname: string
   sampledAt: string
   os?: string
+  /** 原始 1 分钟 load average */
+  load1?: number
   error?: string
 }
 

@@ -242,8 +242,10 @@ func GetDashboardData(c *gin.Context) {
 func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H) {
 	resourceUsage := gin.H{
 		"cpu":     0.0,
+		"load":    0.0,
 		"memory":  0.0,
 		"disk":    0.0,
+		"diskIo":  0.0,
 		"network": gin.H{"in": 0, "out": 0},
 	}
 	if !models.IsSuperAdminRole(role) {
@@ -251,12 +253,15 @@ func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H) 
 	}
 	hr := collectHostRuntime(ctx, 320*time.Millisecond)
 	resourceUsage["cpu"] = clampPct(hr.CPU)
+	resourceUsage["load"] = clampPct(hr.Load)
 	resourceUsage["memory"] = clampPct(hr.Memory)
 	resourceUsage["disk"] = clampPct(hr.Disk)
+	resourceUsage["diskIo"] = clampPct(hr.DiskIO)
 	hostRuntime := gin.H{
 		"hostname":  hr.Hostname,
 		"sampledAt": hr.SampledAt,
 		"os":        hr.OS,
+		"load1":     hr.Load1,
 	}
 	if hr.ErrCollect != "" {
 		hostRuntime["error"] = hr.ErrCollect
@@ -264,7 +269,7 @@ func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H) 
 	return resourceUsage, hostRuntime
 }
 
-// GetDashboardHostResources returns only host CPU/memory/disk rings data for the nav bar (super_admin).
+// GetDashboardHostResources returns host CPU/load/memory/disk/diskIo rings data for the nav bar (super_admin).
 func GetDashboardHostResources(c *gin.Context) {
 	if _, exists := c.Get("userID"); !exists {
 		response.Unauthorized(c, "未授权")

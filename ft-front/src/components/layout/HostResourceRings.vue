@@ -87,16 +87,25 @@ const hostError = computed(() => {
 const meters = computed(() => {
   if (!visible.value) return []
   const u = resourceUsage.value
+  const load1 = hostRuntime.value?.load1
   const items = [
     { key: 'cpu', short: 'CPU', label: 'CPU', value: u?.cpu ?? 0 },
+    { key: 'load', short: '负载', label: 'CPU 负载', value: u?.load ?? 0 },
     { key: 'mem', short: '内存', label: '内存', value: u?.memory ?? 0 },
-    { key: 'disk', short: '磁盘', label: '磁盘（/）', value: u?.disk ?? 0 }
+    { key: 'disk', short: '磁盘', label: '磁盘（/）', value: u?.disk ?? 0 },
+    { key: 'diskio', short: 'IO', label: '磁盘 IO', value: u?.diskIo ?? 0 }
   ]
-  return items.map((m) => ({
-    ...m,
-    level: levelOf(m.value),
-    tip: `${m.label} ${m.value.toFixed(1)}%`
-  }))
+  return items.map((m) => {
+    let tip = `${m.label} ${m.value.toFixed(1)}%`
+    if (m.key === 'load' && load1 != null && Number.isFinite(load1)) {
+      tip += ` (1m ${load1.toFixed(2)})`
+    }
+    return {
+      ...m,
+      level: levelOf(m.value),
+      tip
+    }
+  })
 })
 
 const refreshHostResources = async () => {
@@ -143,7 +152,7 @@ onUnmounted(() => {
 .host-rings {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   padding: 0 4px;
 }
 
