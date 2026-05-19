@@ -1,11 +1,13 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -15,7 +17,8 @@ import (
 )
 
 func doctorCmd() *cobra.Command {
-	return &cobra.Command{
+	var probeOpsfleet bool
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "自检：运行时、配置目录、凭据、配额、技能与知识库加载（不调用 LLM）",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -74,8 +77,54 @@ func doctorCmd() *cobra.Command {
 				}
 			}
 
+			printOpsfleetDoctorSummary(probeOpsfleet, cmd.Context())
 			fmt.Printf("hint: LLM 联通性请用: %s ask \"ping\" 或 SHORT=1 bash scripts/remote-e2e.sh\n", progName)
 			return nil
 		},
 	}
+	cmd.Flags().BoolVar(&probeOpsfleet, "opsfleet", false, "探测 OpsFleet API 基址、CLI token 与 /api/cli/sync（会先检查版本更新）")
+	return cmd
+}
+
+func printOpsfleetDoctorSummary(probe bool, ctx context.Context) {
+	base := strings.TrimSpace(resolveOpsfleetAPIBase())
+	fmt.Printf("opsfleet_api_base: %s\n", orDash(base))
+	tok := strings.TrimSpace(resolveOpsfleetToken())
+	if tok != "" {
+		fmt.Printf("opsfleet_token: OK (len=%d)\n", len(tok))
+	} else {
+		fmt.Printf("opsfleet_token: MISSING\n")
+	}
+	fp := strings.TrimSpace(resolveOpsfleetFingerprint())
+	if fp != "" {
+		fmt.Printf("opsfleet_fingerprint: %s…\n", fp[:min(12, len(fp))])
+	} else {
+		fmt.Printf("opsfleet_fingerprint: MISSING\n")
+	}
+	if hasLocalAPIKeyOnly() {
+		fmt.Printf("opsfleet_hint: 仅有 api_key，不能用于 check/ask；请 install-ai-sre 写入 opsfleet_token\n")
+	}
+	if !probe {
+		fmt.Printf("opsfleet_sync: skipped (use --opsfleet to probe)\n")
+		return
+	}
+	if err := probeOpsfleetCLISync(ctx); err != nil {
+		fmt.Printf("opsfleet_sync: ERROR %v\n", err)
+		return
+	}
+	fmt.Printf("opsfleet_sync: OK\n")
+}
+
+func orDash(s string) string {
+	if strings.TrimSpace(s) == "" {
+		return "—"
+	}
+	return s
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

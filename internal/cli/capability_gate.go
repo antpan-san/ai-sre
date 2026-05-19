@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -16,10 +15,14 @@ func ensureExecutionAllowedWithContext(ctx context.Context, intent executionInte
 	if strings.TrimSpace(resolveOpsfleetAPIBase()) == "" {
 		return nil
 	}
-	if strings.TrimSpace(resolveOpsfleetToken()) == "" {
-		return errors.New("需要绑定 OpsFleet CLI token；请从控制台安装 ai-sre 后重试")
+	ensureUpgradeBeforeOpsfleetAPI()
+	if err := validateOpsfleetCredentials(); err != nil {
+		return err
 	}
 	err := checkExecutionAllowedFromSync(ctx, intent, refresh)
+	if err != nil {
+		err = formatOpsfleetAPIError(err, "/api/cli/sync")
+	}
 	if err == nil {
 		return nil
 	}
