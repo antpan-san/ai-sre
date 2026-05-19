@@ -13,11 +13,14 @@ import (
 )
 
 type cliFeedbackAnalyzeResponse struct {
-	FeedbackID     string `json:"feedback_id"`
-	Classification string `json:"classification"`
-	NeedIteration  bool   `json:"need_iteration"`
-	UserMessage    string `json:"user_message"`
-	NextAction     string `json:"next_action"`
+	FeedbackID           string `json:"feedback_id"`
+	Classification       string `json:"classification"`
+	NeedIteration        bool   `json:"need_iteration"`
+	UserMessage          string `json:"user_message"`
+	NextAction           string `json:"next_action"`
+	Action               string `json:"action,omitempty"`
+	AutoIterationCreated bool   `json:"auto_iteration_created"`
+	AutoIterationID      string `json:"auto_iteration_id,omitempty"`
 }
 
 // callCLIFeedbackAnalyze submits diagnostic feedback for platform auto-iteration triage.
@@ -30,11 +33,13 @@ func callCLIFeedbackAnalyze(ctx context.Context, topic, command, summary string,
 	if strings.TrimSpace(resolveOpsfleetToken()) == "" || strings.TrimSpace(resolveOpsfleetFingerprint()) == "" {
 		return nil, errors.New("opsfleet cli binding not configured")
 	}
+	root := newRoot(progName)
 	body, err := json.Marshal(map[string]interface{}{
-		"topic":   strings.TrimSpace(topic),
-		"command": strings.TrimSpace(command),
-		"summary": strings.TrimSpace(summary),
-		"context": extra,
+		"topic":                  strings.TrimSpace(topic),
+		"command":                strings.TrimSpace(command),
+		"summary":                strings.TrimSpace(summary),
+		"context":                extra,
+		"command_catalog_digest": CommandCatalogDigest(root),
 	})
 	if err != nil {
 		return nil, err

@@ -3,6 +3,7 @@ package services
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -49,11 +50,14 @@ type AutoIterationSettingsView struct {
 }
 
 type CLIFeedbackAnalyzeResult struct {
-	FeedbackID      string `json:"feedback_id"`
-	Classification  string `json:"classification"`
-	NeedIteration   bool   `json:"need_iteration"`
-	UserMessage     string `json:"user_message"`
-	NextAction      string `json:"next_action"`
+	FeedbackID             string `json:"feedback_id"`
+	Classification         string `json:"classification"`
+	NeedIteration          bool   `json:"need_iteration"`
+	UserMessage            string `json:"user_message"`
+	NextAction             string `json:"next_action"`
+	Action                 string `json:"action,omitempty"`
+	AutoIterationCreated   bool   `json:"auto_iteration_created"`
+	AutoIterationID        string `json:"auto_iteration_id,omitempty"`
 }
 
 func EnsureAutoIterationSettings() error {
@@ -415,15 +419,25 @@ func RollbackAutoIteration(id uuid.UUID, actorName, reason string) (*models.Auto
 		if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
 			return err
 		}
-		if row.Status != models.AutoIterationStatusApproved && row.Status != models.AutoIterationStatusCompleted && row.Status != models.AutoIterationStatusFailed {
+		allowed := map[string]bool{
+			models.AutoIterationStatusApproved:         true,
+			models.AutoIterationStatusCompleted:        true,
+			models.AutoIterationStatusFailed:           true,
+			models.AutoIterationStatusRollbackRequired: true,
+		}
+		if !allowed[row.Status] {
 			return ErrAutoIterationInvalidState
 		}
-		if err := tx.Model(&row).Update("status", models.AutoIterationStatusCancelled).Error; err != nil {
+		toStatus := models.AutoIterationStatusRolledBack
+		if row.Status != models.AutoIterationStatusRollbackRequired {
+			toStatus = models.AutoIterationStatusRollbackRequired
+		}
+		if err := tx.Model(&row).Update("status", toStatus).Error; err != nil {
 			return err
 		}
-		row.Status = models.AutoIterationStatusCancelled
+		row.Status = toStatus
 		return appendAutoIterationEvent(tx, id, models.AutoIterationEventStateChange, "super_admin", actorName,
-			"已回滚: "+limitAuditText(reason, 500), map[string]interface{}{"rollback": true})
+			"回滚状态: "+toStatus+": "+limitAuditText(reason, 500), map[string]interface{}{"rollback": true, "status": toStatus})
 	})
 	if err != nil {
 		return nil, err
@@ -448,12 +462,26 @@ func RunAutoIterationTests(id uuid.UUID, actorName string) (*models.AutoIteratio
 }
 
 func SyncAutoIterationGitHub(id uuid.UUID, actorName string) (*models.AutoIteration, error) {
+	settings, err := GetAutoIterationSettings()
+	if err != nil {
+		return nil, err
+	}
+	if settings != nil && !settings.GitHubSyncEnabled {
+		return nil, fmt.Errorf("github sync disabled in settings")
+	}
 	cfg := config.ResolvedAutoIterationConfig()
 	var row models.AutoIteration
-	err := database.DB.Transaction(func(tx *gorm.DB) error {
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
 			return err
 		}
+		meta := mergeAutoIterationMeta(row.Metadata, map[string]interface{}{
+			"github_sync": "queued",
+		})
+		if err := tx.Model(&row).Update("metadata", meta).Error; err != nil {
+			return err
+		}
+		row.Metadata = meta
 		return appendAutoIterationEvent(tx, id, models.AutoIterationEventWorker, "super_admin", actorName, "GitHub 同步已排队", map[string]interface{}{
 			"github_repo": cfg.GitHubRepo != "",
 		})
@@ -465,9 +493,16 @@ func SyncAutoIterationGitHub(id uuid.UUID, actorName string) (*models.AutoIterat
 }
 
 func ResendAutoIterationNotification(id uuid.UUID, actorName string) (*models.AutoIteration, error) {
+	settings, err := GetAutoIterationSettings()
+	if err != nil {
+		return nil, err
+	}
+	if settings != nil && !settings.DingTalkNotifyEnabled {
+		return nil, fmt.Errorf("dingtalk notify disabled in settings")
+	}
 	cfg := config.ResolvedAutoIterationConfig()
 	var row models.AutoIteration
-	err := database.DB.Transaction(func(tx *gorm.DB) error {
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
 			return err
 		}
@@ -524,10 +559,10 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 	needIteration := settings.Enabled && (classification == "bug" || classification == "improvement")
 	userMessage := "感谢反馈，我们已记录。"
 	nextAction := "none"
-	if needIteration {
-		userMessage = "感谢反馈，平台将评估是否纳入自动迭代（无需进一步操作）。"
-		nextAction = "wait_review"
-	}
+	action := ""
+	var autoID string
+	autoCreated := false
+
 	fb := models.AutoIterationFeedback{
 		UserID:         userID,
 		CLIBindingID:   bindingID,
@@ -541,46 +576,47 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 		return nil, err
 	}
 	if needIteration {
-		title := fmt.Sprintf("CLI 反馈: %s", limitAuditText(topic, 40))
-		if title == "CLI 反馈: " {
-			title = "CLI 反馈"
+		failureKind := classification
+		if failureKind == "improvement" {
+			failureKind = "product_gap"
 		}
-		cliBody := strings.TrimSpace(summary)
-		if c := strings.TrimSpace(command); c != "" {
-			if cliBody != "" {
-				cliBody += "\n"
+		plan, planErr := handleProductGapFulfillment(userID, "cli_feedback", command, topic, failureKind, summary, SkillExecutionIntent{Topic: topic})
+		if planErr == nil && plan != nil {
+			action = plan.Action
+			autoCreated = plan.AutoIterationCreated
+			autoID = plan.AutoIterationID
+			userMessage = publicFulfillmentMessage(plan.Message, userMessage)
+			switch plan.Action {
+			case FulfillmentActionAutoIterationCreated, FulfillmentActionAwaitingApproval:
+				nextAction = plan.Action
+				if autoID != "" {
+					if uid, err := uuid.Parse(autoID); err == nil {
+						fb.AutoIterationID = &uid
+						_ = database.DB.Model(&fb).Updates(map[string]interface{}{
+							"auto_iteration_id": uid,
+							"user_message":      userMessage,
+						})
+					}
+				}
+			case FulfillmentActionManualReview:
+				nextAction = "manual_review"
+			default:
+				nextAction = "wait_review"
 			}
-			cliBody += c
-		}
-		iter, err := CreateManualAutoIteration(title, cliBody, cliBody, topic, "cli_feedback", userID, true)
-		if err == nil && iter != nil {
-			fb.AutoIterationID = &iter.ID
-			_ = database.DB.Model(&fb).Update("auto_iteration_id", iter.ID)
-			cliDesc, cliCmd := FormatAutoIterationUserRequirement(title, cliBody, topic)
-			_ = database.DB.Model(iter).Updates(map[string]interface{}{
-				"source":      models.AutoIterationSourceCLIFeedback,
-				"status":      models.AutoIterationStatusPending,
-				"description": cliDesc,
-				"command":     cliCmd,
-				"summary":     limitAuditText(summary, 2000),
-				"feedback_id": fb.ID,
-				"metadata":    MergeAgentTaskMetadata(iter.Metadata),
-			})
-			if classification == "bug" {
-				_ = database.DB.Model(iter).Updates(map[string]interface{}{
-					"risk_level":                   models.AutoIterationRiskHigh,
-					"requires_super_admin_approval": true,
-				})
-			}
-			notifyAutoIterationDingTalkKind(DingTalkKindCLIFeedbackQueued, *iter, "", classification)
+		} else {
+			userMessage = "感谢反馈，平台将评估是否纳入自动迭代。"
+			nextAction = "wait_review"
 		}
 	}
 	return &CLIFeedbackAnalyzeResult{
-		FeedbackID:     fb.ID.String(),
-		Classification: classification,
-		NeedIteration:  needIteration,
-		UserMessage:    userMessage,
-		NextAction:     nextAction,
+		FeedbackID:           fb.ID.String(),
+		Classification:       classification,
+		NeedIteration:        needIteration,
+		UserMessage:          userMessage,
+		NextAction:           nextAction,
+		Action:               action,
+		AutoIterationCreated: autoCreated,
+		AutoIterationID:      autoID,
 	}, nil
 }
 
@@ -699,33 +735,79 @@ func CodeAgentReportEvent(iterationID, bindingID uuid.UUID, message string, payl
 	})
 }
 
-func CodeAgentReportResult(iterationID, bindingID uuid.UUID, success bool, summary string) error {
+// CodeAgentTaskResult carries worker completion details (public fields only).
+type CodeAgentTaskResult struct {
+	Success          bool
+	Summary          string
+	GitHubSync       string // ok | failed | skipped
+	DeployStatus     string // ok | failed | skipped
+	RollbackRequired bool
+}
+
+func CodeAgentReportResult(iterationID, bindingID uuid.UUID, result CodeAgentTaskResult) error {
 	toStatus := models.AutoIterationStatusCompleted
-	if !success {
-		toStatus = models.AutoIterationStatusFailed
+	if !result.Success {
+		if result.RollbackRequired {
+			toStatus = models.AutoIterationStatusRollbackRequired
+		} else {
+			toStatus = models.AutoIterationStatusFailed
+		}
 	}
 	var row models.AutoIteration
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ? AND assigned_agent_id = ?", iterationID, bindingID).First(&row).Error; err != nil {
 			return err
 		}
-		if success && row.RequiresSuperAdminApproval {
+		if result.Success && row.RequiresSuperAdminApproval {
 			toStatus = models.AutoIterationStatusAwaitingApproval
 		}
-		if err := tx.Model(&row).Updates(map[string]interface{}{
+		meta := mergeAutoIterationMeta(row.Metadata, map[string]interface{}{
+			"github_sync":   strings.TrimSpace(result.GitHubSync),
+			"deploy_status": strings.TrimSpace(result.DeployStatus),
+		})
+		if result.GitHubSync == "failed" {
+			meta = mergeAutoIterationMeta(meta, map[string]interface{}{"github_sync_retry": true})
+		}
+		updates := map[string]interface{}{
 			"status":  toStatus,
-			"summary": limitAuditText(summary, 2000),
-		}).Error; err != nil {
+			"summary": limitAuditText(result.Summary, 2000),
+			"metadata": meta,
+		}
+		if !result.Success && result.Summary != "" {
+			updates["last_error"] = limitAuditText(result.Summary, 2000)
+		}
+		if err := tx.Model(&row).Updates(updates).Error; err != nil {
 			return err
 		}
+		row.Status = toStatus
+		row.Metadata = meta
 		return appendAutoIterationEvent(tx, iterationID, models.AutoIterationEventStateChange, "worker", "code-agent",
-			"Worker 上报结果", map[string]interface{}{"success": success, "status": toStatus})
+			"Worker 上报结果", map[string]interface{}{
+				"success":           result.Success,
+				"status":            toStatus,
+				"github_sync":       result.GitHubSync,
+				"deploy_status":     result.DeployStatus,
+				"rollback_required": result.RollbackRequired,
+			})
 	})
 	if err == nil {
-		row.Status = toStatus
-		notifyAutoIterationWorkerResult(row, toStatus, summary)
+		notifyAutoIterationWorkerResult(row, toStatus, result.Summary)
 	}
 	return err
+}
+
+func mergeAutoIterationMeta(existing models.JSONB, patch map[string]interface{}) models.JSONB {
+	base := map[string]interface{}{}
+	if len(existing) > 0 {
+		_ = json.Unmarshal(existing, &base)
+	}
+	for k, v := range patch {
+		if strings.TrimSpace(fmt.Sprint(v)) == "" {
+			continue
+		}
+		base[k] = v
+	}
+	return models.NewJSONBFromMap(base)
 }
 
 func ResolveCodeAgentBinding(tokenHash, fingerprint string) (*models.CodeAgentBinding, error) {
@@ -792,6 +874,13 @@ func CodeAgentTaskView(t *models.AutoIteration) map[string]interface{} {
 	}
 	if len(t.Metadata) > 0 {
 		out["metadata"] = t.Metadata
+	}
+	if settings, err := GetAutoIterationSettings(); err == nil && settings != nil {
+		out["worker_options"] = map[string]interface{}{
+			"github_sync_enabled":         settings.GitHubSyncEnabled,
+			"low_risk_auto_deploy_enabled": settings.LowRiskAutoDeployEnabled,
+			"dingtalk_notify_enabled":     settings.DingTalkNotifyEnabled,
+		}
 	}
 	return out
 }

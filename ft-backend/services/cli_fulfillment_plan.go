@@ -161,6 +161,9 @@ func handleProductGapFulfillment(userID uuid.UUID, createdBy, command, topic, fa
 }
 
 func databaseCreateAutoIteration(row *models.AutoIteration, actor, failureKind string) error {
+	if row.ID == uuid.Nil {
+		row.ID = uuid.New()
+	}
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Create(row).Error; err != nil {
 			return err

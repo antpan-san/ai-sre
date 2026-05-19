@@ -32,7 +32,9 @@ func setupAutoIterationWorkerDB(t *testing.T) {
 		`CREATE TABLE auto_iteration_events (id TEXT PRIMARY KEY, tenant_id TEXT, created_at DATETIME, updated_at DATETIME,
 			auto_iteration_id TEXT, event_type TEXT, actor_type TEXT, actor_name TEXT, message TEXT, payload TEXT)`,
 		`CREATE TABLE auto_iteration_settings (id INTEGER PRIMARY KEY, enabled INTEGER, max_concurrent INTEGER,
-			high_risk_requires_approval INTEGER, notes TEXT, updated_at DATETIME, updated_by TEXT)`,
+			high_risk_requires_approval INTEGER, auto_dispatch_enabled INTEGER DEFAULT 1,
+			low_risk_auto_deploy_enabled INTEGER DEFAULT 0, github_sync_enabled INTEGER DEFAULT 1,
+			dingtalk_notify_enabled INTEGER DEFAULT 1, notes TEXT, updated_at DATETIME, updated_by TEXT)`,
 	} {
 		if err := db.Exec(s).Error; err != nil {
 			t.Fatal(err)
@@ -151,7 +153,7 @@ func TestCodeAgentReportResultMarksCompleted(t *testing.T) {
 	setupAutoIterationWorkerDB(t)
 	agentID := uuid.New()
 	iterID := insertRunningIterationForAgent(t, "done-task", agentID)
-	if err := CodeAgentReportResult(iterID, agentID, true, "release ok"); err != nil {
+	if err := CodeAgentReportResult(iterID, agentID, CodeAgentTaskResult{Success: true, Summary: "release ok", GitHubSync: "ok", DeployStatus: "ok"}); err != nil {
 		t.Fatalf("report result: %v", err)
 	}
 	var row models.AutoIteration
@@ -163,6 +165,20 @@ func TestCodeAgentReportResultMarksCompleted(t *testing.T) {
 	}
 	if row.Summary != "release ok" {
 		t.Fatalf("summary=%q", row.Summary)
+	}
+}
+
+func TestCodeAgentPullRespectsAutoDispatchOff(t *testing.T) {
+	setupAutoIterationWorkerDB(t)
+	_ = database.DB.Exec(`UPDATE auto_iteration_settings SET enabled = 1, auto_dispatch_enabled = 0 WHERE id = 1`)
+	_ = database.DB.Exec(`INSERT INTO auto_iterations (id, title, status, source, risk_level, requires_super_admin_approval, metadata, created_at, updated_at)
+		VALUES (?, 'x', 'pending', 'manual', 'low', 0, '{}', datetime('now'), datetime('now'))`, uuid.NewString())
+	task, err := CodeAgentPullTask(uuid.New())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if task != nil {
+		t.Fatal("expected nil task when auto_dispatch disabled")
 	}
 }
 
@@ -178,7 +194,7 @@ func TestCodeAgentReportResultAwaitingApprovalWhenRequired(t *testing.T) {
 		id.String(), agentID.String(), now, now).Error; err != nil {
 		t.Fatal(err)
 	}
-	if err := CodeAgentReportResult(id, agentID, true, "needs review"); err != nil {
+	if err := CodeAgentReportResult(id, agentID, CodeAgentTaskResult{Success: true, Summary: "needs review"}); err != nil {
 		t.Fatalf("report result: %v", err)
 	}
 	var row models.AutoIteration

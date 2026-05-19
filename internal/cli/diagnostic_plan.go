@@ -239,6 +239,12 @@ func executeDiagnosticPlan(ctx context.Context, plan *serverDiagnosticPlan) map[
 			col.put(key+"_blocked", "blocked unsafe diagnostic plan command: "+shellJoinForDisplay(st.Argv))
 			continue
 		}
+		if st.Argv[0] == "ai-sre" || strings.HasSuffix(st.Argv[0], "/ai-sre") {
+			if !ValidateArgvInCatalog(newRoot(progName), st.Argv[1:]) {
+				col.put(key+"_blocked", "blocked command not in local catalog: "+shellJoinForDisplay(st.Argv))
+				continue
+			}
+		}
 		timeout := time.Duration(st.TimeoutSeconds) * time.Second
 		if timeout <= 0 || timeout > 60*time.Second {
 			timeout = 20 * time.Second

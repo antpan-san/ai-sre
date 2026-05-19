@@ -11,6 +11,8 @@ import (
 	"ft-backend/common/config"
 	"ft-backend/common/logger"
 	"ft-backend/common/response"
+	"strings"
+
 	"ft-backend/database"
 	"ft-backend/handlers"
 	"ft-backend/middleware"
@@ -58,15 +60,18 @@ func setupDB(t *testing.T) {
 		`CREATE TABLE auto_iteration_events (id TEXT PRIMARY KEY, tenant_id TEXT, created_at DATETIME, updated_at DATETIME,
 			auto_iteration_id TEXT, event_type TEXT, actor_type TEXT, actor_name TEXT, message TEXT, payload TEXT)`,
 		`CREATE TABLE auto_iteration_settings (id INTEGER PRIMARY KEY, enabled INTEGER, max_concurrent INTEGER,
-			high_risk_requires_approval INTEGER, notes TEXT, updated_at DATETIME, updated_by TEXT)`,
+			high_risk_requires_approval INTEGER, auto_dispatch_enabled INTEGER DEFAULT 1,
+			low_risk_auto_deploy_enabled INTEGER DEFAULT 0, github_sync_enabled INTEGER DEFAULT 1,
+			dingtalk_notify_enabled INTEGER DEFAULT 1, notes TEXT, updated_at DATETIME, updated_by TEXT)`,
 		`CREATE TABLE auto_iteration_feedbacks (id TEXT PRIMARY KEY, tenant_id TEXT, created_at DATETIME, updated_at DATETIME,
 			user_id TEXT, cli_binding_id TEXT, topic TEXT, classification TEXT, need_iteration INTEGER,
 			user_message TEXT, raw_payload TEXT, auto_iteration_id TEXT)`,
 		`CREATE TABLE operation_logs (id TEXT PRIMARY KEY, tenant_id TEXT, username TEXT, operation TEXT,
 			resource TEXT, resource_id TEXT, ip TEXT, user_agent TEXT, status TEXT, error_message TEXT,
 			details TEXT, created_at DATETIME)`,
+		`CREATE TABLE users (id TEXT PRIMARY KEY, username TEXT, role TEXT, deleted_at DATETIME)`,
 		`CREATE TABLE cli_bindings (id TEXT PRIMARY KEY, tenant_id TEXT, created_at DATETIME, updated_at DATETIME,
-			user_id TEXT, username TEXT, token_hash TEXT, fingerprint_hash TEXT, expires_at DATETIME)`,
+			user_id TEXT, username TEXT, token_hash TEXT, fingerprint_hash TEXT, expires_at DATETIME, revoked_at DATETIME)`,
 	}
 	for _, s := range stmts {
 		if err := db.Exec(s).Error; err != nil {
@@ -139,11 +144,12 @@ func TestCLIFeedbackAnalyzePublicFieldsOnly(t *testing.T) {
 	router.POST("/api/cli/feedback/analyze", handlers.PostCLIFeedbackAnalyze)
 
 	cliTok := "cli-feedback-token-0123456789abcdef0123456789ab"
-	fp := "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+	fp := "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 	uid := uuid.New().String()
+	_ = database.DB.Exec(`INSERT INTO users (id, username, role) VALUES (?, 'cliuser', 'user')`, uid)
 	_ = database.DB.Exec(`INSERT INTO cli_bindings (id, user_id, username, token_hash, fingerprint_hash, expires_at, created_at, updated_at)
 		VALUES (?, ?, 'cli', ?, ?, datetime('now','+1 day'), datetime('now'), datetime('now'))`,
-		uuid.NewString(), uid, hashCLI(cliTok), hashCLI(fp))
+		uuid.NewString(), uid, hashCLI(cliTok), strings.ToLower(fp))
 
 	body, _ := json.Marshal(map[string]interface{}{"topic": "k8s", "summary": "bug: crashloop"})
 	req := httptest.NewRequest(http.MethodPost, "/api/cli/feedback/analyze", bytes.NewReader(body))
@@ -158,7 +164,10 @@ func TestCLIFeedbackAnalyzePublicFieldsOnly(t *testing.T) {
 	var envelope response.R
 	_ = json.Unmarshal(w.Body.Bytes(), &envelope)
 	data, _ := envelope.Data.(map[string]interface{})
-	allowed := map[string]bool{"feedback_id": true, "classification": true, "need_iteration": true, "user_message": true, "next_action": true}
+	allowed := map[string]bool{
+		"feedback_id": true, "classification": true, "need_iteration": true, "user_message": true, "next_action": true,
+		"action": true, "auto_iteration_created": true, "auto_iteration_id": true,
+	}
 	for k := range data {
 		if !allowed[k] {
 			t.Fatalf("unexpected key %q", k)
@@ -171,10 +180,10 @@ func hashCLI(s string) string { return services.HashSecretForAgent(s) }
 func TestCLIAndAgentDeniedOnAdminList(t *testing.T) {
 	router, _, _, _ := setupAuthTest(t)
 	cliTok := "cli-feedback-token-0123456789abcdef0123456789ab"
-	fp := "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+	fp := "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff00"
 	_ = database.DB.Exec(`INSERT INTO cli_bindings (id, user_id, username, token_hash, fingerprint_hash, expires_at, created_at, updated_at)
 		VALUES (?, ?, 'cli', ?, ?, datetime('now','+1 day'), datetime('now'), datetime('now'))`,
-		uuid.NewString(), uuid.NewString(), hashCLI(cliTok), hashCLI(fp))
+		uuid.NewString(), uuid.NewString(), hashCLI(cliTok), strings.ToLower(fp))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/admin/auto-iterations", nil)
 	req.Header.Set("Authorization", bearer(cliTok))

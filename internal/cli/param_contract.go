@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"bufio"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -337,4 +338,46 @@ func emitParamContractError(res *ParamContractResult) {
 		}
 	}
 	fmt.Fprintln(os.Stderr, "（参数层问题，未创建自动迭代）")
+	if offer := topCommandSuggestion(res); offer != "" {
+		maybeRunTTYCommandSuggestion(offer)
+	}
+}
+
+func topCommandSuggestion(res *ParamContractResult) string {
+	if res == nil || len(res.Suggestions) == 0 {
+		return ""
+	}
+	best := res.Suggestions[0]
+	if best.Kind != "command" || strings.TrimSpace(best.Value) == "" {
+		return ""
+	}
+	return strings.TrimSpace(best.Value)
+}
+
+// maybeRunTTYCommandSuggestion offers to run a single high-confidence command fix (param layer only).
+func maybeRunTTYCommandSuggestion(suggestedPath string) {
+	if !isStdinTTY() || !isStderrTTY() {
+		return
+	}
+	root := newRoot(progName)
+	argv := strings.Fields(suggestedPath)
+	if !ValidateArgvInCatalog(root, argv) {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "是否执行建议命令 %q？输入 y 回车执行: ", suggestedPath)
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	if strings.ToLower(strings.TrimSpace(line)) != "y" && strings.ToLower(strings.TrimSpace(line)) != "yes" {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "正在执行: %s %s\n", progName, strings.Join(argv, " "))
+	reporter := newExecutionReporter(progName, argv)
+	reporter.start()
+	root.SetArgs(argv)
+	if err := root.Execute(); err != nil {
+		reporter.finish(err)
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	reporter.finish(nil)
+	os.Exit(0)
 }

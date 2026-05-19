@@ -60,8 +60,11 @@ func CodeAgentPostTaskEvents(c *gin.Context) {
 }
 
 type codeAgentResultReq struct {
-	Success bool   `json:"success"`
-	Summary string `json:"summary"`
+	Success          bool   `json:"success"`
+	Summary          string `json:"summary"`
+	GitHubSync       string `json:"github_sync"`
+	DeployStatus     string `json:"deploy_status"`
+	RollbackRequired bool   `json:"rollback_required"`
 }
 
 func CodeAgentPostTaskResult(c *gin.Context) {
@@ -73,7 +76,13 @@ func CodeAgentPostTaskResult(c *gin.Context) {
 	}
 	var req codeAgentResultReq
 	_ = c.ShouldBindJSON(&req)
-	if err := services.CodeAgentReportResult(id, bindingID, req.Success, req.Summary); err != nil {
+	if err := services.CodeAgentReportResult(id, bindingID, services.CodeAgentTaskResult{
+		Success:          req.Success,
+		Summary:          req.Summary,
+		GitHubSync:       req.GitHubSync,
+		DeployStatus:     req.DeployStatus,
+		RollbackRequired: req.RollbackRequired,
+	}); err != nil {
 		response.ServerError(c, "上报结果失败")
 		return
 	}
