@@ -1,15 +1,56 @@
 ---
 name: auto-iteration-dev
 description: >-
-  Token-efficient development rules for OpsFleet auto-iteration tasks (console-created
-  or code-agent-worker). Apply before and during implementation; pair with release-deploy
-  only at ship time.
+  Auto-iteration dev: token-efficient scope, mandatory skill-pack-first沉淀 after AI
+  flows, release-deploy at ship. Use for code-agent-worker and console auto-iteration tasks.
 ---
 
 # 自动迭代开发规范（省 Token）
 
 **适用**：控制台「自动迭代」提交的需求、本机 `code-agent-worker` 拉取的任务。  
-**目标**：在可交付前提下，减少无效探索、重复读文件、冗长回复与超范围改动。
+**目标**：在可交付前提下，减少无效探索、重复读文件、冗长回复与超范围改动；**优先沉淀技能包**，避免只修一次性代码。
+
+## AI 调用后的技能包增强审查（强制）
+
+**产品要求**：自动迭代任务若源于 AI 诊断失败、证据不足、输出质量差或「希望下次不调 AI」，**必须优先评估技能包增强**，而不是默认再堆一段仅对应当前 ticket 的代码。
+
+与 **`.cursor/skills/ai-sre-client-dev/SKILL.md`**、**`.cursor/skills/skill-pack-assets/SKILL.md`** 一致：**AI 调用不是终点，而是技能包沉淀入口**。
+
+### 任务完成时的必答项（写入 PR / 控制台 summary）
+
+```text
+技能包增强: 是 | 否
+若否原因: （一次性 / 缺样本 / 仅平台 bug / 其他，一句）
+增强内容: （YAML 名 / probe 字段 / local rule / asset 路径；可多条）
+发布: lab skill deploy 已跑 | 仅代码 push | 未发布（原因）
+```
+
+### 沉淀优先级（自动迭代专用）
+
+1. **技能包 / 本地规则** — 相同 topic+problem 可复现 → 改 builtin YAML（**不 commit YAML**）或 CLI probe/复核。
+2. **确定性代码** — 仅当规则无法表达或属安全/计费门控。
+3. **skill asset 审核** — 跨 topic 或需运营审核的 pattern。
+4. **一次性 hotfix** — 须注明**为何不沉淀**；不得作为默认路径。
+
+### 与「只修代码」的边界
+
+| 场景 | 应做 |
+|------|------|
+| AI 让用户手工采集 | 补 `probe` / evidence，**禁止**在 skill 里保留该建议 |
+| 同类 issue 重复出现 | 增强 skill YAML 或 `MaybeAutoRefine` 样本 |
+| 参数/flag 报错 | `param_contract` + 文档，**禁止**随意加 bypass flag |
+| 计费/权限/新 pack | super_admin 或高风险审批，**禁止** worker 私自改权益 |
+
+### 禁止
+
+- 禁止任务关闭时只描述「已改 Go/Vue」，未说明技能包是否增强。
+- 禁止用临时 hack 替代 skill 约束（除非明确标注不沉淀及原因）。
+- 禁止把核心 skill YAML 提交 GitHub；发布走 `deploy-skill-packs-*.sh`。
+
+### 后续实现
+
+- 自动迭代工单模板增加「技能包增强」必填字段。
+- Worker 拉取任务时注入 `auto-iteration-dev` + `skill-pack-assets` 摘要。
 
 ## 1. 需求书写（提交方 / 产品）
 
@@ -46,7 +87,7 @@ description: >-
 ### 2.3 修改与输出
 
 - 以 **最小 diff** 完成任务；匹配仓库既有风格。
-- 回复结构建议：**变更摘要（3～6 行）→ 涉及路径列表 → 如何验收**；不要写教程式长文。
+- 回复结构建议：**变更摘要（3～6 行）→ 技能包增强（见上文必答项）→ 涉及路径列表 → 如何验收**；不要写教程式长文。
 - 引用代码用 `path:line`；不要在回复里贴与 diff 重复的整段实现。
 
 ### 2.4 测试

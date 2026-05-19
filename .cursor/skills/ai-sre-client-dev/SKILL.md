@@ -1,9 +1,9 @@
 ---
 name: ai-sre-client-dev
 description: >-
-  ai-sre CLI client development norms: mandatory fast auto-upgrade before every subcommand,
-  OPSFLEET_API_URL bases, version bump rules. Use when changing internal/cli, upgrade flow,
-  or client install/self-update behavior.
+  ai-sre CLI client development norms: mandatory fast auto-upgrade, diagnosis contract,
+  post-AI skill pack enhancement review, version bump rules. Use when changing internal/cli,
+  check/ask/runbook, upgrade flow, or client install/self-update behavior.
 ---
 
 # ai-sre 客户端开发规范
@@ -51,6 +51,60 @@ description: >-
 | 展示 | `internal/cli/diagnose_output_format.go`（`check` 默认 `-o text`） |
 
 **输出格式**：终端必须为纯文本小节（`【根因与触发条件】` 等），不得向用户展示 Markdown `##`。
+
+## AI 调用后的技能包增强审查（强制）
+
+**产品要求**：ai-sre 的 AI 调用必须反哺技能包。凡是 CLI 在**已支持的 topic / skill pack** 下调用 AI（`check` / `ask` / `runbook` / 已弃用 `diagnose` 别名，以及安装恢复触发的 `install` topic），**完成响应后**都必须审查当前技能包是否需要增强。目标是让**下次相同命令、相同问题、相似证据**尽量不再依赖 AI，从而降低 AI 成本并提升稳定性。
+
+**原则**：AI 调用不是终点，而是技能包沉淀入口。
+
+### 必做审查（每次 AI 成功返回后）
+
+开发者或 agent 必须判断（**不得**再次调用 AI 做审查）：
+
+| 审查项 | 动作 |
+|--------|------|
+| 根因是否可确定性化 | 能否写成 local rule / pattern / error code |
+| 证据是否不完整 | 是否应扩展 `probe`、`gatherTopicEvidence`、`diagnostic plan` |
+| skill YAML 是否不足 | `analysis_steps`、`extra_guidance`、输出小节是否缺约束 |
+| 是否让用户手工采集 | 若 AI 或初稿出现「请执行 top/redis-cli/kubectl」→ **优先补 CLI 自动采集** |
+| 是否可复用 | 相同 topic+problem+证据形态是否应进入 skill asset / builtin YAML |
+
+### 沉淀优先级（CLI 侧实现顺序）
+
+1. **本地只读采集 + 确定性规则**（`probe`、evidence parser、`param_contract`、本地复核启发式）。
+2. **skill pack YAML**（`extra_guidance`、输出格式、禁止甩锅采集）；遵守 **`.cursor/skills/skill-pack-assets/SKILL.md`**，**禁止**把核心 YAML 提交 GitHub。
+3. **skill asset review**（可复用故障模式、需 super_admin 审核的沉淀）。
+4. **自动迭代**（产品能力缺口、bug）；见 **`.cursor/skills/auto-iteration-dev/SKILL.md`**。
+5. **高风险**（新 CLI 参数影响计费/权限、破坏性自动修复）→ super_admin 或自动迭代高风险审批。
+
+### CLI 开发时的强制动作
+
+- 新增或修改 `check <topic>`：**同时**评估对应 `ft-backend/skills/builtin/<topic>_*.yaml`（本地维护 + 实验室/生产脚本发布）。
+- 合并前在 PR/回复中写明：**本次是否增强技能包**；若否，**必须说明原因**（一次性问题、证据不足、待样本等）。
+- 允许记录诊断样本路径（后续 `DiagnoseSample` / `skill_enhancement_review` 由服务端实现）；开发阶段至少在 issue/PR 留 **证据 JSON 摘要 + 拟增强点**。
+
+### 禁止
+
+- 禁止 AI 调用后只展示答案，不记录样本、不评估技能包增强。
+- 禁止把完整 Prompt、核心 skill YAML 或权益配置下发给 CLI。
+- 禁止为降低 AI 成本而跳过必要诊断；**先保证结论可靠**，再谈沉淀。
+- 禁止通过随意新增 CLI 参数绕过技能包能力不足（参数须符合 `param_contract` 与诊断契约）。
+
+### 与现有模块关系
+
+| 模块 | 沉淀类型 |
+|------|----------|
+| `topic_evidence.go` / `*_probe.go` | evidence 采集规则 |
+| `diagnose_output_format.go` / `ai_diagnose_review.go` | 输出结构、本地复核规则 |
+| `execution_intent.go` / skill tree | topic、pack_key、problem_key 坐标 |
+| `install_recovery.go` | install topic 技能与 error pattern |
+
+### 后续实现（代码层，规范已约束行为）
+
+- AI 成功后统一记录 `DiagnoseSample`；`skill_enhancement_review` 元数据。
+- 高频相似调用触发 `MaybeAutoRefine`。
+- 控制台展示「AI 成本节省潜力 / 待增强技能包」。
 
 ## 安装/下载失败 → 服务端 AI（强制）
 
