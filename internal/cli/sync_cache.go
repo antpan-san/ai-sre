@@ -36,7 +36,7 @@ func getCLISyncCached(ctx context.Context, refresh bool) (*cliSyncResponse, erro
 
 	resp, err := callCLISync(ctx)
 	if err != nil {
-		return nil, err
+		return nil, formatOpsfleetAPIError(err, "/api/cli/sync")
 	}
 	cliSyncMu.Lock()
 	cliSyncCached = resp

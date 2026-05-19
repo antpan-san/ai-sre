@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,6 +28,18 @@ func TestFormatMissingOpsfleetTokenMentionsAPIKey(t *testing.T) {
 		t.Fatalf("message=%q", msg)
 	}
 	_ = oldHome
+}
+
+func TestFormatOpsfleetAPIErrorIdempotent(t *testing.T) {
+	raw := fmt.Errorf("cli sync status=401: CLI token 无效")
+	once := formatOpsfleetAPIError(raw, "/api/cli/sync")
+	twice := formatOpsfleetAPIError(once, "/api/cli/sync")
+	if once.Error() != twice.Error() {
+		t.Fatalf("formatted twice:\n1=%q\n2=%q", once, twice)
+	}
+	if strings.Count(once.Error(), "可能原因:") != 1 {
+		t.Fatalf("want single 可能原因 block: %q", once)
+	}
 }
 
 func TestValidateOpsfleetCredentialsRequiresToken(t *testing.T) {

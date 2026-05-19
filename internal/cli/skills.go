@@ -268,10 +268,7 @@ func callCLISync(ctx context.Context) (*cliSyncResponse, error) {
 		return nil, err
 	}
 	if resp.StatusCode >= 300 {
-		return nil, formatOpsfleetAPIError(
-			fmt.Errorf("cli sync status=%d: %s", resp.StatusCode, parseOpsfleetErrMsg(raw)),
-			"/api/cli/sync",
-		)
+		return nil, fmt.Errorf("cli sync status=%d: %s", resp.StatusCode, parseOpsfleetErrMsg(raw))
 	}
 	var env struct {
 		Code int             `json:"code"`

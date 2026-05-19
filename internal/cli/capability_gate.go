@@ -20,9 +20,6 @@ func ensureExecutionAllowedWithContext(ctx context.Context, intent executionInte
 		return err
 	}
 	err := checkExecutionAllowedFromSync(ctx, intent, refresh)
-	if err != nil {
-		err = formatOpsfleetAPIError(err, "/api/cli/sync")
-	}
 	if err == nil {
 		return nil
 	}

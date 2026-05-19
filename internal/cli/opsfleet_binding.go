@@ -88,6 +88,9 @@ func formatOpsfleetAPIError(err error, endpoint string) error {
 		return nil
 	}
 	msg := err.Error()
+	if opsfleetAPIErrorAlreadyFormatted(msg) {
+		return err
+	}
 	lower := strings.ToLower(msg)
 	if strings.Contains(lower, "cli token 无效") || strings.Contains(lower, "token 无效") {
 		base := strings.TrimSpace(resolveOpsfleetAPIBase())
@@ -109,6 +112,10 @@ func formatOpsfleetAPIError(err error, endpoint string) error {
 		return fmt.Errorf("%s\n本机指纹与绑定时不一致；请在该机器上重新执行 install-ai-sre.sh", msg)
 	}
 	return err
+}
+
+func opsfleetAPIErrorAlreadyFormatted(msg string) bool {
+	return strings.Contains(msg, "建议: 在本机执行 ai-sre doctor --opsfleet")
 }
 
 // probeOpsfleetCLISync performs a lightweight GET /api/cli/sync for doctor --opsfleet.

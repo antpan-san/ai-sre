@@ -148,7 +148,8 @@ func newRoot(programName string) *cobra.Command {
 		Use:          programName,
 		Short:        short,
 		Long:         long,
-		SilenceUsage: true,
+		SilenceUsage:  true,
+		SilenceErrors: true,
 	}
 	if programName == "ai-sre" {
 		root.Aliases = []string{"ops-ai"}
