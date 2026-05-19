@@ -44,6 +44,17 @@ func TestResolveOpsfleetAPIBaseRejectsCrossEnvironment(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "禁止混用") {
 		t.Fatalf("want cross-env error, got %v", err)
 	}
+	base, warn := resolveOpsfleetAPIBaseForUpgrade()
+	if base != EmbeddedOpsfleetAPIBase {
+		t.Fatalf("upgrade probe should prefer install file, got %q", base)
+	}
+	if warn == "" || !strings.Contains(warn, "禁止混用") {
+		t.Fatalf("want upgrade warn, got %q", warn)
+	}
+	bases := resolveOpsfleetAPIBasesForUpgrade()
+	if len(bases) != 1 || bases[0] != EmbeddedOpsfleetAPIBase {
+		t.Fatalf("upgrade bases=%v", bases)
+	}
 }
 
 func TestOpsfleetAPIBasesEquivalent(t *testing.T) {

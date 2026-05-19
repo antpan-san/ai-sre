@@ -9,6 +9,9 @@ import (
 	"github.com/panshuai/ai-sre/internal/config"
 )
 
+// upgradeBaseWarnPrinted avoids repeating cross-env warnings every subcommand in one process.
+var upgradeBaseWarnPrinted bool
+
 const (
 	opsfleetEnvLab        = "lab"
 	opsfleetEnvProduction = "production"
@@ -109,10 +112,35 @@ func resolveOpsfleetAPIBase() string {
 	return b
 }
 
+// resolveOpsfleetAPIBaseForUpgrade 解析用于版本探测/自动升级的 API 基址。
+// 业务 API 仍须 resolveOpsfleetAPIBaseStrict；升级探测在环境冲突时优先 install 记录，避免静默跳过。
+func resolveOpsfleetAPIBaseForUpgrade() (base string, warn string) {
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("OPSFLEET_SKIP_REMOTE")), "1") {
+		return "", ""
+	}
+	b, err := resolveOpsfleetAPIBaseStrict()
+	if err == nil && b != "" {
+		return b, ""
+	}
+	if err != nil {
+		warn = err.Error()
+	}
+	fileURL := normalizeOpsfleetAPIBase(config.LoadOptionalOpsfleetAPIBase())
+	envURL := normalizeOpsfleetAPIBase(os.Getenv("OPSFLEET_API_URL"))
+	switch {
+	case fileURL != "":
+		return fileURL, warn
+	case envURL != "":
+		return envURL, warn
+	default:
+		return EmbeddedOpsfleetAPIBase, warn
+	}
+}
+
 // resolveOpsfleetAPIBasesForUpgrade 仅返回当前绑定环境的一个基址（不再串联实验+生产）。
 func resolveOpsfleetAPIBasesForUpgrade() []string {
-	b, err := resolveOpsfleetAPIBaseStrict()
-	if err != nil || b == "" {
+	b, _ := resolveOpsfleetAPIBaseForUpgrade()
+	if b == "" {
 		return nil
 	}
 	return []string{b}

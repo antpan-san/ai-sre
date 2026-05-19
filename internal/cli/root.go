@@ -107,7 +107,9 @@ func preflightAutoUpgradeIfUnknown(root *cobra.Command) {
 	if _, _, err := root.Find(args); err == nil {
 		return
 	}
-	_ = tryAutoUpgradeInPlace("")
+	preferred, warn := resolveOpsfleetAPIBaseForUpgrade()
+	emitUpgradeBaseWarning(warn)
+	_ = tryAutoUpgradeInPlace(preferred)
 }
 
 func newRoot(programName string) *cobra.Command {

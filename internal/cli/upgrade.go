@@ -61,7 +61,9 @@ func opsfleetPersistentPreRun(cmd *cobra.Command, _ []string) error {
 		}
 		return nil
 	}
-	if err := tryAutoUpgradeInPlace(""); err != nil {
+	preferred, warn := resolveOpsfleetAPIBaseForUpgrade()
+	emitUpgradeBaseWarning(warn)
+	if err := tryAutoUpgradeInPlace(preferred); err != nil {
 		ctx := context.Background()
 		_ = recoverInstallDownloadFailure(ctx, "auto_upgrade", err, map[string]string{
 			"phase": "persistent_pre_run",
@@ -71,6 +73,14 @@ func opsfleetPersistentPreRun(cmd *cobra.Command, _ []string) error {
 		}
 	}
 	return nil
+}
+
+func emitUpgradeBaseWarning(warn string) {
+	if strings.TrimSpace(warn) == "" || upgradeBaseWarnPrinted {
+		return
+	}
+	upgradeBaseWarnPrinted = true
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] 自动升级探测: %s\n", progName, warn)
 }
 
 func upgradeCheckVerbose() bool {
@@ -104,12 +114,14 @@ func reportUpgradeCheckResult(preferredBase string) {
 func tryAutoUpgradeInPlace(preferredBase string) error {
 	remote, base, err := fetchRemoteVersionFast(preferredBase)
 	if err != nil {
+		emitAutoUpgradeCheckSkipped(err, base)
 		_ = recoverInstallDownloadFailure(context.Background(), "version_check", err, map[string]string{
 			"preferred_base": preferredBase,
 		})
 		return nil
 	}
 	if base == "" {
+		emitAutoUpgradeCheckSkipped(fmt.Errorf("未配置 OpsFleet API 基址"), "")
 		return nil
 	}
 	if remote == "" || remote == "unknown" {
@@ -330,14 +342,23 @@ func upgradeDownloadHTTPClient() *http.Client {
 	}
 }
 
+func emitAutoUpgradeCheckSkipped(err error, base string) {
+	if err == nil || os.Getenv("OPSFLEET_AUTO_UPGRADE_QUIET") == "1" {
+		return
+	}
+	label := opsfleetEnvLabel(base)
+	if label == "未配置" && strings.TrimSpace(base) != "" {
+		label = base
+	}
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] 版本检查未完成（本机 %s，探测 %s）: %v\n", progName, Version, label, err)
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] 可执行 %s upgrade 或设置 OPSFLEET_AUTO_UPGRADE_VERBOSE=1\n", progName, progName)
+}
+
 // fetchRemoteVersionFast 仅查询当前绑定环境的一个 API 基址（禁止实验/生产串联探测）。
 func fetchRemoteVersionFast(preferredBase string) (version string, base string, err error) {
 	base = normalizeOpsfleetAPIBase(preferredBase)
 	if base == "" {
-		base, err = resolveOpsfleetAPIBaseStrict()
-		if err != nil {
-			return "", "", err
-		}
+		base, _ = resolveOpsfleetAPIBaseForUpgrade()
 	}
 	if base == "" {
 		return "", "", fmt.Errorf("未配置 OpsFleet API 基址")

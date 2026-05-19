@@ -21,11 +21,8 @@ func ensureUpgradeBeforeOpsfleetAPI() {
 	if os.Getenv("OPSFLEET_NO_AUTO_UPGRADE") == "1" {
 		return
 	}
-	base, err := resolveOpsfleetAPIBaseStrict()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] %v\n", progName, err)
-		return
-	}
+	base, warn := resolveOpsfleetAPIBaseForUpgrade()
+	emitUpgradeBaseWarning(warn)
 	if base == "" {
 		return
 	}

@@ -8,6 +8,22 @@ description: >-
 
 # ai-sre 客户端开发规范
 
+## 铁律：每次功能指令前必须做版本探测与自动升级（写死）
+
+**产品要求（不可豁免、不可默认关闭）**：用户执行 **任意** `ai-sre` 业务子命令（`check` / `probe` / `ask` / `doctor` / `k8s` / `skills` / `service` 等）时，**必须先**向 OpsFleet 拉取 `GET .../cli/ai-sre/version`；若远端版本更高，**必须**下载并 **re-exec** 同一 argv（Linux/macOS），使本次命令在新二进制中跑完。
+
+| 条目 | 要求 |
+|------|------|
+| 入口 | `root.PersistentPreRunE` → `opsfleetPersistentPreRun`；未知子命令 → `preflightAutoUpgradeIfUnknown` |
+| 禁止静默失败 | 版本探测失败时 **必须** 向 stderr 打印一行原因（`emitAutoUpgradeCheckSkipped`），不得无声继续旧版 |
+| 环境冲突 | `OPSFLEET_API_URL` 与 install 记录混用时，**业务 API** 仍报错；**升级探测** 用 `resolveOpsfleetAPIBaseForUpgrade`（优先 install 文件）并打印警告，**不得** 因 `resolveOpsfleetAPIBasesForUpgrade` 返回空而跳过升级 |
+| 实现文件 | `upgrade.go`、`opsfleet_env.go`（`resolveOpsfleetAPIBaseForUpgrade`） |
+| 唯一豁免 | `version` / `upgrade` / `help` / `completion`、`-h`/`--help`、用户显式 `OPSFLEET_NO_AUTO_UPGRADE=1` 或 `--no-auto-upgrade` |
+| 验收 | 故意装旧版后执行 `ai-sre check redis` 应自动升到与 `curl .../cli/ai-sre/version` 一致；混环境时 stderr 有「自动升级探测」提示且仍能升级 |
+| 回归禁令 | **禁止** 删除/绕过 `PersistentPreRunE`；**禁止** 让 `tryAutoUpgradeInPlace` 在 `fetchRemoteVersionFast` 失败时无任何 stderr 输出 |
+
+调试：`OPSFLEET_AUTO_UPGRADE_VERBOSE=1`；静默跳过检查输出：`OPSFLEET_AUTO_UPGRADE_QUIET=1`（仅隐藏「检查未完成」提示，不关闭探测本身）。
+
 ## 精简参数原则（强制）
 
 **产品要求**：用户侧命令以**最少位置参数**完成主路径；禁止把 `-d key=value` / `--set` 当作日常必选项。
@@ -30,9 +46,7 @@ description: >-
 
 豁免：`OPSFLEET_SKIP_INSTALL_AI_RECOVERY=1`。技能包：`cli_install_recovery.yaml`。
 
-## 自升级（强制，每次命令）
-
-**产品要求**：用户执行 **任意** `ai-sre` 子命令（除下文豁免）前，必须先做 **快速** 版本探测；若 OpsFleet 上版本更高，则 **自动下载并 re-exec** 同一参数（Linux/macOS）。
+## 自升级（实现细节，与上文铁律一致）
 
 ### 实现入口（勿绕过）
 
@@ -53,15 +67,12 @@ description: >-
 
 **不得** 为其它子命令（含 `doctor`、`probe`、`check`、`k8s`）默认跳过。
 
-### API 基址优先级（`resolveOpsfleetAPIBasesForUpgrade`）
+### API 基址（升级探测 `resolveOpsfleetAPIBaseForUpgrade`）
 
-1. `OPSFLEET_API_URL`
-2. `~/.config/ai-sre/opsfleet_api_url`（install-ai-sre 写入）
-3. `config.yaml` 中 `opsfleet_api_url`
-4. 内嵌实验室 `http://192.168.56.11:9080/ft-api`
-5. 内嵌生产回退 `http://opsfleetpilot.com/ft-api`
-
-**禁止** 只内嵌实验室 IP 而不做生产回退——外网 ARM 控制机否则永远探测失败、表现为「从不自动升级」。
+1. `resolveOpsfleetAPIBaseStrict` 成功 → 使用该基址
+2. 冲突或失败 → **优先** `~/.config/ai-sre/opsfleet_api_url`（install 写入），其次 `OPSFLEET_API_URL`，最后内嵌实验室 `http://192.168.56.11:9080/ft-api`
+3. **禁止** 在升级探测返回空列表（曾导致 k8s-master 等节点永远停在旧版）
+4. **业务 API**（诊断/fulfillment）仍只用 `resolveOpsfleetAPIBaseStrict`，禁止实验/生产混用
 
 ### 双架构分发（与自升级联动）
 
@@ -89,7 +100,8 @@ description: >-
 
 | 变量 | 含义 |
 |------|------|
-| `OPSFLEET_AUTO_UPGRADE_VERBOSE=1` | 打印探测/失败原因 |
+| `OPSFLEET_AUTO_UPGRADE_VERBOSE=1` | 打印探测/失败详情 |
+| `OPSFLEET_AUTO_UPGRADE_QUIET=1` | 隐藏「版本检查未完成」单行提示（不关闭探测） |
 | `OPSFLEET_NO_AUTO_UPGRADE=1` | 关闭自动升级 |
 | `OPSFLEET_API_URL` | 覆盖探测基址（应含 `/ft-api`） |
 | `OPSFLEET_UPGRADE_DOWNLOAD_TIMEOUT` | 下载超时（如 `10m`） |
