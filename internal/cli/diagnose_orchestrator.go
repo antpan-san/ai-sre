@@ -95,70 +95,98 @@ func runAnalyzeWithOrchestrator(ctx context.Context, topic string, kv map[string
 	}
 
 	base := strings.TrimSpace(resolveOpsfleetAPIBase())
+	var serverErr error
 	if base != "" {
 		reqID := uuid.NewString()
 		intent := buildExecutionIntent("analyze", topic, kv)
-		if err := ensureExecutionAllowedWithContext(ctx, intent, false, kv); err != nil {
-			return nil, err
+		gateErr := ensureExecutionAllowedWithContext(ctx, intent, false, kv)
+		if gateErr != nil {
+			if !serverAIFallbackEligible(gateErr) {
+				return nil, gateErr
+			}
+			serverErr = gateErr
+		} else {
+			resp, err := callServerDiagnose(ctx, diagnoseRequest{
+				Topic:     topic,
+				Context:   kv,
+				Command:   strings.Join(os.Args, " "),
+				RequestID: reqID,
+				Client:    opsfleetAIClient(),
+				Intent:    intent,
+			})
+			if err == nil && resp != nil && strings.TrimSpace(resp.Answer) != "" {
+				if strings.EqualFold(topic, "k8s") && hasKubectlEvidence(kv) {
+					kv2 := maps.Clone(kv)
+					kv2["prior_answer_round1"] = truncateBytes(resp.Answer, 12000)
+					kv2["diagnosis_style"] = "evidence_root_cause_refine"
+					if r2, e2 := callServerDiagnose(ctx, diagnoseRequest{
+						Topic:     topic,
+						Context:   kv2,
+						Command:   strings.Join(os.Args, " "),
+						RequestID: reqID,
+						Client:    opsfleetAIClient(),
+						Intent:    intent,
+					}); e2 == nil && r2 != nil && strings.TrimSpace(r2.Answer) != "" {
+						resp = r2
+						resp.Metadata = ensureMap(resp.Metadata)
+						resp.Metadata["k8s_server_refine_round"] = 2
+					}
+				}
+				recordDiagnoseMetric("server_hit")
+				applyDiagnoseSkillDraft(resp, ev)
+				return resp, nil
+			}
+			recordDiagnoseMetric("server_miss")
+			if err != nil {
+				if !serverAIFallbackEligible(err) {
+					return nil, formatOpsfleetAPIError(err, "/api/ai/diagnose")
+				}
+				serverErr = err
+			} else {
+				serverErr = errors.New("服务端返回空诊断")
+			}
 		}
-		resp, err := callServerDiagnose(ctx, diagnoseRequest{
-			Topic:     topic,
-			Context:   kv,
-			Command:   strings.Join(os.Args, " "),
-			RequestID: reqID,
-			Client:    opsfleetAIClient(),
-			Intent:    intent,
-		})
-		if err == nil && resp != nil && strings.TrimSpace(resp.Answer) != "" {
-			if strings.EqualFold(topic, "k8s") && hasKubectlEvidence(kv) {
-				kv2 := maps.Clone(kv)
-				kv2["prior_answer_round1"] = truncateBytes(resp.Answer, 12000)
-				kv2["diagnosis_style"] = "evidence_root_cause_refine"
-				if r2, e2 := callServerDiagnose(ctx, diagnoseRequest{
-					Topic:     topic,
-					Context:   kv2,
-					Command:   strings.Join(os.Args, " "),
-					RequestID: reqID,
-					Client:    opsfleetAIClient(),
-					Intent:    intent,
-				}); e2 == nil && r2 != nil && strings.TrimSpace(r2.Answer) != "" {
-					resp = r2
-					resp.Metadata = ensureMap(resp.Metadata)
-					resp.Metadata["k8s_server_refine_round"] = 2
+	}
+
+	if serverErr != nil && serverAIFallbackEligible(serverErr) {
+		notifyLocalAIFallback(serverErr)
+		if resp, err := tryLocalAnalyzeDiagnose(ctx, topic, kv); err == nil {
+			recordDiagnoseMetric("local_hit")
+			return resp, nil
+		} else if isCredentialError(err) {
+			return nil, fmt.Errorf("服务端 AI 不可用（%v）；本机未配置 LLM 凭据（~/.config/ai-sre/config.yaml 的 api_key）: %w", serverErr, err)
+		}
+		return nil, fmt.Errorf("服务端 AI 不可用（%v）；本机 LLM 回退失败: %w", serverErr, err)
+	}
+	if serverErr != nil {
+		return nil, serverErr
+	}
+
+	if base == "" {
+		pack := skills.MatchAnalyze(topic, kv)
+		if pack != nil && isSkillCoverageSufficient(pack, kv) {
+			eng, err := bootstrap()
+			if err != nil {
+				if !isCredentialError(err) {
+					return nil, err
+				}
+			} else {
+				res, e := eng.Analyze(ctx, topic, kv, !noRAG)
+				if e == nil {
+					recordDiagnoseMetric("local_hit")
+					return &diagnoseResponse{
+						Source:       "local",
+						Answer:       res.Answer,
+						SkillName:    res.SkillName,
+						SkillDisplay: res.SkillDisplay,
+					}, nil
 				}
 			}
-			recordDiagnoseMetric("server_hit")
-			applyDiagnoseSkillDraft(resp, ev)
-			return resp, nil
 		}
-		recordDiagnoseMetric("server_miss")
+		return nil, fmt.Errorf("未配置 OpsFleet API 基址且本机无 LLM 凭据")
 	}
 
-	pack := skills.MatchAnalyze(topic, kv)
-	if pack != nil && isSkillCoverageSufficient(pack, kv) {
-		eng, err := bootstrap()
-		if err != nil {
-			if !isCredentialError(err) {
-				return nil, err
-			}
-		} else {
-			res, e := eng.Analyze(ctx, topic, kv, !noRAG)
-			if e == nil {
-				recordDiagnoseMetric("local_hit")
-				return &diagnoseResponse{
-					Source:       "local",
-					Answer:       res.Answer,
-					SkillName:    res.SkillName,
-					SkillDisplay: res.SkillDisplay,
-				}, nil
-			}
-		}
-	}
-
-	if base != "" {
-		return nil, fmt.Errorf("服务端 AI 不可用（请检查控制台 OPSFLEET_AI_API_KEY 与出网），且本机未配置有效 LLM 凭据；可选在 ~/.config/ai-sre/config.yaml 设置 api_key 作为回退")
-	}
-	return nil, fmt.Errorf("未配置 OpsFleet API 基址且本机无 LLM 凭据")
+	return nil, fmt.Errorf("服务端 AI 不可用（请检查控制台 OPSFLEET_AI_API_KEY 与出网）；网络故障时可配置本机 api_key 作为回退")
 }
 
 func applyDiagnoseSkillDraft(resp *diagnoseResponse, ev evolutionConfig) {

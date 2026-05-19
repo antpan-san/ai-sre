@@ -215,6 +215,12 @@ func askCmd() *cobra.Command {
 				} else {
 					serverErr = errors.New("服务端返回空回答")
 				}
+				if serverErr != nil && !serverAIFallbackEligible(serverErr) {
+					return fmt.Errorf("服务端 ask 失败: %w", serverErr)
+				}
+				if serverErr != nil {
+					notifyLocalAIFallback(serverErr)
+				}
 			}
 			eng, err := bootstrap()
 			if err != nil {
@@ -263,6 +269,12 @@ func runbookCmd() *cobra.Command {
 					serverErr = err
 				} else {
 					serverErr = errors.New("服务端返回空回答")
+				}
+				if serverErr != nil && !serverAIFallbackEligible(serverErr) {
+					return fmt.Errorf("服务端 runbook 失败: %w", serverErr)
+				}
+				if serverErr != nil {
+					notifyLocalAIFallback(serverErr)
 				}
 			}
 			eng, err := bootstrap()

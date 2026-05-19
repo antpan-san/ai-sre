@@ -89,6 +89,9 @@ func maybeRunServerDiagnosticPlan(ctx context.Context, topic string, kv map[stri
 	}
 	intent := buildExecutionIntent("check", topic, kv)
 	if err := ensureExecutionAllowed(ctx, intent, false); err != nil {
+		if serverAIFallbackEligible(err) {
+			return nil, false, nil
+		}
 		return nil, false, err
 	}
 	plan, err := requestServerDiagnosticPlan(ctx, topic, kv)

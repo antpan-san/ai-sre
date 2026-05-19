@@ -61,8 +61,13 @@ func finalizeGoRuntimeDiagnosis(ctx context.Context, apiBase string, wr *gorunti
 		if err != nil {
 			wr.Errors = append(wr.Errors, "平台 AI 分析失败: "+err.Error())
 		}
-		if localErr := finalizeGoRuntimeWithLocalAI(ctx, wr); localErr == nil {
-			return nil
+		if err == nil || serverAIFallbackEligible(err) {
+			if err != nil {
+				notifyLocalAIFallback(err)
+			}
+			if localErr := finalizeGoRuntimeWithLocalAI(ctx, wr); localErr == nil {
+				return nil
+			}
 		}
 		return fallbackDiagnosisFromSummary(wr)
 	}
