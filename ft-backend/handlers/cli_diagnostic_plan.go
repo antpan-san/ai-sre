@@ -626,7 +626,7 @@ func allowedAISreProbeCommand(argv []string) bool {
 			return false
 		}
 		return allowedAISreTopicDiagnoseFlags(topic, argv[4:])
-	case "nginx":
+	case "nginx", "linux":
 		return allowedAISreTopicDiagnoseFlags(topic, argv[3:])
 	default:
 		return false
@@ -662,6 +662,10 @@ func allowedAISreTopicDiagnoseFlags(topic string, args []string) bool {
 		allowed["--user"] = struct{}{}
 		allowed["--password"] = struct{}{}
 		allowed["--insecure"] = struct{}{}
+	case "linux":
+		allowed["--duration"] = struct{}{}
+		allowed["--top"] = struct{}{}
+		allowed["--pid"] = struct{}{}
 	}
 	return allowedAISreDiagnosticFlagValuesWithSet(args, allowed)
 }

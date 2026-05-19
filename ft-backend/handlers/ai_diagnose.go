@@ -288,6 +288,8 @@ func skillPackForTopic(topic string) string {
 		return models.SkillPackDomain
 	case "go_runtime", "go-runtime", "pod-go":
 		return models.PackKeyRuntimeObserve
+	case "linux":
+		return models.PackKeyBackupPerformance
 	default:
 		return models.SkillPackK8s
 	}
@@ -415,7 +417,8 @@ func isCollectedEvidenceKey(k string) bool {
 		strings.HasPrefix(k, "redis_"), strings.HasPrefix(k, "kafka_"),
 		strings.HasPrefix(k, "mysql_"), strings.HasPrefix(k, "postgresql_"),
 		strings.HasPrefix(k, "nginx_"), strings.HasPrefix(k, "es_"),
-		strings.HasPrefix(k, "elasticsearch_"), strings.HasPrefix(k, "domain_"):
+		strings.HasPrefix(k, "elasticsearch_"), strings.HasPrefix(k, "domain_"),
+		strings.HasPrefix(k, "linux_"):
 		return true
 	default:
 		return false
@@ -433,6 +436,8 @@ func buildServerDiagnosePromptWithSkill(topic string, kv map[string]string, matc
 		style = strings.TrimSpace(kv["diagnosis_style"])
 	}
 	switch style {
+	case "linux_performance_evidence":
+		return buildLinuxPerformanceEvidencePromptWithSkill(topic, kv, matched)
 	case "middleware_evidence":
 		return buildMiddlewareEvidencePromptWithSkill(topic, kv, matched)
 	case "evidence_root_cause":
@@ -445,7 +450,10 @@ func buildServerDiagnosePromptWithSkill(topic string, kv map[string]string, matc
 	case "domain_connectivity":
 		return buildDomainConnectivityPromptWithSkill(topic, kv, matched)
 	default:
-		if isMiddlewareEvidenceTopic(topic) && hasMiddlewareDiagnoseJSON(kv) {
+		if isLinuxPerformanceTopic(topic) && hasDiagnoseProbeJSON(kv) {
+			return buildLinuxPerformanceEvidencePromptWithSkill(topic, kv, matched)
+		}
+		if isMiddlewareEvidenceTopic(topic) && hasDiagnoseProbeJSON(kv) {
 			return buildMiddlewareEvidencePromptWithSkill(topic, kv, matched)
 		}
 		return buildDefaultServerDiagnosePromptWithSkill(topic, kv, matched)
@@ -453,11 +461,15 @@ func buildServerDiagnosePromptWithSkill(topic string, kv map[string]string, matc
 }
 
 func hasMiddlewareDiagnoseJSON(kv map[string]string) bool {
+	return hasDiagnoseProbeJSON(kv)
+}
+
+func hasDiagnoseProbeJSON(kv map[string]string) bool {
 	if kv == nil {
 		return false
 	}
 	for k := range kv {
-		if strings.HasSuffix(k, "_diagnose_json") {
+		if strings.HasSuffix(k, "_diagnose_json") || strings.HasSuffix(k, "_probe_json") {
 			return true
 		}
 	}

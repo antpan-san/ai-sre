@@ -26,7 +26,7 @@ func formatCheckAnswerText(topic, answer string) string {
 	if s == "" {
 		return s
 	}
-	if isMiddlewareEvidenceTopic(topic) || isDomainTopic(topic) {
+	if isMiddlewareEvidenceTopic(topic) || isDomainTopic(topic) || isLinuxPerformanceTopic(topic) {
 		s = normalizePlainTextDiagnose(s)
 	}
 	return s

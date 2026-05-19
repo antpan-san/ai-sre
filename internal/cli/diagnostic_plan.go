@@ -443,6 +443,9 @@ func allowedCLIAISreDiagnosticCommand(argv []string) bool {
 		if argv[2] == "go" {
 			return allowedCLIAISreGoRuntimeArgs(argv[3:])
 		}
+		if argv[2] == "linux" {
+			return allowedCLITopicDiagnoseFlags("linux", argv[3:])
+		}
 		return false
 	case "diagnose":
 		return allowedCLIAISreGoRuntimeArgs(argv[2:])
@@ -489,7 +492,7 @@ func allowedCLIAISreProbeCommand(argv []string) bool {
 			return false
 		}
 		return allowedCLITopicDiagnoseFlags(topic, argv[4:])
-	case "nginx":
+	case "nginx", "linux":
 		return allowedCLITopicDiagnoseFlags(topic, argv[3:])
 	default:
 		return false
@@ -525,6 +528,10 @@ func allowedCLITopicDiagnoseFlags(topic string, args []string) bool {
 		allowed["--user"] = struct{}{}
 		allowed["--password"] = struct{}{}
 		allowed["--insecure"] = struct{}{}
+	case "linux":
+		allowed["--duration"] = struct{}{}
+		allowed["--top"] = struct{}{}
+		allowed["--pid"] = struct{}{}
 	}
 	return allowedCLIAISreArgsWithSet(args, allowed)
 }

@@ -101,6 +101,17 @@ func inferIntentProblem(topic string, kv map[string]string) string {
 		return "health"
 	case "domain":
 		return "connectivity"
+	case "linux":
+		if hasIntentKV(kv, "problem", "problem_key") {
+			pk := strings.ToLower(strings.TrimSpace(kv["problem"]))
+			if pk == "" {
+				pk = strings.ToLower(strings.TrimSpace(kv["problem_key"]))
+			}
+			if pk == "memory_leak_risk" {
+				return "memory_leak_risk"
+			}
+		}
+		return "performance_general"
 	case "install":
 		return "download_failure"
 	case "errorcode":
@@ -146,6 +157,12 @@ func intentTreeCoordinates(topic, problem string) (nodePath, skillKey, capabilit
 		return "ops.incident_diagnosis.middleware.elasticsearch.health", "skill.elasticsearch.health", "cap.diagnosis.elasticsearch"
 	case "domain":
 		return "ops.incident_diagnosis.network.domain.connectivity", "skill.domain.connectivity", "cap.diagnosis.domain"
+	case "linux":
+		capabilityKey = "cap.diagnosis.linux.performance"
+		if problem == "memory_leak_risk" {
+			return "ops.incident_diagnosis.linux.performance.memory_leak", "skill.linux.performance.memory_leak", capabilityKey
+		}
+		return "ops.incident_diagnosis.linux.performance.general", "skill.linux.performance.general", capabilityKey
 	case "install":
 		return "ops.delivery_implementation.cli.install", "skill.cli.install_recovery", "cap.delivery.cli"
 	case "errorcode":
@@ -173,6 +190,8 @@ func intentPackKey(topic string) string {
 		return "skillpack.elasticsearch"
 	case "domain":
 		return "skillpack.domain"
+	case "linux":
+		return "pack.backup_performance"
 	case "install":
 		return "skillpack.cli"
 	case "go_runtime":
@@ -194,7 +213,7 @@ func intentExecutionMode(topic, problem string) string {
 			return "local_ai_fallback"
 		}
 		return "server_plan_readonly"
-	case "kafka", "redis", "nginx", "mysql", "postgresql", "postgres", "elasticsearch", "domain", "install":
+	case "kafka", "redis", "nginx", "mysql", "postgresql", "postgres", "elasticsearch", "domain", "linux", "install":
 		return "server_ai"
 	case "errorcode":
 		return "local_readonly"

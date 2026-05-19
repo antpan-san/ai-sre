@@ -30,8 +30,11 @@ func needsDiagnoseReview(topic string, kv map[string]string) bool {
 		return false
 	}
 	style := strings.TrimSpace(kv["diagnosis_style"])
-	if style == "middleware_evidence" || style == "evidence_root_cause" {
-		return isMiddlewareEvidenceTopic(topic) || strings.HasPrefix(style, "evidence")
+	if style == "middleware_evidence" || style == "linux_performance_evidence" || style == "evidence_root_cause" {
+		return isMiddlewareEvidenceTopic(topic) || isLinuxPerformanceTopic(topic) || strings.HasPrefix(style, "evidence")
+	}
+	if isLinuxPerformanceTopic(topic) {
+		return strings.TrimSpace(kv["linux_perf_probe_json"]) != ""
 	}
 	return isMiddlewareEvidenceTopic(topic) && strings.TrimSpace(kv["redis_diagnose_json"]) != ""
 }

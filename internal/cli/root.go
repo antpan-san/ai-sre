@@ -132,7 +132,7 @@ func newRoot(programName string) *cobra.Command {
 		long = fmt.Sprintf(`CLI 工具：技能包 + Prompt + 可选 RAG + LLM；支持 OpsFleet K8s 离线包与安装（见 k8s）。
 
 命令分层（尽量少记）：
-  check [topic]   AI 故障诊断（kafka/k8s/redis/…）
+  check [topic]   AI 故障诊断（kafka/k8s/redis/linux/…）
   probe <topic>   只读快采，不调 LLM
   check go        Go 运行时诊断（原 diagnose）
   doctor          CLI 环境自检（凭据/技能，不调 LLM）

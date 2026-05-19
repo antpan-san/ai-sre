@@ -41,6 +41,8 @@ func gatherTopicEvidence(ctx context.Context, topic string, flags map[string]str
 		gatherElasticsearchEvidence(ctx, flags, collected)
 	case "domain", "dns":
 		gatherDomainEvidence(ctx, flags, collected)
+	case "linux":
+		gatherLinuxEvidence(ctx, flags, collected)
 	}
 	return collected
 }
@@ -55,7 +57,7 @@ func hasTopicEvidence(kv map[string]string) bool {
 			strings.HasPrefix(k, "redis_") || 			strings.HasPrefix(k, "mysql_") ||
 			strings.HasPrefix(k, "postgresql_") ||
 			strings.HasPrefix(k, "nginx_") || strings.HasPrefix(k, "es_") ||
-			strings.HasPrefix(k, "domain_") {
+			strings.HasPrefix(k, "domain_") || strings.HasPrefix(k, "linux_") {
 			return true
 		}
 	}

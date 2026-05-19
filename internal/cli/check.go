@@ -22,8 +22,9 @@ func checkCmd() *cobra.Command {
   %s check domain opsfleetpilot.com
   %s check go --pid 1234
   %s -o json check domain opsfleetpilot.com
-  %s check code OPSFLEET_K8S_E_PAUSE_MISSING`,
-		progName, progName, progName, progName, progName, progName, progName, progName)
+  %s check code OPSFLEET_K8S_E_PAUSE_MISSING
+  %s check linux`,
+		progName, progName, progName, progName, progName, progName, progName, progName, progName)
 	cmd.AddCommand(checkCodeCmd(), checkGoCmd())
 	return cmd
 }
@@ -41,7 +42,11 @@ func analyzeCmd() *cobra.Command {
 
 func newCheckTopicCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Long: `topic 取值: kafka | k8s | nginx | redis | mysql | postgresql | elasticsearch | domain | dns
+		Long: `topic 取值: kafka | k8s | nginx | redis | mysql | postgresql | elasticsearch | domain | dns | linux
+
+linux：本机 Linux 性能诊断（CPU/负载/内存/磁盘/进程/泄露风险）
+  · ai-sre check linux
+  · 仅采集：ai-sre probe linux [--duration 10s] [--top 10] [--pid <pid>] [--json]
 
 中间件（redis / kafka / mysql / postgresql / elasticsearch）：
   · 最简：ai-sre check redis  （默认连本机常用端口；可用环境变量覆盖，见 AI_SRE_REDIS_ADDR）
@@ -110,6 +115,9 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	if err := finishRedisCheckEvidence(topic, ctx); err != nil {
 		return err
 	}
+	if err := finishLinuxCheckEvidence(topic, ctx); err != nil {
+		return err
+	}
 	if shouldRequestServerDiagnosticPlan(topic, ctx) {
 		obs, ran, err := maybeRunServerDiagnosticPlan(cmd.Context(), topic, ctx, diagnosticPlanYes)
 		if err != nil {
@@ -123,6 +131,8 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	}
 	if isDomainTopic(topic) {
 		ctx["diagnosis_style"] = "domain_connectivity"
+	} else if isLinuxPerformanceTopic(topic) && hasTopicEvidence(ctx) {
+		ctx["diagnosis_style"] = "linux_performance_evidence"
 	} else if isMiddlewareEvidenceTopic(topic) && hasTopicEvidence(ctx) {
 		ctx["diagnosis_style"] = "middleware_evidence"
 	} else if hasTopicEvidence(ctx) {

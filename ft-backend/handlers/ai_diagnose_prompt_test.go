@@ -51,7 +51,7 @@ func TestBuildEvidenceRootCausePromptFocusOrderingAndRule(t *testing.T) {
 	if iF < 0 || iN < 0 || iF >= iN {
 		t.Fatalf("kubectl_focus_* block must precede other evidence: focus=%d nodes=%d", iF, iN)
 	}
-	if !strings.Contains(p, "待深挖的 Pod") {
+	if !strings.Contains(p, "kubectl_focus_*") {
 		t.Fatalf("expected focus-pod rule in prompt")
 	}
 }

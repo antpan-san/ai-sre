@@ -9,6 +9,7 @@ func TestAllowedCLIAISreDiagnosticCommand_probeAndCheck(t *testing.T) {
 		want bool
 	}{
 		{name: "probe redis", argv: []string{"ai-sre", "probe", "redis", "127.0.0.1:6379", "--json"}, want: true},
+		{name: "probe linux", argv: []string{"ai-sre", "probe", "linux", "--json", "--duration", "3s"}, want: true},
 		{name: "probe nginx", argv: []string{"ai-sre", "probe", "nginx", "--json", "--access-log", "/var/log/nginx/access.log"}, want: true},
 		{name: "check go", argv: []string{"ai-sre", "check", "go", "--json", "--pod", "prod/api-0"}, want: true},
 		{name: "legacy kafka diagnose", argv: []string{"ai-sre", "kafka", "diagnose", "b1:9092", "--json"}, want: true},

@@ -8,7 +8,7 @@ import (
 func probeCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "probe",
-		Short: "只读快采（无 AI）：kafka | redis | mysql | postgresql | nginx | elasticsearch | domain",
+		Short: "只读快采（无 AI）：kafka | redis | mysql | postgresql | nginx | elasticsearch | domain | linux",
 		Long: `在各中间件上执行只读采集，输出结构化结论或 JSON，供人工判断或配合 check 使用。
 
 与 check 的区别：probe 不调 LLM；check 走技能包做根因分析。`,
@@ -21,6 +21,7 @@ func probeCmd() *cobra.Command {
 		probeNginxCmd(),
 		probeElasticsearchCmd(),
 		probeDomainCmd(),
+		probeLinuxCmd(),
 	)
 	return cmd
 }

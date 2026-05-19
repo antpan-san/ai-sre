@@ -376,6 +376,8 @@ func diagnosticPackInputsForTopic(topic string) (input, keywords []string) {
 		return []string{"dsn"}, []string{"postgresql", "postgres", "diagnose", "readonly", "general"}
 	case "elasticsearch", "es":
 		return []string{"url", "host"}, []string{"elasticsearch", "diagnose", "readonly", "health"}
+	case "linux":
+		return []string{"duration", "top", "pid"}, []string{"linux", "performance", "diagnose", "readonly", "cpu", "memory"}
 	default:
 		return []string{"namespace", "pod", "issue"}, []string{topic, "diagnose", "readonly", "kubectl"}
 	}

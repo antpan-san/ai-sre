@@ -67,6 +67,7 @@ var builtinSkillTreeNodes = []SkillTreeNode{
 	{Path: "ops.delivery_implementation", ParentPath: "ops", NodeType: SkillNodeTypeCategory, Title: "部署实施", CLIVisible: true, SortOrder: 10},
 	{Path: "ops.incident_diagnosis", ParentPath: "ops", NodeType: SkillNodeTypeCategory, Title: "问题排查", CLIVisible: true, SortOrder: 20},
 	{Path: "ops.incident_diagnosis.kubernetes", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "Kubernetes", Topic: "k8s", PackKey: models.SkillPackK8s, FeatureKey: models.FeatureKeyAIDiagnosis, CLIVisible: true, SortOrder: 30},
+	{Path: "ops.incident_diagnosis.linux", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "Linux 系统", CLIVisible: true, SortOrder: 34},
 	{Path: "ops.incident_diagnosis.network", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "网络与域名", CLIVisible: true, SortOrder: 35},
 	{Path: "ops.incident_diagnosis.middleware", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "中间件", CLIVisible: true, SortOrder: 40},
 	{Path: "ops.incident_diagnosis.middleware.kafka", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "Kafka 诊断", Topic: "kafka", CapabilityKey: "cap.diagnosis.kafka", PackKey: models.SkillPackKafka, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 41},
@@ -95,6 +96,10 @@ var builtinSkillTreeNodes = []SkillTreeNode{
 	{Path: "ops.incident_diagnosis.middleware.postgresql.general", ParentPath: "ops.incident_diagnosis.middleware.postgresql", NodeType: SkillNodeTypeSkill, Title: "PostgreSQL 通用根因分析", Topic: "postgresql", SkillKey: "skill.postgresql.general", ProblemKey: "general", CapabilityKey: "cap.diagnosis.postgresql", PackKey: models.SkillPackPostgreSQL, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 335},
 	{Path: "ops.incident_diagnosis.middleware.elasticsearch.health", ParentPath: "ops.incident_diagnosis.middleware.elasticsearch", NodeType: SkillNodeTypeSkill, Title: "Elasticsearch 健康快诊", Topic: "elasticsearch", SkillKey: "skill.elasticsearch.health", ProblemKey: "health", CapabilityKey: "cap.diagnosis.elasticsearch", PackKey: models.SkillPackElasticsearch, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 340},
 	{Path: "ops.incident_diagnosis.network.domain.connectivity", ParentPath: "ops.incident_diagnosis.network.domain", NodeType: SkillNodeTypeSkill, Title: "域名 / DNS / HTTP(S) 诊断", Topic: "domain", SkillKey: "skill.domain.connectivity", ProblemKey: "connectivity", CapabilityKey: "cap.diagnosis.domain", PackKey: models.SkillPackDomain, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 345},
+
+	{Path: "ops.incident_diagnosis.linux.performance", ParentPath: "ops.incident_diagnosis.linux", NodeType: SkillNodeTypeCapability, Title: "Linux 系统性能诊断", Topic: "linux", CapabilityKey: "cap.diagnosis.linux.performance", PackKey: models.PackKeyBackupPerformance, FeatureKey: models.FeatureKeyBackupPerformance, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 350},
+	{Path: "ops.incident_diagnosis.linux.performance.general", ParentPath: "ops.incident_diagnosis.linux.performance", NodeType: SkillNodeTypeSkill, Title: "CPU / 内存 / 磁盘 / 进程综合诊断", Topic: "linux", SkillKey: "skill.linux.performance.general", ProblemKey: "performance_general", CapabilityKey: "cap.diagnosis.linux.performance", PackKey: models.PackKeyBackupPerformance, FeatureKey: models.FeatureKeyBackupPerformance, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 351},
+	{Path: "ops.incident_diagnosis.linux.performance.memory_leak", ParentPath: "ops.incident_diagnosis.linux.performance", NodeType: SkillNodeTypeSkill, Title: "Linux 进程内存泄露风险预判", Topic: "linux", SkillKey: "skill.linux.performance.memory_leak", ProblemKey: "memory_leak_risk", CapabilityKey: "cap.diagnosis.linux.performance", PackKey: models.PackKeyBackupPerformance, FeatureKey: models.FeatureKeyBackupPerformance, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 352},
 
 	{Path: "ops.incident_diagnosis.application.go_runtime", ParentPath: "ops.incident_diagnosis.application", NodeType: SkillNodeTypeCapability, Title: "Go Runtime 智能诊断", Topic: "go_runtime", CapabilityKey: "cap.diagnosis.go_runtime", PackKey: models.PackKeyRuntimeObserve, FeatureKey: models.FeatureKeyRuntimeObserve, ExecutionMode: ExecutionModeServerPlanReadonly, CLIVisible: true, SortOrder: 400},
 	{Path: "ops.incident_diagnosis.application.go_runtime.process", ParentPath: "ops.incident_diagnosis.application.go_runtime", NodeType: SkillNodeTypeSkill, Title: "Go 进程运行时诊断", Topic: "go_runtime", SkillKey: "skill.go_runtime.process", ProblemKey: "process_runtime", CapabilityKey: "cap.diagnosis.go_runtime", PackKey: models.PackKeyRuntimeObserve, FeatureKey: models.FeatureKeyRuntimeObserve, ExecutionMode: ExecutionModeLocalAIFallback, CLIVisible: true, SortOrder: 401},
@@ -322,6 +327,11 @@ func inferProblemKey(topic string, ctx map[string]string) string {
 		return "health"
 	case "domain":
 		return "connectivity"
+	case "linux":
+		if pk := strings.ToLower(strings.TrimSpace(valueFromSkillContext(ctx, "problem"))); pk == "memory_leak_risk" {
+			return "memory_leak_risk"
+		}
+		return "performance_general"
 	case "errorcode":
 		return "error_codes"
 	default:
@@ -366,6 +376,8 @@ func packKeyForSkillTopic(topic string) string {
 		return models.SkillPackElasticsearch
 	case "domain":
 		return models.SkillPackDomain
+	case "linux":
+		return models.PackKeyBackupPerformance
 	case "go_runtime":
 		return models.PackKeyRuntimeObserve
 	default:

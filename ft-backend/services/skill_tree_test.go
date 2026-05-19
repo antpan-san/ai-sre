@@ -78,3 +78,30 @@ func TestApplySkillTreeAssetStatsRollsUpToParents(t *testing.T) {
 		t.Fatalf("expected redis approved rollup=1, got %d", got)
 	}
 }
+
+func TestNormalizeSkillExecutionIntentLinuxPerformance(t *testing.T) {
+	got := NormalizeSkillExecutionIntent("linux", nil, SkillExecutionIntent{})
+	if got.NodePath != "ops.incident_diagnosis.linux.performance.general" {
+		t.Fatalf("unexpected node path: %+v", got)
+	}
+	if got.PackKey != models.PackKeyBackupPerformance || got.SkillKey != "skill.linux.performance.general" {
+		t.Fatalf("unexpected intent: %+v", got)
+	}
+}
+
+func TestSkillTreeContainsLinuxPerformanceNodes(t *testing.T) {
+	var cat, cap, skill bool
+	for _, n := range SkillTreeNodes() {
+		switch n.Path {
+		case "ops.incident_diagnosis.linux":
+			cat = true
+		case "ops.incident_diagnosis.linux.performance":
+			cap = n.PackKey == models.PackKeyBackupPerformance && n.Topic == "linux"
+		case "ops.incident_diagnosis.linux.performance.general":
+			skill = n.SkillKey == "skill.linux.performance.general"
+		}
+	}
+	if !cat || !cap || !skill {
+		t.Fatalf("linux tree incomplete cat=%v cap=%v skill=%v", cat, cap, skill)
+	}
+}

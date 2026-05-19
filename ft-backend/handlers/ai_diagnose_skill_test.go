@@ -48,7 +48,7 @@ func TestBuildEvidenceRootCausePromptInjectsMatchedSkill(t *testing.T) {
 		"namespace":                "kube-system",
 	}, false, matched)
 	for _, want := range []string{
-		"集群采集输出（原文）",
+		"只读采集输出（原文）",
 		"kubectl_focus_describe",
 		"kubectl_nodes",
 		"【适用技能包】",
