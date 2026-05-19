@@ -40,7 +40,7 @@ Go CLI + 同仓 **OpsFleetPilot** Web/API（`ft-backend/`、`ft-front/`、`deplo
 | CLI 能力层 fulfillment | 命令与参数正确但能力不足时，调用 `POST /api/cli/fulfillment/plan`（须带 `command_catalog_digest`）；服务端返回 `subscription_required` / `granted_retry` / `auto_iteration_created` / `awaiting_approval` 等公开字段 |
 | `ai-sre skills feedback --topic <t> -m "…"` | 把本次诊断的有效性反馈给服务端，进入下次精炼样本 |
 | `ai-sre skills refine --topic <t>` | 让服务端基于最近 N 次样本 + 反馈调用 LLM 产出新版技能包（生成在 `OPSFLEET_AI_SKILL_DATA_DIR/generated/<topic>.yaml`） |
-| `ai-sre check … --no-feedback` | 关掉本次诊断后的「是否帮到你」反馈提示（仅 TTY 下有效） |
+| `ai-sre skills feedback --topic <t>` | 主动提交诊断反馈（可触发服务端 `POST /api/cli/feedback/analyze` 与自动迭代研判） |
 | `ai-sre doctor` | 自检（凭据、tier、配额计数、技能/知识加载；**不调用 LLM**） |
 | `ai-sre version` | 打印版本号 |
 | `ai-sre help` | 帮助 |
@@ -66,7 +66,7 @@ Go CLI + 同仓 **OpsFleetPilot** Web/API（`ft-backend/`、`ft-front/`、`deplo
 - **登录有效期**：JWT 访问令牌默认 **24 小时**（`jwt.access_token_exp` 或 `OPSFLEET_JWT_ACCESS_TOKEN_EXP`）。
 - **错误码**：`ai-sre check code <CODE>` 或控制台「错误码」页。
 - **Go 运行时**：`ai-sre check go --pid|--name|--pod` 采样 proc/cgroup，可上传至控制台「运行时诊断」。
-- **反馈**：TTY 下 `check` 结束可提交 y/n/备注。
+- **反馈**：使用 `skills feedback` 或能力层 fulfillment 链路提交；`check` 结束不再交互询问。
 
 K8s 安装细节、节点初始化、制品镜像等见 [`deploy/k8s-mirror/README.md`](deploy/k8s-mirror/README.md)、[`PRODUCT_DOC.md`](PRODUCT_DOC.md)。
 
