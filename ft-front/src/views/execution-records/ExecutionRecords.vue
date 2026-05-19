@@ -8,7 +8,7 @@
             <el-button text type="primary" size="small">说明</el-button>
           </template>
           <p class="page-desc--muted" style="margin: 0">
-            脚本副本、作业、K8s 安装等非 ai-sre CLI 主路径的审计流水。ai-sre CLI 复盘请使用「ai-sre 中心 → 客户端执行」。
+            脚本副本、作业、K8s 安装等非 ai-sre CLI 主路径的审计流水。CLI 复盘请使用同组「客户端执行」。
           </p>
         </el-popover>
       </div>

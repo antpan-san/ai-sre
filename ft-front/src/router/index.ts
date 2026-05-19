@@ -242,7 +242,12 @@ const routes: Array<RouteRecordRaw> = [
         path: 'execution-records',
         name: 'AdminExecutionRecords',
         component: () => import('../views/execution-records/ExecutionRecords.vue'),
-        meta: { title: '执行记录', requireAuth: true, roles: appRoles }
+        meta: {
+          title: '通用执行审计',
+          requireAuth: true,
+          roles: appRoles,
+          breadcrumb: [{ title: 'ai-sre 中心', path: '/admin/ai-sre/executions' }, { title: '通用执行审计' }]
+        }
       },
       {
         path: 'help/error-codes',
@@ -287,7 +292,7 @@ const routes: Array<RouteRecordRaw> = [
           title: '运行时诊断',
           requireAuth: true,
           roles: appRoles,
-          breadcrumb: [{ title: '数据' }, { title: '运行时诊断' }]
+          breadcrumb: [{ title: 'ai-sre 中心', path: '/admin/ai-sre/executions' }, { title: '运行时诊断' }]
         }
       }
     ]
@@ -328,7 +333,12 @@ const routes: Array<RouteRecordRaw> = [
         path: 'execution-records',
         name: 'AppExecutionRecords',
         component: () => import('../views/execution-records/ExecutionRecords.vue'),
-        meta: { title: '执行记录', requireAuth: true, roles: appRoles }
+        meta: {
+          title: '通用执行审计',
+          requireAuth: true,
+          roles: appRoles,
+          breadcrumb: [{ title: 'ai-sre 中心', path: '/app/ai-sre/executions' }, { title: '通用执行审计' }]
+        }
       },
       {
         path: 'init-tools',
@@ -356,7 +366,7 @@ const routes: Array<RouteRecordRaw> = [
           title: '运行时诊断',
           requireAuth: true,
           roles: appRoles,
-          breadcrumb: [{ title: '数据' }, { title: '运行时诊断' }]
+          breadcrumb: [{ title: 'ai-sre 中心', path: '/app/ai-sre/executions' }, { title: '运行时诊断' }]
         }
       },
       {

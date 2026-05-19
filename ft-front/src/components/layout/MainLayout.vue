@@ -62,19 +62,21 @@
                 <el-icon><List /></el-icon>
                 <template #title>客户端执行</template>
               </el-menu-item>
-              <el-menu-item v-if="isSuperAdmin" index="/admin/ai-sre/skills">
-                <el-icon><Collection /></el-icon>
-                <template #title>技能包资产</template>
-              </el-menu-item>
-              <el-menu-item v-if="isSuperAdmin" index="/admin/auto-iterations">
-                <el-icon><Refresh /></el-icon>
-                <template #title>自动迭代</template>
-              </el-menu-item>
-              <el-menu-item index="/admin/help/error-codes">
+              <el-menu-item index="/admin/execution-records">
                 <el-icon><DocumentCopy /></el-icon>
-                <template #title>错误码</template>
+                <template #title>通用执行审计</template>
+              </el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/admin/advanced/runtime-observe">
+                <el-icon><Monitor /></el-icon>
+                <template #title
+                  >运行时诊断<span v-if="featureBillingEnabled('feature.runtime_observe')" class="menu-pack-tag">订阅</span></template
+                >
               </el-menu-item>
             </el-sub-menu>
+            <el-menu-item v-if="isSuperAdmin" index="/admin/auto-iterations">
+              <el-icon><Refresh /></el-icon>
+              <template #title>自动迭代</template>
+            </el-menu-item>
             <el-sub-menu v-if="isSuperAdmin" index="asm-billing">
               <template #title>
                 <el-icon><Setting /></el-icon>
@@ -86,7 +88,7 @@
               </el-menu-item>
               <el-menu-item index="/admin/billing/ai-sre-skills">
                 <el-icon><Collection /></el-icon>
-                <template #title>ai-sre 技能包（旧入口）</template>
+                <template #title>ai-sre 技能包</template>
               </el-menu-item>
             </el-sub-menu>
             <el-sub-menu
@@ -138,7 +140,6 @@
                 <span>任务</span>
               </template>
               <el-menu-item index="/admin/job/center">作业中心</el-menu-item>
-              <el-menu-item index="/admin/execution-records">通用执行审计</el-menu-item>
             </el-sub-menu>
             <el-sub-menu index="asm-security">
               <template #title>
@@ -151,25 +152,20 @@
               >
             </el-sub-menu>
             <el-sub-menu
-              v-if="featureVisible('feature.backup_performance') || featureVisible('feature.runtime_observe')"
+              v-if="featureVisible('feature.backup_performance')"
               index="asm-advanced"
             >
               <template #title>
                 <el-icon><DocumentCopy /></el-icon>
                 <span>
                   数据
-                  <span
-                    v-if="featureBillingEnabled('feature.backup_performance') || featureBillingEnabled('feature.runtime_observe')"
-                    class="menu-pack-tag"
-                  >订阅</span>
+                  <span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span>
                 </span>
               </template>
               <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/admin/advanced/backup-restore"
                 >备份</el-menu-item>
               <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/admin/advanced/performance-analysis"
                 >性能</el-menu-item>
-              <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/admin/advanced/runtime-observe"
-                >运行时诊断</el-menu-item>
             </el-sub-menu>
           </template>
           <template v-else>
@@ -186,43 +182,37 @@
                 <el-icon><List /></el-icon>
                 <template #title>客户端执行</template>
               </el-menu-item>
-              <el-menu-item index="/app/help/error-codes">
+              <el-menu-item index="/app/execution-records">
                 <el-icon><DocumentCopy /></el-icon>
-                <template #title>错误码</template>
+                <template #title>通用执行审计</template>
+              </el-menu-item>
+              <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/app/advanced/runtime-observe">
+                <el-icon><Monitor /></el-icon>
+                <template #title
+                  >运行时诊断<span v-if="featureBillingEnabled('feature.runtime_observe')" class="menu-pack-tag">订阅</span></template
+                >
               </el-menu-item>
             </el-sub-menu>
             <el-menu-item index="/app/job/center">
               <el-icon><Management /></el-icon>
               <template #title>作业中心</template>
             </el-menu-item>
-            <el-menu-item index="/app/execution-records">
-              <el-icon><List /></el-icon>
-              <template #title>通用执行审计</template>
-            </el-menu-item>
             <el-menu-item v-if="featureVisible('feature.node_ops')" index="/app/init-tools">
               <el-icon><Tools /></el-icon>
               <template #title>节点初始化</template>
             </el-menu-item>
-            <el-sub-menu
-              v-if="featureVisible('feature.backup_performance') || featureVisible('feature.runtime_observe')"
-              index="app-advanced"
-            >
+            <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="app-advanced">
               <template #title>
                 <el-icon><DocumentCopy /></el-icon>
                 <span>
                   数据
-                  <span
-                    v-if="featureBillingEnabled('feature.backup_performance') || featureBillingEnabled('feature.runtime_observe')"
-                    class="menu-pack-tag"
-                  >订阅</span>
+                  <span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span>
                 </span>
               </template>
               <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/app/advanced/backup-restore"
                 >备份</el-menu-item>
               <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/app/advanced/performance-analysis"
                 >性能</el-menu-item>
-              <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/app/advanced/runtime-observe"
-                >运行时诊断</el-menu-item>
             </el-sub-menu>
           </template>
         </el-menu>
@@ -478,12 +468,18 @@ const menuDefaultOpeneds = computed(() => {
   const p = route.path
   const open: string[] = []
   if (p.startsWith('/app')) {
+    if (p.includes('/app/ai-sre') || p.includes('/app/execution-records') || p.includes('/app/advanced/runtime-observe')) {
+      open.push('app-aisre')
+    }
     if (p.includes('/app/advanced')) open.push('app-advanced')
     return open
   }
+  if (p.includes('/admin/ai-sre') || p.includes('/admin/execution-records') || p.includes('/admin/advanced/runtime-observe')) {
+    open.push('asm-aisre')
+  }
   if (p.includes('/admin/service')) open.push('asm-workloads')
   if (p.includes('/admin/monitoring')) open.push('asm-observe')
-  if (p.includes('/admin/job') || p.includes('/admin/execution-records')) open.push('asm-run')
+  if (p.includes('/admin/job')) open.push('asm-run')
   if (p.includes('/admin/security-audit')) open.push('asm-security')
   if (p.includes('/admin/advanced')) open.push('asm-advanced')
   if (p.includes('/admin/billing')) open.push('asm-billing')
