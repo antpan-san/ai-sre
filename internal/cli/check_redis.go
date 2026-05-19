@@ -40,4 +40,7 @@ func stripSensitiveCheckContext(ctx map[string]string) {
 		return
 	}
 	delete(ctx, "password")
+	delete(ctx, "user")
+	delete(ctx, "config")
+	delete(ctx, "client_config")
 }

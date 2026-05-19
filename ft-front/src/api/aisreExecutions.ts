@@ -16,6 +16,9 @@ export interface ClientExecutionListItem {
   evidence_completeness?: string
   ai_source?: string
   used_ai: boolean
+  rule_hit?: boolean
+  enhancement_needs?: boolean
+  enhancement_priority?: string
   user?: string
   machine?: string
   client_version?: string

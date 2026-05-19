@@ -69,6 +69,13 @@ func ExecuteAs(programName string) {
 	}
 	if err := root.Execute(); err != nil {
 		if programName == "ai-sre" {
+			if isAuthCredentialsError(err) {
+				reporter.finish(err)
+				if !strings.EqualFold(outputFormat, "json") {
+					fmt.Fprintln(os.Stderr, err)
+				}
+				os.Exit(2)
+			}
 			if res := ClassifyCobraError(root, args, err); res != nil && !res.OK {
 				reporter.finish(errParamContract)
 				emitParamContractError(res)

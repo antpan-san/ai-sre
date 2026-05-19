@@ -10,7 +10,7 @@
         <template #header><span>执行结论</span></template>
         <el-descriptions :column="2" border size="small">
           <el-descriptions-item label="命令" :span="2">{{ rec.command }}</el-descriptions-item>
-          <el-descriptions-item label="目标">{{ rec.target_host || rec.resource_name || meta.diagnosis_target || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="目标">{{ rec.target_host || rec.resource_name || meta.diagnosis_target || meta.target || '—' }}</el-descriptions-item>
           <el-descriptions-item label="状态">
             <el-tag :type="statusTag(rec.status)" size="small">{{ rec.status }}</el-tag>
           </el-descriptions-item>
@@ -19,6 +19,12 @@
           <el-descriptions-item label="用户">{{ rec.trigger_user || rec.created_by || '—' }}</el-descriptions-item>
           <el-descriptions-item label="机器">{{ rec.target_host || meta.hostname || '—' }}</el-descriptions-item>
           <el-descriptions-item label="Topic">{{ meta.topic || rec.category || '—' }}</el-descriptions-item>
+          <el-descriptions-item label="诊断方式">
+            <el-tag v-if="meta.rule_hit" size="small" type="success">本地规则</el-tag>
+            <el-tag v-else-if="meta.used_ai" size="small" type="warning">{{ aiSourceLabel(meta.ai_source) }}</el-tag>
+            <span v-else>未调用 AI</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="技能包">{{ meta.skill_pack || meta.skill_name || '—' }}</el-descriptions-item>
           <el-descriptions-item label="根因摘要" :span="2">{{ meta.root_cause || meta.summary || rec.stdout_summary || '—' }}</el-descriptions-item>
         </el-descriptions>
         <el-tag v-if="detail.legacy_kind" type="info" class="legacy-tag">{{ legacyLabel(detail.legacy_kind) }}</el-tag>
@@ -36,6 +42,37 @@
             <pre v-if="rec.stderr_summary" class="mono err">{{ rec.stderr_summary }}</pre>
           </el-collapse-item>
         </el-collapse>
+      </el-card>
+
+      <el-card v-if="enhancement" shadow="never" class="block">
+        <template #header><span>技能包自动增强</span></template>
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="需要增强">
+            <el-tag :type="enhancement.needs_enhancement ? 'warning' : 'success'" size="small">
+              {{ enhancement.needs_enhancement ? '是' : '否' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="优先级">
+            <el-tag v-if="enhancement.priority" :type="enhancementTag(enhancement.priority)" size="small">
+              {{ enhancement.priority }}
+            </el-tag>
+            <span v-else>—</span>
+          </el-descriptions-item>
+          <el-descriptions-item label="降本潜力">{{ enhancement.savings_score ?? '—' }}</el-descriptions-item>
+          <el-descriptions-item label="相似近期次数">{{ enhancement.similar_recent_count ?? '—' }}</el-descriptions-item>
+        </el-descriptions>
+        <div v-if="enhancementRecommendations.length" class="enh-block">
+          <h4>建议沉淀</h4>
+          <ul class="enh-list">
+            <li v-for="(line, i) in enhancementRecommendations" :key="i">{{ line }}</li>
+          </ul>
+        </div>
+        <div v-if="enhancementActions.length" class="enh-block">
+          <h4>建议动作</h4>
+          <ul class="enh-list">
+            <li v-for="(line, i) in enhancementActions" :key="'a'+i">{{ line }}</li>
+          </ul>
+        </div>
       </el-card>
 
       <el-card shadow="never" class="block">
@@ -66,10 +103,6 @@
             自动迭代任务
           </el-link>
           <el-link type="primary" @click="goErrorCodes">错误码目录</el-link>
-        </div>
-        <div v-if="detail.enhancement_review" class="enhancement">
-          <h4>技能包增强审查</h4>
-          <pre class="mono">{{ JSON.stringify(detail.enhancement_review, null, 2) }}</pre>
         </div>
       </el-card>
 
@@ -112,6 +145,21 @@ const loading = ref(false)
 const detail = ref<ClientExecutionDetail | null>(null)
 const rec = computed(() => (detail.value?.record || {}) as Record<string, any>)
 const meta = computed(() => (rec.value.metadata || {}) as Record<string, any>)
+const enhancement = computed(() => {
+  const fromDetail = detail.value?.enhancement_review
+  if (fromDetail && Object.keys(fromDetail).length) return fromDetail as Record<string, any>
+  const nested = meta.value.skill_enhancement_review
+  if (nested && typeof nested === 'object') return nested as Record<string, any>
+  return null
+})
+const enhancementRecommendations = computed(() => {
+  const v = enhancement.value?.recommendations
+  return Array.isArray(v) ? v.map(String) : []
+})
+const enhancementActions = computed(() => {
+  const v = enhancement.value?.suggested_actions
+  return Array.isArray(v) ? v.map(String) : []
+})
 
 const load = async () => {
   const id = String(route.params.id || '')
@@ -144,6 +192,23 @@ const evidenceTag = (v?: string) => {
   if (v === 'missing' || v === 'incomplete') return 'danger'
   return 'info'
 }
+const enhancementTag = (p?: string) => {
+  if (p === 'high') return 'danger'
+  if (p === 'medium') return 'warning'
+  return 'info'
+}
+const aiSourceLabel = (s?: string) => {
+  switch (s) {
+    case 'platform_ai':
+      return '平台 AI'
+    case 'local_rule':
+      return '本地规则'
+    case 'mixed':
+      return '混合'
+    default:
+      return s || 'AI'
+  }
+}
 const legacyLabel = (k: string) => {
   if (k === 'legacy_ai_diagnose') return '历史 AI 诊断'
   if (k === 'legacy_go_runtime') return '历史运行时执行'
@@ -151,7 +216,9 @@ const legacyLabel = (k: string) => {
   return k
 }
 
-onMounted(() => void load())
+onMounted(() => {
+  void load()
+})
 </script>
 
 <style scoped>
@@ -161,6 +228,12 @@ onMounted(() => void load())
 .block {
   margin-bottom: 14px;
 }
+.legacy-tag {
+  margin-top: 10px;
+}
+.evidence-line {
+  margin: 0 0 10px;
+}
 .mono {
   white-space: pre-wrap;
   word-break: break-word;
@@ -169,19 +242,27 @@ onMounted(() => void load())
 }
 .mono.err {
   color: var(--el-color-danger);
+  margin-top: 8px;
 }
 .links {
   display: flex;
   flex-wrap: wrap;
-  gap: 16px;
+  gap: 12px;
 }
-.enhancement {
+.enh-block {
   margin-top: 12px;
+}
+.enh-block h4 {
+  margin: 0 0 6px;
+  font-size: 13px;
+}
+.enh-list {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.5;
 }
 .events-table {
   margin-top: 12px;
-}
-.legacy-tag {
-  margin-top: 8px;
 }
 </style>

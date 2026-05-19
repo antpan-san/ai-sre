@@ -78,16 +78,25 @@
             <el-tag :type="statusTag(row.status)" size="small">{{ row.status }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="summary" label="结论摘要" min-width="180" show-overflow-tooltip />
+        <el-table-column label="规则/AI" width="108" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.rule_hit" size="small" type="success">本地规则</el-tag>
+            <span v-else-if="row.used_ai">{{ aiSourceLabel(row.ai_source) }}</span>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="技能增强" width="96" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.enhancement_needs" :type="enhancementTag(row.enhancement_priority)" size="small">
+              {{ enhancementLabel(row.enhancement_priority) }}
+            </el-tag>
+            <span v-else class="muted">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column prop="summary" label="结论摘要" min-width="160" show-overflow-tooltip />
         <el-table-column label="证据" width="88" align="center">
           <template #default="{ row }">
             <el-tag :type="evidenceTag(row.evidence_completeness)" size="small">{{ row.evidence_completeness || '—' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="AI" width="100" align="center">
-          <template #default="{ row }">
-            <span v-if="row.used_ai">{{ aiSourceLabel(row.ai_source) }}</span>
-            <span v-else>—</span>
           </template>
         </el-table-column>
         <el-table-column label="用户 / 机器" min-width="130" show-overflow-tooltip>
@@ -238,6 +247,30 @@ const aiSourceLabel = (s?: string) => {
   }
 }
 
+const enhancementTag = (p?: string) => {
+  switch (p) {
+    case 'high':
+      return 'danger'
+    case 'medium':
+      return 'warning'
+    default:
+      return 'info'
+  }
+}
+
+const enhancementLabel = (p?: string) => {
+  switch (p) {
+    case 'high':
+      return '待增强·高'
+    case 'medium':
+      return '待增强·中'
+    case 'low':
+      return '待增强·低'
+    default:
+      return '待增强'
+  }
+}
+
 const legacyLabel = (k: string) => {
   switch (k) {
     case 'legacy_ai_diagnose':
@@ -307,5 +340,8 @@ onMounted(() => {
   margin-top: 12px;
   display: flex;
   justify-content: flex-end;
+}
+.muted {
+  color: var(--el-text-color-secondary);
 }
 </style>

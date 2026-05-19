@@ -7,11 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"os"
 	"strings"
 	"time"
-
-	"golang.org/x/term"
 )
 
 var errRedisAuthRequired = errors.New("redis_auth_required")
@@ -212,19 +209,7 @@ func redisTargetFromFlags(flags map[string]string) string {
 }
 
 func promptRedisPassword(addr string) (string, error) {
-	_, _ = fmt.Fprintf(os.Stderr, "[%s] Redis %s 需要密码，请输入: ", progName, addr)
-	fd := int(os.Stdin.Fd())
-	if term.IsTerminal(fd) {
-		b, err := term.ReadPassword(fd)
-		_, _ = fmt.Fprintln(os.Stderr)
-		if err != nil {
-			return "", err
-		}
-		return strings.TrimSpace(string(b)), nil
-	}
-	var line string
-	_, err := fmt.Fscanln(os.Stdin, &line)
-	return strings.TrimSpace(line), err
+	return promptSecret(fmt.Sprintf("Redis %s 密码", addr))
 }
 
 func dialRedisClient(addr string, timeout time.Duration) (*redisClient, error) {

@@ -74,6 +74,9 @@ type ClientExecutionListItem struct {
 	EvidenceCompleteness string                 `json:"evidence_completeness,omitempty"`
 	AISource             string                 `json:"ai_source,omitempty"`
 	UsedAI               bool                   `json:"used_ai"`
+	RuleHit              bool                   `json:"rule_hit"`
+	EnhancementNeeds     bool                   `json:"enhancement_needs,omitempty"`
+	EnhancementPriority  string                 `json:"enhancement_priority,omitempty"`
 	User                 string                 `json:"user,omitempty"`
 	Machine              string                 `json:"machine,omitempty"`
 	ClientVersion        string                 `json:"client_version,omitempty"`
@@ -298,7 +301,12 @@ func buildClientExecutionListItem(rec *models.ExecutionRecord) (ClientExecutionL
 	item.Machine = firstNonEmpty(rec.TargetHost, strMeta(meta, "hostname"))
 	item.User = firstNonEmpty(rec.TriggerUser, rec.CreatedBy)
 	item.UsedAI = boolMeta(meta, "used_ai") || hasAIChild(rec)
+	item.RuleHit = boolMeta(meta, "rule_hit")
 	item.AISource = strMeta(meta, "ai_source")
+	if er, ok := meta["skill_enhancement_review"].(map[string]interface{}); ok && len(er) > 0 {
+		item.EnhancementNeeds = boolMeta(er, "needs_enhancement")
+		item.EnhancementPriority = strMeta(er, "priority")
+	}
 	if item.AISource == "" && item.UsedAI {
 		item.AISource = "platform_ai"
 	}

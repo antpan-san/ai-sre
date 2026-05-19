@@ -141,6 +141,18 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	if err := finishRedisCheckEvidence(topic, ctx); err != nil {
 		return err
 	}
+	if err := finishMySQLCheckEvidence(topic, ctx); err != nil {
+		return err
+	}
+	if err := finishPostgreSQLCheckEvidence(topic, ctx); err != nil {
+		return err
+	}
+	if err := finishElasticsearchCheckEvidence(topic, ctx); err != nil {
+		return err
+	}
+	if err := finishKafkaCheckEvidence(topic, ctx); err != nil {
+		return err
+	}
 	if err := finishLinuxCheckEvidence(topic, ctx); err != nil {
 		return err
 	}
