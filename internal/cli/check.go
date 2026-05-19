@@ -123,6 +123,8 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	}
 	if isDomainTopic(topic) {
 		ctx["diagnosis_style"] = "domain_connectivity"
+	} else if isMiddlewareEvidenceTopic(topic) && hasTopicEvidence(ctx) {
+		ctx["diagnosis_style"] = "middleware_evidence"
 	} else if hasTopicEvidence(ctx) {
 		ctx["diagnosis_style"] = "evidence_root_cause"
 	}
@@ -131,7 +133,7 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	answer := diag.Answer
+	answer := formatCheckAnswerText(topic, diag.Answer)
 	if isDomainTopic(topic) && !strings.EqualFold(outputFormat, "json") {
 		if probe := strings.TrimSpace(ctx["domain_probe_text"]); probe != "" {
 			answer = probe + "\n\n--- AI 分析 ---\n\n" + strings.TrimSpace(answer)

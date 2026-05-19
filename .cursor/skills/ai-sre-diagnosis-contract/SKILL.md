@@ -14,6 +14,17 @@ description: >-
 2. AI **禁止**输出「请用户执行 redis-cli / probe / kubectl / shell」补采集。
 3. 证据不足时，只说明**缺失原因**（认证失败、ACL、网络），不给命令清单。
 
+## 服务端复核与客户端纯文本（强制）
+
+| 步骤 | 要求 |
+|------|------|
+| Prompt | 中间件 topic 使用 `middleware_evidence`：`【根因与触发条件】` `【关键指标证据】` `【缓解与根治建议】`，禁止 Markdown `##` |
+| 复核 | `finalizeDiagnoseAnswer`：启发式校验因果（如 Redis 低内存+高碎片不得单独解释少量 rejected_connections）→ 有问题则二次 LLM 修订 |
+| 客户端 | `formatCheckAnswerText`：默认 **text** 输出，剥离 `##`、`**`、代码块 |
+| 禁止 | 未经复核直接把初稿返回用户；禁止 check 默认输出 Markdown |
+
+实现：`ft-backend/handlers/ai_diagnose_review.go`、`ai_diagnose_middleware_prompt.go`；`internal/cli/diagnose_output_format.go`。
+
 ## 参数合同 vs 能力层
 
 | 层 | 触发 | 行为 |

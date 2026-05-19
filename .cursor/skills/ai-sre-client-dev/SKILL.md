@@ -42,7 +42,15 @@ description: >-
 
 ## 诊断契约（强制）
 
-所有 `check <topic>`：**先 probe 采集，再 AI**；禁止 AI 让用户手工采集。详见 **`.cursor/skills/ai-sre-diagnosis-contract/SKILL.md`**。Redis 样板：`redis_probe.go`、`check_redis.go`。
+所有 `check <topic>`：**先 probe 采集 → 服务端 AI → 复核 → 纯文本输出**；禁止 AI 让用户手工采集。详见 **`.cursor/skills/ai-sre-diagnosis-contract/SKILL.md`**。
+
+| 环节 | 文件 |
+|------|------|
+| 采集 | `redis_probe.go`、`check_redis.go` |
+| 复核 | `ft-backend/handlers/ai_diagnose_review.go` |
+| 展示 | `internal/cli/diagnose_output_format.go`（`check` 默认 `-o text`） |
+
+**输出格式**：终端必须为纯文本小节（`【根因与触发条件】` 等），不得向用户展示 Markdown `##`。
 
 ## 安装/下载失败 → 服务端 AI（强制）
 

@@ -11,7 +11,7 @@ func TestBuildServerDiagnosePromptEvidenceRootCause(t *testing.T) {
 		"pod":             "pending",
 		"kubectl_nodes":   "NAME     STATUS\nmaster   Ready",
 	})
-	if !strings.Contains(p, "只读采集输出") {
+	if !strings.Contains(p, "只读采集输出") && !strings.Contains(p, "只读采集（原文）") {
 		head := p
 		if len(head) > 200 {
 			head = head[:200]

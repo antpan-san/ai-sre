@@ -93,6 +93,9 @@ func AIDiagnose(c *gin.Context) {
 		response.ServerError(c, "服务端 AI 诊断失败: "+err.Error())
 		return
 	}
+	if needsDiagnoseReview(topic, req.Context) {
+		answer = finalizeDiagnoseAnswer(c.Request.Context(), topic, req.Context, answer)
+	}
 	commitQuota(true)
 
 	skillName := ""
@@ -430,15 +433,35 @@ func buildServerDiagnosePromptWithSkill(topic string, kv map[string]string, matc
 		style = strings.TrimSpace(kv["diagnosis_style"])
 	}
 	switch style {
+	case "middleware_evidence":
+		return buildMiddlewareEvidencePromptWithSkill(topic, kv, matched)
 	case "evidence_root_cause":
+		if isMiddlewareEvidenceTopic(topic) && hasMiddlewareDiagnoseJSON(kv) {
+			return buildMiddlewareEvidencePromptWithSkill(topic, kv, matched)
+		}
 		return buildEvidenceRootCausePromptWithSkill(topic, kv, false, matched)
 	case "evidence_root_cause_refine":
 		return buildEvidenceRootCausePromptWithSkill(topic, kv, true, matched)
 	case "domain_connectivity":
 		return buildDomainConnectivityPromptWithSkill(topic, kv, matched)
 	default:
+		if isMiddlewareEvidenceTopic(topic) && hasMiddlewareDiagnoseJSON(kv) {
+			return buildMiddlewareEvidencePromptWithSkill(topic, kv, matched)
+		}
 		return buildDefaultServerDiagnosePromptWithSkill(topic, kv, matched)
 	}
+}
+
+func hasMiddlewareDiagnoseJSON(kv map[string]string) bool {
+	if kv == nil {
+		return false
+	}
+	for k := range kv {
+		if strings.HasSuffix(k, "_diagnose_json") {
+			return true
+		}
+	}
+	return false
 }
 
 func buildDomainConnectivityPromptWithSkill(topic string, kv map[string]string, matched *services.RegisteredSkill) string {
