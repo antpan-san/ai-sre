@@ -382,7 +382,6 @@ import { INSTALL_AI_SRE_PLACEHOLDER, getStoredAuthToken } from '../../utils/inst
 import { useMachineStore } from '../../stores/machine'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import { createCLIInstallSession, fetchAiSreCLIVersion } from '../../api/cli'
-import { useDashboardStore } from '../../stores/dashboard'
 import HostResourceRings from './HostResourceRings.vue'
 
 type BreadcrumbMetaItem = {
@@ -566,9 +565,6 @@ const formatInstallExpiresAt = (value: string) => {
   return new Date(value).toLocaleString()
 }
 
-const dashboardStore = useDashboardStore()
-let hostResourcePollTimer: ReturnType<typeof setInterval> | null = null
-
 const machineStore = useMachineStore()
 const handleMachineHeartbeatMessage = (msg: any) => {
   machineStore.handleMachineHeartbeat(msg.data)
@@ -577,40 +573,17 @@ const handleMachineStatusMessage = (msg: any) => {
   machineStore.handleMachineStatusUpdate(msg.data || [])
 }
 
-const startHostResourcePolling = () => {
-  if (!isSuperAdmin.value) {
-    stopHostResourcePolling()
-    return
-  }
-  void dashboardStore.fetchDashboardData()
-  if (hostResourcePollTimer) return
-  hostResourcePollTimer = setInterval(() => {
-    if (isSuperAdmin.value) void dashboardStore.fetchDashboardData()
-    else stopHostResourcePolling()
-  }, 60_000)
-}
-
-const stopHostResourcePolling = () => {
-  if (hostResourcePollTimer) {
-    clearInterval(hostResourcePollTimer)
-    hostResourcePollTimer = null
-  }
-}
-
 onMounted(() => {
   const userId = currentUser.value?.id || 'anonymous'
   wsService.connect(String(userId))
   void loadInstallAiSreAdvertisedVersion()
   void loadBillingCapabilities()
-  if (isSuperAdmin.value) startHostResourcePolling()
-  else stopHostResourcePolling()
 
   wsService.on('machine_heartbeat', handleMachineHeartbeatMessage)
   wsService.on('machine_status_update', handleMachineStatusMessage)
 })
 
 onUnmounted(() => {
-  stopHostResourcePolling()
   wsService.off('machine_heartbeat', handleMachineHeartbeatMessage)
   wsService.off('machine_status_update', handleMachineStatusMessage)
   wsService.disconnect()

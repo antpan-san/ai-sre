@@ -3,6 +3,12 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import NProgress from 'nprogress'
 import type { ApiResponse } from '../types'
 
+type SilentAxiosConfig = InternalAxiosRequestConfig & { silent?: boolean }
+
+function isSilentRequest(config?: InternalAxiosRequestConfig): boolean {
+  return !!(config as SilentAxiosConfig | undefined)?.silent
+}
+
 /** POST /api/auth/login（排除 login-captcha，避免 URL 误判） */
 function isAuthLoginPostURL(url: string | undefined): boolean {
   if (!url) return false
@@ -70,10 +76,10 @@ class Trae {
   private setupRequestInterceptor() {
     this.instance.interceptors.request.use(
       (config: InternalAxiosRequestConfig) => {
-        // 增加请求计数器
-        requestCount++
-        // 启动进度条
-        NProgress.start()
+        if (!isSilentRequest(config)) {
+          requestCount++
+          NProgress.start()
+        }
         
         // 从localStorage获取token
         const token = localStorage.getItem('token')
@@ -83,10 +89,11 @@ class Trae {
         return config
       },
       (error) => {
-        // 请求失败时减少计数器
-        requestCount--
-        if (requestCount <= 0) {
-          NProgress.done()
+        if (!isSilentRequest(error.config)) {
+          requestCount--
+          if (requestCount <= 0) {
+            NProgress.done()
+          }
         }
         return Promise.reject(error)
       }
@@ -98,11 +105,11 @@ class Trae {
     this.instance.interceptors.response.use(
       (response: AxiosResponse<ApiResponse>) => {
         const res = response.data
-        // 减少请求计数器
-        requestCount--
-        // 如果所有请求都完成，停止进度条
-        if (requestCount <= 0) {
-          NProgress.done()
+        if (!isSilentRequest(response.config)) {
+          requestCount--
+          if (requestCount <= 0) {
+            NProgress.done()
+          }
         }
         
         // 根据 code 判断请求是否成功（201 用于资源创建，如手动创建自动迭代任务）
@@ -127,11 +134,11 @@ class Trae {
         }
       },
       (error) => {
-        // 减少请求计数器
-        requestCount--
-        // 如果所有请求都完成，停止进度条
-        if (requestCount <= 0) {
-          NProgress.done()
+        if (!isSilentRequest(error.config)) {
+          requestCount--
+          if (requestCount <= 0) {
+            NProgress.done()
+          }
         }
         
         let errorMsg = '网络错误'
@@ -164,15 +171,19 @@ class Trae {
             default:
               errorMsg = (error.response.data as any)?.msg || '请求失败'
           }
-          if (!isLoginPost) {
+          if (!isLoginPost && !isSilentRequest(error.config)) {
             ElMessage.error(errorMsg)
           }
         } else if (error.request) {
           errorMsg = '网络连接失败，请检查网络设置'
-          ElMessage.error(errorMsg)
+          if (!isSilentRequest(error.config)) {
+            ElMessage.error(errorMsg)
+          }
         } else {
           errorMsg = error.message || '请求失败'
-          ElMessage.error(errorMsg)
+          if (!isSilentRequest(error.config)) {
+            ElMessage.error(errorMsg)
+          }
         }
         return Promise.reject(new Error(errorMsg))
       }

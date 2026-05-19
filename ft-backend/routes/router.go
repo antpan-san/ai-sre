@@ -135,6 +135,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 
 		// ---- Dashboard ----
 		protected.GET("/dashboard/data", handlers.GetDashboardData)
+		protected.GET("/dashboard/host-resources", handlers.GetDashboardHostResources)
 
 		// ---- User Management（仅管理员） ----
 		protected.GET("/auth/info", handlers.GetUserProfile)

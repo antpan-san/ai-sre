@@ -4,7 +4,7 @@
     class="host-rings"
     role="group"
     aria-label="服务端资源"
-    :class="{ 'host-rings--loading': dashboardStore.loading && !dashboardStore.dashboardData }"
+    :class="{ 'host-rings--loading': loading && !resourceUsage }"
   >
     <el-tooltip v-for="m in meters" :key="m.key" placement="bottom" :show-after="200">
       <template #content>
@@ -33,13 +33,19 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useDashboardStore } from '../../stores/dashboard'
+import { computed, onMounted, onUnmounted, ref, shallowRef } from 'vue'
+import { getDashboardHostResources } from '../../api/dashboard'
+import type { HostRuntimeMeta, ResourceUsage } from '../../types/dashboard'
 
+const POLL_MS = 5000
 const RING_R = 12
 const RING_C = 2 * Math.PI * RING_R
 
-const dashboardStore = useDashboardStore()
+const loading = ref(false)
+const resourceUsage = shallowRef<ResourceUsage | null>(null)
+const hostRuntime = shallowRef<HostRuntimeMeta | null>(null)
+let pollTimer: ReturnType<typeof setInterval> | null = null
+let inFlight = false
 
 const visible = computed(() => {
   try {
@@ -66,7 +72,7 @@ const levelOf = (pct: number) => {
 
 const hostLine = computed(() => {
   if (!visible.value) return ''
-  const h = dashboardStore.dashboardData?.hostRuntime
+  const h = hostRuntime.value
   if (!h?.hostname) return ''
   const bits = [h.hostname]
   if (h.os) bits.push(h.os)
@@ -75,12 +81,12 @@ const hostLine = computed(() => {
 
 const hostError = computed(() => {
   if (!visible.value) return ''
-  return dashboardStore.dashboardData?.hostRuntime?.error || ''
+  return hostRuntime.value?.error || ''
 })
 
 const meters = computed(() => {
   if (!visible.value) return []
-  const u = dashboardStore.dashboardData?.resourceUsage
+  const u = resourceUsage.value
   const items = [
     { key: 'cpu', short: 'CPU', label: 'CPU', value: u?.cpu ?? 0 },
     { key: 'mem', short: '内存', label: '内存', value: u?.memory ?? 0 },
@@ -91,6 +97,45 @@ const meters = computed(() => {
     level: levelOf(m.value),
     tip: `${m.label} ${m.value.toFixed(1)}%`
   }))
+})
+
+const refreshHostResources = async () => {
+  if (!visible.value || inFlight) return
+  inFlight = true
+  if (!resourceUsage.value) loading.value = true
+  try {
+    const data = await getDashboardHostResources()
+    resourceUsage.value = data.resourceUsage ?? null
+    hostRuntime.value = data.hostRuntime ?? null
+  } catch {
+    // 静默轮询：不打断页面、不弹 toast
+  } finally {
+    loading.value = false
+    inFlight = false
+  }
+}
+
+const startPolling = () => {
+  if (!visible.value || pollTimer) return
+  void refreshHostResources()
+  pollTimer = setInterval(() => {
+    void refreshHostResources()
+  }, POLL_MS)
+}
+
+const stopPolling = () => {
+  if (pollTimer) {
+    clearInterval(pollTimer)
+    pollTimer = null
+  }
+}
+
+onMounted(() => {
+  if (visible.value) startPolling()
+})
+
+onUnmounted(() => {
+  stopPolling()
 })
 </script>
 

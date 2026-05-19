@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 
+	"ft-backend/common/response"
 	"ft-backend/database"
 	"ft-backend/models"
 	"ft-backend/services"
@@ -206,32 +207,9 @@ func GetDashboardData(c *gin.Context) {
 		platformSummary["operationLogsTotal"] = totalOpLogs
 	}
 
-	resourceUsage := gin.H{
-		"cpu":    0.0,
-		"memory": 0.0,
-		"disk":   0.0,
-		"network": gin.H{
-			"in":  0,
-			"out": 0,
-		},
-	}
-	var hostRuntime gin.H
-	if models.IsSuperAdminRole(role) {
-		ctx, cancel := context.WithTimeout(c.Request.Context(), 2500*time.Millisecond)
-		hr := collectHostRuntime(ctx, 320*time.Millisecond)
-		cancel()
-		resourceUsage["cpu"] = clampPct(hr.CPU)
-		resourceUsage["memory"] = clampPct(hr.Memory)
-		resourceUsage["disk"] = clampPct(hr.Disk)
-		hostRuntime = gin.H{
-			"hostname":  hr.Hostname,
-			"sampledAt": hr.SampledAt,
-			"os":        hr.OS,
-		}
-		if hr.ErrCollect != "" {
-			hostRuntime["error"] = hr.ErrCollect
-		}
-	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2500*time.Millisecond)
+	resourceUsage, hostRuntime := buildHostResourceSnapshot(ctx, role)
+	cancel()
 
 	data := gin.H{
 		"resourceUsage":      resourceUsage,
@@ -259,4 +237,51 @@ func GetDashboardData(c *gin.Context) {
 		"msg":  "获取仪表盘数据成功",
 		"data": data,
 	})
+}
+
+func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H) {
+	resourceUsage := gin.H{
+		"cpu":     0.0,
+		"memory":  0.0,
+		"disk":    0.0,
+		"network": gin.H{"in": 0, "out": 0},
+	}
+	if !models.IsSuperAdminRole(role) {
+		return resourceUsage, nil
+	}
+	hr := collectHostRuntime(ctx, 320*time.Millisecond)
+	resourceUsage["cpu"] = clampPct(hr.CPU)
+	resourceUsage["memory"] = clampPct(hr.Memory)
+	resourceUsage["disk"] = clampPct(hr.Disk)
+	hostRuntime := gin.H{
+		"hostname":  hr.Hostname,
+		"sampledAt": hr.SampledAt,
+		"os":        hr.OS,
+	}
+	if hr.ErrCollect != "" {
+		hostRuntime["error"] = hr.ErrCollect
+	}
+	return resourceUsage, hostRuntime
+}
+
+// GetDashboardHostResources returns only host CPU/memory/disk rings data for the nav bar (super_admin).
+func GetDashboardHostResources(c *gin.Context) {
+	if _, exists := c.Get("userID"); !exists {
+		response.Unauthorized(c, "未授权")
+		return
+	}
+	roleVal, _ := c.Get("role")
+	role, _ := roleVal.(string)
+	if !models.IsSuperAdminRole(role) {
+		response.Forbidden(c, "无权查看服务端资源")
+		return
+	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 2500*time.Millisecond)
+	defer cancel()
+	resourceUsage, hostRuntime := buildHostResourceSnapshot(ctx, role)
+	out := gin.H{"resourceUsage": resourceUsage}
+	if hostRuntime != nil {
+		out["hostRuntime"] = hostRuntime
+	}
+	response.OK(c, out)
 }

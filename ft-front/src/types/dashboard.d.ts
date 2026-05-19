@@ -135,6 +135,12 @@ export interface DashboardData {
   activeAlerts?: number
 }
 
+/** 导航栏资源圆环专用（super_admin） */
+export interface DashboardHostResources {
+  resourceUsage: ResourceUsage
+  hostRuntime?: HostRuntimeMeta
+}
+
 /** 网关包装；axios 拦截器通常只返回内层 data（见 dashboard store）。 */
 export interface GetDashboardDataResponse {
   code: number
