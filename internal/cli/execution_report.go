@@ -27,6 +27,9 @@ func newExecutionReporter(programName string, args []string) *executionReporter 
 		return nil
 	}
 	apiBase := strings.TrimRight(strings.TrimSpace(os.Getenv("OPSFLEET_API_URL")), "/")
+	if apiBase == "" {
+		apiBase = strings.TrimRight(strings.TrimSpace(resolveOpsfleetAPIBase()), "/")
+	}
 	inviteID := ""
 	token := strings.TrimSpace(os.Getenv("OPSFLEET_EXECUTION_TOKEN"))
 	for _, arg := range args {
@@ -64,13 +67,19 @@ func (r *executionReporter) start() {
 	}
 	r.started = time.Now()
 	host, _ := os.Hostname()
+	target := executionTargetFromArgv(os.Args[1:])
+	if target == "" {
+		target = host
+	}
 	payload := map[string]interface{}{
 		"correlation_id":      r.correlationID,
 		"source":              r.source,
 		"category":            r.category,
 		"name":                "ai-sre " + r.category,
 		"command":             r.command,
-		"target_host":         host,
+		"target_host":         target,
+		"resource_name":       target,
+		"resource_type":       r.category,
 		"status":              "running",
 		"invite_id":           r.inviteID,
 		"token":               r.token,
@@ -131,6 +140,25 @@ func (r *executionReporter) post(path string, payload map[string]interface{}) {
 		return
 	}
 	_ = resp.Body.Close()
+}
+
+func executionTargetFromArgv(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	switch args[0] {
+	case "check", "analyze", "probe":
+		if len(args) >= 3 {
+			return strings.TrimSpace(args[2])
+		}
+		if len(args) == 2 && checkTopicAcceptsOptionalTarget(args[1]) {
+			topic := normalizeCheckTopic(args[1])
+			if spec, ok := checkTargetSpecs[topic]; ok {
+				return spec.Default
+			}
+		}
+	}
+	return ""
 }
 
 func executionCategory(args []string) string {

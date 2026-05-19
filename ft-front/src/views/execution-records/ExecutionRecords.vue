@@ -39,6 +39,8 @@
           <el-select v-model="filters.category" placeholder="类型" clearable @change="handleSearch">
             <el-option label="Go Runtime" value="go_runtime" />
             <el-option label="AI 诊断" value="analyze" />
+            <el-option label="check" value="check" />
+            <el-option label="诊断任务单" value="diagnostic_plan" />
             <el-option label="AI 问答" value="ask" />
             <el-option label="Runbook" value="runbook" />
           </el-select>
@@ -70,8 +72,8 @@
               <div class="record-pack">{{ packLabel(recordMeta(row).pack_key || recordMeta(row).skill_pack) }}</div>
             </template>
           </el-table-column>
-          <el-table-column prop="target_host" label="目标" min-width="150">
-            <template #default="{ row }">{{ row.target_host || row.resource_name || row.resource_id || '-' }}</template>
+          <el-table-column prop="target_host" label="目标" min-width="150" show-overflow-tooltip>
+            <template #default="{ row }">{{ displayExecutionTarget(row) }}</template>
           </el-table-column>
           <el-table-column prop="status" label="状态" width="100">
             <template #default="{ row }"><el-tag :type="statusType(row.status)" size="small">{{ statusLabel(row.status) }}</el-tag></template>
@@ -116,7 +118,7 @@
           <el-descriptions-item label="名称">{{ detail.record.name }}</el-descriptions-item>
           <el-descriptions-item label="状态">{{ statusLabel(detail.record.status) }}</el-descriptions-item>
           <el-descriptions-item label="来源">{{ sourceLabel(detail.record.source) }}</el-descriptions-item>
-          <el-descriptions-item label="目标">{{ detail.record.target_host || detail.record.resource_name || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="目标">{{ displayExecutionTarget(detail.record) }}</el-descriptions-item>
           <el-descriptions-item label="账号">{{ detail.record.trigger_user || detail.record.created_by || '-' }}</el-descriptions-item>
           <el-descriptions-item label="类型">{{ recordKindLabel(recordMeta(detail.record).record_kind) }}</el-descriptions-item>
           <el-descriptions-item label="开始时间">{{ formatTime(detail.record.started_at) }}</el-descriptions-item>
@@ -147,6 +149,7 @@
             <el-descriptions-item label="剩余额度">{{ quotaRemainingText(recordMeta(detail.record).quota_remaining) }}</el-descriptions-item>
             <el-descriptions-item label="认证">{{ authKindLabel(recordMeta(detail.record).auth_kind) }}</el-descriptions-item>
             <el-descriptions-item label="客户端">{{ recordMeta(detail.record).client?.version || '-' }}</el-descriptions-item>
+            <el-descriptions-item label="诊断地址">{{ displayExecutionTarget(detail.record) }}</el-descriptions-item>
           </el-descriptions>
           <pre class="detail-pre--light">{{ pretty(recordMeta(detail.record).context) }}</pre>
         </section>
@@ -239,6 +242,7 @@ import {
 } from '../../api/execution-records'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import K8sClusterPanel from '../../components/k8s/K8sClusterPanel.vue'
+import { displayExecutionTarget } from '../../utils/executionRecordDisplay'
 
 const route = useRoute()
 const router = useRouter()

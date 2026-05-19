@@ -52,8 +52,8 @@ func TestResolveOpsfleetAPIBaseAutoBindsOnCrossEnvironment(t *testing.T) {
 	if !strings.Contains(autoBindingWarn, "已自动采用 install") {
 		t.Fatalf("want auto-bind warn, got %q", autoBindingWarn)
 	}
-	if got := smartDefaultCheckTarget("redis"); got != "192.168.56.11:6379" {
-		t.Fatalf("smart redis default=%q", got)
+	if got := smartDefaultCheckTarget("redis"); got != "127.0.0.1:6379" {
+		t.Fatalf("smart redis default prefers localhost, got %q", got)
 	}
 }
 

@@ -202,6 +202,7 @@ func recordAIExecution(ident *aiIdentity, category, name, command, requestID, pa
 		return
 	}
 	now := time.Now()
+	diagTarget := executionTargetFromAIContext(ctxKV)
 	meta := map[string]interface{}{
 		"record_kind":        "ai_call",
 		"feature_key":        models.FeatureKeyAIDiagnosis,
@@ -212,6 +213,7 @@ func recordAIExecution(ident *aiIdentity, category, name, command, requestID, pa
 		"quota_used":         quotaUsedAfter(decision, status),
 		"quota_remaining":    quotaRemainingAfter(decision, status),
 		"request_id":         strings.TrimSpace(requestID),
+		"diagnosis_target":   diagTarget,
 		"context":            summarizeAIContext(ctxKV),
 		"client": gin.H{
 			"version":          strings.TrimSpace(client.Version),
@@ -239,6 +241,9 @@ func recordAIExecution(ident *aiIdentity, category, name, command, requestID, pa
 		Status:             status,
 		CreatedBy:          ident.Username,
 		TriggerUser:        ident.Username,
+		TargetHost:         limitText(diagTarget, 200),
+		ResourceName:       limitText(diagTarget, 200),
+		ResourceType:       category,
 		StartedAt:          &now,
 		FinishedAt:         &now,
 		DurationMs:         0,
@@ -293,14 +298,33 @@ func summarizeAIContext(kv map[string]string) map[string]interface{} {
 	}
 	keys := make([]string, 0, len(kv))
 	total := 0
+	scalars := map[string]string{}
 	for k, v := range kv {
 		keys = append(keys, k)
 		total += len(k) + len(v)
+		if isSafeContextScalarKey(k) {
+			scalars[k] = limitText(v, 256)
+		}
 	}
 	sort.Strings(keys)
 	out["keys"] = keys
 	out["bytes"] = total
+	if len(scalars) > 0 {
+		out["scalars"] = scalars
+	}
+	if t := executionTargetFromAIContext(kv); t != "" {
+		out["diagnosis_target"] = t
+	}
 	return out
+}
+
+func isSafeContextScalarKey(k string) bool {
+	switch strings.ToLower(strings.TrimSpace(k)) {
+	case "addr", "target", "bootstrap", "bootstrap_server", "dsn", "url", "base_url", "domain", "host", "port", "topic", "namespace", "pod":
+		return true
+	default:
+		return false
+	}
 }
 
 func decodeJSONMap(v models.JSONB) map[string]interface{} {

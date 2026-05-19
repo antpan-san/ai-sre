@@ -22,7 +22,7 @@ func TestApplyCheckTargetContextRedisDefault(t *testing.T) {
 	}
 }
 
-func TestApplyCheckTargetContextRedisSmartDefaultFromInstall(t *testing.T) {
+func TestApplyCheckTargetContextRedisPrefersLocalhost(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	cfg := filepath.Join(dir, ".config", "ai-sre")
@@ -32,12 +32,10 @@ func TestApplyCheckTargetContextRedisSmartDefaultFromInstall(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cfg, "opsfleet_api_url"), []byte(EmbeddedOpsfleetAPIBase+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	autoBindingWarn = ""
-	autoBindingWarnShown = false
 	ctx := map[string]string{}
 	applyCheckTargetContext(ctx, "redis", []string{"redis"})
-	if ctx["addr"] != "192.168.56.11:6379" {
-		t.Fatalf("addr=%q", ctx["addr"])
+	if ctx["addr"] != "127.0.0.1:6379" {
+		t.Fatalf("addr=%q want localhost redis", ctx["addr"])
 	}
 }
 

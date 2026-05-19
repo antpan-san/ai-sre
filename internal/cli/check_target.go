@@ -125,8 +125,32 @@ func setCheckContextKey(ctx map[string]string, key, value string) {
 	ctx[key] = value
 }
 
-// smartDefaultCheckTarget derives middleware targets from the bound OpsFleet console host (no user env).
+// smartDefaultCheckTarget prefers local middleware on the current host, then OpsFleet install host.
 func smartDefaultCheckTarget(topic string) string {
+	if local := localhostMiddlewareTarget(topic); local != "" {
+		return local
+	}
+	return opsfleetHostMiddlewareTarget(topic)
+}
+
+func localhostMiddlewareTarget(topic string) string {
+	switch topic {
+	case "redis":
+		return "127.0.0.1:6379"
+	case "kafka":
+		return "127.0.0.1:9092"
+	case "mysql":
+		return "root@tcp(127.0.0.1:3306)/"
+	case "postgresql":
+		return "postgres://127.0.0.1:5432/postgres?sslmode=disable"
+	case "elasticsearch":
+		return "http://127.0.0.1:9200"
+	default:
+		return ""
+	}
+}
+
+func opsfleetHostMiddlewareTarget(topic string) string {
 	host := opsfleetConsoleHost()
 	if host == "" {
 		return ""

@@ -98,7 +98,11 @@ func runRedisDiagnose(opts redisDiagnoseOptions) *redisDiagnoseReport {
 	}
 	info, err := redisReadBulkString(r)
 	if err != nil {
-		report.Errors = append(report.Errors, "INFO 读取失败: "+err.Error())
+		msg := "INFO 读取失败: " + err.Error()
+		if opts.Password == "" && strings.Contains(strings.ToUpper(err.Error()), "NOAUTH") {
+			msg += "；该地址上的 Redis 需要密码，或并非本机实例（本机无密码时请用 check redis 或 check redis 127.0.0.1）"
+		}
+		report.Errors = append(report.Errors, msg)
 		return report
 	}
 	kv := parseRedisInfo(info)

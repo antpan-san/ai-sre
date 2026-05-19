@@ -206,7 +206,9 @@
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column prop="targetHost" label="目标" min-width="96" show-overflow-tooltip />
+            <el-table-column label="目标" min-width="120" show-overflow-tooltip>
+              <template #default="scope">{{ displayExecutionTarget(scope.row) }}</template>
+            </el-table-column>
             <el-table-column prop="finishedAt" label="结束" width="132" show-overflow-tooltip>
               <template #default="scope">{{ formatTs(scope.row.finishedAt) }}</template>
             </el-table-column>
@@ -227,6 +229,7 @@ import { ElMessage } from 'element-plus'
 import { RefreshRight } from '@element-plus/icons-vue'
 import { useDashboardStore } from '../stores/dashboard'
 import type { DashboardData } from '../types/dashboard'
+import { displayExecutionTarget } from '../utils/executionRecordDisplay'
 
 const dashboardStore = useDashboardStore()
 const router = useRouter()
