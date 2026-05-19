@@ -240,17 +240,30 @@
             trigger="hover"
             :show-after="180"
             popper-class="install-ai-sre-popover"
+            @show="loadInstallAiSreAdvertisedVersion"
           >
             <template #reference>
-              <button type="button" class="install-ai-sre-trigger" aria-haspopup="true" aria-label="安装 ai-sre，悬停显示命令">
+              <button
+                type="button"
+                class="install-ai-sre-trigger"
+                aria-haspopup="true"
+                :aria-label="installAiSreTriggerAriaLabel"
+              >
                 <el-icon :size="18"><Download /></el-icon>
-                <span class="install-ai-sre-trigger__text">安装 ai-sre</span>
+                <span class="install-ai-sre-trigger__text">
+                  安装 ai-sre
+                  <span v-if="installAiSreAdvertisedVersion" class="install-ai-sre-trigger__ver">v{{ installAiSreAdvertisedVersion }}</span>
+                </span>
                 <el-icon class="install-ai-sre-trigger__caret" :size="12"><ArrowDown /></el-icon>
               </button>
             </template>
             <div class="install-ai-sre-panel">
               <p class="install-ai-sre-panel__desc">
-                生成一次性安装命令，15 分钟内在控制机执行。安装后写入专用 CLI token，并绑定当前账号与机器指纹。
+                当前控制台分发的 CLI 版本：
+                <strong v-if="installAiSreAdvertisedVersion">v{{ installAiSreAdvertisedVersion }}</strong>
+                <span v-else-if="installAiSreVersionLoading">加载中…</span>
+                <span v-else>未知（请检查 bin/ai-sre 与 OPSFLEET_AISRE_BINARY_PATH）</span>。
+                生成一次性安装命令，15 分钟内在控制机执行；安装后写入专用 CLI token，并绑定当前账号与机器指纹。
               </p>
               <el-input
                 class="install-ai-sre-panel__input"
@@ -346,7 +359,7 @@ import { copyTextToClipboard } from '../../utils/clipboard'
 import { INSTALL_AI_SRE_PLACEHOLDER, getStoredAuthToken } from '../../utils/installAiSre'
 import { useMachineStore } from '../../stores/machine'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
-import { createCLIInstallSession } from '../../api/cli'
+import { createCLIInstallSession, fetchAiSreCLIVersion } from '../../api/cli'
 import { useDashboardStore } from '../../stores/dashboard'
 import HostResourceRings from './HostResourceRings.vue'
 
@@ -458,7 +471,24 @@ const brandShort = computed(() => 'OP')
 const installAiSreCommand = ref('')
 const installAiSreExpiresAt = ref('')
 const installAiSreGenerating = ref(false)
+const installAiSreAdvertisedVersion = ref('')
+const installAiSreVersionLoading = ref(false)
 const installAiSreCommandHasToken = computed(() => !!getStoredAuthToken())
+const installAiSreTriggerAriaLabel = computed(() => {
+  const ver = installAiSreAdvertisedVersion.value
+  return ver ? `安装 ai-sre v${ver}，悬停显示命令` : '安装 ai-sre，悬停显示命令'
+})
+
+const loadInstallAiSreAdvertisedVersion = async () => {
+  if (installAiSreVersionLoading.value) return
+  installAiSreVersionLoading.value = true
+  try {
+    const info = await fetchAiSreCLIVersion()
+    installAiSreAdvertisedVersion.value = info?.version?.trim() || ''
+  } finally {
+    installAiSreVersionLoading.value = false
+  }
+}
 
 const featureVisible = (featureKey: string) => {
   const row = capabilityByFeature.value[featureKey]
@@ -540,6 +570,7 @@ const stopHostResourcePolling = () => {
 onMounted(() => {
   const userId = currentUser.value?.id || 'anonymous'
   wsService.connect(String(userId))
+  void loadInstallAiSreAdvertisedVersion()
   void loadBillingCapabilities()
   if (isSuperAdmin.value) startHostResourcePolling()
   else stopHostResourcePolling()
@@ -903,10 +934,20 @@ const handleLogout = () => {
 }
 
 .install-ai-sre-trigger__text {
-  max-width: 200px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.install-ai-sre-trigger__ver {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--el-color-primary);
+  flex-shrink: 0;
 }
 
 .install-ai-sre-trigger__caret {

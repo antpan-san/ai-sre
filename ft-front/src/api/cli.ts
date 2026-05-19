@@ -1,4 +1,5 @@
 import request from '../utils/request'
+export { fetchAiSreCLIVersion, type AiSreCLIVersionInfo } from '../utils/aiSreCliVersion'
 
 export interface CLIInstallSession {
   command: string

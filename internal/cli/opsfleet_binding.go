@@ -27,6 +27,7 @@ func ensureUpgradeBeforeOpsfleetAPI() {
 	}
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] 检查 OpsFleet 版本更新（%s）…\n", progName, base)
 	_ = tryAutoUpgradeInPlace("")
+	reportUpgradeCheckResult("")
 }
 
 func validateOpsfleetCredentials() error {

@@ -735,11 +735,18 @@ func GetAiSreCLIVersion(c *gin.Context) {
 		})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{
+	out := gin.H{
 		"name":    "ai-sre",
 		"version": ver,
 		"ok":      true,
-	})
+	}
+	if p != "" {
+		out["binary_path"] = p
+	}
+	if envVer := strings.TrimSpace(config.ResolvedAISreVersion()); envVer != "" {
+		out["env_version"] = envVer
+	}
+	c.JSON(http.StatusOK, out)
 }
 
 // DownloadAiSreCLI 公开：下载已配置的 ai-sre Linux 二进制；?arch= 与 ELF 必须一致。

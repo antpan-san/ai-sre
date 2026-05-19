@@ -77,6 +77,31 @@ func upgradeCheckVerbose() bool {
 	return os.Getenv("OPSFLEET_AUTO_UPGRADE_VERBOSE") == "1" || os.Getenv("OPSFLEET_UPGRADE_CHECK_VERBOSE") == "1"
 }
 
+// reportUpgradeCheckResult 在自动升级尝试后打印本地与 GET .../cli/ai-sre/version 的对比，便于排查「服务端已升但客户端未拉取」。
+func reportUpgradeCheckResult(preferredBase string) {
+	if os.Getenv("OPSFLEET_NO_AUTO_UPGRADE") == "1" && !upgradeCheckVerbose() {
+		return
+	}
+	remote, base, err := fetchRemoteVersionFast(preferredBase)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 版本检查失败: %v\n", progName, err)
+		return
+	}
+	if base == "" || remote == "" || remote == "unknown" {
+		return
+	}
+	switch {
+	case versionIsOlder(Version, remote):
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 控制台分发版 %s 高于本机 %s（%s），若未自动升级请执行: %s upgrade\n",
+			progName, remote, Version, base, progName)
+	case versionIsOlder(remote, Version):
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 本机 %s 高于控制台分发版 %s（%s）；不会从服务端降级。请在该环境部署 bin/ai-sre 或换用对应 API 基址\n",
+			progName, Version, remote, base)
+	default:
+		_, _ = fmt.Fprintf(os.Stderr, "[%s] 版本已对齐：%s（%s）\n", progName, Version, base)
+	}
+}
+
 // tryAutoUpgradeInPlace 有更新时覆盖正在运行的可执行文件并（Unix）exec 同 argv，使本次命令在**新版本**中重新执行一次。
 func tryAutoUpgradeInPlace(preferredBase string) error {
 	remote, base, err := fetchRemoteVersionFast(preferredBase)
