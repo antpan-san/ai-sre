@@ -198,7 +198,7 @@
     </aside>
 
     <div class="main-shell" :class="{ 'main-shell--collapsed': isCollapse }">
-      <header class="layout-header">
+      <header class="layout-header" :class="{ 'layout-header--with-rings': isSuperAdmin }">
         <div class="layout-header-left">
           <div class="breadcrumb-wrap">
             <el-breadcrumb separator="/" class="custom-breadcrumb header-breadcrumb">
@@ -223,7 +223,7 @@
             </el-breadcrumb>
           </div>
         </div>
-        <HostMetricsRings v-if="isAdminShell && isAdminUser" class="layout-header-metrics" />
+        <HostResourceRings v-if="isSuperAdmin" class="layout-header-center" />
         <div class="layout-header-right">
           <router-link
             :to="{ path: errorCodesPath }"
@@ -345,9 +345,10 @@ import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
 import { INSTALL_AI_SRE_PLACEHOLDER, getStoredAuthToken } from '../../utils/installAiSre'
 import { useMachineStore } from '../../stores/machine'
+import { useDashboardStore } from '../../stores/dashboard'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import { createCLIInstallSession } from '../../api/cli'
-import HostMetricsRings from './HostMetricsRings.vue'
+import HostResourceRings from './HostResourceRings.vue'
 
 type BreadcrumbMetaItem = {
   title: string
@@ -497,6 +498,9 @@ const formatInstallExpiresAt = (value: string) => {
   return new Date(value).toLocaleString()
 }
 
+const dashboardStore = useDashboardStore()
+let hostResourcePollTimer: ReturnType<typeof setInterval> | null = null
+
 const machineStore = useMachineStore()
 const handleMachineHeartbeatMessage = (msg: any) => {
   machineStore.handleMachineHeartbeat(msg.data)
@@ -505,16 +509,39 @@ const handleMachineStatusMessage = (msg: any) => {
   machineStore.handleMachineStatusUpdate(msg.data || [])
 }
 
+const startHostResourcePolling = () => {
+  if (!isSuperAdmin.value) {
+    stopHostResourcePolling()
+    return
+  }
+  void dashboardStore.fetchDashboardData()
+  if (hostResourcePollTimer) return
+  hostResourcePollTimer = setInterval(() => {
+    if (isSuperAdmin.value) void dashboardStore.fetchDashboardData()
+    else stopHostResourcePolling()
+  }, 60_000)
+}
+
+const stopHostResourcePolling = () => {
+  if (hostResourcePollTimer) {
+    clearInterval(hostResourcePollTimer)
+    hostResourcePollTimer = null
+  }
+}
+
 onMounted(() => {
   const userId = currentUser.value?.id || 'anonymous'
   wsService.connect(String(userId))
   void loadBillingCapabilities()
+  if (isSuperAdmin.value) startHostResourcePolling()
+  else stopHostResourcePolling()
 
   wsService.on('machine_heartbeat', handleMachineHeartbeatMessage)
   wsService.on('machine_status_update', handleMachineStatusMessage)
 })
 
 onUnmounted(() => {
+  stopHostResourcePolling()
   wsService.off('machine_heartbeat', handleMachineHeartbeatMessage)
   wsService.off('machine_status_update', handleMachineStatusMessage)
   wsService.disconnect()
@@ -754,19 +781,31 @@ const handleLogout = () => {
   border-bottom: 1px solid var(--el-border-color-light);
 }
 
+.layout-header--with-rings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+}
+
+.layout-header--with-rings .layout-header-left {
+  justify-self: start;
+}
+
+.layout-header--with-rings .layout-header-center {
+  justify-self: center;
+}
+
+.layout-header--with-rings .layout-header-right {
+  justify-self: end;
+}
+
 .layout-header-left {
   flex: 1;
   min-width: 0;
 }
 
-.layout-header-metrics {
+.layout-header-center {
   flex-shrink: 0;
-}
-
-@media (max-width: 960px) {
-  .layout-header-metrics {
-    display: none;
-  }
 }
 
 .breadcrumb-wrap {
