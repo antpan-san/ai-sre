@@ -96,14 +96,27 @@ func (AutoIterationSettings) TableName() string { return "auto_iteration_setting
 
 type AutoIterationFeedback struct {
 	BaseModel
-	UserID       uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
-	CLIBindingID *uuid.UUID `gorm:"type:uuid;index" json:"cli_binding_id,omitempty"`
-	Topic        string     `gorm:"size:80;index" json:"topic"`
-	Classification string   `gorm:"size:64;index" json:"classification"`
-	NeedIteration bool      `gorm:"not null;default:false" json:"need_iteration"`
-	UserMessage  string     `gorm:"size:2000" json:"user_message"`
-	RawPayload   JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"-"`
-	AutoIterationID *uuid.UUID `gorm:"type:uuid;index" json:"auto_iteration_id,omitempty"`
+	UserID              uuid.UUID  `gorm:"type:uuid;not null;index" json:"user_id"`
+	CLIBindingID        *uuid.UUID `gorm:"type:uuid;index" json:"cli_binding_id,omitempty"`
+	Topic               string     `gorm:"size:80;index" json:"topic"`
+	Classification      string     `gorm:"size:64;index" json:"classification"`
+	NeedIteration       bool       `gorm:"not null;default:false" json:"need_iteration"`
+	UserMessage         string     `gorm:"size:2000" json:"user_message"`
+	Source              string     `gorm:"size:32;index" json:"source,omitempty"`
+	RequestID           string     `gorm:"size:64;index" json:"request_id,omitempty"`
+	ExecutionID         string     `gorm:"size:64;index" json:"execution_id,omitempty"`
+	Command             string     `gorm:"size:2000" json:"command,omitempty"`
+	Summary             string     `gorm:"size:2000" json:"summary,omitempty"`
+	SkillName           string     `gorm:"size:160" json:"skill_name,omitempty"`
+	Helpful             *bool      `json:"helpful,omitempty"`
+	RuleHit             *bool      `json:"rule_hit,omitempty"`
+	UsedAI              *bool      `json:"used_ai,omitempty"`
+	EvidenceCompleteness string    `gorm:"size:32" json:"evidence_completeness,omitempty"`
+	RootCauseDigest     string     `gorm:"size:64" json:"root_cause_digest,omitempty"`
+	RecommendationDigest string    `gorm:"size:64" json:"recommendation_digest,omitempty"`
+	EvidenceDigest      string     `gorm:"size:64" json:"evidence_digest,omitempty"`
+	RawPayload          JSONB      `gorm:"type:jsonb;not null;default:'{}'" json:"-"`
+	AutoIterationID     *uuid.UUID `gorm:"type:uuid;index" json:"auto_iteration_id,omitempty"`
 }
 
 func (AutoIterationFeedback) TableName() string { return "auto_iteration_feedbacks" }

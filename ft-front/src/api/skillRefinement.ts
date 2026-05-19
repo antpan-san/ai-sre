@@ -46,11 +46,16 @@ export interface AutoIterationFeedbackItem {
   need_iteration?: boolean
   user_message?: string
   auto_iteration_id?: string
+  source?: string
   request_id?: string
   execution_id?: string
   command?: string
   summary?: string
+  skill_name?: string
   helpful?: boolean
+  rule_hit?: boolean
+  used_ai?: boolean
+  evidence_completeness?: string
 }
 
 export function listAdminAutoIterationFeedbacks(limit = 50) {

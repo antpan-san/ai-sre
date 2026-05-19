@@ -479,7 +479,11 @@ func (r *SkillRegistry) AppendSample(s DiagnoseSample) error {
 		topic = "_unknown"
 	}
 	full := filepath.Join(dir, "samples", topic+".jsonl")
-	return appendJSONLine(full, s)
+	if err := appendJSONLine(full, s); err != nil {
+		return err
+	}
+	_ = persistDiagnoseSamplePG(s)
+	return nil
 }
 
 // AppendFeedback writes a feedback line to feedback/<topic>.jsonl.
@@ -501,6 +505,12 @@ func (r *SkillRegistry) AppendFeedback(f SkillFeedback) error {
 
 // ReadRecentSamples returns up to n most recent diagnose samples for a topic.
 func (r *SkillRegistry) ReadRecentSamples(topic string, n int) ([]DiagnoseSample, error) {
+	if diagnoseSamplePGEnabled() {
+		rows, err := readDiagnoseSamplesPG(topic, n, time.Time{})
+		if err == nil && len(rows) > 0 {
+			return rows, nil
+		}
+	}
 	dir := r.DataDir()
 	if dir == "" {
 		return nil, nil

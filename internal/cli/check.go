@@ -218,6 +218,12 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 		fmt.Println(answer)
 	}
 
+	rootCause, evidenceLines, recLines := splitAnswerSections(diag)
+	if rootCause == "" {
+		rootCause = strings.TrimSpace(diag.Answer)
+	}
+	recSummary := strings.Join(recLines, "; ")
+
 	finishMeta := map[string]interface{}{
 		"topic":        topic,
 		"target":       target,
@@ -226,7 +232,15 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 		"ai_source":    aiSourceLabel(diag),
 		"skill_name":   diag.SkillName,
 		"skill_pack":   diag.SkillName,
-		"summary":      truncateBytes(strings.TrimSpace(diag.Answer), 400),
+		"root_cause":   truncateBytes(rootCause, 800),
+		"summary":      truncateBytes(rootCause, 400),
+	}
+	if len(evidenceLines) > 0 {
+		finishMeta["evidence"] = evidenceLines
+	}
+	if len(recLines) > 0 {
+		finishMeta["recommendations"] = recLines
+		finishMeta["recommendation_summary"] = truncateBytes(recSummary, 400)
 	}
 	if diag.Metadata != nil {
 		if r, ok := diag.Metadata["skill_enhancement_review"].(map[string]interface{}); ok {
@@ -237,16 +251,17 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	MergeExecutionFinishMeta(finishMeta)
 
 	sampleIn := skillSampleReportInput{
-		Topic:                topic,
-		Target:               target,
-		Command:              cmd.CommandPath() + " " + strings.Join(args, " "),
-		Context:              cloneStringMap(ctx),
-		EvidenceCompleteness: evidenceCompletenessForContext(ctx),
-		RuleHit:              strings.EqualFold(strings.TrimSpace(diag.Source), "local-rule"),
-		UsedAI:               usedAI,
-		RootCauseSummary:     strings.TrimSpace(diag.Answer),
-		SkillName:            diag.SkillName,
-		Status:               "success",
+		Topic:                 topic,
+		Target:                target,
+		Command:               cmd.CommandPath() + " " + strings.Join(args, " "),
+		Context:               cloneStringMap(ctx),
+		EvidenceCompleteness:  evidenceCompletenessForContext(ctx),
+		RuleHit:               strings.EqualFold(strings.TrimSpace(diag.Source), "local-rule"),
+		UsedAI:                usedAI,
+		RootCauseSummary:      rootCause,
+		RecommendationSummary: recSummary,
+		SkillName:             diag.SkillName,
+		Status:                "success",
 	}
 	if diag.Metadata != nil {
 		if rid, _ := diag.Metadata["request_id"].(string); rid != "" {

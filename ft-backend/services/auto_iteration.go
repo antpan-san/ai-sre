@@ -570,8 +570,8 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 		Classification: classification,
 		NeedIteration:  needIteration,
 		UserMessage:    userMessage,
-		RawPayload:     models.NewJSONBFromMap(enrichFeedbackPayload(topic, command, summary, payload)),
 	}
+	populateAutoIterationFeedbackFields(&fb, inferFeedbackSource(payload), topic, command, summary, payload)
 	if err := database.DB.Create(&fb).Error; err != nil {
 		return nil, err
 	}

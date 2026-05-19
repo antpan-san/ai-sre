@@ -120,7 +120,13 @@ func PostAISreExecutionFeedback(c *gin.Context) {
 	role, _ := roleVal.(string)
 	userVal, _ := c.Get("username")
 	username, _ := userVal.(string)
-	out, err := services.SubmitExecutionSkillFeedback(id, role, username, req.Helpful, req.Note)
+	userID := uuid.Nil
+	if uidVal, ok := c.Get("userID"); ok {
+		if uid, ok := uidVal.(uuid.UUID); ok {
+			userID = uid
+		}
+	}
+	out, err := services.SubmitExecutionSkillFeedback(id, userID, role, username, req.Helpful, req.Note)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			response.NotFound(c, "执行记录不存在或无权操作")

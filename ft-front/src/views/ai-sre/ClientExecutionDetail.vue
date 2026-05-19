@@ -70,7 +70,15 @@
           <span class="feedback-label">本次诊断是否有帮助？</span>
           <el-button size="small" type="success" :loading="feedbackLoading" @click="submitFeedback(true)">有用</el-button>
           <el-button size="small" type="warning" :loading="feedbackLoading" @click="submitFeedback(false)">无用</el-button>
-          <el-button size="small" link type="primary" @click="copySummary">复制结论</el-button>
+        </div>
+        <div class="copy-actions">
+          <span class="feedback-label">复制内容</span>
+          <el-button size="small" link type="primary" @click="copyRootCause">根因</el-button>
+          <el-button size="small" link type="primary" :disabled="!diagnosisRecommendations.length" @click="copyRecommendations">修复建议</el-button>
+          <el-button size="small" link type="primary" :disabled="!diagnosisEvidence.length" @click="copyEvidence">关键证据</el-button>
+          <el-button size="small" link type="primary" :disabled="!enhancementRecommendations.length" @click="copyEnhancementRecs">沉淀建议</el-button>
+          <el-button size="small" link type="primary" :disabled="!enhancementActions.length" @click="copyEnhancementActions">建议动作</el-button>
+          <el-button size="small" link type="primary" @click="copyFullReport">完整结论</el-button>
         </div>
       </el-card>
 
@@ -194,6 +202,78 @@ const enhancementActions = computed(() => {
   return Array.isArray(v) ? v.map(String) : []
 })
 
+const diagnosisRootCause = computed(() =>
+  String(meta.value.root_cause || meta.value.summary || rec.value.stdout_summary || '').trim()
+)
+
+const diagnosisRecommendations = computed(() => {
+  const v = meta.value.recommendations
+  if (Array.isArray(v) && v.length) return v.map(String).filter(Boolean)
+  const summary = String(meta.value.recommendation_summary || '').trim()
+  if (summary) return summary.split(/[;\n]/).map((s) => s.trim()).filter(Boolean)
+  return parseSectionFromStdout(rec.value.stdout_summary as string, '修复建议')
+})
+
+const diagnosisEvidence = computed(() => {
+  const v = meta.value.evidence
+  if (Array.isArray(v) && v.length) return v.map(String).filter(Boolean)
+  return parseSectionFromStdout(rec.value.stdout_summary as string, '关键证据')
+})
+
+const parseSectionFromStdout = (text: string, title: string): string[] => {
+  const raw = String(text || '')
+  if (!raw) return []
+  const marker = `【${title}】`
+  const idx = raw.indexOf(marker)
+  if (idx < 0) return []
+  const rest = raw.slice(idx + marker.length)
+  const next = rest.search(/\n【[^】]+】/)
+  const block = (next >= 0 ? rest.slice(0, next) : rest).trim()
+  return block
+    .split('\n')
+    .map((line) => line.replace(/^[-*]\s*/, '').trim())
+    .filter(Boolean)
+}
+
+const copyText = async (text: string, label: string) => {
+  if (!text.trim()) {
+    ElMessage.warning(`无可复制的${label}`)
+    return
+  }
+  try {
+    await copyTextToClipboard(text)
+    ElMessage.success(`已复制${label}`)
+  } catch {
+    ElMessage.error('复制失败')
+  }
+}
+
+const copyRootCause = () => void copyText(diagnosisRootCause.value, '根因')
+const copyRecommendations = () => void copyText(diagnosisRecommendations.value.map((l) => `- ${l}`).join('\n'), '修复建议')
+const copyEvidence = () => void copyText(diagnosisEvidence.value.map((l) => `- ${l}`).join('\n'), '关键证据')
+const copyEnhancementRecs = () => void copyText(enhancementRecommendations.value.map((l) => `- ${l}`).join('\n'), '沉淀建议')
+const copyEnhancementActions = () => void copyText(enhancementActions.value.map((l) => `- ${l}`).join('\n'), '建议动作')
+
+const copyFullReport = async () => {
+  const parts: string[] = []
+  if (diagnosisRootCause.value) {
+    parts.push('【根因结论】', diagnosisRootCause.value)
+  }
+  if (diagnosisEvidence.value.length) {
+    parts.push('', '【关键证据】', ...diagnosisEvidence.value.map((l) => `- ${l}`))
+  }
+  if (diagnosisRecommendations.value.length) {
+    parts.push('', '【修复建议】', ...diagnosisRecommendations.value.map((l) => `- ${l}`))
+  }
+  if (enhancementRecommendations.value.length) {
+    parts.push('', '【建议沉淀】', ...enhancementRecommendations.value.map((l) => `- ${l}`))
+  }
+  if (enhancementActions.value.length) {
+    parts.push('', '【建议动作】', ...enhancementActions.value.map((l) => `- ${l}`))
+  }
+  await copyText(parts.join('\n'), '完整结论')
+}
+
 const load = async () => {
   const id = String(route.params.id || '')
   if (!id) return
@@ -219,20 +299,6 @@ const submitFeedback = async (helpful: boolean) => {
     ElMessage.error('反馈提交失败')
   } finally {
     feedbackLoading.value = false
-  }
-}
-
-const copySummary = async () => {
-  const text = String(meta.value.root_cause || meta.value.summary || rec.value.stdout_summary || '').trim()
-  if (!text) {
-    ElMessage.warning('无可复制结论')
-    return
-  }
-  try {
-    await copyTextToClipboard(text)
-    ElMessage.success('已复制结论')
-  } catch {
-    ElMessage.error('复制失败')
   }
 }
 
@@ -345,6 +411,13 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
   margin-top: 12px;
+}
+.copy-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 8px;
 }
 .feedback-label {
   font-size: 13px;

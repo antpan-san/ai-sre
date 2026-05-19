@@ -1046,6 +1046,47 @@ CREATE TABLE IF NOT EXISTS auto_iteration_feedbacks (
 );
 CREATE INDEX IF NOT EXISTS idx_auto_iteration_feedbacks_user ON auto_iteration_feedbacks(user_id);
 
+CREATE TABLE IF NOT EXISTS diagnose_samples (
+    id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    tenant_id             UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,
+    sample_time           TIMESTAMPTZ NOT NULL,
+    topic                 VARCHAR(80) NOT NULL,
+    sample_source         VARCHAR(32),
+    command_kind          VARCHAR(32),
+    skill_name            VARCHAR(160),
+    request_id            VARCHAR(64),
+    execution_id          VARCHAR(64),
+    used_ai               BOOLEAN NOT NULL DEFAULT FALSE,
+    rule_hit              BOOLEAN NOT NULL DEFAULT FALSE,
+    evidence_completeness VARCHAR(32),
+    root_cause_digest     VARCHAR(64),
+    recommendation_digest VARCHAR(64),
+    payload               JSONB NOT NULL DEFAULT '{}',
+    created_at            TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at            TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_diagnose_samples_topic_time ON diagnose_samples(topic, sample_time DESC);
+CREATE INDEX IF NOT EXISTS idx_diagnose_samples_execution ON diagnose_samples(execution_id);
+CREATE INDEX IF NOT EXISTS idx_diagnose_samples_root_digest ON diagnose_samples(topic, root_cause_digest);
+
+ALTER TABLE auto_iteration_feedbacks
+    ADD COLUMN IF NOT EXISTS source VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS request_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS execution_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS command VARCHAR(2000),
+    ADD COLUMN IF NOT EXISTS summary VARCHAR(2000),
+    ADD COLUMN IF NOT EXISTS skill_name VARCHAR(160),
+    ADD COLUMN IF NOT EXISTS helpful BOOLEAN,
+    ADD COLUMN IF NOT EXISTS rule_hit BOOLEAN,
+    ADD COLUMN IF NOT EXISTS used_ai BOOLEAN,
+    ADD COLUMN IF NOT EXISTS evidence_completeness VARCHAR(32),
+    ADD COLUMN IF NOT EXISTS root_cause_digest VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS recommendation_digest VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS evidence_digest VARCHAR(64);
+CREATE INDEX IF NOT EXISTS idx_auto_iteration_feedbacks_created_at ON auto_iteration_feedbacks(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_auto_iteration_feedbacks_source ON auto_iteration_feedbacks(source);
+CREATE INDEX IF NOT EXISTS idx_auto_iteration_feedbacks_execution ON auto_iteration_feedbacks(execution_id);
+
 CREATE TABLE IF NOT EXISTS code_agent_bindings (
     id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     tenant_id           UUID NOT NULL DEFAULT '00000000-0000-0000-0000-000000000001'::uuid,

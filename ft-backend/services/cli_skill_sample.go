@@ -153,9 +153,15 @@ func IngestCLISkillSample(userID uuid.UUID, in CLISkillSampleInput) (*CLISkillSa
 	}
 
 	metaPatch := map[string]interface{}{
-		"skill_sample_recorded":      true,
-		"skill_sample_classification":  classification,
-		"skill_sample_similar_count":   similar,
+		"skill_sample_recorded":       true,
+		"skill_sample_classification": classification,
+		"skill_sample_similar_count":  similar,
+	}
+	if rc := strings.TrimSpace(in.RootCauseSummary); rc != "" {
+		metaPatch["root_cause"] = limitAuditText(rc, 800)
+	}
+	if rs := strings.TrimSpace(in.RecommendationSummary); rs != "" {
+		metaPatch["recommendation_summary"] = limitAuditText(rs, 400)
 	}
 	if review.NeedsEnhancement {
 		metaPatch["skill_enhancement_review"] = reviewToMap(review)
@@ -296,14 +302,20 @@ func maybeCreateSkillRefineAutoIteration(userID uuid.UUID, in CLISkillSampleInpu
 }
 
 func countSimilarCLISamples(reg *SkillRegistry, topic, digest string, window time.Duration) int {
-	if reg == nil || digest == "" {
+	if digest == "" {
+		return 0
+	}
+	cutoff := time.Now().UTC().Add(-window)
+	if n := countSimilarDiagnoseSamplesPG(topic, digest, cutoff); n > 0 {
+		return n
+	}
+	if reg == nil {
 		return 0
 	}
 	samples, err := reg.ReadRecentSamples(topic, 200)
 	if err != nil {
 		return 0
 	}
-	cutoff := time.Now().UTC().Add(-window)
 	n := 0
 	for _, s := range samples {
 		if s.Time.Before(cutoff) {

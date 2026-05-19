@@ -118,6 +118,7 @@
             <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
           </el-table-column>
           <el-table-column prop="topic" label="Topic" width="96" />
+          <el-table-column prop="source" label="来源" width="100" show-overflow-tooltip />
           <el-table-column prop="classification" label="分类" width="140" show-overflow-tooltip />
           <el-table-column label="有用" width="72" align="center">
             <template #default="{ row }">

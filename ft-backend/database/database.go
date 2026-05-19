@@ -109,6 +109,7 @@ func Migrate() error {
 		&models.AutoIterationEvent{},
 		&models.AutoIterationSettings{},
 		&models.AutoIterationFeedback{},
+		&models.DiagnoseSampleRecord{},
 		&models.CodeAgentBinding{},
 		&models.UserSkillUnlock{},
 		&models.DiagnosticPlan{},

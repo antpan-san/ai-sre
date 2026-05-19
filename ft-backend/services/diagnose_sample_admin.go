@@ -32,6 +32,23 @@ func ListDiagnoseSamples(reg *SkillRegistry, topic string, limit int, since time
 	if limit <= 0 || limit > 500 {
 		limit = 50
 	}
+	if diagnoseSamplePGEnabled() {
+		perTopic := limit
+		if topic == "" {
+			perTopic = limit * 2
+			if perTopic > 200 {
+				perTopic = 200
+			}
+		}
+		rows, err := readDiagnoseSamplesPG(topic, perTopic, since)
+		if err == nil && len(rows) > 0 {
+			sort.Slice(rows, func(i, j int) bool { return rows[i].Time.After(rows[j].Time) })
+			if len(rows) > limit {
+				rows = rows[:limit]
+			}
+			return rows, nil
+		}
+	}
 	topics, err := resolveSampleTopics(reg, topic)
 	if err != nil {
 		return nil, err
@@ -65,10 +82,15 @@ func ListDiagnoseSamples(reg *SkillRegistry, topic string, limit int, since time
 	return merged, nil
 }
 
-// SummarizeDiagnoseSamples counts samples in the samples/ JSONL store since the given time.
+// SummarizeDiagnoseSamples counts samples since the given time (PostgreSQL preferred).
 func SummarizeDiagnoseSamples(reg *SkillRegistry, since time.Time, sinceHours int) (DiagnoseSampleSummary, error) {
 	if reg == nil {
 		reg = DefaultSkillRegistry()
+	}
+	if diagnoseSamplePGEnabled() {
+		if out, err := summarizeDiagnoseSamplesPG(since, sinceHours); err == nil && out.TotalSamples > 0 {
+			return out, nil
+		}
 	}
 	out := DiagnoseSampleSummary{
 		SinceHours: sinceHours,
@@ -125,21 +147,42 @@ func resolveSampleTopics(reg *SkillRegistry, topic string) ([]string, error) {
 	if topic != "" {
 		return []string{topic}, nil
 	}
+	seen := map[string]struct{}{}
+	var out []string
+	if diagnoseSamplePGEnabled() {
+		if pgTopics, err := listDiagnoseSampleTopicsPG(); err == nil {
+			for _, t := range pgTopics {
+				if t == "" {
+					continue
+				}
+				if _, ok := seen[t]; ok {
+					continue
+				}
+				seen[t] = struct{}{}
+				out = append(out, t)
+			}
+		}
+	}
 	dir := reg.DataDir()
 	if dir == "" {
-		return nil, nil
+		sort.Strings(out)
+		return out, nil
 	}
 	glob := filepath.Join(dir, "samples", "*.jsonl")
 	matches, err := filepath.Glob(glob)
 	if err != nil {
 		return nil, err
 	}
-	out := make([]string, 0, len(matches))
 	for _, p := range matches {
 		base := strings.TrimSuffix(filepath.Base(p), ".jsonl")
-		if base != "" {
-			out = append(out, base)
+		if base == "" {
+			continue
 		}
+		if _, ok := seen[base]; ok {
+			continue
+		}
+		seen[base] = struct{}{}
+		out = append(out, base)
 	}
 	sort.Strings(out)
 	if len(out) == 0 {
