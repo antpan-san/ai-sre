@@ -26,6 +26,16 @@ func TestNormalizeSkillExecutionIntentGoRuntimeK8sWorkload(t *testing.T) {
 	}
 }
 
+func TestNormalizeSkillExecutionIntentPostgreSQLGeneral(t *testing.T) {
+	got := NormalizeSkillExecutionIntent("postgresql", nil, SkillExecutionIntent{})
+	if got.NodePath != "ops.incident_diagnosis.middleware.postgresql.general" {
+		t.Fatalf("unexpected node path: %+v", got)
+	}
+	if got.SkillKey != "skill.postgresql.general" || got.PackKey != models.SkillPackPostgreSQL || got.ProblemKey != "general" {
+		t.Fatalf("unexpected intent coordinates: %+v", got)
+	}
+}
+
 func TestNormalizeSkillExecutionIntentHonorsKnownCandidate(t *testing.T) {
 	got := NormalizeSkillExecutionIntent("k8s", nil, SkillExecutionIntent{
 		CandidateNodePath: "ops.delivery_implementation.kubernetes.preflight",

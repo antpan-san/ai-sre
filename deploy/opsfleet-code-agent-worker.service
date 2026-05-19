@@ -1,0 +1,19 @@
+[Unit]
+Description=OpsFleet Cursor Code Agent Worker (auto-iteration)
+Documentation=file:/root/sre/scripts/code-agent-worker.sh
+After=network-online.target opsfleet-backend.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/sre
+EnvironmentFile=-/root/sre/scripts/code-agent-worker.env
+ExecStart=/usr/bin/bash /root/sre/scripts/code-agent-worker.sh run
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

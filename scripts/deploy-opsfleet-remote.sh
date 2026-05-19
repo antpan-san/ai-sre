@@ -113,28 +113,12 @@ ENV
   echo "Created /etc/opsfleet/backend.env (edit OPSFLEET_K8S_MIRROR_* if needed)"
 fi
 
-# 每次全栈部署：指向刚构建的 ai-sre（供 GET /api/k8s/deploy/cli/ai-sre；优先于 config.yaml）
-# 同时写入版本号，供 GET .../cli/ai-sre/version 免 exec（可选，失败则后端仍会 probe）
+# ai-sre 分发路径与版本（校验 amd64/arm64 一致，避免 ARM 客户端升级死循环）
+bash "${R}/scripts/sync-aisre-backend-env.sh" "${R}"
 ENV_FILE=/etc/opsfleet/backend.env
 tmp_be=$(mktemp)
-grep -v '^OPSFLEET_AISRE_BINARY_PATH=' "$ENV_FILE" \
-  | grep -v '^OPSFLEET_AISRE_BINARY_PATH_ARM64=' \
-  | grep -v '^OPSFLEET_AISRE_BINARY_PATH_AMD64=' \
-  | grep -v '^OPSFLEET_AISRE_VERSION=' \
-  | grep -v '^OPSFLEET_AI_SKILL_DATA_DIR=' > "$tmp_be" && cat "$tmp_be" > "$ENV_FILE"
+grep -v '^OPSFLEET_AI_SKILL_DATA_DIR=' "$ENV_FILE" >"$tmp_be" && cat "$tmp_be" >"$ENV_FILE"
 rm -f "$tmp_be"
-echo "OPSFLEET_AISRE_BINARY_PATH=${R}/bin/ai-sre" >> "$ENV_FILE"
-if [[ -f "${R}/bin/ai-sre.arm64" ]]; then
-  echo "OPSFLEET_AISRE_BINARY_PATH_ARM64=${R}/bin/ai-sre.arm64" >> "$ENV_FILE"
-  echo "opsfleet: OPSFLEET_AISRE_BINARY_PATH_ARM64=${R}/bin/ai-sre.arm64"
-fi
-if [[ -x "${R}/bin/ai-sre" ]]; then
-  V="$("${R}/bin/ai-sre" version 2>/dev/null | head -1 | awk '{print $2}')"
-  if [[ -n "${V:-}" ]]; then
-    echo "OPSFLEET_AISRE_VERSION=${V}" >> "$ENV_FILE"
-    echo "opsfleet: OPSFLEET_AISRE_VERSION=${V}"
-  fi
-fi
 SKILL_DIR=/var/lib/opsfleet/ai-skills
 install -d -m 0755 "$SKILL_DIR"/{samples,feedback,generated}
 echo "OPSFLEET_AI_SKILL_DATA_DIR=${SKILL_DIR}" >> "$ENV_FILE"

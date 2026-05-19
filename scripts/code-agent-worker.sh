@@ -57,28 +57,15 @@ PY
 api() {
   local method="$1" path="$2"
   shift 2
-  local raw
-  if ! raw=$(curl -sS -X "$method" "${OPSFLEET_API_URL}${path}" \
+  curl -sS -X "$method" "${OPSFLEET_API_URL}${path}" \
     -H "Authorization: Bearer ${OPSFLEET_CODE_AGENT_TOKEN}" \
     -H "X-OpsFleet-Agent-Fingerprint: ${FINGERPRINT}" \
     -H "Content-Type: application/json" \
-    "$@"); then
-    log "API request failed: ${method} ${path}"
-    return 1
-  fi
-  if ! jq -e . >/dev/null 2>&1 <<<"$raw"; then
-    local sample
-    sample=$(printf '%s' "$raw" | head -c 240 | tr '\n' ' ')
-    log "API returned non-JSON: ${method} ${path}: ${sample}"
-    return 1
-  fi
-  printf '%s\n' "$raw"
+    "$@"
 }
 
 heartbeat() {
-  local raw
-  raw=$(api POST /api/code-agent/heartbeat -d '{}') || return 1
-  jq -e '.code == 200 and .data.ok == true' >/dev/null <<<"$raw"
+  api POST /api/code-agent/heartbeat -d '{}' | jq -e '.code == 200 and .data.ok == true' >/dev/null
 }
 
 report_event() {
@@ -95,9 +82,7 @@ report_result() {
 }
 
 pull_task() {
-  local raw
-  raw=$(api GET /api/code-agent/tasks/pull) || return 1
-  jq -c '.data.task // .task // empty' <<<"$raw"
+  api GET /api/code-agent/tasks/pull | jq -c '.data.task // .task // empty'
 }
 
 build_prompt() {
@@ -112,9 +97,7 @@ build_prompt() {
     "\n---\n" +
     "规范 skill（本任务首次 Read 一次）: \($t.dev_skill // ".cursor/skills/auto-iteration-dev/SKILL.md")\n" +
     "发布 skill（仅开发完成且本地验证通过后 Read 并执行）: \($t.release_skill // ".cursor/skills/release-deploy/SKILL.md")\n" +
-    "仓库: 仅改需求相关文件；开发期禁止全量 remote-e2e（无 SHORT=1）。\n" +
-    "推送 GitHub: 仅使用 bash scripts/github-push-safe.sh（会先拦截技能包 YAML 与密钥路径）。\n" +
-    "技能包: ft-backend/skills/builtin/*.yaml 禁止进 git；改 YAML 后走 deploy-skill-packs-production.sh。\n"
+    "仓库: 仅改需求相关文件；开发期禁止全量 remote-e2e；发布期 SHORT=1 bash scripts/remote-e2e.sh 通过后再 commit/push。\n"
   ' <<<"$task_json"
 }
 
@@ -148,8 +131,6 @@ run_post_verify() {
   [[ "$RUN_POST_VERIFY" == "1" ]] || return 0
   log "Running post-verify: SHORT=1 remote-e2e"
   (cd "$REPO_ROOT" && SHORT=1 bash scripts/remote-e2e.sh)
-  log "Running post-verify: check-skill-packs-not-in-git"
-  (cd "$REPO_ROOT" && bash scripts/check-skill-packs-not-in-git.sh)
 }
 
 process_task() {

@@ -22,8 +22,9 @@ const (
 	AutoIterationRiskMedium = "medium"
 	AutoIterationRiskHigh   = "high"
 
-	AutoIterationSourceManual       = "manual"
-	AutoIterationSourceCLIFeedback  = "cli_feedback"
+	AutoIterationSourceManual         = "manual"
+	AutoIterationSourceCLIFeedback    = "cli_feedback"
+	AutoIterationSourceCapabilityGap  = "cli_capability_gap"
 
 	AutoIterationEventLog         = "log"
 	AutoIterationEventStateChange = "state_change"

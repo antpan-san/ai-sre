@@ -14,11 +14,11 @@ description: >-
 
 ## 触发条件（必须）
 
-在 **`/Users/panshuai/Documents/work/code/ai-sre` 仓库内对任意路径、任意类型文件的修改**（代码、配置、脚本、文档、`.cursor` 规则与 skill 等）完成后，代理**必须**按本文件执行发布流程，**不要**等待用户再说「发布」。**同一轮会话内，凡产生上述修改，在适用测试通过后必须 `git commit`（可与 push 连续做）；不得留下未提交的本次改动。**若用户**明确**声明豁免（例如仅本地试验、禁止 SSH、**不要 commit**），则按其声明缩小步骤，但仍须完成可执行的 README 与自检，并在回复中写明豁免项。
+在**本仓库**内对任意路径、任意类型文件的修改（代码、配置、脚本、文档、`.cursor` 规则与 skill 等）完成后，代理**必须**按 **`.cursor/skills/release-deploy/SKILL.md`** 与本文件执行发布流程，**不要**等待用户再说「发布」。**同一轮会话内，在适用测试通过后必须 `git commit` + `git push`；不得留下未提交的本次改动。**若用户**明确**声明豁免（例如仅本地试验、禁止 SSH、**不要 commit** / 不 push），则按其声明缩小步骤，并在回复中写明豁免项。
 
 仓库同仓参数与 **Cursor 规则**见 **`.cursor/rules/monorepo-release.mdc`**（`alwaysApply`）；本 skill 为具体步骤。
 
-在 **ai-sre** 项目（`/Users/panshuai/Documents/work/code/ai-sre`）中**每次完成上述修改后**，代理必须按顺序执行本流程；用户已配置 **root@192.168.56.11** 免密 SSH。该地址为**本地虚拟机**常用内网 IP，与 **OpsFleet** 全栈部署（`deploy-opsfleet-remote.sh`）、可选 **K8s 制品镜像**（`deploy/k8s-mirror`）、以及 **K8s 离线测试**共用同一台实验机时，**不要**在文档中写成互不相干的多台机器，除非用户明确区分。
+在 **ai-sre** 同仓中**每次完成上述修改后**，代理必须按顺序执行本流程；用户已配置 **root@192.168.56.11** 免密 SSH。该地址为**本地虚拟机**常用内网 IP，与 **OpsFleet** 全栈部署（`deploy-opsfleet-remote.sh`）、可选 **K8s 制品镜像**（`deploy/k8s-mirror`）、以及 **K8s 离线测试**共用同一台实验机时，**不要**在文档中写成互不相干的多台机器，除非用户明确区分。
 
 ## 固定参数
 
@@ -27,7 +27,7 @@ description: >-
 | 远程主机 | `root@192.168.56.11` |
 | 远程目录 | `/root/sre`（不存在则创建） |
 | GitHub 远程 | `git@github.com:antpan-san/ai-sre.git` |
-| 本地项目根 | `/Users/panshuai/Documents/work/code/ai-sre` |
+| 本地项目根 | 工作区 ai-sre 克隆目录（仓库根） |
 | 产品使用文档 | 仓库根目录 **`README.md`**（唯一权威用户手册，须与代码同步） |
 
 **同仓说明**：根目录另含 **OpsFleetPilot**（`ft-backend/`、`ft-front/` 等）。本工作流 **`scripts/deploy-remote.sh`** 仅同步并构建 **ai-sre CLI**；若变更 OpsFleet 全栈部署，使用 **`scripts/deploy-opsfleet-remote.sh`**（见 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**）。
@@ -46,7 +46,6 @@ description: >-
 - [ ] **配置方式**：密钥文件路径、`config.yaml` / `api_key` 格式（不含真实密钥）
 - [ ] **结构化输出**：`-o json` 的用途说明（若有变更须更新）
 - [ ] **远程部署与冒烟**：`./scripts/deploy-remote.sh`、`DEPLOY_REMOTE`、`DEPLOY_REMOTE_DIR`、`scripts/remote-e2e.sh`（含 `go test`、`doctor`）
-- [ ] **GitHub 推送**：`bash scripts/github-push-safe.sh`（先 `./scripts/check-skill-packs-not-in-git.sh`；禁止技能包 YAML 与密钥上 GitHub）
 - [ ] **免费版 / 配额**：`tier`、`max_llm_calls_per_day`、`doctor`、缓存路径说明是否与 `internal/config`、`internal/quota` 一致
 - [ ] **当前版本号**：与 `internal/cli/version.go` 中 `Version` 一致，并检查本次是否涉及可见行为变更；如涉及功能/接口/体验变化，**必须递增版本号**（如 `0.4.8 -> 0.4.9`）
 
@@ -66,11 +65,31 @@ description: >-
 
 ## 执行顺序（必须完整）
 
-### 1. 更新 README（Push 前）
+### 0. 版本号（触及 ai-sre 指令代码时，最先做）
+
+若本轮改动触及 **`internal/cli/**`**、**`internal/skill/**`**、**`internal/engine/**`**、**`internal/prompt/**`**、**`internal/loader/**`**、**`internal/go_runtime/**`**、**`internal/assets/skills/**`**、**`main.go`** 或根 **`go.mod`/`go.sum`** 且影响行为，**必须先**递增 **`internal/cli/version.go`** 的 `Version`（见 **release-deploy**「ai-sre 指令代码」表）。未 bump 不得 commit/push。
+
+### 1. 本机部署（Push 前，必做）
+
+在仓库根执行：
+
+```bash
+./scripts/deploy-local.sh
+```
+
+触及 `ft-backend/`、`ft-front/`、`deploy/`、`ansible-agent/` 时：
+
+```bash
+DEPLOY_LOCAL_OPSFLEET=1 ./scripts/deploy-local.sh
+```
+
+失败则停止，先修复再进入远端步骤。
+
+### 2. 更新 README（Push 前）
 
 编辑 `README.md`，完成上文 **Push 代码前** 检查清单。将 `README.md` 纳入本次提交的暂存区。
 
-### 2. 部署到远程
+### 3. 部署到远程
 
 在本地项目根执行：
 
@@ -92,18 +111,18 @@ description: >-
 
 **与 OpsFort 分发的关系（必读）**：`deploy-remote.sh` 在远端生成的是 **`$REMOTE_DIR/ai-sre`**（仓库根 `go build`）。**控制台** `GET /ft-api/api/k8s/deploy/cli/ai-sre` 通常读取的是 **`$REMOTE_DIR/bin/ai-sre`**（由 **`build-all.sh`** / **`deploy-opsfleet-remote.sh`** 生成并写入 **`OPSFLEET_AISRE_BINARY_PATH`**）。因此**只跑本步骤**不能让「目标机 install-ai-sre 脚本」拿到新包；若本次要升级**对外可下载的** ai-sre，**必须**按 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`** 跑 **`deploy-opsfleet-remote.sh`** 并做 **版本三门一致** 核对。
 
-### 3. 远程功能测试（必须通过）
+### 4. 远程功能测试（必须通过）
 
 - **必测**：远程构建成功、`./ai-sre version` 正常；建议执行 `SHORT=1 bash scripts/remote-e2e.sh`（vet/build/version/skills list/无凭证负例）。
 - **可选（若远程已配置密钥文件）**：`bash scripts/remote-e2e.sh` 全量 LLM 联调。
 
 若任一步失败：**停止推送 GitHub**，先修复代码并重复步骤 1–3。
 
-### 4. 发布后 README 复核
+### 5. 发布后 README 复核
 
 按上文 **每次发布后** 小节核对并必要时修订 `README.md`。
 
-### 5. Git 提交与推送到 GitHub（**顺序上在步骤 3 远程测试与步骤 4 README 复核全部完成之后**）
+### 6. Git 提交与推送到 GitHub（**顺序上在步骤 4 远程测试与步骤 5 README 复核全部完成之后**）
 
 **`git commit` 是强制步骤**：每一次在仓库内的代码/配置/文档类修改，在步骤 3 通过后**必须**有新的 commit 纳入本轮全部变更；**禁止**「只 deploy、不 commit」或把改动留在工作区结束回合（用户本回合明确豁免 commit 除外）。可分多次 commit（如先代码后文档），但**本轮结束前**不得残留未提交的本次文件。
 
@@ -114,7 +133,7 @@ description: >-
 在**本地**项目根：
 
 ```bash
-cd /Users/panshuai/Documents/work/code/ai-sre
+cd <仓库根>
 git status
 git add -A
 git commit -m "feat: <简明说明，若含文档可写 docs: 更新 README>"
@@ -125,7 +144,7 @@ git push -u origin main
 
 **注意**：若步骤 4 修改了 README，须**再次** `git add README.md && git commit --amend` 或**追加一次 commit** 后再 `git push`。
 
-### 6. 向用户汇报
+### 7. 向用户汇报
 
 说明：README 是否已更新、远程部署路径、测试结果、Git 提交哈希或「已 push」。
 
@@ -139,7 +158,7 @@ rsync -avz \
   --exclude '.git' \
   --exclude 'ai-sre' \
   --exclude '.DS_Store' \
-  /Users/panshuai/Documents/work/code/ai-sre/ \
+  <仓库根>/ \
   root@192.168.56.11:/root/sre/
 ssh root@192.168.56.11 'cd /root/sre && go mod download && go vet ./... && go build -o ai-sre . && ./ai-sre version'
 ```
@@ -159,7 +178,7 @@ ssh root@192.168.56.11 'cd /root/sre && go mod download && go vet ./... && go bu
 
 ## 与用户提示的关系
 
-只要本轮对话中**改动了本仓库（`/Users/panshuai/Documents/work/code/ai-sre`）内任意文件**，在完成修改后**自动应用本 skill**（含 README 维护、`deploy-remote.sh`、发布后复核、**`git commit`** 与 **`git push`**），除非用户明确说「仅本地、不要部署/不要改 README/**不要 commit** / 不要 push」。
+只要本轮对话中**改动了本仓库内任意文件**，在完成修改后**自动应用 release-deploy 与本 skill**（含 **`deploy-local.sh`**、README、`deploy-remote.sh`、**`git commit`** 与 **`git push`**），除非用户明确说「仅本地、不要部署/不要改 README/**不要 commit** / 不要 push」。
 
 若变更同时涉及 OpsFleet 路径，**还须**执行 **`.cursor/skills/opsfleetpilot-ship/SKILL.md`**（见 **`.cursor/rules/monorepo-release.mdc`**）。
 

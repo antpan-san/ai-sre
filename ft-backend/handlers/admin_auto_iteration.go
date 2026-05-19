@@ -24,7 +24,12 @@ func AdminListAutoIterations(c *gin.Context) {
 	page, _ := strconv.Atoi(c.DefaultQuery("page", "1"))
 	pageSize, _ := strconv.Atoi(c.DefaultQuery("page_size", "20"))
 	items, total, err := services.ListAutoIterations(services.AutoIterationListFilter{
-		Status: c.Query("status"), Topic: c.Query("topic"), Page: page, PageSize: pageSize,
+		Status:   c.Query("status"),
+		Topic:    c.Query("topic"),
+		Source:   c.Query("source"),
+		Keyword:  c.Query("keyword"),
+		Page:     page,
+		PageSize: pageSize,
 	})
 	if err != nil {
 		logger.Error("AdminListAutoIterations: %v", err)
@@ -88,7 +93,9 @@ func AdminUpdateAutoIterationSettings(c *gin.Context) {
 type manualAutoIterationReq struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
+	Command     string `json:"command"`
 	Topic       string `json:"topic"`
+	AutoStart   bool   `json:"auto_start"`
 }
 
 func AdminCreateManualAutoIteration(c *gin.Context) {
@@ -101,7 +108,7 @@ func AdminCreateManualAutoIteration(c *gin.Context) {
 	userID, _ := uid.(uuid.UUID)
 	name, _ := c.Get("username")
 	username, _ := name.(string)
-	row, err := services.CreateManualAutoIteration(req.Title, req.Description, req.Topic, username, userID)
+	row, err := services.CreateManualAutoIteration(req.Title, req.Description, req.Command, req.Topic, username, userID, req.AutoStart)
 	if err != nil {
 		if errors.Is(err, services.ErrAutoIterationDisabled) {
 			response.BadRequest(c, "自动迭代未开启")
@@ -110,7 +117,9 @@ func AdminCreateManualAutoIteration(c *gin.Context) {
 		response.ServerError(c, err.Error())
 		return
 	}
-	auditAutoIteration(c, "auto_iteration.manual.create", row.ID.String(), "success", nil)
+	auditAutoIteration(c, "auto_iteration.manual.create", row.ID.String(), "success", map[string]interface{}{
+		"auto_start": req.AutoStart,
+	})
 	response.Created(c, gin.H{"iteration": row})
 }
 
@@ -184,6 +193,7 @@ func AdminCancelAutoIteration(c *gin.Context) {
 type approveRejectReq struct {
 	Notes  string `json:"notes"`
 	Reason string `json:"reason"`
+	Force  bool   `json:"force"`
 }
 
 func AdminApproveAutoIteration(c *gin.Context) {
@@ -195,7 +205,7 @@ func AdminApproveAutoIteration(c *gin.Context) {
 	_ = c.ShouldBindJSON(&req)
 	uid, _ := c.Get("userID")
 	userID, _ := uid.(uuid.UUID)
-	row, err := services.ApproveAutoIteration(id, userID, actorName(c), req.Notes)
+	row, err := services.ApproveAutoIteration(id, userID, actorName(c), req.Notes, req.Force)
 	if mapIterationActionErr(c, err) {
 		return
 	}

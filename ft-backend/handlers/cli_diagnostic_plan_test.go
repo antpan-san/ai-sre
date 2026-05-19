@@ -99,21 +99,25 @@ func TestBuildKafkaReadonlyDiagnosticPlanRequiresBootstrap(t *testing.T) {
 }
 
 func TestAllowedAISreReadonlyDiagnosticCommand(t *testing.T) {
-	ok := []string{"ai-sre", "go_runtime", "diagnose", "--json", "--pod", "prod/api-0"}
+	ok := []string{"ai-sre", "check", "go", "--json", "--pod", "prod/api-0"}
 	if !allowedReadonlyDiagnosticCommand(ok) {
-		t.Fatalf("expected allowed ai-sre argv")
+		t.Fatalf("expected allowed check go argv")
 	}
-	bad := []string{"ai-sre", "go_runtime", "diagnose", "--json", ";rm"}
+	legacy := []string{"ai-sre", "go_runtime", "diagnose", "--json", "--pod", "prod/api-0"}
+	if !allowedReadonlyDiagnosticCommand(legacy) {
+		t.Fatalf("expected allowed legacy go_runtime argv")
+	}
+	bad := []string{"ai-sre", "check", "go", "--json", ";rm"}
 	if allowedReadonlyDiagnosticCommand(bad) {
 		t.Fatalf("expected reject metachar")
 	}
-	redisOK := []string{"ai-sre", "redis", "diagnose", "127.0.0.1:6379", "--json"}
+	redisOK := []string{"ai-sre", "probe", "redis", "127.0.0.1:6379", "--json"}
 	if !allowedReadonlyDiagnosticCommand(redisOK) {
-		t.Fatalf("expected allowed redis argv")
+		t.Fatalf("expected allowed probe redis argv")
 	}
-	nginxOK := []string{"ai-sre", "nginx", "diagnose", "--json", "--access-log", "/var/log/nginx/access.log"}
+	nginxOK := []string{"ai-sre", "probe", "nginx", "--json", "--access-log", "/var/log/nginx/access.log"}
 	if !allowedReadonlyDiagnosticCommand(nginxOK) {
-		t.Fatalf("expected allowed nginx argv")
+		t.Fatalf("expected allowed probe nginx argv")
 	}
 }
 

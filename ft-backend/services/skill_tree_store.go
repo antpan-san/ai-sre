@@ -86,14 +86,41 @@ func insertBuiltinNodes(tx *gorm.DB, treeRev string) error {
 }
 
 func ensureBuiltinNodes(tx *gorm.DB, treeRev string) error {
-	var count int64
-	if err := tx.Model(&models.SkillTreeNodeRecord{}).Where("tree_rev = ?", treeRev).Count(&count).Error; err != nil {
-		return err
-	}
-	if count > 0 {
+	return syncMissingBuiltinNodesTx(tx, treeRev)
+}
+
+// SyncMissingBuiltinSkillTreeNodes merges new code-defined builtin nodes into the active tree.
+func SyncMissingBuiltinSkillTreeNodes() error {
+	if database.DB == nil {
 		return nil
 	}
-	return insertBuiltinNodes(tx, treeRev)
+	var ver models.SkillTreeVersion
+	if err := database.DB.Where("status = ?", models.SkillTreeVersionStatusActive).First(&ver).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return SeedBuiltinSkillTree()
+		}
+		return err
+	}
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		return syncMissingBuiltinNodesTx(tx, ver.TreeRev)
+	})
+}
+
+func syncMissingBuiltinNodesTx(tx *gorm.DB, treeRev string) error {
+	for _, n := range builtinSkillTreeNodes {
+		var count int64
+		if err := tx.Model(&models.SkillTreeNodeRecord{}).Where("tree_rev = ? AND path = ?", treeRev, n.Path).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+		rec := skillTreeNodeRecordFromBuiltin(treeRev, n)
+		if err := tx.Create(&rec).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SkillTreeNodeRecordFromService exports a service node to a DB record (admin draft clone).

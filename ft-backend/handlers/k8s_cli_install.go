@@ -636,11 +636,21 @@ func firstAiSrePathWithProbe(cfg *config.Config) string {
 	return ""
 }
 
-// probeAiSreVersion 优先环境变量，其次执行二进制 `version` 子命令解析第二列。
+// probeAiSreVersion 以分发二进制 `version` 为准（与 DownloadAiSreCLI 实际下发内容一致）。
+// 仅当无法 exec 二进制时回退 OPSFLEET_AISRE_VERSION；二者不一致时打日志并以二进制为准，避免客户端自动升级死循环。
 func probeAiSreVersion(bin string) string {
-	if v := strings.TrimSpace(config.ResolvedAISreVersion()); v != "" {
-		return v
+	binVer := execAiSreBinaryVersion(bin)
+	envVer := strings.TrimSpace(config.ResolvedAISreVersion())
+	if binVer != "" {
+		if envVer != "" && envVer != binVer {
+			logger.Warn("OPSFLEET_AISRE_VERSION=%s 与 %s 的 ai-sre version(%s) 不一致，/cli/ai-sre/version 以二进制为准", envVer, bin, binVer)
+		}
+		return binVer
 	}
+	return envVer
+}
+
+func execAiSreBinaryVersion(bin string) string {
 	if bin == "" {
 		return ""
 	}
@@ -657,6 +667,54 @@ func probeAiSreVersion(bin string) string {
 	return ""
 }
 
+// aiSreAdvertisedVersion 汇总所有已配置分发二进制的 version；多架构时取最低版本，避免 amd64 已升、arm64 未升时 ARM 客户端死循环升级。
+func aiSreAdvertisedVersion(cfg *config.Config) (ver string, anyPath string) {
+	seen := make(map[string]struct{})
+	var paths []string
+	add := func(p string) {
+		p = aiSrePathIfFile(p)
+		if p == "" {
+			return
+		}
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		paths = append(paths, p)
+	}
+	add(config.ResolvedAISreBinaryPathAmd64())
+	add(config.ResolvedAISreBinaryPathArm64())
+	add(config.ResolvedAISreBinaryPath())
+
+	var versions []string
+	for _, p := range paths {
+		if v := execAiSreBinaryVersion(p); v != "" {
+			versions = append(versions, v)
+			if anyPath == "" {
+				anyPath = p
+			}
+		}
+	}
+	if len(versions) == 0 {
+		envVer := strings.TrimSpace(config.ResolvedAISreVersion())
+		if envVer != "" && len(paths) > 0 {
+			anyPath = paths[0]
+		}
+		return envVer, anyPath
+	}
+	advertised := versions[0]
+	for _, v := range versions[1:] {
+		if versionLess(v, advertised) {
+			advertised = v
+		}
+	}
+	envVer := strings.TrimSpace(config.ResolvedAISreVersion())
+	if envVer != "" && envVer != advertised {
+		logger.Warn("OPSFLEET_AISRE_VERSION=%s 与分发二进制最低版本 %s 不一致，API 以二进制为准", envVer, advertised)
+	}
+	return advertised, anyPath
+}
+
 // GetAiSreCLIVersion 公开：返回当前分发的 ai-sre 版本号（供客户端升级前比对），轻量无大响应体。
 func GetAiSreCLIVersion(c *gin.Context) {
 	cfg, ok := c.MustGet("config").(*config.Config)
@@ -664,8 +722,7 @@ func GetAiSreCLIVersion(c *gin.Context) {
 		response.ServerError(c, "配置未初始化")
 		return
 	}
-	p := firstAiSrePathWithProbe(cfg)
-	ver := probeAiSreVersion(p)
+	ver, p := aiSreAdvertisedVersion(cfg)
 	if ver == "" {
 		ver = "unknown"
 	}

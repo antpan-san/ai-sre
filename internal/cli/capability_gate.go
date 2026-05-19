@@ -9,12 +9,30 @@ import (
 
 // ensureExecutionAllowed checks sync capabilities before server plan/AI calls.
 func ensureExecutionAllowed(ctx context.Context, intent executionIntent, refresh bool) error {
+	return ensureExecutionAllowedWithContext(ctx, intent, refresh, nil)
+}
+
+func ensureExecutionAllowedWithContext(ctx context.Context, intent executionIntent, refresh bool, contextKV map[string]string) error {
 	if strings.TrimSpace(resolveOpsfleetAPIBase()) == "" {
 		return nil
 	}
 	if strings.TrimSpace(resolveOpsfleetToken()) == "" {
 		return errors.New("需要绑定 OpsFleet CLI token；请从控制台安装 ai-sre 后重试")
 	}
+	err := checkExecutionAllowedFromSync(ctx, intent, refresh)
+	if err == nil {
+		return nil
+	}
+	if !isCapabilityNotFoundError(err) {
+		return err
+	}
+	if gapErr := requestCapabilityGap(ctx, intent, contextKV); gapErr != nil {
+		return err
+	}
+	return checkExecutionAllowedFromSync(ctx, intent, true)
+}
+
+func checkExecutionAllowedFromSync(ctx context.Context, intent executionIntent, refresh bool) error {
 	resp, err := getCLISyncCached(ctx, refresh)
 	if err != nil {
 		return err

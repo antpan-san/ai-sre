@@ -43,6 +43,7 @@ func seedSkillCommercialProductsOnce() error {
 		{ProductKey: models.SkillPackMySQL, Title: "MySQL 诊断技能包", ProductType: models.CommercialProductTypePack, Status: models.CommercialProductStatusActive, SortOrder: 50},
 		{ProductKey: models.SkillPackPostgreSQL, Title: "PostgreSQL 诊断技能包", ProductType: models.CommercialProductTypePack, Status: models.CommercialProductStatusActive, SortOrder: 55},
 		{ProductKey: models.SkillPackElasticsearch, Title: "Elasticsearch 诊断技能包", ProductType: models.CommercialProductTypePack, Status: models.CommercialProductStatusActive, SortOrder: 60},
+		{ProductKey: models.SkillPackDomain, Title: "域名 / DNS 诊断技能包", ProductType: models.CommercialProductTypePack, Status: models.CommercialProductStatusActive, SortOrder: 65},
 		{ProductKey: models.PackKeyK8sDelivery, Title: "K8s 交付实施", ProductType: models.CommercialProductTypePack, Status: models.CommercialProductStatusActive, SortOrder: 110},
 		{ProductKey: models.PackKeyRuntimeObserve, Title: "Go 运行时观测", ProductType: models.CommercialProductTypePack, Status: models.CommercialProductStatusActive, SortOrder: 120},
 	}
@@ -83,6 +84,7 @@ func defaultCommercialBindings() []models.SkillProductNodeBinding {
 		{ProductKey: models.SkillPackMySQL, NodePath: "ops.incident_diagnosis.middleware.mysql", PackKey: models.SkillPackMySQL, GrantScope: models.ProductGrantScopeSubtree},
 		{ProductKey: models.SkillPackPostgreSQL, NodePath: "ops.incident_diagnosis.middleware.postgresql", PackKey: models.SkillPackPostgreSQL, GrantScope: models.ProductGrantScopeSubtree},
 		{ProductKey: models.SkillPackElasticsearch, NodePath: "ops.incident_diagnosis.middleware.elasticsearch", PackKey: models.SkillPackElasticsearch, GrantScope: models.ProductGrantScopeSubtree},
+		{ProductKey: models.SkillPackDomain, NodePath: "ops.incident_diagnosis.network.domain", PackKey: models.SkillPackDomain, GrantScope: models.ProductGrantScopeSubtree},
 		{ProductKey: models.PackKeyK8sDelivery, NodePath: "ops.delivery_implementation.kubernetes", PackKey: models.PackKeyK8sDelivery, GrantScope: models.ProductGrantScopeSubtree},
 		{ProductKey: models.PackKeyRuntimeObserve, NodePath: "ops.incident_diagnosis.application.go_runtime", PackKey: models.PackKeyRuntimeObserve, GrantScope: models.ProductGrantScopeSubtree},
 	}
@@ -287,6 +289,11 @@ func ParameterTemplatesForTopic(topic string) map[string]interface{} {
 		}
 	case "kafka":
 		return map[string]interface{}{"lag": map[string]string{"type": "string", "example": "9000"}}
+	case "domain", "dns":
+		return map[string]interface{}{
+			"domain": map[string]string{"type": "string", "example": "opsfleetpilot.com"},
+			"scheme": map[string]string{"type": "string", "example": "https"},
+		}
 	default:
 		return map[string]interface{}{}
 	}

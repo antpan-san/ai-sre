@@ -105,8 +105,8 @@ class Trae {
           NProgress.done()
         }
         
-        // 根据code判断请求是否成功
-        if (res.code !== 200) {
+        // 根据 code 判断请求是否成功（201 用于资源创建，如手动创建自动迭代任务）
+        if (res.code !== 200 && res.code !== 201) {
           const msg = (res as any).msg || (res as any).message || '请求失败'
           if (!isAuthLoginPostURL(response.config?.url)) {
             ElMessage.error(msg)

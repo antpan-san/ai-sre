@@ -127,8 +127,9 @@ func kafkaCmd() *cobra.Command {
 func kafkaDiagnoseCmd() *cobra.Command {
 	var opts kafkaDiagnoseOptions
 	cmd := &cobra.Command{
-		Use:   "diagnose <bootstrap-server>",
-		Short: "一键快诊 Kafka：自动发现 group/topic 并输出最值得先看的问题",
+		Use:        "diagnose <bootstrap-server>",
+		Short:      "（已弃用）请改用 probe kafka",
+		Deprecated: "use \"probe kafka\" instead",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.BootstrapServer = strings.TrimSpace(args[0])

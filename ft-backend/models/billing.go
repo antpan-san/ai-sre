@@ -33,6 +33,7 @@ const (
 	SkillPackMySQL         = "skillpack.mysql"
 	SkillPackPostgreSQL    = "skillpack.postgresql"
 	SkillPackElasticsearch = "skillpack.elasticsearch"
+	SkillPackDomain        = "skillpack.domain"
 )
 
 var knownFeatureKeys = map[string]struct{}{
@@ -61,6 +62,7 @@ var knownPackKeys = map[string]struct{}{
 	SkillPackMySQL:           {},
 	SkillPackPostgreSQL:      {},
 	SkillPackElasticsearch:   {},
+	SkillPackDomain:        {},
 }
 
 // IsKnownFeatureKey 用于管理端配置与人工授权校验。
@@ -108,6 +110,7 @@ func AllPackKeysStable() []string {
 		SkillPackMySQL,
 		SkillPackPostgreSQL,
 		SkillPackElasticsearch,
+		SkillPackDomain,
 	}
 }
 

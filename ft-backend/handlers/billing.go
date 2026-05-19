@@ -59,6 +59,7 @@ func defaultBillingPackages() []config.BillingPackage {
 		{ID: models.SkillPackRedis, DisplayName: "Redis AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
 		{ID: models.SkillPackNginx, DisplayName: "Nginx AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
 		{ID: models.SkillPackMySQL, DisplayName: "MySQL AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
+		{ID: models.SkillPackPostgreSQL, DisplayName: "PostgreSQL AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
 		{ID: models.SkillPackElasticsearch, DisplayName: "Elasticsearch AI 技能包", FeatureKeys: []string{models.FeatureKeyAIDiagnosis}},
 	}
 }

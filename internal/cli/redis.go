@@ -44,8 +44,9 @@ func redisCmd() *cobra.Command {
 func redisDiagnoseCmd() *cobra.Command {
 	var opts redisDiagnoseOptions
 	cmd := &cobra.Command{
-		Use:   "diagnose <addr>",
-		Short: "只读采集 Redis INFO，输出最值得优先处理的问题",
+		Use:        "diagnose <addr>",
+		Short:      "（已弃用）请改用 probe redis",
+		Deprecated: "use \"probe redis\" instead",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.Address = strings.TrimSpace(args[0])

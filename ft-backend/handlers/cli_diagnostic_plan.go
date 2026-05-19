@@ -389,7 +389,7 @@ func buildGoRuntimeReadonlyDiagnosticPlan(kv map[string]string) []diagnosticPlan
 	ns := cleanK8sNameFromMap(kv, "namespace", "")
 	pod := cleanK8sNameFromMap(kv, "pod", "")
 	deploy := cleanK8sNameFromMap(kv, "deployment", "")
-	argv := []string{"ai-sre", "go_runtime", "diagnose", "--json"}
+	argv := []string{"ai-sre", "check", "go", "--json"}
 	switch {
 	case pod != "" && ns != "":
 		argv = append(argv, "--pod", ns+"/"+pod)
@@ -573,33 +573,72 @@ func allowedAISreReadonlyDiagnosticCommand(argv []string) bool {
 			return false
 		}
 	}
-	topic := argv[1]
-	switch topic {
-	case "go_runtime":
-		if argv[2] != "diagnose" {
+	switch argv[1] {
+	case "probe":
+		return allowedAISreProbeCommand(argv)
+	case "check":
+		if argv[2] != "go" {
 			return false
 		}
-		return argsSubset(argv[3:], []string{
-			"--json", "--pod", "--deployment", "--statefulset", "--daemonset",
-			"--replicaset", "--job", "--cronjob", "--service", "--ingress", "--pvc",
-			"--pid", "--name", "--pid-name",
-		}) && allowedAISreDiagnosticFlagValues(argv[3:])
-	case "redis", "kafka", "mysql", "elasticsearch":
-		if argv[2] != "diagnose" || len(argv) < 4 {
+		return allowedAISreGoRuntimeArgs(argv[3:])
+	case "diagnose":
+		return allowedAISreGoRuntimeArgs(argv[2:])
+	case "go_runtime":
+		if !aisreReadonlySubcommand(argv[2]) {
+			return false
+		}
+		return allowedAISreGoRuntimeArgs(argv[3:])
+	case "redis", "kafka", "mysql", "postgresql", "postgres", "elasticsearch":
+		if !aisreReadonlySubcommand(argv[2]) || len(argv) < 4 {
 			return false
 		}
 		if !aisreDiagnosticValueRe.MatchString(argv[3]) {
 			return false
 		}
-		return allowedAISreTopicDiagnoseFlags(topic, argv[4:])
+		return allowedAISreTopicDiagnoseFlags(argv[1], argv[4:])
 	case "nginx":
-		if argv[2] != "diagnose" {
+		if !aisreReadonlySubcommand(argv[2]) {
 			return false
 		}
+		return allowedAISreTopicDiagnoseFlags(argv[1], argv[3:])
+	default:
+		return false
+	}
+}
+
+func aisreReadonlySubcommand(word string) bool {
+	switch strings.ToLower(strings.TrimSpace(word)) {
+	case "diagnose", "probe":
+		return true
+	default:
+		return false
+	}
+}
+
+func allowedAISreProbeCommand(argv []string) bool {
+	if len(argv) < 3 {
+		return false
+	}
+	topic := argv[2]
+	switch topic {
+	case "redis", "kafka", "mysql", "postgresql", "postgres", "elasticsearch":
+		if len(argv) < 5 || !aisreDiagnosticValueRe.MatchString(argv[3]) {
+			return false
+		}
+		return allowedAISreTopicDiagnoseFlags(topic, argv[4:])
+	case "nginx":
 		return allowedAISreTopicDiagnoseFlags(topic, argv[3:])
 	default:
 		return false
 	}
+}
+
+func allowedAISreGoRuntimeArgs(args []string) bool {
+	return argsSubset(args, []string{
+		"--json", "--pod", "--deployment", "--statefulset", "--daemonset",
+		"--replicaset", "--job", "--cronjob", "--service", "--ingress", "--pvc",
+		"--pid", "--name", "--pid-name",
+	}) && allowedAISreDiagnosticFlagValues(args)
 }
 
 func allowedAISreTopicDiagnoseFlags(topic string, args []string) bool {
@@ -616,7 +655,7 @@ func allowedAISreTopicDiagnoseFlags(topic string, args []string) bool {
 	case "nginx":
 		allowed["--access-log"] = struct{}{}
 		allowed["--tail"] = struct{}{}
-	case "mysql":
+	case "mysql", "postgresql", "postgres":
 		allowed["--timeout"] = struct{}{}
 	case "elasticsearch":
 		allowed["--timeout"] = struct{}{}

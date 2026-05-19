@@ -300,7 +300,7 @@
 
       <main class="layout-main">
         <div class="layout-main-inner">
-          <div class="layout-main-scroll">
+          <div class="layout-main-scroll" :class="{ 'layout-main-scroll--lock': lockMainScroll }">
             <router-view v-slot="{ Component }">
               <transition name="fade" mode="out-in">
                 <component :is="Component" :key="route.fullPath" />
@@ -345,9 +345,9 @@ import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
 import { INSTALL_AI_SRE_PLACEHOLDER, getStoredAuthToken } from '../../utils/installAiSre'
 import { useMachineStore } from '../../stores/machine'
-import { useDashboardStore } from '../../stores/dashboard'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import { createCLIInstallSession } from '../../api/cli'
+import { useDashboardStore } from '../../stores/dashboard'
 import HostResourceRings from './HostResourceRings.vue'
 
 type BreadcrumbMetaItem = {
@@ -379,7 +379,8 @@ const routeIconMap: Record<string, Component> = {
   '/execution-records': DocumentCopy,
   '/help/error-codes': Reading,
   '/billing/features': Setting,
-  '/billing/ai-sre-skills': Collection
+  '/billing/ai-sre-skills': Collection,
+  '/auto-iterations': Refresh
 }
 
 const sectionDefaultPath: Record<string, string> = {
@@ -416,6 +417,13 @@ const navBase = computed(() => (route.path.startsWith('/admin') ? '/admin' : '/a
 const errorCodesPath = computed(() => `${navBase.value}/help/error-codes`)
 const isAdminShell = computed(() => route.path.startsWith('/admin'))
 const isSuperAdmin = computed(() => String(currentUser.value?.role ?? '') === 'super_admin')
+const lockMainScroll = computed(
+  () =>
+    route.path.includes('/admin/auto-iterations') ||
+    route.path.endsWith('/dashboard') ||
+    route.path.endsWith('/admin/dashboard') ||
+    route.path.endsWith('/app/dashboard')
+)
 const isAdminUser = computed(() => ['admin', 'super_admin'].includes(String(currentUser.value?.role ?? '')))
 
 const isCollapse = ref(false)
@@ -953,6 +961,10 @@ const handleLogout = () => {
   flex: 1;
   min-height: 0;
   overflow: auto;
+}
+
+.layout-main-scroll--lock {
+  overflow: hidden;
 }
 
 .fade-enter-active,

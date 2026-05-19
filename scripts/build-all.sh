@@ -6,40 +6,62 @@ cd "$ROOT"
 
 mkdir -p bin dist/web
 
+export GOFLAGS="${GOFLAGS:-} -buildvcs=false"
+
 echo "==> go build ft-backend -> bin/opsfleet-backend"
 (
   cd ft-backend
-  go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-backend" .
+  go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-backend" .
 )
 
 echo "==> go build opsfleet-k8s-mirror-serve (K8s 制品站 miss 时拉公网并落盘，见 deploy/k8s-mirror/)"
 (
   cd ft-backend
-  go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-k8s-mirror-serve" ./cmd/opsfleet-k8s-mirror-serve
+  go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-k8s-mirror-serve" ./cmd/opsfleet-k8s-mirror-serve
 )
 
 echo "==> go build opsfleet-executor (same skill engine as ai-sre) -> bin/opsfleet-executor"
 (
   cd "$ROOT"
-  go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-executor" ./cmd/opsfleet-executor
+  go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/opsfleet-executor" ./cmd/opsfleet-executor
 )
 
 echo "==> go build ai-sre CLI -> bin/ai-sre (K8s 确认页 curl 安装与 deploy-opsfleet 分发)"
 (
   cd "$ROOT"
-  go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$ROOT/bin/ai-sre" .
+  go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/ai-sre" .
 )
 
-echo "==> go build ai-sre CLI (linux/arm64) -> bin/ai-sre.arm64（供 ARM 控制机 curl 安装；失败则仅影响 arm64 分发）"
+echo "==> go build ai-sre CLI (linux/arm64) -> bin/ai-sre.arm64（供 ARM 控制机 curl 安装）"
 (
   cd "$ROOT"
-  if GOOS=linux GOARCH=arm64 GOTOOLCHAIN=auto go build -buildvcs=false -trimpath -ldflags="-s -w" -o "$ROOT/bin/ai-sre.arm64" .; then
+  if GOOS=linux GOARCH=arm64 GOTOOLCHAIN=auto go build -trimpath -ldflags="-s -w" -o "$ROOT/bin/ai-sre.arm64" .; then
     echo "    ai-sre.arm64: OK"
   else
-    echo "    WARN: linux/arm64 交叉编译失败，ARM 客户端需手动配置 OPSFLEET_AISRE_BINARY_PATH_ARM64" >&2
     rm -f "$ROOT/bin/ai-sre.arm64"
+    case "$(uname -m 2>/dev/null)" in
+      x86_64|amd64)
+        echo "ERROR: linux/arm64 交叉编译失败。AMD64 部署机必须产出 bin/ai-sre.arm64，否则 ARM 控制机会因版本 API 与下载包不一致陷入自动升级死循环。" >&2
+        exit 1
+        ;;
+      *)
+        echo "    WARN: linux/arm64 交叉编译失败，本机非 amd64 时可忽略" >&2
+        ;;
+    esac
   fi
 )
+
+if [[ -f "$ROOT/bin/ai-sre" && -f "$ROOT/bin/ai-sre.arm64" ]]; then
+  V_NATIVE="$("$ROOT/bin/ai-sre" version 2>/dev/null | awk '{print $NF}' || true)"
+  V_ARM="$("$ROOT/bin/ai-sre.arm64" version 2>/dev/null | awk '{print $NF}' || true)"
+  if [[ -z "$V_ARM" ]]; then
+    V_ARM="$(strings "$ROOT/bin/ai-sre.arm64" 2>/dev/null | grep -oE '0\.5\.[0-9]+' | sort -Vu | tail -1 || true)"
+  fi
+  if [[ -n "$V_NATIVE" && -n "$V_ARM" && "$V_NATIVE" != "$V_ARM" ]]; then
+    echo "ERROR: bin/ai-sre ($V_NATIVE) 与 bin/ai-sre.arm64 ($V_ARM) 版本不一致" >&2
+    exit 1
+  fi
+fi
 
 echo "==> npm build ft-front -> dist/web"
 (

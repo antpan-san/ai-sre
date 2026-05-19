@@ -43,8 +43,8 @@ func shouldSkipPreUpgradeCheck(cmd *cobra.Command) bool {
 	return false
 }
 
-// opsfleetPersistentPreRun 在每次子命令前：若可解析 OpsFleet 基址，则拉取 /cli/ai-sre/version 比对；有更新则下载覆盖并 re-exec 同一参数（Linux/macOS）；Windows 上升级成功后退出，请重跑。
-// 关闭：OPSFLEET_NO_AUTO_UPGRADE=1。仅提示不升级：在关闭自动升级时设 OPSFLEET_UPGRADE_HINT=1 或 OPSFLEET_UPGRADE_CHECK=1。
+// opsfleetPersistentPreRun 在**每次**子命令前快速探测 OpsFleet 版本；有更新则下载并 re-exec（Linux/macOS）。
+// 关闭：OPSFLEET_NO_AUTO_UPGRADE=1 或 --no-auto-upgrade。
 func opsfleetPersistentPreRun(cmd *cobra.Command, _ []string) error {
 	if len(os.Args) <= 1 {
 		return nil
@@ -55,29 +55,39 @@ func opsfleetPersistentPreRun(cmd *cobra.Command, _ []string) error {
 	if shouldSkipPreUpgradeCheck(cmd) {
 		return nil
 	}
-	base := resolveOpsfleetAPIBase()
 	if os.Getenv("OPSFLEET_NO_AUTO_UPGRADE") == "1" {
 		if os.Getenv("OPSFLEET_UPGRADE_HINT") == "1" || os.Getenv("OPSFLEET_UPGRADE_CHECK") == "1" {
-			return runUpgradeHintOnly(base)
+			return runUpgradeHintOnly(resolveOpsfleetAPIBase())
 		}
 		return nil
 	}
-	if err := tryAutoUpgradeInPlace(base); err != nil && os.Getenv("OPSFLEET_AUTO_UPGRADE_VERBOSE") == "1" {
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 自动检查更新: %v\n", progName, err)
+	if err := tryAutoUpgradeInPlace(""); err != nil {
+		ctx := context.Background()
+		_ = recoverInstallDownloadFailure(ctx, "auto_upgrade", err, map[string]string{
+			"phase": "persistent_pre_run",
+		})
+		if upgradeCheckVerbose() {
+			_, _ = fmt.Fprintf(os.Stderr, "[%s] 自动检查更新: %v（已转服务端 AI 处置）\n", progName, err)
+		}
 	}
 	return nil
 }
 
+func upgradeCheckVerbose() bool {
+	return os.Getenv("OPSFLEET_AUTO_UPGRADE_VERBOSE") == "1" || os.Getenv("OPSFLEET_UPGRADE_CHECK_VERBOSE") == "1"
+}
+
 // tryAutoUpgradeInPlace 有更新时覆盖正在运行的可执行文件并（Unix）exec 同 argv，使本次命令在**新版本**中重新执行一次。
-func tryAutoUpgradeInPlace(base string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 2500*time.Millisecond)
-	remote, err := fetchRemoteVersion(ctx, base)
-	cancel()
+func tryAutoUpgradeInPlace(preferredBase string) error {
+	remote, base, err := fetchRemoteVersionFast(preferredBase)
 	if err != nil {
-		if os.Getenv("OPSFLEET_AUTO_UPGRADE_VERBOSE") == "1" {
-			_, _ = fmt.Fprintf(os.Stderr, "[%s] 无法取得 OpsFleet 版本: %v\n", progName, err)
-		}
-		return err
+		_ = recoverInstallDownloadFailure(context.Background(), "version_check", err, map[string]string{
+			"preferred_base": preferredBase,
+		})
+		return nil
+	}
+	if base == "" {
+		return nil
 	}
 	if remote == "" || remote == "unknown" {
 		return nil
@@ -85,31 +95,59 @@ func tryAutoUpgradeInPlace(base string) error {
 	if !versionIsOlder(Version, remote) {
 		return nil
 	}
+	if os.Getenv("OPSFLEET_AUTO_UPGRADE_ATTEMPT") == "1" {
+		loopErr := fmt.Errorf("自动升级后仍为 %s，OpsFleet 仍声明 %s", Version, remote)
+		_ = recoverInstallDownloadFailure(context.Background(), "auto_upgrade", loopErr, map[string]string{
+			"remote_version": remote,
+			"api_base":       base,
+		})
+		return nil
+	}
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] OpsFleet 有更新 %s（当前 %s），正在自动升级…\n", progName, remote, Version)
-	ctxDown, cancelDown := context.WithTimeout(context.Background(), 90*time.Second)
+	ctxDown, cancelDown := context.WithTimeout(context.Background(), upgradeDownloadTimeout())
 	defer cancelDown()
 	arch := goArchToAiSreArch()
-	if err := downloadAndReplaceAIsre(ctxDown, base, arch); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 自动升级失败: %v\n", progName, err)
-		return err
+	self, err := os.Executable()
+	if err != nil {
+		_ = recoverInstallDownloadFailure(context.Background(), "auto_upgrade", err, map[string]string{"phase": "resolve_executable"})
+		return nil
+	}
+	self, err = filepath.EvalSymlinks(self)
+	if err != nil {
+		_ = recoverInstallDownloadFailure(context.Background(), "auto_upgrade", err, map[string]string{"phase": "eval_symlinks"})
+		return nil
+	}
+	if err := downloadAndReplaceAIsre(ctxDown, base, arch, self); err != nil {
+		_ = recoverInstallDownloadFailure(context.Background(), "auto_upgrade", err, map[string]string{
+			"remote_version": remote,
+			"api_base":       base,
+			"arch":           arch,
+			"dest_path":      self,
+		})
+		return nil
+	}
+	installed, err := readInstalledVersion(self)
+	if err != nil {
+		_ = recoverInstallDownloadFailure(context.Background(), "auto_upgrade", err, map[string]string{"phase": "read_installed_version"})
+		return nil
+	}
+	if versionIsOlder(installed, remote) {
+		mismatch := fmt.Errorf("下载后本地版本仍为 %s，服务端声明 %s", installed, remote)
+		_ = recoverInstallDownloadFailure(context.Background(), "auto_upgrade", mismatch, map[string]string{
+			"remote_version": remote,
+			"installed":      installed,
+			"api_base":       base,
+		})
+		return nil
 	}
 	if runtime.GOOS == "windows" {
 		_, _ = fmt.Fprintf(os.Stderr, "[%s] 已写入新版本。请**再次**运行同一命令以使用新版本（Windows 下无法自动重载进程）。\n", progName)
 		os.Exit(0)
 	}
-	self, err := os.Executable()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 可执行文件路径: %v\n", progName, err)
-		return err
-	}
-	self, err = filepath.EvalSymlinks(self)
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 解析可执行文件: %v\n", progName, err)
-		return err
-	}
-	if err := syscall.Exec(self, os.Args, os.Environ()); err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "[%s] 已升级但无法重新执行: %v；请手动重试同一命令\n", progName, err)
-		return err
+	env := appendAttemptUpgradeEnv(os.Environ())
+	if err := syscall.Exec(self, os.Args, env); err != nil {
+		_ = recoverInstallDownloadFailure(context.Background(), "auto_upgrade", err, map[string]string{"phase": "exec"})
+		return nil
 	}
 	return nil
 }
@@ -117,7 +155,7 @@ func tryAutoUpgradeInPlace(base string) error {
 func runUpgradeHintOnly(base string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 900*time.Millisecond)
 	defer cancel()
-	ver, err := fetchRemoteVersion(ctx, base)
+	ver, err := fetchRemoteVersion(ctx, base, upgradeHTTPClient)
 	if err != nil || ver == "" || ver == "unknown" {
 		return nil
 	}
@@ -146,16 +184,24 @@ func upgradeCmd() *cobra.Command {
 			"OPSFLEET_NO_AUTO_UPGRADE=1 可关闭自升级，仅当另设 OPSFLEET_UPGRADE_HINT=1 时提示。",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			base := strings.TrimSpace(apiURL)
-			if base == "" {
-				base = resolveOpsfleetAPIBase()
-			}
 			base = strings.TrimRight(base, "/")
-			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-			defer cancel()
-
-			remote, err := fetchRemoteVersion(ctx, base)
+			var remote string
+			var err error
+			if base != "" {
+				vctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+				remote, err = fetchRemoteVersion(vctx, base, upgradeHTTPClient)
+				cancel()
+			} else {
+				remote, base, err = fetchRemoteVersionFast("")
+			}
 			if err != nil {
-				return err
+				_ = recoverInstallDownloadFailure(context.Background(), "version_check", err, map[string]string{"api_url": apiURL})
+				return nil
+			}
+			if base == "" {
+				_ = recoverInstallDownloadFailure(context.Background(), "version_check",
+					fmt.Errorf("未解析到 OpsFleet API 基址"), nil)
+				return nil
 			}
 			if remote == "" || remote == "unknown" {
 				if check {
@@ -196,8 +242,24 @@ func upgradeCmd() *cobra.Command {
 			if ua == "" {
 				ua = goArchToAiSreArch()
 			}
-			if err := downloadAndReplaceAIsre(ctx, base, ua); err != nil {
+			self, err := os.Executable()
+			if err != nil {
 				return err
+			}
+			self, err = filepath.EvalSymlinks(self)
+			if err != nil {
+				return err
+			}
+			dlCtx, dlCancel := context.WithTimeout(context.Background(), upgradeDownloadTimeout())
+			defer dlCancel()
+			if err := downloadAndReplaceAIsre(dlCtx, base, ua, self); err != nil {
+				_ = recoverInstallDownloadFailure(cmd.Context(), "upgrade", err, map[string]string{
+					"remote_version": remote,
+					"api_base":       base,
+					"arch":           ua,
+					"dest_path":      self,
+				})
+				return nil
 			}
 			_, _ = fmt.Fprintf(os.Stdout, "升级完成。请执行: %s version（当前应显示 %s）\n", progName, remote)
 			return nil
@@ -211,8 +273,70 @@ func upgradeCmd() *cobra.Command {
 	return cmd
 }
 
+var upgradeHTTPClient = &http.Client{
+	Timeout: 1200 * time.Millisecond,
+	Transport: &http.Transport{
+		Proxy:               http.ProxyFromEnvironment,
+		MaxIdleConns:        4,
+		IdleConnTimeout:     30 * time.Second,
+		TLSHandshakeTimeout: 800 * time.Millisecond,
+	},
+}
+
+func upgradeDownloadTimeout() time.Duration {
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_UPGRADE_DOWNLOAD_TIMEOUT")); v != "" {
+		if d, err := time.ParseDuration(v); err == nil && d > 0 {
+			return d
+		}
+	}
+	return 10 * time.Minute
+}
+
+func upgradeDownloadHTTPClient() *http.Client {
+	return &http.Client{
+		Transport: &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		},
+	}
+}
+
+// fetchRemoteVersionFast 依次探测多个 OpsFleet 基址（单址约 1.2s 超时），返回首个可用版本与基址。
+func fetchRemoteVersionFast(preferredBase string) (version string, base string, err error) {
+	bases := resolveOpsfleetAPIBasesForUpgrade()
+	if preferredBase != "" {
+		preferredBase = strings.TrimRight(strings.TrimSpace(preferredBase), "/")
+		merged := []string{preferredBase}
+		for _, b := range bases {
+			if b != preferredBase {
+				merged = append(merged, b)
+			}
+		}
+		bases = merged
+	}
+	if len(bases) == 0 {
+		return "", "", fmt.Errorf("未配置 OpsFleet API 基址")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
+	defer cancel()
+	var lastErr error
+	for _, b := range bases {
+		v, e := fetchRemoteVersion(ctx, b, upgradeHTTPClient)
+		if e == nil && v != "" && v != "unknown" {
+			return v, b, nil
+		}
+		lastErr = e
+	}
+	if lastErr == nil {
+		lastErr = fmt.Errorf("所有基址均未返回有效版本")
+	}
+	return "", "", lastErr
+}
+
 // fetchRemoteVersion returns JSON .version from OpsFleet.
-func fetchRemoteVersion(ctx context.Context, apiBase string) (string, error) {
+func fetchRemoteVersion(ctx context.Context, apiBase string, client *http.Client) (string, error) {
+	if client == nil {
+		client = http.DefaultClient
+	}
 	u, err := url.JoinPath(apiBase, "api", "k8s", "deploy", "cli", "ai-sre", "version")
 	if err != nil {
 		return "", err
@@ -221,12 +345,14 @@ func fetchRemoteVersion(ctx context.Context, apiBase string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", progName+"/"+Version)
+	resp, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, _ := io.ReadAll(io.LimitReader(resp.Body, 8192))
+	body, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 	if resp.StatusCode != http.StatusOK {
 		return "", fmt.Errorf("GET version HTTP %d: %s", resp.StatusCode, truncateForErr(body, 512))
 	}
@@ -336,7 +462,33 @@ func goArchToAiSreArch() string {
 	}
 }
 
-func downloadAndReplaceAIsre(ctx context.Context, apiBase, arch string) error {
+func appendAttemptUpgradeEnv(env []string) []string {
+	const key = "OPSFLEET_AUTO_UPGRADE_ATTEMPT="
+	out := make([]string, 0, len(env)+1)
+	for _, e := range env {
+		if strings.HasPrefix(e, key) {
+			continue
+		}
+		out = append(out, e)
+	}
+	return append(out, key+"1")
+}
+
+func readInstalledVersion(bin string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, bin, "version").Output()
+	if err != nil {
+		return "", fmt.Errorf("读取升级后版本: %w", err)
+	}
+	fields := strings.Fields(strings.TrimSpace(string(out)))
+	if len(fields) < 2 {
+		return "", fmt.Errorf("解析升级后版本输出: %q", strings.TrimSpace(string(out)))
+	}
+	return fields[1], nil
+}
+
+func downloadAndReplaceAIsre(ctx context.Context, apiBase, arch, destPath string) error {
 	uStr, err := url.JoinPath(apiBase, "api", "k8s", "deploy", "cli", "ai-sre")
 	if err != nil {
 		return err
@@ -352,7 +504,7 @@ func downloadAndReplaceAIsre(ctx context.Context, apiBase, arch string) error {
 	if err != nil {
 		return err
 	}
-	resp, err := http.DefaultClient.Do(req)
+	resp, err := upgradeDownloadHTTPClient().Do(req)
 	if err != nil {
 		return err
 	}
@@ -361,25 +513,27 @@ func downloadAndReplaceAIsre(ctx context.Context, apiBase, arch string) error {
 		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
 		return fmt.Errorf("下载失败 HTTP %d: %s", resp.StatusCode, truncateForErr(b, 1024))
 	}
-	self, err := os.Executable()
-	if err != nil {
-		return err
+	expected := resp.ContentLength
+	destPath = strings.TrimSpace(destPath)
+	if destPath == "" {
+		return fmt.Errorf("目标路径为空")
 	}
-	self, err = filepath.EvalSymlinks(self)
-	if err != nil {
-		return err
-	}
-	tmp, err := os.CreateTemp(filepath.Dir(self), ".ai-sre-upgrading-*")
+	tmp, err := os.CreateTemp(filepath.Dir(destPath), ".ai-sre-upgrading-*")
 	if err != nil {
 		return err
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
 	pr := newProgressReader(resp.Body, resp.ContentLength, fmt.Sprintf("下载 ai-sre 二进制 (arch=%s)", arch))
-	if _, err := io.Copy(tmp, pr); err != nil {
-		_ = pr.Close()
+	n, err := io.Copy(tmp, pr)
+	_ = pr.Close()
+	if err != nil {
 		tmp.Close()
 		return err
+	}
+	if expected > 0 && n < expected {
+		tmp.Close()
+		return fmt.Errorf("下载不完整: %d/%d 字节（网络过慢或超时，可增大 OPSFLEET_UPGRADE_DOWNLOAD_TIMEOUT 或重试）", n, expected)
 	}
 	_ = pr.Close()
 	if err := tmp.Close(); err != nil {
@@ -389,10 +543,10 @@ func downloadAndReplaceAIsre(ctx context.Context, apiBase, arch string) error {
 		return err
 	}
 	// 原子覆盖正在运行的可执行文件（Linux 上允许；下次 exec 用新内容）
-	if err := os.Rename(tmpPath, self); err != nil {
+	if err := os.Rename(tmpPath, destPath); err != nil {
 		// 若同目录重命名因跨设备失败，可尝试 cp
 		_ = os.Remove(tmpPath)
-		return fmt.Errorf("无法覆盖 %s: %w（请用 root 或写权限）", self, err)
+		return fmt.Errorf("无法覆盖 %s: %w（请用 root 或写权限）", destPath, err)
 	}
 	return nil
 }

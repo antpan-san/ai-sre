@@ -372,7 +372,7 @@ func diagnosticPackInputsForTopic(topic string) (input, keywords []string) {
 		return []string{"access_log"}, []string{"nginx", "diagnose", "readonly", "5xx"}
 	case "mysql":
 		return []string{"dsn"}, []string{"mysql", "diagnose", "readonly", "runtime"}
-	case "postgresql", "postgres", "pg":
+	case "postgresql", "postgres":
 		return []string{"dsn"}, []string{"postgresql", "postgres", "diagnose", "readonly", "general"}
 	case "elasticsearch", "es":
 		return []string{"url", "host"}, []string{"elasticsearch", "diagnose", "readonly", "health"}

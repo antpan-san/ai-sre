@@ -10,10 +10,8 @@ ExecStart=/OPSFLEET_ROOT/bin/opsfleet-backend
 Restart=on-failure
 RestartSec=5
 Environment=GIN_MODE=release
-# 可选：路径/镜像/密钥；不存在则忽略（后加载的同名变量覆盖前者）
+# 可选：K8s 制品镜像 manifest（见 deploy/k8s-mirror/README.md）；不存在则忽略
 EnvironmentFile=-/etc/opsfleet/backend.env
-# 生产常见 AI 密钥文件（DEEPSEEK_* 或 OPSFLEET_AI_*，见 deploy/fleetpilots-backend.env.example）
-EnvironmentFile=-/etc/fleetpilots-backend.env
 
 [Install]
 WantedBy=multi-user.target

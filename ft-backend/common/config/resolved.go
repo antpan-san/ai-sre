@@ -12,10 +12,6 @@ const (
 	EnvAIAPIKey           = "OPSFLEET_AI_API_KEY"
 	EnvAIBaseURL          = "OPSFLEET_AI_BASE_URL"
 	EnvAIModel            = "OPSFLEET_AI_MODEL"
-	// 生产机常见 /etc/fleetpilots-backend.env（与 OPSFLEET_AI_* 等价，OPSFLEET 优先）
-	EnvDeepSeekAPIKey  = "DEEPSEEK_API_KEY"
-	EnvDeepSeekBaseURL = "DEEPSEEK_BASE_URL"
-	EnvDeepSeekModel   = "DEEPSEEK_MODEL"
 	EnvAISkillDataDir     = "OPSFLEET_AI_SKILL_DATA_DIR"
 	EnvAISreBinaryPath    = "OPSFLEET_AISRE_BINARY_PATH"
 	EnvAISreBinaryAmd64   = "OPSFLEET_AISRE_BINARY_PATH_AMD64"
@@ -25,8 +21,10 @@ const (
 	EnvK8sMirrorManifest  = "OPSFLEET_K8S_MIRROR_MANIFEST_URL"
 	EnvK8sRelayBase       = "OPSFLEET_K8S_RELAY_BASE_URL"
 	EnvAnsibleDir         = "OPSFLEET_ANSIBLE_DIR"
-	EnvSkillAutoRefine    = "OPSFLEET_SKILL_AUTO_REFINE"
-	EnvSkillAutoMin       = "OPSFLEET_SKILL_AUTO_REFINE_MIN_SAMPLES"
+	EnvSkillAutoRefine              = "OPSFLEET_SKILL_AUTO_REFINE"
+	EnvAutoIterationDingTalkWebhook = "OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK"
+	EnvAutoIterationDingTalkKeyword = "OPSFLEET_AUTO_ITERATION_DINGTALK_KEYWORD"
+	EnvSkillAutoMin                 = "OPSFLEET_SKILL_AUTO_REFINE_MIN_SAMPLES"
 	EnvSkillAutoCooldown  = "OPSFLEET_SKILL_AUTO_REFINE_COOLDOWN"
 	EnvSkillAutoTopics    = "OPSFLEET_SKILL_AUTO_REFINE_TOPICS"
 	EnvSkillAutoMaxPerDay = "OPSFLEET_SKILL_AUTO_REFINE_MAX_PER_DAY"
@@ -69,36 +67,17 @@ func yamlSkills() SkillsConfig {
 	return SkillsConfig{}
 }
 
-func envFirstNonEmpty(keys ...string) string {
-	for _, k := range keys {
-		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
-			return v
-		}
-	}
-	return ""
-}
-
-// normalizeDeepSeekBaseURL ensures chat/completions path (/v1) matches DeepSeek OpenAPI layout.
-func normalizeDeepSeekBaseURL(raw string) string {
-	u := strings.TrimRight(strings.TrimSpace(raw), "/")
-	if u == "" {
-		return "https://api.deepseek.com/v1"
-	}
-	if strings.HasSuffix(u, "/v1") {
-		return u
-	}
-	return u + "/v1"
-}
-
 // ResolvedAIConfig returns DeepSeek-compatible settings.
 func ResolvedAIConfig() ResolvedAI {
 	y := yamlAI()
 	out := ResolvedAI{
-		APIKey:  envFirstNonEmpty(EnvAIAPIKey, EnvDeepSeekAPIKey, y.APIKey),
-		BaseURL: envFirstNonEmpty(EnvAIBaseURL, EnvDeepSeekBaseURL, y.BaseURL),
-		Model:   envFirstNonEmpty(EnvAIModel, EnvDeepSeekModel, y.Model),
+		APIKey:  EnvOrString(EnvAIAPIKey, y.APIKey),
+		BaseURL: EnvOrString(EnvAIBaseURL, y.BaseURL),
+		Model:   EnvOrString(EnvAIModel, y.Model),
 	}
-	out.BaseURL = normalizeDeepSeekBaseURL(out.BaseURL)
+	if out.BaseURL == "" {
+		out.BaseURL = "https://api.deepseek.com/v1"
+	}
 	if out.Model == "" {
 		out.Model = "deepseek-chat"
 	}
@@ -223,6 +202,7 @@ type ResolvedAutoIteration struct {
 	MaxConcurrent            int
 	HighRiskRequiresApproval bool
 	DingTalkWebhook          string
+	DingTalkKeyword          string
 	GitHubRepo               string
 	CodeAgentToken           string
 }
@@ -254,9 +234,10 @@ func ResolvedAutoIterationConfig() ResolvedAutoIteration {
 	if v := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_HIGH_RISK_REQUIRES_APPROVAL")); v != "" {
 		highRisk = v == "1" || strings.EqualFold(v, "true")
 	}
-	webhook := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK"))
-	if webhook == "" {
-		webhook = strings.TrimSpace(y.DingTalkWebhook)
+	webhook := EnvOrString(EnvAutoIterationDingTalkWebhook, y.DingTalkWebhook)
+	keyword := EnvOrString(EnvAutoIterationDingTalkKeyword, y.DingTalkKeyword)
+	if keyword == "" {
+		keyword = "操"
 	}
 	repo := strings.TrimSpace(os.Getenv("OPSFLEET_AUTO_ITERATION_GITHUB_REPO"))
 	if repo == "" {
@@ -271,6 +252,7 @@ func ResolvedAutoIterationConfig() ResolvedAutoIteration {
 		MaxConcurrent:            maxConcurrent,
 		HighRiskRequiresApproval: highRisk,
 		DingTalkWebhook:          webhook,
+		DingTalkKeyword:          keyword,
 		GitHubRepo:               repo,
 		CodeAgentToken:           agentToken,
 	}

@@ -22,9 +22,11 @@ export interface AutoIteration {
   topic?: string
   command?: string
   summary?: string
+  last_error?: string
   created_by?: string
   approved_by?: string
   approved_at?: string
+  assigned_agent_id?: string
   created_at: string
 }
 
@@ -40,6 +42,8 @@ export interface AutoIterationEvent {
 export const listAutoIterations = (params?: {
   status?: string
   topic?: string
+  source?: string
+  keyword?: string
   page?: number
   page_size?: number
 }): Promise<{ list: AutoIteration[]; total: number }> => {
@@ -63,7 +67,9 @@ export const updateAutoIterationSettings = (body: Partial<AutoIterationSettings>
 export const createManualAutoIteration = (body: {
   title?: string
   description?: string
+  command?: string
   topic?: string
+  auto_start?: boolean
 }): Promise<{ iteration: AutoIteration }> => {
   return request.post('/api/admin/auto-iterations/manual', body)
 }
@@ -75,7 +81,8 @@ export const startAutoIteration = (id: string) => postAction(id, 'start')
 export const pauseAutoIteration = (id: string) => postAction(id, 'pause')
 export const resumeAutoIteration = (id: string) => postAction(id, 'resume')
 export const cancelAutoIteration = (id: string) => postAction(id, 'cancel')
-export const approveAutoIteration = (id: string, notes?: string) => postAction(id, 'approve', { notes: notes ?? '' })
+export const approveAutoIteration = (id: string, notes?: string, force?: boolean) =>
+  postAction(id, 'approve', { notes: notes ?? '', force: force === true })
 export const rejectAutoIteration = (id: string, reason?: string) => postAction(id, 'reject', { reason: reason ?? '' })
 export const rollbackAutoIteration = (id: string, reason?: string) => postAction(id, 'rollback', { reason: reason ?? '' })
 export const runAutoIterationTests = (id: string) => postAction(id, 'run-tests')

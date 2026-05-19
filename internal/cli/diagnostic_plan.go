@@ -48,7 +48,7 @@ func shouldRequestServerDiagnosticPlan(topic string, kv map[string]string) bool 
 		return !hasKubectlEvidence(kv)
 	case "go_runtime", "go-runtime":
 		return !hasGoRuntimeDiagnosticEvidence(kv)
-	case "redis", "kafka", "nginx", "mysql", "postgresql", "postgres", "pg", "elasticsearch", "es":
+	case "redis", "kafka", "nginx", "mysql", "postgresql", "postgres", "elasticsearch", "es":
 		return !hasMiddlewareDiagnosticEvidence(t, kv)
 	default:
 		return false
@@ -87,7 +87,7 @@ func maybeRunServerDiagnosticPlan(ctx context.Context, topic string, kv map[stri
 	if strings.TrimSpace(resolveOpsfleetAPIBase()) == "" || strings.TrimSpace(resolveOpsfleetToken()) == "" || strings.TrimSpace(resolveOpsfleetFingerprint()) == "" {
 		return nil, false, nil
 	}
-	intent := buildExecutionIntent("analyze", topic, kv)
+	intent := buildExecutionIntent("check", topic, kv)
 	if err := ensureExecutionAllowed(ctx, intent, false); err != nil {
 		return nil, false, err
 	}
@@ -109,7 +109,7 @@ func maybeRunServerDiagnosticPlan(ctx context.Context, topic string, kv map[stri
 }
 
 func requestServerDiagnosticPlan(ctx context.Context, topic string, kv map[string]string) (*serverDiagnosticPlan, error) {
-	intent := buildExecutionIntent("analyze", topic, kv)
+	intent := buildExecutionIntent("check", topic, kv)
 	body, err := json.Marshal(map[string]interface{}{
 		"topic":      strings.TrimSpace(topic),
 		"context":    kv,
@@ -428,13 +428,22 @@ func allowedCLIAISreDiagnosticCommand(argv []string) bool {
 		}
 	}
 	switch argv[1] {
+	case "probe":
+		return allowedCLIAISreProbeCommand(argv)
+	case "check":
+		if argv[2] == "go" {
+			return allowedCLIAISreGoRuntimeArgs(argv[3:])
+		}
+		return false
+	case "diagnose":
+		return allowedCLIAISreGoRuntimeArgs(argv[2:])
 	case "go_runtime":
-		if argv[2] != "diagnose" {
+		if !aisreReadonlySubcommand(argv[2]) {
 			return false
 		}
-		return allowedCLIAISreArgs(argv[3:])
-	case "redis", "kafka", "mysql", "postgresql", "postgres", "pg", "elasticsearch":
-		if argv[2] != "diagnose" || len(argv) < 4 {
+		return allowedCLIAISreGoRuntimeArgs(argv[3:])
+	case "redis", "kafka", "mysql", "postgresql", "postgres", "elasticsearch":
+		if !aisreReadonlySubcommand(argv[2]) || len(argv) < 4 {
 			return false
 		}
 		if !diagnosticAISreValueRe.MatchString(argv[3]) {
@@ -442,13 +451,48 @@ func allowedCLIAISreDiagnosticCommand(argv []string) bool {
 		}
 		return allowedCLITopicDiagnoseFlags(argv[1], argv[4:])
 	case "nginx":
-		if argv[2] != "diagnose" {
+		if !aisreReadonlySubcommand(argv[2]) {
 			return false
 		}
 		return allowedCLITopicDiagnoseFlags(argv[1], argv[3:])
 	default:
 		return false
 	}
+}
+
+func aisreReadonlySubcommand(word string) bool {
+	switch strings.ToLower(strings.TrimSpace(word)) {
+	case "diagnose", "probe":
+		return true
+	default:
+		return false
+	}
+}
+
+func allowedCLIAISreProbeCommand(argv []string) bool {
+	if len(argv) < 3 {
+		return false
+	}
+	topic := argv[2]
+	switch topic {
+	case "redis", "kafka", "mysql", "postgresql", "postgres", "elasticsearch":
+		if len(argv) < 5 || !diagnosticAISreValueRe.MatchString(argv[3]) {
+			return false
+		}
+		return allowedCLITopicDiagnoseFlags(topic, argv[4:])
+	case "nginx":
+		return allowedCLITopicDiagnoseFlags(topic, argv[3:])
+	default:
+		return false
+	}
+}
+
+func allowedCLIAISreGoRuntimeArgs(args []string) bool {
+	return allowedCLIAISreArgsWithSet(args, map[string]struct{}{
+		"--json": {}, "--pod": {}, "--deployment": {}, "--statefulset": {}, "--daemonset": {},
+		"--replicaset": {}, "--job": {}, "--cronjob": {}, "--service": {}, "--ingress": {}, "--pvc": {},
+		"--pid": {}, "--name": {}, "--pid-name": {},
+	})
 }
 
 func allowedCLITopicDiagnoseFlags(topic string, args []string) bool {
@@ -465,7 +509,7 @@ func allowedCLITopicDiagnoseFlags(topic string, args []string) bool {
 	case "nginx":
 		allowed["--access-log"] = struct{}{}
 		allowed["--tail"] = struct{}{}
-	case "mysql", "postgresql", "postgres", "pg":
+	case "mysql", "postgresql", "postgres":
 		allowed["--timeout"] = struct{}{}
 	case "elasticsearch":
 		allowed["--timeout"] = struct{}{}

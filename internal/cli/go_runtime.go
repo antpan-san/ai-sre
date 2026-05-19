@@ -40,15 +40,36 @@ type goRuntimeCLIOptions struct {
 	CrictlPath    string
 }
 
+// checkGoCmd diagnoses Go runtime on host or Kubernetes workloads (no LLM in the probe path itself).
+func checkGoCmd() *cobra.Command {
+	cmd := newGoRuntimeSmartCommand()
+	cmd.Use = "go"
+	cmd.Short = "Go 运行时诊断：本机进程或 K8s 工作负载"
+	cmd.Example = fmt.Sprintf(`  %s check go --pid 1234
+  %s check go --name my-go-service
+  %s check go --pod default/api-0
+  %s check go -o json --deployment prod/api`, progName, progName, progName, progName)
+	return cmd
+}
+
+// diagnoseCmd is a deprecated top-level alias of check go.
 func diagnoseCmd() *cobra.Command {
+	cmd := newGoRuntimeSmartCommand()
+	cmd.Use = "diagnose"
+	cmd.Short = "（已弃用）请改用 check go"
+	cmd.Deprecated = "use \"check go\" instead"
+	cmd.Example = fmt.Sprintf(`  %s check go --pid 1234`, progName)
+	cmd.AddCommand(goProcessDiagnoseCmd())
+	return cmd
+}
+
+func newGoRuntimeSmartCommand() *cobra.Command {
 	var smart goRuntimeCLIOptions
 	cmd := &cobra.Command{
-		Use:   "diagnose",
-		Short: "Go 程序智能诊断",
 		Long: `一条命令完成运行时诊断：本机进程或 Kubernetes 工作负载/网络资源。
 自动执行 kubectl 采集与（适用时）宿主机 proc 采样，输出根因与证据并同步进程观测。
 支持 --pod、--deployment、--statefulset、--daemonset、--replicaset、--job、--cronjob、
---service、--ingress、--pvc（格式 name 或 namespace/name）。不支持 --namespace 等元数据资源。`,
+--service、--ingress、--pvc（格式 name 或 namespace/name）。`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if len(args) > 0 {
 				return fmt.Errorf("请使用 --pid、--name 或 Kubernetes 资源参数指定诊断目标")
@@ -69,7 +90,6 @@ func diagnoseCmd() *cobra.Command {
 	cmd.Flags().StringVar(&smart.Service, "service", "", "Service：name | namespace/name")
 	cmd.Flags().StringVar(&smart.Ingress, "ingress", "", "Ingress：name | namespace/name")
 	cmd.Flags().StringVar(&smart.PVC, "pvc", "", "PersistentVolumeClaim：name | namespace/name")
-	cmd.AddCommand(goProcessDiagnoseCmd())
 	return cmd
 }
 
@@ -78,7 +98,7 @@ func goProcessDiagnoseCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:    "go-process",
 		Hidden: true,
-		Short:  "高级：本地/离线 Go 进程诊断（一般用 ai-sre diagnose --pid|--name|--pod）",
+		Short:  "高级：本地/离线 Go 进程诊断（一般用 ai-sre check go --pid|--name|--pod）",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return runGoRuntimeCLI(cmd.Context(), opts)
 		},
@@ -94,7 +114,7 @@ func goProcessDiagnoseCmd() *cobra.Command {
 func runGoRuntimeAnalyze(ctx context.Context, topic string, opts goRuntimeCLIOptions) error {
 	switch strings.ToLower(strings.TrimSpace(topic)) {
 	case "go-runtime", "pod-go":
-		return fmt.Errorf("请使用 ai-sre diagnose：本机 --pid/--name，集群 --pod <namespace/pod>")
+		return fmt.Errorf("请使用 ai-sre check go：本机 --pid/--name，集群 --pod <namespace/pod>")
 	default:
 		return fmt.Errorf("unsupported go runtime topic %q", topic)
 	}

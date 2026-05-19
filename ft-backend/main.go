@@ -57,6 +57,9 @@ func main() {
 	if err := services.SeedBuiltinSkillTree(); err != nil {
 		logger.Warn("SeedBuiltinSkillTree: %v", err)
 	}
+	if err := services.SyncMissingBuiltinSkillTreeNodes(); err != nil {
+		logger.Warn("SyncMissingBuiltinSkillTreeNodes: %v", err)
+	}
 	services.LogCommercialSeedFailure(services.SeedSkillCommercialProducts())
 
 	// 5. Connect to Redis (non-fatal if fails — graceful degradation)

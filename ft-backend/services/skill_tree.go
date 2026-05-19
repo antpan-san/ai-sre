@@ -67,13 +67,15 @@ var builtinSkillTreeNodes = []SkillTreeNode{
 	{Path: "ops.delivery_implementation", ParentPath: "ops", NodeType: SkillNodeTypeCategory, Title: "部署实施", CLIVisible: true, SortOrder: 10},
 	{Path: "ops.incident_diagnosis", ParentPath: "ops", NodeType: SkillNodeTypeCategory, Title: "问题排查", CLIVisible: true, SortOrder: 20},
 	{Path: "ops.incident_diagnosis.kubernetes", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "Kubernetes", Topic: "k8s", PackKey: models.SkillPackK8s, FeatureKey: models.FeatureKeyAIDiagnosis, CLIVisible: true, SortOrder: 30},
+	{Path: "ops.incident_diagnosis.network", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "网络与域名", CLIVisible: true, SortOrder: 35},
 	{Path: "ops.incident_diagnosis.middleware", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "中间件", CLIVisible: true, SortOrder: 40},
 	{Path: "ops.incident_diagnosis.middleware.kafka", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "Kafka 诊断", Topic: "kafka", CapabilityKey: "cap.diagnosis.kafka", PackKey: models.SkillPackKafka, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 41},
 	{Path: "ops.incident_diagnosis.middleware.redis", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "Redis 诊断", Topic: "redis", CapabilityKey: "cap.diagnosis.redis", PackKey: models.SkillPackRedis, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 42},
+	{Path: "ops.incident_diagnosis.network.domain", ParentPath: "ops.incident_diagnosis.network", NodeType: SkillNodeTypeCapability, Title: "域名连通性诊断", Topic: "domain", CapabilityKey: "cap.diagnosis.domain", PackKey: models.SkillPackDomain, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 36},
 	{Path: "ops.incident_diagnosis.middleware.nginx", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "Nginx / 网关诊断", Topic: "nginx", CapabilityKey: "cap.diagnosis.nginx", PackKey: models.SkillPackNginx, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 43},
 	{Path: "ops.incident_diagnosis.middleware.mysql", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "MySQL 诊断", Topic: "mysql", CapabilityKey: "cap.diagnosis.mysql", PackKey: models.SkillPackMySQL, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 44},
-	{Path: "ops.incident_diagnosis.middleware.postgresql", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "PostgreSQL 诊断", Topic: "postgresql", CapabilityKey: "cap.diagnosis.postgresql", PackKey: models.SkillPackPostgreSQL, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 45},
-	{Path: "ops.incident_diagnosis.middleware.elasticsearch", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "Elasticsearch 诊断", Topic: "elasticsearch", CapabilityKey: "cap.diagnosis.elasticsearch", PackKey: models.SkillPackElasticsearch, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 46},
+	{Path: "ops.incident_diagnosis.middleware.postgresql", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "PostgreSQL 诊断", Topic: "postgresql", CapabilityKey: "cap.diagnosis.postgresql", PackKey: models.SkillPackPostgreSQL, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 46},
+	{Path: "ops.incident_diagnosis.middleware.elasticsearch", ParentPath: "ops.incident_diagnosis.middleware", NodeType: SkillNodeTypeCapability, Title: "Elasticsearch 诊断", Topic: "elasticsearch", CapabilityKey: "cap.diagnosis.elasticsearch", PackKey: models.SkillPackElasticsearch, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 45},
 	{Path: "ops.incident_diagnosis.application", ParentPath: "ops.incident_diagnosis", NodeType: SkillNodeTypeCategory, Title: "应用运行时", CLIVisible: true, SortOrder: 50},
 	{Path: "ops.knowledge_base", ParentPath: "ops", NodeType: SkillNodeTypeCategory, Title: "经验库", CLIVisible: true, SortOrder: 60},
 	{Path: "ops.incident_diagnosis.kubernetes.workload", ParentPath: "ops.incident_diagnosis.kubernetes", NodeType: SkillNodeTypeCapability, Title: "K8s 工作负载诊断", Topic: "k8s", CapabilityKey: "cap.diagnosis.k8s.workload", PackKey: models.SkillPackK8s, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerPlanReadonly, CLIVisible: true, SortOrder: 100},
@@ -90,8 +92,9 @@ var builtinSkillTreeNodes = []SkillTreeNode{
 	{Path: "ops.incident_diagnosis.middleware.redis.latency", ParentPath: "ops.incident_diagnosis.middleware.redis", NodeType: SkillNodeTypeSkill, Title: "Redis 延迟 / 慢查询快诊", Topic: "redis", SkillKey: "skill.redis.latency", ProblemKey: "latency", CapabilityKey: "cap.diagnosis.redis", PackKey: models.SkillPackRedis, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 310},
 	{Path: "ops.incident_diagnosis.middleware.nginx.5xx", ParentPath: "ops.incident_diagnosis.middleware.nginx", NodeType: SkillNodeTypeSkill, Title: "Nginx / 网关 5xx 快诊", Topic: "nginx", SkillKey: "skill.nginx.5xx", ProblemKey: "5xx", CapabilityKey: "cap.diagnosis.nginx", PackKey: models.SkillPackNginx, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 320},
 	{Path: "ops.incident_diagnosis.middleware.mysql.runtime", ParentPath: "ops.incident_diagnosis.middleware.mysql", NodeType: SkillNodeTypeSkill, Title: "MySQL 运行状态快诊", Topic: "mysql", SkillKey: "skill.mysql.runtime", ProblemKey: "runtime", CapabilityKey: "cap.diagnosis.mysql", PackKey: models.SkillPackMySQL, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 330},
-	{Path: "ops.incident_diagnosis.middleware.postgresql.general", ParentPath: "ops.incident_diagnosis.middleware.postgresql", NodeType: SkillNodeTypeSkill, Title: "PostgreSQL 通用快诊", Topic: "postgresql", SkillKey: "skill.postgresql.general", ProblemKey: "general", CapabilityKey: "cap.diagnosis.postgresql", PackKey: models.SkillPackPostgreSQL, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 335},
+	{Path: "ops.incident_diagnosis.middleware.postgresql.general", ParentPath: "ops.incident_diagnosis.middleware.postgresql", NodeType: SkillNodeTypeSkill, Title: "PostgreSQL 通用根因分析", Topic: "postgresql", SkillKey: "skill.postgresql.general", ProblemKey: "general", CapabilityKey: "cap.diagnosis.postgresql", PackKey: models.SkillPackPostgreSQL, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 335},
 	{Path: "ops.incident_diagnosis.middleware.elasticsearch.health", ParentPath: "ops.incident_diagnosis.middleware.elasticsearch", NodeType: SkillNodeTypeSkill, Title: "Elasticsearch 健康快诊", Topic: "elasticsearch", SkillKey: "skill.elasticsearch.health", ProblemKey: "health", CapabilityKey: "cap.diagnosis.elasticsearch", PackKey: models.SkillPackElasticsearch, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 340},
+	{Path: "ops.incident_diagnosis.network.domain.connectivity", ParentPath: "ops.incident_diagnosis.network.domain", NodeType: SkillNodeTypeSkill, Title: "域名 / DNS / HTTP(S) 诊断", Topic: "domain", SkillKey: "skill.domain.connectivity", ProblemKey: "connectivity", CapabilityKey: "cap.diagnosis.domain", PackKey: models.SkillPackDomain, FeatureKey: models.FeatureKeyAIDiagnosis, ExecutionMode: ExecutionModeServerAI, CLIVisible: true, SortOrder: 345},
 
 	{Path: "ops.incident_diagnosis.application.go_runtime", ParentPath: "ops.incident_diagnosis.application", NodeType: SkillNodeTypeCapability, Title: "Go Runtime 智能诊断", Topic: "go_runtime", CapabilityKey: "cap.diagnosis.go_runtime", PackKey: models.PackKeyRuntimeObserve, FeatureKey: models.FeatureKeyRuntimeObserve, ExecutionMode: ExecutionModeServerPlanReadonly, CLIVisible: true, SortOrder: 400},
 	{Path: "ops.incident_diagnosis.application.go_runtime.process", ParentPath: "ops.incident_diagnosis.application.go_runtime", NodeType: SkillNodeTypeSkill, Title: "Go 进程运行时诊断", Topic: "go_runtime", SkillKey: "skill.go_runtime.process", ProblemKey: "process_runtime", CapabilityKey: "cap.diagnosis.go_runtime", PackKey: models.PackKeyRuntimeObserve, FeatureKey: models.FeatureKeyRuntimeObserve, ExecutionMode: ExecutionModeLocalAIFallback, CLIVisible: true, SortOrder: 401},
@@ -313,10 +316,12 @@ func inferProblemKey(topic string, ctx map[string]string) string {
 		return "5xx"
 	case "mysql":
 		return "runtime"
-	case "postgresql":
+	case "postgresql", "postgres":
 		return "general"
 	case "elasticsearch":
 		return "health"
+	case "domain":
+		return "connectivity"
 	case "errorcode":
 		return "error_codes"
 	default:
@@ -332,8 +337,10 @@ func normalizeSkillTopic(topic string) string {
 		return "go_runtime"
 	case "es":
 		return "elasticsearch"
-	case "postgres", "pg":
+	case "postgres":
 		return "postgresql"
+	case "dns":
+		return "domain"
 	case "deploy", "install":
 		return "errorcode"
 	default:
@@ -353,10 +360,12 @@ func packKeyForSkillTopic(topic string) string {
 		return models.SkillPackNginx
 	case "mysql":
 		return models.SkillPackMySQL
-	case "postgresql":
+	case "postgresql", "postgres":
 		return models.SkillPackPostgreSQL
 	case "elasticsearch":
 		return models.SkillPackElasticsearch
+	case "domain":
+		return models.SkillPackDomain
 	case "go_runtime":
 		return models.PackKeyRuntimeObserve
 	default:

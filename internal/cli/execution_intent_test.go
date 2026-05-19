@@ -12,6 +12,16 @@ func TestBuildExecutionIntentK8sCrashLoop(t *testing.T) {
 	}
 }
 
+func TestBuildExecutionIntentPostgreSQLGeneral(t *testing.T) {
+	got := buildExecutionIntent("analyze", "postgresql", nil)
+	if got.NodePath != "ops.incident_diagnosis.middleware.postgresql.general" {
+		t.Fatalf("unexpected node path: %+v", got)
+	}
+	if got.SkillKey != "skill.postgresql.general" || got.PackKey != "skillpack.postgresql" || got.ProblemKey != "general" {
+		t.Fatalf("unexpected intent: %+v", got)
+	}
+}
+
 func TestBuildExecutionIntentGoRuntimeProcess(t *testing.T) {
 	got := buildExecutionIntent("diagnose", "go-runtime", map[string]string{"pid": "1234"})
 	if got.NodePath != "ops.incident_diagnosis.application.go_runtime.process" {

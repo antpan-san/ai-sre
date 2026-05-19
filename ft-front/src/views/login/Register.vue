@@ -50,9 +50,8 @@
             type="primary"
             class="register-btn"
             :loading="loading"
-            :disabled="!regAllowed"
+            :disabled="!regAllowed || loading"
             native-type="submit"
-            @click="submit"
           >
             注册
           </el-button>
@@ -124,7 +123,7 @@ onMounted(async () => {
 })
 
 const submit = async () => {
-  if (!regAllowed.value) return
+  if (!regAllowed.value || loading.value) return
   if (!formRef.value) return
   err.value = ''
   try {

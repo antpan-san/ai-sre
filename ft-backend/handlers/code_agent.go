@@ -35,14 +35,7 @@ func CodeAgentPullTask(c *gin.Context) {
 		response.OK(c, gin.H{"task": nil})
 		return
 	}
-	response.OK(c, gin.H{
-		"task": gin.H{
-			"id":     task.ID.String(),
-			"title":  task.Title,
-			"topic":  task.Topic,
-			"status": task.Status,
-		},
-	})
+	response.OK(c, gin.H{"task": services.CodeAgentTaskView(task)})
 }
 
 type codeAgentEventReq struct {

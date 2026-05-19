@@ -75,8 +75,9 @@ type elasticsearchDiagnoseReport struct {
 func elasticsearchDiagnoseCmd() *cobra.Command {
 	var opts elasticsearchDiagnoseOptions
 	cmd := &cobra.Command{
-		Use:   "diagnose <http-url-or-host:port>",
-		Short: "只读快诊 Elasticsearch：集群/单机健康、分片与 JVM/磁盘风险",
+		Use:        "diagnose <http-url-or-host:port>",
+		Short:      "（已弃用）请改用 probe elasticsearch",
+		Deprecated: "use \"probe elasticsearch\" instead",
 		Long: `通过 HTTP 调用 _cluster/health 与 _cat/nodes（只读），输出规则化风险结论；可选 --ai 在本地凭据可用时结合技能包 elasticsearch_health 做补充说明。
 地址示例：127.0.0.1:9200、http://127.0.0.1:9200、https://es.internal:9200`,
 		Args: cobra.ExactArgs(1),

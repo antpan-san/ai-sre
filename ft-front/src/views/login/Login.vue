@@ -92,9 +92,9 @@
               <el-button
                 type="primary"
                 :loading="userStore.loading"
+                :disabled="loginInFlight"
                 class="login-btn"
                 native-type="submit"
-                @click="handleLogin"
               >
                 登录
               </el-button>
@@ -158,6 +158,8 @@ const loginRules = reactive({
 })
 
 const loginError = ref('')
+/** 防止 submit + click 或连按导致重复登录（第二次常因验证码已消耗而误报红字） */
+const loginInFlight = ref(false)
 
 const loadCaptcha = async () => {
   if (!authOptions.value?.login_captcha_required) return
@@ -202,7 +204,8 @@ onMounted(async () => {
 })
 
 const handleLogin = async () => {
-  if (!loginFormRef.value) return
+  if (!loginFormRef.value || loginInFlight.value || userStore.loading) return
+  loginInFlight.value = true
   loginError.value = ''
   if (authOptions.value?.login_captcha_required) {
     loginForm.captcha_id = captchaId.value
@@ -218,7 +221,7 @@ const handleLogin = async () => {
           localStorage.removeItem('rememberedUsername')
         }
         ElMessage.success('登录成功')
-        router.push('/admin/dashboard')
+        await router.push('/admin/dashboard')
         return
       }
       loginError.value = '用户名或密码错误，请重试'
@@ -230,6 +233,8 @@ const handleLogin = async () => {
     }
   } catch {
     /* 表单校验失败 */
+  } finally {
+    loginInFlight.value = false
   }
 }
 </script>

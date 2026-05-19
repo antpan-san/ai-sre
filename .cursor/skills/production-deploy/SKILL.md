@@ -175,14 +175,7 @@ grep -v "^OPSFLEET_AISRE_BINARY_PATH=" "$ENV_FILE" \
 cat "$tmp" > "$ENV_FILE"
 rm -f "$tmp"
 
-echo "OPSFLEET_AISRE_BINARY_PATH=/root/sre/bin/ai-sre" >> "$ENV_FILE"
-if [ -f /root/sre/bin/ai-sre.arm64 ]; then
-  echo "OPSFLEET_AISRE_BINARY_PATH_ARM64=/root/sre/bin/ai-sre.arm64" >> "$ENV_FILE"
-fi
-V=$(/root/sre/bin/ai-sre version 2>/dev/null | cut -d" " -f2 | head -1)
-if [ -n "${V:-}" ]; then
-  echo "OPSFLEET_AISRE_VERSION=$V" >> "$ENV_FILE"
-fi
+bash /root/sre/scripts/sync-aisre-backend-env.sh /root/sre
 install -d -m 0755 /var/lib/opsfleet/ai-skills/samples /var/lib/opsfleet/ai-skills/feedback /var/lib/opsfleet/ai-skills/generated
 echo "OPSFLEET_AI_SKILL_DATA_DIR=/var/lib/opsfleet/ai-skills" >> "$ENV_FILE"
 

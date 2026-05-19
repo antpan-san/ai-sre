@@ -93,8 +93,7 @@ func preflightAutoUpgradeIfUnknown(root *cobra.Command) {
 	if _, _, err := root.Find(args); err == nil {
 		return
 	}
-	base := resolveOpsfleetAPIBase()
-	_ = tryAutoUpgradeInPlace(base)
+	_ = tryAutoUpgradeInPlace("")
 }
 
 func newRoot(programName string) *cobra.Command {
@@ -103,26 +102,32 @@ func newRoot(programName string) *cobra.Command {
 	if programName == "opsfleet-executor" {
 		short = "OpsFleet 本地执行器 — 与 ai-sre 相同的技能包与执行语义"
 		long = fmt.Sprintf(`在需要部署或运维的受管机器上运行；与 ai-sre 共用同一套技能包（YAML）、Prompt、轻量 RAG 与 LLM 编排（需凭据）。
-子命令与 flag 与 ai-sre 一致：analyze / ask / runbook / skills / doctor / version / k8s / job。
+子命令：check（AI 诊断）/ probe（只读快采）/ ask / runbook / skills / doctor / k8s / job。
 示例:
-  %s analyze kafka --lag 100000
-  %s analyze k8s --pod pending
-  %s elasticsearch diagnose 127.0.0.1:9200
+  %s check kafka --lag 100000
+  %s check k8s --pod pending
+  %s probe elasticsearch 127.0.0.1:9200
   %s ask "kafka lag 高怎么办"
   %s runbook "pod频繁重启"
   %s skills list
   %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName, programName)
 	} else {
 		short = "AI SRE Copilot — 故障诊断、Runbook、知识问答"
-		long = fmt.Sprintf(`CLI 工具：技能包（Skill Pack）+ Prompt + 可选轻量 RAG + DeepSeek LLM；并支持通过 OpsFleet API 拉取 K8s 离线包与安装/卸载（见 k8s 子命令）。
+		long = fmt.Sprintf(`CLI 工具：技能包 + Prompt + 可选 RAG + LLM；支持 OpsFleet K8s 离线包与安装（见 k8s）。
+
+命令分层（尽量少记）：
+  check [topic]   AI 故障诊断（kafka/k8s/redis/…）
+  probe <topic>   只读快采，不调 LLM
+  check go        Go 运行时诊断（原 diagnose）
+  doctor          CLI 环境自检（凭据/技能，不调 LLM）
+
 示例:
-  %s analyze kafka --lag 100000
-  %s analyze k8s --pod pending
-  %s elasticsearch diagnose 127.0.0.1:9200
+  %s check kafka --lag 100000
+  %s check k8s --pod pending
+  %s probe redis 127.0.0.1:6379
+  %s check go --pod default/api-0
   %s ask "kafka lag 高怎么办"
-  %s runbook "pod频繁重启"
-  %s skills list
-  %s k8s download --api-url http://host:9080/ft-api -u USER -p PASS --cluster c1 --version v1.35.4 --master 10.0.0.1`, programName, programName, programName, programName, programName, programName, programName)
+  %s doctor`, programName, programName, programName, programName, programName, programName)
 	}
 	root := &cobra.Command{
 		Use:          programName,
@@ -137,103 +142,32 @@ func newRoot(programName string) *cobra.Command {
 	root.PersistentFlags().StringVar(&keyFile, "key-file", "", "path to file containing API key only (overrides default api_key file if --config not set)")
 	root.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "verbose logs")
 	root.PersistentFlags().BoolVar(&noRAG, "no-rag", false, "disable knowledge retrieval (RAG)")
-	root.PersistentFlags().StringVarP(&outputFormat, "output", "o", "text", "output format: text|json (structured answer for analyze/ask/runbook)")
+	root.PersistentFlags().StringVarP(&outputFormat, "output", "o", "text", "output format: text|json (structured answer for check/ask/runbook)")
 	root.PersistentFlags().StringVar(&skillsExtraDir, "skills-dir", "", "extra directory of *.yaml skill packs (merged with built-in; same name overrides)")
 	root.PersistentFlags().StringVar(&knowledgeExtraDir, "knowledge-dir", "", "extra directory of *.md files for RAG (merged with built-in knowledge)")
+	var noAutoUpgrade bool
+	root.PersistentFlags().BoolVar(&noAutoUpgrade, "no-auto-upgrade", false, "跳过每次命令前的 OpsFleet 版本快检与自动升级（等同 OPSFLEET_NO_AUTO_UPGRADE=1）")
 
-	cmds := []*cobra.Command{analyzeCmd(), diagnoseCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(), versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(), kafkaCmd(), redisCmd(), mysqlCmd(), postgresqlCmd(), nginxCmd(), elasticsearchCmd(), nodeCmd(), jobCmd()}
+	cmds := []*cobra.Command{
+		checkCmd(), probeCmd(), askCmd(), runbookCmd(), skillsCmd(), doctorCmd(),
+		analyzeCmd(), diagnoseCmd(), // deprecated aliases
+		versionCmd(), upgradeCmd(), k8sCmd(), serviceCmd(),
+		kafkaCmd(), redisCmd(), mysqlCmd(), postgresqlCmd(), nginxCmd(), elasticsearchCmd(),
+		nodeCmd(), jobCmd(),
+	}
 	if programName == "ai-sre" {
 		cmds = append(cmds, uninstallCmd())
 	}
 	root.AddCommand(cmds...)
 	if programName == "ai-sre" {
-		root.PersistentPreRunE = opsfleetPersistentPreRun
+		root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+			if noAutoUpgrade {
+				_ = os.Setenv("OPSFLEET_NO_AUTO_UPGRADE", "1")
+			}
+			return opsfleetPersistentPreRun(cmd, args)
+		}
 	}
 	return root
-}
-
-func analyzeCmd() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "analyze [topic]",
-		Short: "故障诊断（AI 技能包；未购买时每日免费 5 次）",
-		Long: `topic 取值: kafka | k8s | nginx | redis | mysql | postgresql | elasticsearch
-
-k8s 场景 --pod 可填：
-  · 问题类型：pending、crashloop、instability（与 --issue 一致）
-  · 具体 Pod 名称：如 kube-controller-manager-k8s-master-0（可配合 --namespace；省略时在集群内按 metadata.name 解析命名空间）
-
-当 topic 为 k8s 且本机存在可执行的 kubectl、当前上下文可连集群时，会在调用服务端诊断前自动执行只读 kubectl 采集；若指定了具体 Pod，会额外抓取该 Pod 的 describe、events、logs（含 --previous）并优先送入模型。默认仍会采集节点与 Pending 等全景，并触发两轮服务端推理。`,
-		Args: cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
-			ctx := buildContextMap()
-			topic := args[0]
-			if isGoRuntimeAnalyzeTopic(topic) {
-				goRuntimeOpts.Namespace = namespace
-				goRuntimeOpts.Pod = pod
-				return runGoRuntimeAnalyze(cmd.Context(), topic, goRuntimeOpts)
-			}
-			for k, v := range gatherTopicEvidence(cmd.Context(), topic, ctx) {
-				ctx[k] = v
-			}
-			if shouldRequestServerDiagnosticPlan(topic, ctx) {
-				obs, ran, err := maybeRunServerDiagnosticPlan(cmd.Context(), topic, ctx, diagnosticPlanYes)
-				if err != nil {
-					return err
-				}
-				if ran {
-					for k, v := range obs {
-						ctx[k] = v
-					}
-				}
-			}
-			if hasTopicEvidence(ctx) {
-				ctx["diagnosis_style"] = "evidence_root_cause"
-			}
-			diag, err := runAnalyzeWithOrchestrator(context.Background(), topic, ctx)
-			if err != nil {
-				return err
-			}
-			res := &engine.RunResult{
-				Answer:       diag.Answer,
-				SkillName:    diag.SkillName,
-				SkillDisplay: diag.SkillDisplay,
-			}
-			p := output.BuildPayload("analyze", topic, "", "", ctx, !noRAG, 0, res)
-			if err := output.Print(outputFormat, p); err != nil {
-				return err
-			}
-			// Optional in-flow feedback: prompts the user "本次结果是否帮你定位了根因 (y/N/note)?"
-			// Skipped automatically when stdin/stderr isn't a TTY, when --no-feedback is set,
-			// when -o json is requested, or when running with verbose noise.
-			maybePromptFeedback(cmd.Context(), topic, diag)
-			return nil
-		},
-	}
-	cmd.Flags().StringVar(&lag, "lag", "", "Kafka consumer lag 等指标")
-	cmd.Flags().StringVar(&topicFlag, "topic", "", "Kafka topic 名称")
-	cmd.Flags().StringVar(&pod, "pod", "", "K8s: 问题类型 pending/crashloop/instability，或具体 Pod 名称（可配 --namespace）")
-	cmd.Flags().StringVar(&namespace, "namespace", "", "Kubernetes namespace")
-	cmd.Flags().StringVar(&issue, "issue", "", "K8s: pending | crashloop")
-	cmd.Flags().StringVar(&code, "code", "", "HTTP 状态码，如 502")
-	cmd.Flags().StringVar(&upstream, "upstream", "", "Nginx upstream 名称或服务名")
-	cmd.Flags().StringVar(&latency, "latency", "", "延迟描述，如 50ms、p99=20ms")
-	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
-	cmd.Flags().BoolVar(&noFeedback, "no-feedback", false, "禁用诊断后的「是否帮到我」反馈提示（非 TTY、-o json 也会自动跳过）")
-	cmd.Flags().BoolVar(&diagnosticPlanYes, "yes", false, "非 TTY 环境确认执行服务端只读诊断任务单")
-	cmd.Example = fmt.Sprintf(`  %s analyze kafka --lag 100000 --topic orders
-  %s analyze k8s --pod pending
-  %s analyze k8s --pod kube-controller-manager-k8s-master-0 -n kube-system
-  %s diagnose --pid 1234
-  %s diagnose --pod default/api-0
-  %s diagnose --deployment memleak-demo/memleak-demo
-  %s diagnose --ingress kube-system/my-ingress
-  %s analyze elasticsearch -d base_url=http://127.0.0.1:9200
-  %s -o json analyze kafka --lag 1
-  %s analyze code OPSFLEET_K8S_E_PAUSE_MISSING
-  %s analyze code OPSFLEET_K8S_E_APISERVER_TIMEOUT --detail "$(journalctl -u kubelet -n 30)"`,
-		progName, progName, progName, progName, progName, progName, progName, progName, progName, progName, progName)
-	cmd.AddCommand(analyzeCodeCmd())
-	return cmd
 }
 
 func isGoRuntimeAnalyzeTopic(topic string) bool {

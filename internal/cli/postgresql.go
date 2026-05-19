@@ -19,22 +19,22 @@ type postgresqlDiagnoseOptions struct {
 }
 
 type postgresqlDiagnoseReport struct {
-	DSN              string   `json:"dsn"`
-	Version          string   `json:"version,omitempty"`
-	ActiveConns      int64    `json:"active_connections,omitempty"`
-	IdleConns        int64    `json:"idle_connections,omitempty"`
-	MaxConnections   int64    `json:"max_connections,omitempty"`
-	Deadlocks        int64    `json:"deadlocks,omitempty"`
-	CacheHitRatioPct float64  `json:"cache_hit_ratio_pct,omitempty"`
-	Findings         []string `json:"findings,omitempty"`
-	Errors           []string `json:"errors,omitempty"`
+	DSN                 string   `json:"dsn"`
+	Version             string   `json:"version,omitempty"`
+	InRecovery          bool     `json:"in_recovery"`
+	MaxConnections      int64    `json:"max_connections,omitempty"`
+	ActiveConnections   int64    `json:"active_connections,omitempty"`
+	IdleInTransaction   int64    `json:"idle_in_transaction,omitempty"`
+	TotalConnections    int64    `json:"total_connections,omitempty"`
+	Deadlocks           int64    `json:"deadlocks,omitempty"`
+	Findings            []string `json:"findings,omitempty"`
+	Errors              []string `json:"errors,omitempty"`
 }
 
 func postgresqlCmd() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "postgresql",
-		Aliases: []string{"postgres", "pg"},
-		Short:   "PostgreSQL 极简快诊",
+		Use:   "postgresql",
+		Short: "PostgreSQL 极简快诊",
 	}
 	cmd.AddCommand(postgresqlDiagnoseCmd())
 	return cmd
@@ -43,9 +43,10 @@ func postgresqlCmd() *cobra.Command {
 func postgresqlDiagnoseCmd() *cobra.Command {
 	var opts postgresqlDiagnoseOptions
 	cmd := &cobra.Command{
-		Use:   "diagnose <dsn>",
-		Short: "只读连接 PostgreSQL 采集关键指标并给出优先排查建议",
-		Args:  cobra.ExactArgs(1),
+		Use:        "diagnose <dsn>",
+		Short:      "（已弃用）请改用 probe postgresql",
+		Deprecated: "use \"probe postgresql\" instead",
+		Args:       cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.DSN = strings.TrimSpace(args[0])
 			if opts.Timeout <= 0 {
@@ -81,34 +82,29 @@ func runPostgreSQLDiagnose(parent context.Context, opts postgresqlDiagnoseOption
 		return report
 	}
 	_ = db.QueryRowContext(ctx, "SELECT version()").Scan(&report.Version)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'active'").Scan(&report.ActiveConns)
-	_ = db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pg_stat_activity WHERE state = 'idle'").Scan(&report.IdleConns)
-	_ = db.QueryRowContext(ctx, "SELECT setting::bigint FROM pg_settings WHERE name = 'max_connections'").Scan(&report.MaxConnections)
-	_ = db.QueryRowContext(ctx, `
-SELECT COALESCE(SUM(deadlocks), 0)
-FROM pg_stat_database
-WHERE datname = current_database()`).Scan(&report.Deadlocks)
-	var blksHit, blksRead int64
-	_ = db.QueryRowContext(ctx, `
-SELECT COALESCE(SUM(blks_hit), 0), COALESCE(SUM(blks_read), 0)
-FROM pg_stat_database
-WHERE datname = current_database()`).Scan(&blksHit, &blksRead)
-	if blksHit+blksRead > 0 {
-		report.CacheHitRatioPct = float64(blksHit) * 100 / float64(blksHit+blksRead)
-	}
+	var inRecovery bool
+	_ = db.QueryRowContext(ctx, "SELECT pg_is_in_recovery()").Scan(&inRecovery)
+	report.InRecovery = inRecovery
+	report.MaxConnections = pgSettingInt(ctx, db, "max_connections")
+	report.TotalConnections = pgScalarInt(ctx, db, "SELECT count(*)::bigint FROM pg_stat_activity")
+	report.ActiveConnections = pgScalarInt(ctx, db, "SELECT count(*)::bigint FROM pg_stat_activity WHERE state = 'active'")
+	report.IdleInTransaction = pgScalarInt(ctx, db, "SELECT count(*)::bigint FROM pg_stat_activity WHERE state = 'idle in transaction'")
+	report.Deadlocks = pgScalarInt(ctx, db, "SELECT COALESCE(sum(deadlocks),0)::bigint FROM pg_stat_database")
 
-	totalConns := report.ActiveConns + report.IdleConns
-	if report.MaxConnections > 0 && totalConns*100 >= report.MaxConnections*80 {
-		report.Findings = append(report.Findings, fmt.Sprintf("连接数接近上限：active+idle=%d / max_connections=%d", totalConns, report.MaxConnections))
+	if report.MaxConnections > 0 && report.TotalConnections*100 >= report.MaxConnections*80 {
+		report.Findings = append(report.Findings, fmt.Sprintf("连接数接近上限：total=%d / max_connections=%d", report.TotalConnections, report.MaxConnections))
+	}
+	if report.IdleInTransaction > 0 {
+		report.Findings = append(report.Findings, fmt.Sprintf("idle in transaction=%d，可能存在长事务未提交", report.IdleInTransaction))
 	}
 	if report.Deadlocks > 0 {
-		report.Findings = append(report.Findings, fmt.Sprintf("deadlocks=%d，存在死锁历史，建议排查长事务与锁等待", report.Deadlocks))
+		report.Findings = append(report.Findings, fmt.Sprintf("deadlocks=%d，建议排查并发更新与锁等待", report.Deadlocks))
 	}
-	if report.CacheHitRatioPct > 0 && report.CacheHitRatioPct < 90 {
-		report.Findings = append(report.Findings, fmt.Sprintf("缓存命中率偏低：%.1f%%，关注 shared_buffers / 热点查询", report.CacheHitRatioPct))
+	if report.InRecovery {
+		report.Findings = append(report.Findings, "实例处于恢复/只读副本模式（pg_is_in_recovery=true）")
 	}
-	if report.ActiveConns > 50 {
-		report.Findings = append(report.Findings, fmt.Sprintf("active_connections=%d 偏高，建议检查慢查询与连接池泄漏", report.ActiveConns))
+	if report.ActiveConnections > 100 {
+		report.Findings = append(report.Findings, fmt.Sprintf("active 连接=%d 偏高，建议排查慢查询与锁", report.ActiveConnections))
 	}
 	if len(report.Findings) == 0 {
 		report.Findings = append(report.Findings, "未发现明显高优先级 PostgreSQL 异常")
@@ -116,37 +112,54 @@ WHERE datname = current_database()`).Scan(&blksHit, &blksRead)
 	return report
 }
 
+func pgSettingInt(ctx context.Context, db *sql.DB, name string) int64 {
+	var value int64
+	if err := db.QueryRowContext(ctx, "SELECT setting::bigint FROM pg_settings WHERE name = $1", name).Scan(&value); err != nil {
+		return 0
+	}
+	return value
+}
+
+func pgScalarInt(ctx context.Context, db *sql.DB, query string) int64 {
+	var value int64
+	if err := db.QueryRowContext(ctx, query).Scan(&value); err != nil {
+		return 0
+	}
+	return value
+}
+
 func maskPostgreSQLDSN(dsn string) string {
-	// postgres://user:pass@host/db -> mask password
-	if i := strings.Index(dsn, "://"); i >= 0 {
-		rest := dsn[i+3:]
-		if at := strings.Index(rest, "@"); at > 0 {
-			userPart := rest[:at]
-			if colon := strings.Index(userPart, ":"); colon > 0 {
-				return dsn[:i+3] + userPart[:colon+1] + "******@" + rest[at+1:]
+	if strings.HasPrefix(dsn, "postgres://") || strings.HasPrefix(dsn, "postgresql://") {
+		if at := strings.Index(dsn, "@"); at > 0 {
+			schemeEnd := strings.Index(dsn, "://")
+			if schemeEnd >= 0 && at > schemeEnd+3 {
+				prefix := dsn[:schemeEnd+3]
+				rest := dsn[at:]
+				if colon := strings.Index(dsn[schemeEnd+3:at], ":"); colon >= 0 {
+					return prefix + "******" + rest
+				}
 			}
 		}
+		return dsn
 	}
-	// key=value DSN
-	parts := strings.Fields(dsn)
-	for i, p := range parts {
-		if strings.HasPrefix(strings.ToLower(p), "password=") {
-			parts[i] = "password=******"
+	if i := strings.Index(strings.ToLower(dsn), "password="); i >= 0 {
+		end := strings.IndexAny(dsn[i:], " \t")
+		if end < 0 {
+			return dsn[:i] + "password=******"
 		}
+		return dsn[:i] + "password=******" + dsn[i+end:]
 	}
-	return strings.Join(parts, " ")
+	return dsn
 }
 
 func formatPostgreSQLDiagnoseText(r *postgresqlDiagnoseReport) string {
 	var b strings.Builder
-	if len(r.Findings) > 0 {
-		fmt.Fprintf(&b, "结论：%s\n\n", r.Findings[0])
-	}
+	fmt.Fprintf(&b, "结论：%s\n\n", r.Findings[0])
 	for i, f := range r.Findings {
 		fmt.Fprintf(&b, "%d. %s\n", i+1, f)
 	}
-	fmt.Fprintf(&b, "\n观测：version=%s active=%d idle=%d max_connections=%d deadlocks=%d cache_hit=%.1f%%\n",
-		r.Version, r.ActiveConns, r.IdleConns, r.MaxConnections, r.Deadlocks, r.CacheHitRatioPct)
+	fmt.Fprintf(&b, "\n观测：version=%s in_recovery=%t total=%d active=%d idle_in_tx=%d deadlocks=%d max_connections=%d\n",
+		r.Version, r.InRecovery, r.TotalConnections, r.ActiveConnections, r.IdleInTransaction, r.Deadlocks, r.MaxConnections)
 	if len(r.Errors) > 0 {
 		b.WriteString("采集提示：\n")
 		for _, e := range r.Errors {

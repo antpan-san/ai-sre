@@ -80,8 +80,9 @@ func nginxUpdateCmd() *cobra.Command {
 func nginxDiagnoseCmd() *cobra.Command {
 	var opts nginxDiagnoseOptions
 	cmd := &cobra.Command{
-		Use:   "diagnose",
-		Short: "分析 access log 并输出状态码、慢请求、Top 路径",
+		Use:        "diagnose",
+		Short:      "（已弃用）请改用 probe nginx",
+		Deprecated: "use \"probe nginx\" instead",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if opts.Tail <= 0 {
 				opts.Tail = 5000

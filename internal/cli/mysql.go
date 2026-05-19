@@ -43,8 +43,9 @@ func mysqlCmd() *cobra.Command {
 func mysqlDiagnoseCmd() *cobra.Command {
 	var opts mysqlDiagnoseOptions
 	cmd := &cobra.Command{
-		Use:   "diagnose <dsn>",
-		Short: "只读连接 MySQL 采集关键指标并给出优先排查建议",
+		Use:        "diagnose <dsn>",
+		Short:      "（已弃用）请改用 probe mysql",
+		Deprecated: "use \"probe mysql\" instead",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			opts.DSN = strings.TrimSpace(args[0])

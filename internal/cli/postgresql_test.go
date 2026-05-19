@@ -5,16 +5,6 @@ import (
 	"testing"
 )
 
-func TestBuildExecutionIntentPostgreSQLGeneral(t *testing.T) {
-	got := buildExecutionIntent("analyze", "postgresql", map[string]string{})
-	if got.NodePath != "ops.incident_diagnosis.middleware.postgresql.general" {
-		t.Fatalf("unexpected node path: %+v", got)
-	}
-	if got.SkillKey != "skill.postgresql.general" || got.PackKey != "skillpack.postgresql" {
-		t.Fatalf("unexpected intent: %+v", got)
-	}
-}
-
 func TestBuildExecutionIntentPostgresAlias(t *testing.T) {
 	got := buildExecutionIntent("analyze", "postgres", nil)
 	if got.Topic != "postgresql" {

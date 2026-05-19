@@ -34,7 +34,7 @@ func TestHasTopicEvidence(t *testing.T) {
 func TestGatherTopicEvidenceNoFlagsNoEvidence(t *testing.T) {
 	// kafka/redis/mysql/nginx/es helpers all bail out early when the required
 	// flag is missing -- they must not invoke the binary in that case.
-	cases := []string{"kafka", "redis", "mysql", "nginx", "elasticsearch", "es"}
+	cases := []string{"kafka", "redis", "mysql", "postgresql", "postgres", "nginx", "elasticsearch", "es"}
 	for _, topic := range cases {
 		out := gatherTopicEvidence(nil, topic, map[string]string{})
 		if len(out) != 0 {

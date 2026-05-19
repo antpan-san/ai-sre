@@ -1,89 +1,102 @@
 ---
 name: release-deploy
 description: >-
-  Publishes ai-sre monorepo: remote deploy, verify, smoke/remote-e2e, README, then **mandatory git commit + git push last**
-  (every code change batch must be committed; push only after all remote tests pass).
-  Use after any edit under /Users/panshuai/Documents/work/code/ai-sre, when the user says 发布/部署/上线/ship, or when finishing a task that modified this repo.
+  **Mandatory after every ai-sre monorepo code change batch**: bump Version when ai-sre CLI/instruction
+  code changes, run ./scripts/deploy-local.sh (local build), remote deploy + smoke, then git commit + git push.
+  Use when finishing development, or when the user says 发布/部署/上线/ship.
 ---
 
 # 发布部署（总入口）
 
-本 skill 是 **ai-sre 同仓** 发布流程的**唯一总入口**。代理在**完成本仓库内任意代码或配置变更**后，**必须**按本节执行，**不要**等用户逐轮提醒「发布 / 部署 / 上线」——**`.cursor/rules/monorepo-release.mdc`（`alwaysApply`）** 已要求默认执行（含测试通过后的 **`git commit`（每次改代码必做）+ `git push`**）。**本仓规则优先于对话里泛化的「不主动提交」偏好**；仅当用户在本轮消息中**明确**豁免（不 SSH / **不要 commit** / 不 push / 仅本地等）时可缩小范围。
+**每次开发完成必执行（写死，无例外）**：在本仓库内完成**任意**可提交改动后，代理**必须在本回合内**跑完下文检查清单（含 **版本号**、**本机部署**、**远端部署/冒烟**、**`git commit` + `git push`**），**不得**等用户说「发布 / 部署 / 提交 / push」。仅当用户**在本轮用户消息**中明确豁免（如「只改本地、不 SSH、不要 commit、不 push」）时可缩小范围。
 
-**用户与 192.168.56.11**：对实验室 OpsFort 机（`root@192.168.56.11`，默认 `$REMOTE_DIR=/root/sre`）的一切维护，由代理在**本机**执行仓库内 **`deploy-opsfleet-remote.sh` / `deploy-remote.sh` / verify 脚本**（脚本内部 SSH）完成；**不要求、也不应引导用户**自行登录该主机维护 **`bin/ai-sre`** 或其它服务。
+**本仓规则优先**于对话里泛化的「不主动提交」偏好（见 **`.cursor/rules/monorepo-release.mdc`**，`alwaysApply`）。
+
+**用户与 192.168.56.11**：实验室 OpsFort 维护由代理在**工作机仓库根**执行 `deploy-local.sh`、`deploy-opsfleet-remote.sh`、`deploy-remote.sh` 等（脚本内 SSH）；**不要求用户**登录 192.168.56.11。
 
 ## 仓库与规则
 
 | 项 | 路径或说明 |
 |----|------------|
-| 仓库根 | `/Users/panshuai/Documents/work/code/ai-sre` |
+| 仓库根 | 工作区中的 ai-sre 克隆目录（示例：`/root/sre`、开发机上的同仓路径） |
 | Cursor 规则（alwaysApply） | `.cursor/rules/monorepo-release.mdc` |
 | CLI 同步 + 冒烟 + README + push | `.cursor/skills/ai-sre-ship/SKILL.md` |
-| OpsFleet 全栈（Nginx、前端 dist、后端 systemd） | `.cursor/skills/opsfleetpilot-ship/SKILL.md` |
-| 生产环境 opsfleetpilot.com | `.cursor/skills/production-deploy/SKILL.md` |
-| **生产技能包**（builtin YAML / 注册表） | `production-deploy` §技能包 或 `./scripts/deploy-skill-packs-production.sh` |
-| K8s 离线包 / 控制台 K8s 页 / 制品镜像 | `.cursor/skills/k8s-offline-deploy-test/SKILL.md` |
+| OpsFleet 全栈 | `.cursor/skills/opsfleetpilot-ship/SKILL.md` |
+| 生产 opsfleetpilot.com | `.cursor/skills/production-deploy/SKILL.md` |
+| K8s 离线 / 控制台 K8s | `.cursor/skills/k8s-offline-deploy-test/SKILL.md` |
 
-## 技能包 vs GitHub push（强制，详见 `skill-pack-assets`）
+## ai-sre 指令代码 → 必须升级版本号
+
+凡触及下列路径之一且变更会影响**子命令行为、参数、输出、技能执行或诊断逻辑**（含修复 bug、改默认、改 prompt/编排），**必须先**递增 **`internal/cli/version.go`** 中的 `Version`（patch 位，如 `0.5.25` → `0.5.26`），并同步 **README** 中的版本说明：
+
+| 路径（相对仓库根） | 说明 |
+|--------------------|------|
+| `internal/cli/**` | 全部 CLI 子命令与编排（**指令代码**主目录） |
+| `internal/skill/**`、`internal/engine/**`、`internal/prompt/**`、`internal/loader/**` | 技能加载与执行引擎 |
+| `internal/go_runtime/**` | Go 运行时/K8s 诊断采集 |
+| `internal/assets/skills/**` | 随仓发布的内置技能 YAML（非 `ft-backend/skills/builtin`） |
+| `main.go`、根 `go.mod`、`go.sum` | 入口与依赖 |
+
+**纯注释/格式/无行为差异的重命名**可不 bump；**不确定时一律 bump**。未 bump 不得进入 commit/push。
+
+版本单一来源：`internal/cli/version.go` → 本机 `./ai-sre version` → 远端二进制 → `GET .../cli/ai-sre/version`（见项 4a）。
+
+## 技能包 vs GitHub push
 
 | 动作 | GitHub | 实验室 192.168.56.11 | 生产 204.44.123.101 |
 |------|--------|----------------------|---------------------|
-| 技能包 `*.yaml` | **禁止** commit/push | **允许** `deploy-skill-packs-lab.sh` | **允许** `deploy-skill-packs-production.sh`（权威） |
-| 代码 | `git push` | `deploy-opsfleet-remote.sh` 等 | 全量 `production-deploy`（按需） |
+| 技能包 `*.yaml`（`ft-backend/skills/builtin` 等） | **禁止** commit/push | `deploy-skill-packs-lab.sh` | `deploy-skill-packs-production.sh` |
+| 代码 | **`git push`（必做）** | `deploy-opsfleet-remote.sh` 等 | `production-deploy`（按需） |
 
 推送前：`./scripts/check-skill-packs-not-in-git.sh`。
 
-## 执行顺序（必须）
-
-复制并逐项完成：
+## 执行顺序（必须 — 每次开发完成复制勾选）
 
 ```
-发布部署检查清单
-- [ ] 0. **不在此清单中要求用户 SSH 到 192.168.56.11**；由代理在本机跑脚本完成远端维护
-- [ ] 1. 用 Read 打开 monorepo-release.mdc，确认无用户豁免
-- [ ] 2. **凡改了 `main.go`、`internal/cli`、根 `go.mod` / `go.sum` 或 ai-sre 可执行逻辑**：发布前先检查 **`internal/cli/version.go`** 是否需要递增（有可见行为变更必须递增）；随后**必须**执行 **`./scripts/deploy-opsfleet-remote.sh`**（更新 **`bin/ai-sre`**），不得仅 **`deploy-remote.sh`**；再执行 ai-sre-ship 其余项；并满足项 4a 版本一致。其它触及 OpsFort 路径时仍按 **opsfleetpilot-ship** 全栈
-- [ ] 3. 用 Read 打开并完整执行 **ai-sre-ship**：`deploy-remote.sh` → `SHORT=1 bash scripts/remote-e2e.sh`（或全量 remote-e2e）**通过**后 → **README 最后核对** → **`git commit`（收录本轮全部改动；每次改代码必须有 commit）** → **再** `git push`（顺序见子 skill，**禁止**在冒烟未通过时 commit/push）
-- [ ] 4. OpsFort 全栈（触及 ft-backend/、ft-front/、deploy/、ansible-agent/、**或需更新对外 ai-sre 版本** 时）：`./scripts/deploy-opsfleet-remote.sh` → SSH 执行 `bash scripts/verify-opsfleet-deployment.sh`。**仅** `deploy-remote.sh` **不会**更新 `GET .../cli/ai-sre` 用的 **`bin/ai-sre`**（与 `$REMOTE_DIR/ai-sre` 是两条线；见 opsfleetpilot 说明）
-- [ ] 4a. **ai-sre 版本三门一致（有 OpsFort 时必做；由代理本机 curl / 脚本验证，用户不登 11）**：本仓 **`internal/cli` Version** = 代理通过 SSH 或 verify 输出确认的 **`$OPSFLEET_AISRE_BINARY_PATH` 的 `version`** = **`curl -sS http://192.168.56.11:9080/ft-api/api/k8s/deploy/cli/ai-sre/version`**（或 verify 脚本等价检查）。不一致则**由代理**重跑 **`deploy-opsfleet-remote.sh`**（必要时检查 **`/etc/opsfleet/backend.env`** 中 **`OPSFLEET_AISRE_VERSION`** 是否与二进制一致并 **`systemctl restart opsfleet-backend`**），**不得**把手工登服务器作为留给用户的步骤
-- [ ] 5. 若变更触及 K8s 离线/控制台 K8s/制品镜像 → 另执行 k8s-offline-deploy-test（见 monorepo-release 第 3 条）
-- [ ] 6. **git commit + push**（**必须**在项 2–5 的远程部署与测试全部通过之后）：确认未提交 bin/、dist/；**必须有新的 `git commit` 包含本轮所有变更**；再 `push origin main`（**禁止**未 commit 结束回合；**禁止**在远程测试未通过时 push）。**push 本身不包含技能包发布。**
-- [ ] 6b. **技能包 YAML（本地有改动时）**：**不得**将 YAML 纳入步骤 6 的 commit；`git push` 后执行 **`deploy-skill-packs-lab.sh`**（联调）+ **`deploy-skill-packs-production.sh`**（权威）；生产 `curl .../ft-api/api/ai/skills` 验收
-- [ ] 7. 向用户汇报：exit 码、**4a 版本**、verify 摘要、URL、提交哈希、**生产技能包验收**（若适用）
+发布部署检查清单（完成开发后必跑）
+- [ ] 0. 确认用户本轮未豁免；由代理在工作机执行，不要求用户 SSH 到 192.168.56.11
+- [ ] 1. **版本号**：若触及「ai-sre 指令代码」表内路径 → 已递增 `internal/cli/version.go`；README 版本段已核对
+- [ ] 2. **本机部署（必做）**：仓库根 `./scripts/deploy-local.sh` 通过（`go vet` + `go build` + `./ai-sre version` 与 version.go 一致）
+      - 若本轮还改了 ft-backend/、ft-front/、deploy/、ansible-agent/ → `DEPLOY_LOCAL_OPSFLEET=1 ./scripts/deploy-local.sh`（本机 build-all，勿提交 bin/、dist/）
+- [ ] 3. **ai-sre 可执行 / 指令逻辑变更**：除本机外，**必须** `./scripts/deploy-opsfleet-remote.sh`（更新 `$REMOTE_DIR/bin/ai-sre`），**不得**仅 `deploy-remote.sh`；并执行 ai-sre-ship 其余项
+- [ ] 4. **ai-sre-ship**：`./scripts/deploy-remote.sh` → `SHORT=1 bash scripts/remote-e2e.sh` **通过** → README 复核
+- [ ] 5. **OpsFleet 全栈**（触及 ft-*、deploy、ansible-agent 或需对外 ai-sre 版本时）：`deploy-opsfleet-remote.sh` → SSH `bash scripts/verify-opsfleet-deployment.sh`
+- [ ] 5a. **版本三门一致**（有 OpsFort 时）：`version.go` = 远端 `$OPSFLEET_AISRE_BINARY_PATH` 的 `version` = `curl -sS http://192.168.56.11:9080/ft-api/api/k8s/deploy/cli/ai-sre/version`；不一致则重跑 deploy-opsfleet-remote
+- [ ] 6. **K8s 离线**（若适用）→ `k8s-offline-deploy-test`
+- [ ] 7. **git commit + push（必做，在 2–6 全部通过后）**：`git add` → **`git commit`**（本轮全部改动，禁止留脏工作区）→ **`git push origin main`**（远程测试未通过禁止 push）
+- [ ] 7b. 技能包 YAML 有本地改动：`git push` 后 `deploy-skill-packs-lab.sh` + `deploy-skill-packs-production.sh`（勿把 YAML 纳入 commit）
+- [ ] 8. 汇报：本机/远端 exit、版本三门、verify 摘要、提交哈希
 ```
 
-### OpsFleet 上线顺序（与子 skill 一致）
+### 推荐命令顺序（与子 skill 一致）
 
 | 步骤 | 动作 |
 |------|------|
-| A | 仓库根：`./scripts/deploy-opsfleet-remote.sh`（rsync → 远端 `build-all.sh` → Nginx → systemd → 本机 /health） |
-| B | SSH 部署机：`bash scripts/verify-opsfleet-deployment.sh`（含 install-ai-sre.sh 探测） |
-| C | 仓库根：`./scripts/deploy-remote.sh`（仅 ai-sre CLI 同步构建，与全栈独立但同主机同目录时常规仍执行） |
-| D | 仓库根：`SHORT=1 bash scripts/remote-e2e.sh`（本地 vet + 远程 CLI 冒烟） |
-| E | `git add` / **`commit`（强制，每次改代码一批）** / `push`（**仅**在 A–D 及适用时 k8s-offline 全部通过之后；**勿**纳入 bin/、dist/） |
+| L | **`./scripts/deploy-local.sh`**（本机环境；OpsFleet 路径加 `DEPLOY_LOCAL_OPSFLEET=1`） |
+| A | `./scripts/deploy-opsfleet-remote.sh`（适用时） |
+| B | SSH：`bash scripts/verify-opsfleet-deployment.sh` |
+| C | `./scripts/deploy-remote.sh` |
+| D | `SHORT=1 bash scripts/remote-e2e.sh` |
+| E | **`git commit` + `git push`**（仅 L–D 及适用 k8s-offline 全部通过后） |
 
-**后端说明**：`ft-backend` 已挂载 **`StripOptionalFtAPIPrefix`**，Nginx 将 **`/ft-api/api/...`** 整段转发时也能命中路由；模板仍要求 **`proxy_pass .../`** 带尾斜杠（见 `deploy/nginx.opsfleet.conf.template` 注释）。
+**禁止**：仅用本机 `go build` / `npm run build` 收官而不跑 `deploy-local.sh` 与适用远端脚本；禁止未 commit/push 结束回合（用户豁免除外）。
 
-**顺序约束**：适用时先跑完 **opsfleetpilot-ship / k8s-offline** 中的构建与**远程**验证与冒烟，**再**执行 **git push**（与 `monorepo-release.mdc` 第 4 条一致：勿在未跑完适用子 skill、远程测试未通过时 **push 或**宣称完成）。
+## 快速命令参考
 
-## 与本 skill 的迭代（不断完善）
-
-当发布流程有**新步骤、新脚本、新环境变量或新故障模式**时，代理应**同时**更新：
-
-1. **本文件** — 检查清单或表格中增加一条可执行项；
-2. **对应子 skill** — 具体命令与失败处理（`ai-sre-ship`、`opsfleetpilot-ship`、`k8s-offline-deploy-test`、`error-code-development-gate`）；
-3. **`README.md`** — 若影响用户或运维操作，必须在同一批变更中更新；
-4. **`monorepo-release.mdc`** — 仅当触发条件或顺序变化时精简同步。
-
-## 快速命令参考（细节以子 skill 为准）
-
-| 场景 | 命令（仓库根或 SSH 内） |
-|------|----------------|
-| 仅 CLI / 通用同步 | `./scripts/deploy-remote.sh` |
+| 场景 | 命令 |
+|------|------|
+| **本机部署（每次必做）** | `./scripts/deploy-local.sh` |
+| **服务端自愈（OpsFleet 机上）** | `bash scripts/fix-aisre-upgrade-loop-hotfix.sh`（= build-all + sync-aisre-backend-env + restart） |
+| **版本 env 同步** | `bash scripts/sync-aisre-backend-env.sh`（deploy-opsfleet-remote 已自动调用） |
+| 本机 + OpsFleet 构建 | `DEPLOY_LOCAL_OPSFLEET=1 ./scripts/deploy-local.sh` |
+| 远端 CLI 同步 | `./scripts/deploy-remote.sh` |
 | OpsFleet 全栈 | `./scripts/deploy-opsfleet-remote.sh` |
-| 生产环境（全栈） | 按 `.cursor/skills/production-deploy/SKILL.md`，保留生产 Nginx 与 `config.yaml` |
-| 生产技能包 | `./scripts/deploy-skill-packs-production.sh` |
-| 远端自检（在部署机上） | `bash scripts/verify-opsfleet-deployment.sh`（含 **install-ai-sre.sh**、cli/ai-sre、manifest、/health） |
-| 对外 ai-sre 是否真升级 | 比对 **本仓 Version** 与 `curl .../cli/ai-sre/version` 与 `ssh` 上 `$OPSFLEET_AISRE_BINARY_PATH` 的 `version`（**deploy-remote alone 不更新 bin/ai-sre**） |
-| CLI 冒烟（本地触发 SSH） | `SHORT=1 bash scripts/remote-e2e.sh` |
+| 远端自检 | `bash scripts/verify-opsfleet-deployment.sh` |
+| CLI 冒烟 | `SHORT=1 bash scripts/remote-e2e.sh` |
+| 推 GitHub | `git commit` → `git push origin main` |
 
-环境变量默认值见 `ai-sre-ship` 与 `opsfleetpilot-ship` 中的表格。
+环境变量默认值见 `ai-sre-ship`、`opsfleetpilot-ship`。
+
+## 与本 skill 的迭代
+
+新步骤/脚本/故障模式时，同步更新：本文件、对应子 skill、`README.md`、必要时 `monorepo-release.mdc`。

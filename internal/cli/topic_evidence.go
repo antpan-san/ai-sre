@@ -11,8 +11,8 @@ import (
 // gatherTopicEvidence dispatches per-topic read-only evidence collection.
 //
 // It is a thin coordinator: K8s reuses the existing kubectl-based gather, while
-// non-K8s topics opportunistically invoke the matching `ai-sre <topic> diagnose
-// --json …` subprocess to capture concrete metrics, mirroring how an SRE would
+// non-K8s topics opportunistically invoke the matching `ai-sre probe <topic> …
+// --json` subprocess to capture concrete metrics, mirroring how an SRE would
 // gather quick observability before asking the AI. All errors are swallowed --
 // the goal is best-effort enrichment of the diagnose payload.
 //
@@ -34,12 +34,14 @@ func gatherTopicEvidence(ctx context.Context, topic string, flags map[string]str
 		gatherRedisEvidence(ctx, flags, collected)
 	case "mysql":
 		gatherMySQLEvidence(ctx, flags, collected)
-	case "postgresql", "postgres", "pg":
+	case "postgresql", "postgres":
 		gatherPostgreSQLEvidence(ctx, flags, collected)
 	case "nginx":
 		gatherNginxEvidence(ctx, flags, collected)
 	case "elasticsearch", "es":
 		gatherElasticsearchEvidence(ctx, flags, collected)
+	case "domain", "dns":
+		gatherDomainEvidence(ctx, flags, collected)
 	}
 	return collected
 }
@@ -51,9 +53,10 @@ func hasTopicEvidence(kv map[string]string) bool {
 	}
 	for k := range kv {
 		if strings.HasPrefix(k, "host_") || strings.HasPrefix(k, "kafka_") ||
-			strings.HasPrefix(k, "redis_") || strings.HasPrefix(k, "mysql_") ||
-			strings.HasPrefix(k, "postgresql_") || strings.HasPrefix(k, "postgres_") ||
-			strings.HasPrefix(k, "nginx_") || strings.HasPrefix(k, "es_") {
+			strings.HasPrefix(k, "redis_") || 			strings.HasPrefix(k, "mysql_") ||
+			strings.HasPrefix(k, "postgresql_") ||
+			strings.HasPrefix(k, "nginx_") || strings.HasPrefix(k, "es_") ||
+			strings.HasPrefix(k, "domain_") {
 			return true
 		}
 	}
@@ -97,7 +100,7 @@ func gatherKafkaEvidence(ctx context.Context, flags map[string]string, out map[s
 	if boot == "" {
 		return
 	}
-	args := []string{"kafka", "diagnose", boot, "--json"}
+	args := []string{"probe", "kafka", boot, "--json"}
 	if t := strings.TrimSpace(flags["topic"]); t != "" {
 		args = append(args, "--topic", t)
 	}
@@ -123,7 +126,7 @@ func gatherRedisEvidence(ctx context.Context, flags map[string]string, out map[s
 		}
 		tgt = fmt.Sprintf("%s:%s", host, port)
 	}
-	args := []string{"redis", "diagnose", tgt, "--json"}
+	args := []string{"probe", "redis", tgt, "--json"}
 	if pw := strings.TrimSpace(flags["password"]); pw != "" {
 		args = append(args, "--password", pw)
 	}
@@ -138,7 +141,7 @@ func gatherMySQLEvidence(ctx context.Context, flags map[string]string, out map[s
 	if dsn == "" {
 		return
 	}
-	args := []string{"mysql", "diagnose", dsn, "--json"}
+	args := []string{"probe", "mysql", dsn, "--json"}
 	body := runSelfSubcommand(ctx, 25*time.Second, args...)
 	if body != "" {
 		out["mysql_diagnose_json"] = body
@@ -150,7 +153,7 @@ func gatherPostgreSQLEvidence(ctx context.Context, flags map[string]string, out 
 	if dsn == "" {
 		return
 	}
-	args := []string{"postgresql", "diagnose", dsn, "--json"}
+	args := []string{"probe", "postgresql", dsn, "--json"}
 	body := runSelfSubcommand(ctx, 25*time.Second, args...)
 	if body != "" {
 		out["postgresql_diagnose_json"] = body
@@ -162,7 +165,7 @@ func gatherNginxEvidence(ctx context.Context, flags map[string]string, out map[s
 	if logFile == "" {
 		return
 	}
-	args := []string{"nginx", "diagnose", "--access-log", logFile, "--json"}
+	args := []string{"probe", "nginx", "--access-log", logFile, "--json"}
 	if u := strings.TrimSpace(flags["upstream"]); u != "" {
 		args = append(args, "--upstream", u)
 	}
@@ -180,7 +183,7 @@ func gatherElasticsearchEvidence(ctx context.Context, flags map[string]string, o
 	if url == "" {
 		return
 	}
-	args := []string{"elasticsearch", "diagnose", url, "--json"}
+	args := []string{"probe", "elasticsearch", url, "--json"}
 	body := runSelfSubcommand(ctx, 25*time.Second, args...)
 	if body != "" {
 		out["es_diagnose_json"] = body

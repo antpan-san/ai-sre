@@ -57,6 +57,7 @@ type AutoIterationConfig struct {
 	MaxConcurrent            int    `yaml:"max_concurrent"`
 	HighRiskRequiresApproval bool   `yaml:"high_risk_requires_approval"`
 	DingTalkWebhook          string `yaml:"dingtalk_webhook"`
+	DingTalkKeyword          string `yaml:"dingtalk_keyword"`
 	GitHubRepo               string `yaml:"github_repo"`
 	CodeAgentToken           string `yaml:"code_agent_token"`
 }

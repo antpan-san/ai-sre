@@ -66,3 +66,10 @@ skills:
       - go_runtime
       - k8s
     max_per_day: 3
+
+# 自动迭代（钉钉 webhook/token 仅 OPSFLEET_AUTO_ITERATION_DINGTALK_WEBHOOK）
+auto_iteration:
+  enabled: true
+  max_concurrent: 2
+  high_risk_requires_approval: true
+  dingtalk_keyword: "操"

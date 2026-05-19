@@ -29,7 +29,7 @@ description: >-
 | 与全局「不主动 git commit」混淆 | **在本仓库以 `monorepo-release.mdc` 为准**：测试通过后默认 **commit + push**，除非用户本回合明确豁免 |
 | 对话在此处结束（无下一轮） | 代理应在**同一条助手回复的工具调用中**顺序跑完脚本与 git，再写总结 |
 
-用户未写【发布】时：实现完成后仍须默认跑 **`deploy-remote.sh`** + 适用 **`deploy-opsfleet-remote.sh`** + **`SHORT=1 remote-e2e`** +（适用时）verify，然后 **`git commit` + `git push`**（无豁免时）。
+用户未写【发布】时：实现完成后仍须默认跑 **`./scripts/deploy-local.sh`**（本机）→ **`deploy-remote.sh`** + 适用 **`deploy-opsfleet-remote.sh`** + **`SHORT=1 remote-e2e`** +（适用时）verify；触及 **ai-sre 指令代码** 时先 bump **`internal/cli/version.go`**；然后 **`git commit` + `git push`**（无豁免时）。
 
 ## 推荐用户消息模板（可提示用户复制）
 
@@ -66,6 +66,7 @@ description: >-
 | 场景 | 同时遵循 |
 |------|----------|
 | 任意文件变更发布 | `release-deploy` → `ai-sre-ship` / `opsfleetpilot-ship` |
+| **ai-sre 客户端 / 自升级** | **`ai-sre-client-dev`**（每次命令前快检升级、多基址探测） |
 | 后端 OPSFLEET 配置 | `backend-configuration` |
 | API/安全面 | `security-first-development` |
 | 错误码/部署失败 | `error-code-development-gate` |

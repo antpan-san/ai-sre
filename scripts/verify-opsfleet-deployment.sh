@@ -80,7 +80,25 @@ if [[ -n "$AISRE" && -f "$AISRE" ]]; then
   fi
   vcode=$(curl -sS -o /dev/null -w "%{http_code}" "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre/version" 2>/dev/null || echo "000")
   if [[ "$vcode" == "200" ]]; then
-    echo "GET /ft-api/api/k8s/deploy/cli/ai-sre/version HTTP 200 OK ($(curl -sS "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre/version" 2>/dev/null | head -c 200))"
+    ver_json=$(curl -sS "http://127.0.0.1:${UI_PORT}/ft-api/api/k8s/deploy/cli/ai-sre/version" 2>/dev/null || true)
+    echo "GET /ft-api/api/k8s/deploy/cli/ai-sre/version HTTP 200 OK (${ver_json})"
+    api_ver=$(echo "$ver_json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('version',''))" 2>/dev/null || true)
+    if [[ -n "$api_ver" && -x "$AISRE" ]]; then
+      bin_ver=$("$AISRE" version 2>/dev/null | awk '{print $NF}')
+      arm_path="${OPSFLEET_AISRE_BINARY_PATH_ARM64:-${AISRE%/*}/ai-sre.arm64}"
+      if [[ -x "$arm_path" ]]; then
+        arm_ver=$("$arm_path" version 2>/dev/null | awk '{print $NF}')
+        if [[ -n "$arm_ver" && "$api_ver" != "$arm_ver" && "$api_ver" != "$bin_ver" ]]; then
+          echo "WARN: API version=$api_ver 与 arm64=$arm_ver amd64=$bin_ver 不一致（ARM 客户端可能陷入自动升级循环）"
+        elif [[ -n "$arm_ver" && "$arm_ver" != "$bin_ver" ]]; then
+          echo "ERROR: amd64=$bin_ver arm64=$arm_ver — 请重新 bash scripts/build-all.sh && bash scripts/sync-aisre-backend-env.sh"
+          exit 1
+        fi
+      fi
+      if [[ "$api_ver" != "$bin_ver" && "$PRIMARY_ARCH" == "amd64" ]]; then
+        echo "WARN: API version=$api_ver 与本机 amd64 二进制 $bin_ver 不一致"
+      fi
+    fi
   else
     echo "WARN: GET .../cli/ai-sre/version 返回 HTTP $vcode（ai-sre 自升级检测依赖此接口）"
   fi

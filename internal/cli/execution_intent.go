@@ -37,6 +37,8 @@ func intentActionForCommand(commandKind string) string {
 		return "ai_ask"
 	case "runbook":
 		return "ai_runbook"
+	case "check":
+		return "ai_diagnose"
 	case "diagnose":
 		return "runtime_diagnose"
 	default:
@@ -52,8 +54,12 @@ func normalizeIntentTopic(topic string) string {
 		return "go_runtime"
 	case "es":
 		return "elasticsearch"
-	case "postgres", "pg":
+	case "postgres":
 		return "postgresql"
+	case "dns":
+		return "domain"
+	case "upgrade":
+		return "install"
 	case "deploy", "install":
 		return "errorcode"
 	default:
@@ -89,10 +95,14 @@ func inferIntentProblem(topic string, kv map[string]string) string {
 		return "5xx"
 	case "mysql":
 		return "runtime"
-	case "postgresql":
+	case "postgresql", "postgres":
 		return "general"
 	case "elasticsearch":
 		return "health"
+	case "domain":
+		return "connectivity"
+	case "install":
+		return "download_failure"
 	case "errorcode":
 		return "error_codes"
 	default:
@@ -130,10 +140,14 @@ func intentTreeCoordinates(topic, problem string) (nodePath, skillKey, capabilit
 		return "ops.incident_diagnosis.middleware.nginx.5xx", "skill.nginx.5xx", "cap.diagnosis.nginx"
 	case "mysql":
 		return "ops.incident_diagnosis.middleware.mysql.runtime", "skill.mysql.runtime", "cap.diagnosis.mysql"
-	case "postgresql":
+	case "postgresql", "postgres":
 		return "ops.incident_diagnosis.middleware.postgresql.general", "skill.postgresql.general", "cap.diagnosis.postgresql"
 	case "elasticsearch":
 		return "ops.incident_diagnosis.middleware.elasticsearch.health", "skill.elasticsearch.health", "cap.diagnosis.elasticsearch"
+	case "domain":
+		return "ops.incident_diagnosis.network.domain.connectivity", "skill.domain.connectivity", "cap.diagnosis.domain"
+	case "install":
+		return "ops.delivery_implementation.cli.install", "skill.cli.install_recovery", "cap.delivery.cli"
 	case "errorcode":
 		return "ops.knowledge_base.error_codes", "skill.opsfleet.error_codes", "cap.knowledge.error_codes"
 	default:
@@ -153,10 +167,14 @@ func intentPackKey(topic string) string {
 		return "skillpack.nginx"
 	case "mysql":
 		return "skillpack.mysql"
-	case "postgresql":
+	case "postgresql", "postgres":
 		return "skillpack.postgresql"
 	case "elasticsearch":
 		return "skillpack.elasticsearch"
+	case "domain":
+		return "skillpack.domain"
+	case "install":
+		return "skillpack.cli"
 	case "go_runtime":
 		return "pack.runtime_observe"
 	default:
@@ -176,7 +194,7 @@ func intentExecutionMode(topic, problem string) string {
 			return "local_ai_fallback"
 		}
 		return "server_plan_readonly"
-	case "kafka", "redis", "nginx", "mysql", "postgresql", "elasticsearch":
+	case "kafka", "redis", "nginx", "mysql", "postgresql", "postgres", "elasticsearch", "domain", "install":
 		return "server_ai"
 	case "errorcode":
 		return "local_readonly"

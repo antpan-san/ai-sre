@@ -39,17 +39,9 @@ import { useDashboardStore } from '../../stores/dashboard'
 const RING_R = 12
 const RING_C = 2 * Math.PI * RING_R
 
-const props = withDefaults(
-  defineProps<{
-    enabled?: boolean
-  }>(),
-  { enabled: true }
-)
-
 const dashboardStore = useDashboardStore()
 
 const visible = computed(() => {
-  if (!props.enabled) return false
   try {
     const role = String(
       (JSON.parse(localStorage.getItem('userInfo') || '{}') as { role?: string }).role ?? ''

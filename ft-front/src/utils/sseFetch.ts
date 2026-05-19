@@ -4,6 +4,8 @@
 export type SSEHandlers = {
   onEvent?: (eventName: string, data: string) => void
   onError?: (err: unknown) => void
+  /** Stream ended (server closed or connection dropped). */
+  onClose?: () => void
 }
 
 function apiBase(): string {
@@ -60,9 +62,11 @@ export function connectSSE(path: string, handlers: SSEHandlers): AbortController
         }
       }
       flush()
+      handlers.onClose?.()
     } catch (err) {
       if ((err as Error).name !== 'AbortError') {
         handlers.onError?.(err)
+        handlers.onClose?.()
       }
     }
   })()

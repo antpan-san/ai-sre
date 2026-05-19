@@ -277,8 +277,12 @@ func skillPackForTopic(topic string) string {
 		return models.SkillPackNginx
 	case "mysql":
 		return models.SkillPackMySQL
+	case "postgresql", "postgres":
+		return models.SkillPackPostgreSQL
 	case "elasticsearch", "es":
 		return models.SkillPackElasticsearch
+	case "domain", "dns":
+		return models.SkillPackDomain
 	case "go_runtime", "go-runtime", "pod-go":
 		return models.PackKeyRuntimeObserve
 	default:
@@ -297,6 +301,8 @@ func skillPackForText(text string) string {
 		return models.SkillPackNginx
 	case strings.Contains(s, "mysql"):
 		return models.SkillPackMySQL
+	case strings.Contains(s, "postgres"):
+		return models.SkillPackPostgreSQL
 	case strings.Contains(s, "elastic") || strings.Contains(s, "es "):
 		return models.SkillPackElasticsearch
 	case strings.Contains(s, "go runtime") || strings.Contains(s, "go_runtime") || strings.Contains(s, "goroutine") || strings.Contains(s, "pprof"):

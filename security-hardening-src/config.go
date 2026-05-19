@@ -1,0 +1,197 @@
+//go:build ignore
+
+package config
+
+import (
+	"fmt"
+	"os"
+
+	"ft-backend/common/logger"
+
+	"gopkg.in/yaml.v3"
+)
+
+var (
+	GlobalCfg *Config
+)
+
+type Config struct {
+	Server   ServerConfig   `yaml:"server"`
+	Database DatabaseConfig `yaml:"database"`
+	JWT      JWTConfig      `yaml:"jwt"`
+	File     FileConfig     `yaml:"file"`
+	Redis    RedisConfig    `yaml:"redis"`
+	Opsfleet OpsfleetConfig `yaml:"opsfleet"`
+	Security SecurityConfig `yaml:"security"`
+	Log      struct {
+		Level string `yaml:"level"`
+	} `yaml:"log"`
+}
+
+// OpsfleetConfig 控制台扩展（K8s 部署页 curl 安装 ai-sre 等）。
+type OpsfleetConfig struct {
+	// AiSreBinaryPath 默认/legacy：Linux 可执行文件绝对路径；未单独配置 *_amd64 / *_arm64 时 amd64 与「未带 arch」下载均用此文件。
+	AiSreBinaryPath string `yaml:"ai_sre_binary_path"`
+	// AiSreBinaryPathAmd64 可选：显式 amd64 分发（GET .../cli/ai-sre?arch=amd64 优先于 ai_sre_binary_path）。
+	AiSreBinaryPathAmd64 string `yaml:"ai_sre_binary_path_amd64"`
+	// AiSreBinaryPathArm64 可选：显式 arm64 分发（?arch=arm64）；与 amd64 分属不同文件时必配，否则 ARM 机会拿到错误 ELF。
+	AiSreBinaryPathArm64 string `yaml:"ai_sre_binary_path_arm64"`
+}
+
+type ServerConfig struct {
+	Host         string `yaml:"host"`
+	Port         string `yaml:"port"`
+	ReadTimeout  int    `yaml:"read_timeout"`
+	WriteTimeout int    `yaml:"write_timeout"`
+}
+
+type DatabaseConfig struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	User     string `yaml:"user"`
+	Password string `yaml:"password"`
+	DBName   string `yaml:"dbname"`
+	SSLMode  string `yaml:"sslmode"`
+	TimeZone string `yaml:"timezone"`
+}
+
+type JWTConfig struct {
+	SecretKey       string `yaml:"secret_key"`
+	AccessTokenExp  int    `yaml:"access_token_exp"`
+	RefreshTokenExp int    `yaml:"refresh_token_exp"`
+}
+
+type FileConfig struct {
+	UploadDir      string   `yaml:"upload_dir"`
+	MaxFileSize    int64    `yaml:"max_file_size"`
+	ChunkSize      int      `yaml:"chunk_size"`
+	AllowedFormats []string `yaml:"allowed_formats"`
+}
+
+type RedisConfig struct {
+	Host     string `yaml:"host"`
+	Port     string `yaml:"port"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
+}
+
+type SecurityConfig struct {
+	CORSAllowedOrigins []string `yaml:"cors_allowed_origins"`
+}
+
+type ClientConfig struct {
+	EncryptKey string `yaml:"encrypt_key"`
+}
+
+func LoadConfig() (*Config, error) {
+	configFile := "conf/config.yaml"
+
+	if _, err := os.Stat(configFile); os.IsNotExist(err) {
+		defaultConfig := &Config{
+			Server: ServerConfig{
+				Host:         "0.0.0.0",
+				Port:         "8080",
+				ReadTimeout:  30,
+				WriteTimeout: 30,
+			},
+			Database: DatabaseConfig{
+				Host:     "127.0.0.1",
+				Port:     "5432",
+				User:     "postgres",
+				Password: "postgres",
+				DBName:   "opsfleetpilot",
+				SSLMode:  "disable",
+				TimeZone: "Asia/Shanghai",
+			},
+			JWT: JWTConfig{
+				SecretKey:       "your-secret-key-here",
+				AccessTokenExp:  15,
+				RefreshTokenExp: 1440,
+			},
+			File: FileConfig{
+				UploadDir:      "uploads",
+				MaxFileSize:    1073741824,
+				ChunkSize:      1048576,
+				AllowedFormats: []string{"jpg", "png", "pdf", "txt", "zip", "rar"},
+			},
+			Redis: RedisConfig{
+				Host:     "localhost",
+				Port:     "6379",
+				Password: "",
+				DB:       0,
+			},
+			Security: SecurityConfig{
+				CORSAllowedOrigins: []string{
+					"http://localhost:5173",
+					"http://127.0.0.1:5173",
+					"http://opsfleetpilot.com",
+					"https://opsfleetpilot.com",
+				},
+			},
+			Log: struct {
+				Level string `yaml:"level"`
+			}{
+				Level: "info",
+			},
+		}
+
+		if err := SaveConfig(defaultConfig, configFile); err != nil {
+			return nil, fmt.Errorf("failed to create default config: %w", err)
+		}
+
+		return defaultConfig, nil
+	}
+
+	data, err := os.ReadFile(configFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	// Apply defaults for new PostgreSQL fields if missing
+	if config.Database.SSLMode == "" {
+		config.Database.SSLMode = "disable"
+	}
+	if config.Database.TimeZone == "" {
+		config.Database.TimeZone = "Asia/Shanghai"
+	}
+	if len(config.Security.CORSAllowedOrigins) == 0 {
+		config.Security.CORSAllowedOrigins = []string{
+			"http://localhost:5173",
+			"http://127.0.0.1:5173",
+			"http://opsfleetpilot.com",
+			"https://opsfleetpilot.com",
+		}
+	}
+
+	return &config, nil
+}
+
+func EnsureConfigExists(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	}
+	logger.Info("Config file does not exist: %s", path)
+	return nil
+}
+
+func SaveConfig(config *Config, filename string) error {
+	data, err := yaml.Marshal(config)
+	if err != nil {
+		return fmt.Errorf("failed to marshal config: %w", err)
+	}
+
+	if err := os.WriteFile(filename, data, 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
+}
+
+func GetConfig() *Config {
+	return GlobalCfg
+}

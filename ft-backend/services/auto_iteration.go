@@ -27,6 +27,8 @@ var (
 type AutoIterationListFilter struct {
 	Status   string
 	Topic    string
+	Source   string
+	Keyword  string
 	Page     int
 	PageSize int
 }
@@ -131,6 +133,13 @@ func ListAutoIterations(filter AutoIterationListFilter) ([]models.AutoIteration,
 	if t := strings.TrimSpace(filter.Topic); t != "" {
 		q = q.Where("topic = ?", t)
 	}
+	if src := strings.TrimSpace(filter.Source); src != "" {
+		q = q.Where("source = ?", src)
+	}
+	if kw := strings.TrimSpace(filter.Keyword); kw != "" {
+		like := "%" + kw + "%"
+		q = q.Where("title ILIKE ? OR description ILIKE ? OR command ILIKE ?", like, like, like)
+	}
 	var total int64
 	if err := q.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -165,7 +174,7 @@ func appendAutoIterationEvent(tx *gorm.DB, iterationID uuid.UUID, eventType, act
 	return tx.Create(&ev).Error
 }
 
-func CreateManualAutoIteration(title, description, topic, createdBy string, userID uuid.UUID) (*models.AutoIteration, error) {
+func CreateManualAutoIteration(title, description, command, topic, createdBy string, userID uuid.UUID, autoStart bool) (*models.AutoIteration, error) {
 	settings, err := GetAutoIterationSettings()
 	if err != nil {
 		return nil, err
@@ -177,17 +186,29 @@ func CreateManualAutoIteration(title, description, topic, createdBy string, user
 	if settings.HighRiskRequiresApproval {
 		risk = models.AutoIterationRiskMedium
 	}
+	userBody := strings.TrimSpace(command)
+	if userBody == "" {
+		userBody = strings.TrimSpace(description)
+	}
+	desc, cmd := FormatAutoIterationUserRequirement(title, userBody, topic)
+	initialStatus := models.AutoIterationStatusDraft
+	createMsg := "任务已创建（草稿）"
+	if autoStart {
+		initialStatus = models.AutoIterationStatusPending
+		createMsg = "任务已提交，等待本机 Worker 拉取"
+	}
 	row := models.AutoIteration{
 		Title:                      limitAuditText(title, 200),
-		Description:                limitAuditText(description, 2000),
-		Status:                     models.AutoIterationStatusDraft,
+		Description:                desc,
+		Command:                    cmd,
+		Status:                     initialStatus,
 		Source:                     models.AutoIterationSourceManual,
 		RiskLevel:                  risk,
 		RequiresSuperAdminApproval: risk == models.AutoIterationRiskHigh || settings.HighRiskRequiresApproval,
 		Topic:                      strings.TrimSpace(topic),
 		CreatedByUserID:            &userID,
 		CreatedBy:                  limitAuditText(createdBy, 80),
-		Metadata:                   models.NewJSONBFromMap(map[string]interface{}{}),
+		Metadata:                   MergeAgentTaskMetadata(nil),
 	}
 	if row.Title == "" {
 		row.Title = "手动迭代任务"
@@ -196,21 +217,47 @@ func CreateManualAutoIteration(title, description, topic, createdBy string, user
 		if err := tx.Create(&row).Error; err != nil {
 			return err
 		}
-		return appendAutoIterationEvent(tx, row.ID, models.AutoIterationEventStateChange, "super_admin", createdBy, "任务已创建", map[string]interface{}{
-			"status": row.Status,
+		return appendAutoIterationEvent(tx, row.ID, models.AutoIterationEventStateChange, "super_admin", createdBy, createMsg, map[string]interface{}{
+			"status":     row.Status,
+			"auto_start": autoStart,
 		})
 	})
 	if err != nil {
 		return nil, err
 	}
-	notifyAutoIterationDingTalk("【自动迭代】新任务", fmt.Sprintf("标题: %s\n状态: %s\n来源: %s", row.Title, row.Status, row.Source))
+	notifyAutoIterationDingTalkKind(DingTalkKindTaskCreated, row, "", "")
 	return &row, nil
 }
 
-func notifyAutoIterationDingTalk(title, body string) {
-	if err := SendAutoIterationDingTalk(title, body); err != nil {
+func notifyAutoIterationDingTalkKind(kind AutoIterationDingTalkKind, row models.AutoIteration, summary, actor string) {
+	f := autoIterationDingTalkFields{
+		Title:   row.Title,
+		TaskID:  row.ID.String(),
+		Source:  autoIterationSourceLabelForDingTalk(row.Source),
+		Topic:   strings.TrimSpace(row.Topic),
+		Status:  row.Status,
+		Summary: summary,
+		Actor:   actor,
+	}
+	if err := SendAutoIterationDingTalkMarkdown(kind, f); err != nil {
 		logger.Warn("auto_iteration dingtalk: %v", err)
 	}
+}
+
+// notifyAutoIterationWorkerResult sends DingTalk when a worker finishes (completed / failed / awaiting_approval).
+func notifyAutoIterationWorkerResult(row models.AutoIteration, status, summary string) {
+	var kind AutoIterationDingTalkKind
+	switch status {
+	case models.AutoIterationStatusCompleted:
+		kind = DingTalkKindWorkerCompleted
+	case models.AutoIterationStatusFailed:
+		kind = DingTalkKindWorkerFailed
+	case models.AutoIterationStatusAwaitingApproval:
+		kind = DingTalkKindWorkerAwaitingReview
+	default:
+		return
+	}
+	notifyAutoIterationDingTalkKind(kind, row, summary, "")
 }
 
 func transitionAutoIteration(id uuid.UUID, actorType, actorName string, allowedFrom []string, toStatus, message string, extra map[string]interface{}) (*models.AutoIteration, error) {
@@ -249,12 +296,23 @@ func transitionAutoIteration(id uuid.UUID, actorType, actorName string, allowedF
 }
 
 func StartAutoIteration(id uuid.UUID, actorName string) (*models.AutoIteration, error) {
-	return transitionAutoIteration(id, "super_admin", actorName,
-		[]string{models.AutoIterationStatusDraft, models.AutoIterationStatusPending, models.AutoIterationStatusPaused, models.AutoIterationStatusFailed},
-		models.AutoIterationStatusRunning, "迭代已开始", map[string]interface{}{
-			"assigned_agent_id": nil,
-			"last_error":        "",
-		})
+	var row models.AutoIteration
+	if err := database.DB.Where("id = ?", id).First(&row).Error; err != nil {
+		return nil, err
+	}
+	// Already queued or in progress — idempotent success (UI may still offer「启动」).
+	switch row.Status {
+	case models.AutoIterationStatusPending:
+		return &row, nil
+	case models.AutoIterationStatusRunning:
+		return &row, nil
+	case models.AutoIterationStatusDraft, models.AutoIterationStatusPaused:
+		return transitionAutoIteration(id, "super_admin", actorName,
+			[]string{row.Status},
+			models.AutoIterationStatusPending, "已加入队列，等待本机 Worker 拉取", nil)
+	default:
+		return nil, ErrAutoIterationInvalidState
+	}
 }
 
 func PauseAutoIteration(id uuid.UUID, actorName string) (*models.AutoIteration, error) {
@@ -275,13 +333,17 @@ func CancelAutoIteration(id uuid.UUID, actorName string) (*models.AutoIteration,
 		models.AutoIterationStatusCancelled, "迭代已取消", nil)
 }
 
-func ApproveAutoIteration(id uuid.UUID, userID uuid.UUID, actorName, notes string) (*models.AutoIteration, error) {
+func ApproveAutoIteration(id uuid.UUID, userID uuid.UUID, actorName, notes string, force bool) (*models.AutoIteration, error) {
 	var row models.AutoIteration
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ?", id).First(&row).Error; err != nil {
 			return err
 		}
-		if row.Status != models.AutoIterationStatusAwaitingApproval && row.Status != models.AutoIterationStatusPending {
+		allowed := row.Status == models.AutoIterationStatusAwaitingApproval
+		if force && row.Status == models.AutoIterationStatusPending {
+			allowed = true
+		}
+		if !allowed {
 			return ErrAutoIterationInvalidState
 		}
 		if row.RiskLevel == models.AutoIterationRiskHigh && row.RequiresSuperAdminApproval {
@@ -304,7 +366,7 @@ func ApproveAutoIteration(id uuid.UUID, userID uuid.UUID, actorName, notes strin
 	if err != nil {
 		return nil, err
 	}
-	notifyAutoIterationDingTalk("【自动迭代】已批准", fmt.Sprintf("标题: %s\n审批人: %s", row.Title, actorName))
+	notifyAutoIterationDingTalkKind(DingTalkKindApproved, row, "", actorName)
 	return &row, nil
 }
 
@@ -382,8 +444,14 @@ func ResendAutoIterationNotification(id uuid.UUID, actorName string) (*models.Au
 		if cfg.DingTalkWebhook == "" {
 			msg = "未配置钉钉 webhook，跳过通知"
 		} else {
-			body := fmt.Sprintf("任务: %s\n状态: %s\n风险: %s", row.Title, row.Status, row.RiskLevel)
-			if err := SendAutoIterationDingTalk("【自动迭代】通知", body); err != nil {
+			if err := SendAutoIterationDingTalkMarkdown(DingTalkKindResend, autoIterationDingTalkFields{
+				Title:  row.Title,
+				TaskID: row.ID.String(),
+				Source: autoIterationSourceLabelForDingTalk(row.Source),
+				Topic:  strings.TrimSpace(row.Topic),
+				Status: row.Status,
+				Extra:  "风险: " + row.RiskLevel,
+			}); err != nil {
 				msg = "钉钉发送失败"
 			} else {
 				sent = true
@@ -445,16 +513,26 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 		if title == "CLI 反馈: " {
 			title = "CLI 反馈"
 		}
-		iter, err := CreateManualAutoIteration(title, summary, topic, "cli_feedback", userID)
+		cliBody := strings.TrimSpace(summary)
+		if c := strings.TrimSpace(command); c != "" {
+			if cliBody != "" {
+				cliBody += "\n"
+			}
+			cliBody += c
+		}
+		iter, err := CreateManualAutoIteration(title, cliBody, cliBody, topic, "cli_feedback", userID, true)
 		if err == nil && iter != nil {
 			fb.AutoIterationID = &iter.ID
 			_ = database.DB.Model(&fb).Update("auto_iteration_id", iter.ID)
+			cliDesc, cliCmd := FormatAutoIterationUserRequirement(title, cliBody, topic)
 			_ = database.DB.Model(iter).Updates(map[string]interface{}{
 				"source":      models.AutoIterationSourceCLIFeedback,
 				"status":      models.AutoIterationStatusPending,
-				"command":     limitAuditText(command, 2000),
+				"description": cliDesc,
+				"command":     cliCmd,
 				"summary":     limitAuditText(summary, 2000),
 				"feedback_id": fb.ID,
+				"metadata":    MergeAgentTaskMetadata(iter.Metadata),
 			})
 			if classification == "bug" {
 				_ = database.DB.Model(iter).Updates(map[string]interface{}{
@@ -462,7 +540,7 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 					"requires_super_admin_approval": true,
 				})
 			}
-			notifyAutoIterationDingTalk("【自动迭代】CLI 反馈入队", fmt.Sprintf("标题: %s\n分类: %s\nTopic: %s", iter.Title, classification, topic))
+			notifyAutoIterationDingTalkKind(DingTalkKindCLIFeedbackQueued, *iter, "", classification)
 		}
 	}
 	return &CLIFeedbackAnalyzeResult{
@@ -519,21 +597,59 @@ func CodeAgentHeartbeat(bindingID uuid.UUID) error {
 		Updates(map[string]interface{}{"last_heartbeat_at": &now, "status": models.CodeAgentStatusActive}).Error
 }
 
+func CountRunningAutoIterations() (int64, error) {
+	var n int64
+	err := database.DB.Model(&models.AutoIteration{}).
+		Where("status = ?", models.AutoIterationStatusRunning).
+		Count(&n).Error
+	return n, err
+}
+
 func CodeAgentPullTask(bindingID uuid.UUID) (*models.AutoIteration, error) {
+	settings, err := GetAutoIterationSettings()
+	if err != nil {
+		return nil, err
+	}
+	maxConcurrent := 2
+	if settings != nil && settings.MaxConcurrent > 0 {
+		maxConcurrent = settings.MaxConcurrent
+	}
+	running, err := CountRunningAutoIterations()
+	if err != nil {
+		return nil, err
+	}
+	if running >= int64(maxConcurrent) {
+		return nil, nil
+	}
 	var row models.AutoIteration
-	err := database.DB.Where("status IN ?", []string{models.AutoIterationStatusPending, models.AutoIterationStatusRunning}).
-		Where("assigned_agent_id IS NULL OR assigned_agent_id = ?", bindingID).
+	err = database.DB.Where("status = ?", models.AutoIterationStatusPending).
+		Where("assigned_agent_id IS NULL").
 		Order("created_at ASC").First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Reclaim orphaned running tasks (e.g. manual Start set running without agent).
+		err = database.DB.Where("status = ?", models.AutoIterationStatusRunning).
+			Where("assigned_agent_id IS NULL").
+			Order("created_at ASC").First(&row).Error
+	}
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		err = database.DB.Where("status = ?", models.AutoIterationStatusRunning).
+			Where("assigned_agent_id = ?", bindingID).
+			Order("created_at ASC").First(&row).Error
+	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, err
 	}
-	_ = database.DB.Model(&row).Updates(map[string]interface{}{
-		"assigned_agent_id": bindingID,
-		"status":            models.AutoIterationStatusRunning,
-	})
+	updates := map[string]interface{}{"assigned_agent_id": bindingID}
+	if row.Status == models.AutoIterationStatusPending {
+		updates["status"] = models.AutoIterationStatusRunning
+	}
+	_ = database.DB.Model(&row).Updates(updates)
+	if row.Status == models.AutoIterationStatusPending {
+		row.Status = models.AutoIterationStatusRunning
+	}
 	return &row, nil
 }
 
@@ -552,13 +668,12 @@ func CodeAgentReportResult(iterationID, bindingID uuid.UUID, success bool, summa
 	if !success {
 		toStatus = models.AutoIterationStatusFailed
 	}
-	settings, _ := GetAutoIterationSettings()
 	var row models.AutoIteration
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		if err := tx.Where("id = ? AND assigned_agent_id = ?", iterationID, bindingID).First(&row).Error; err != nil {
 			return err
 		}
-		if success && settings != nil && settings.HighRiskRequiresApproval && row.RiskLevel == models.AutoIterationRiskHigh {
+		if success && row.RequiresSuperAdminApproval {
 			toStatus = models.AutoIterationStatusAwaitingApproval
 		}
 		if err := tx.Model(&row).Updates(map[string]interface{}{
@@ -570,8 +685,9 @@ func CodeAgentReportResult(iterationID, bindingID uuid.UUID, success bool, summa
 		return appendAutoIterationEvent(tx, iterationID, models.AutoIterationEventStateChange, "worker", "code-agent",
 			"Worker 上报结果", map[string]interface{}{"success": success, "status": toStatus})
 	})
-	if err == nil && toStatus == models.AutoIterationStatusAwaitingApproval {
-		notifyAutoIterationDingTalk("【自动迭代】待审批", fmt.Sprintf("标题: %s\n请 super_admin 在控制台批准上线", row.Title))
+	if err == nil {
+		row.Status = toStatus
+		notifyAutoIterationWorkerResult(row, toStatus, summary)
 	}
 	return err
 }
@@ -614,3 +730,32 @@ func hashSecretForAgent(s string) string {
 
 // HashSecretForAgent is exported for middleware.
 func HashSecretForAgent(s string) string { return hashSecretForAgent(s) }
+
+// CodeAgentTaskView is the payload returned to the local code-agent worker.
+func CodeAgentTaskView(t *models.AutoIteration) map[string]interface{} {
+	if t == nil {
+		return nil
+	}
+	out := map[string]interface{}{
+		"id":                              t.ID.String(),
+		"title":                           t.Title,
+		"description":                     t.Description,
+		"topic":                           t.Topic,
+		"command":                         t.Command,
+		"status":                          t.Status,
+		"source":                          t.Source,
+		"risk_level":                      t.RiskLevel,
+		"summary":                         t.Summary,
+		"requires_super_admin_approval":   t.RequiresSuperAdminApproval,
+		"dev_spec":                        AutoIterationDevSpecVer,
+		"dev_skill":                       AutoIterationDevSkillPath,
+		"release_skill":                   ".cursor/skills/release-deploy/SKILL.md",
+	}
+	if t.FeedbackID != nil {
+		out["feedback_id"] = t.FeedbackID.String()
+	}
+	if len(t.Metadata) > 0 {
+		out["metadata"] = t.Metadata
+	}
+	return out
+}
