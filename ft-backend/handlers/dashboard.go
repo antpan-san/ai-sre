@@ -208,7 +208,7 @@ func GetDashboardData(c *gin.Context) {
 	}
 
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2500*time.Millisecond)
-	resourceUsage, hostRuntime := buildHostResourceSnapshot(ctx, role)
+	resourceUsage, hostRuntime, _ := buildHostResourceSnapshot(ctx, role)
 	cancel()
 
 	data := gin.H{
@@ -239,7 +239,7 @@ func GetDashboardData(c *gin.Context) {
 	})
 }
 
-func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H) {
+func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H, gin.H) {
 	resourceUsage := gin.H{
 		"cpu":     0.0,
 		"load":    0.0,
@@ -249,11 +249,11 @@ func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H) 
 		"network": gin.H{"in": 0, "out": 0},
 	}
 	if !models.IsSuperAdminRole(role) {
-		return resourceUsage, nil
+		return resourceUsage, nil, nil
 	}
 	hr := collectHostRuntime(ctx, 320*time.Millisecond)
 	resourceUsage["cpu"] = clampPct(hr.CPU)
-	resourceUsage["load"] = clampPct(hr.Load)
+	resourceUsage["load"] = hr.Load1
 	resourceUsage["memory"] = clampPct(hr.Memory)
 	resourceUsage["disk"] = clampPct(hr.Disk)
 	resourceUsage["diskIo"] = clampPct(hr.DiskIO)
@@ -261,12 +261,20 @@ func buildHostResourceSnapshot(ctx context.Context, role string) (gin.H, gin.H) 
 		"hostname":  hr.Hostname,
 		"sampledAt": hr.SampledAt,
 		"os":        hr.OS,
-		"load1":     hr.Load1,
 	}
 	if hr.ErrCollect != "" {
 		hostRuntime["error"] = hr.ErrCollect
 	}
-	return resourceUsage, hostRuntime
+	resourceDetail := gin.H{
+		"cpuCores":       hr.CPUCores,
+		"memUsedBytes":   hr.MemUsed,
+		"memTotalBytes":  hr.MemTotal,
+		"diskPath":       hr.DiskPath,
+		"diskUsedBytes":  hr.DiskUsed,
+		"diskTotalBytes": hr.DiskTotal,
+		"diskIoDevice":   hr.DiskIODevice,
+	}
+	return resourceUsage, hostRuntime, resourceDetail
 }
 
 // GetDashboardHostResources returns host CPU/load/memory/disk/diskIo rings data for the nav bar (super_admin).
@@ -283,10 +291,13 @@ func GetDashboardHostResources(c *gin.Context) {
 	}
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 2500*time.Millisecond)
 	defer cancel()
-	resourceUsage, hostRuntime := buildHostResourceSnapshot(ctx, role)
+	resourceUsage, hostRuntime, resourceDetail := buildHostResourceSnapshot(ctx, role)
 	out := gin.H{"resourceUsage": resourceUsage}
 	if hostRuntime != nil {
 		out["hostRuntime"] = hostRuntime
+	}
+	if resourceDetail != nil {
+		out["resourceDetail"] = resourceDetail
 	}
 	response.OK(c, out)
 }

@@ -38,3 +38,18 @@ func TestDiskIOBusyFromCountersReadWriteFallback(t *testing.T) {
 		t.Fatalf("diskIOBusyFromCounters() = %v, want %v", got, want)
 	}
 }
+
+func TestDiskNameForIO(t *testing.T) {
+	t.Parallel()
+	cases := map[string]string{
+		"/dev/sda1":      "sda",
+		"/dev/nvme0n1p2": "nvme0n1",
+		"/dev/dm-0":      "dm-0",
+		"/dev/vda2":      "vda",
+	}
+	for in, want := range cases {
+		if got := diskNameForIO(in); got != want {
+			t.Fatalf("diskNameForIO(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

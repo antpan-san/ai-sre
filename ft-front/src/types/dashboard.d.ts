@@ -3,16 +3,27 @@
 // 资源使用情况统计
 export interface ResourceUsage {
   cpu: number
-  /** 1 分钟 load average 相对 CPU 核数，0–100 */
+  /** 1 分钟 load average 原始值 */
   load?: number
   memory: number
   disk: number
-  /** 磁盘 IO 忙百分比，0–100 */
+  /** 根盘 IO 忙百分比，0–100 */
   diskIo?: number
   network: {
     in: number
     out: number
   }
+}
+
+/** 导航栏资源圆环 tooltip 用量/总量（super_admin） */
+export interface HostResourceDetail {
+  cpuCores: number
+  memUsedBytes: number
+  memTotalBytes: number
+  diskPath: string
+  diskUsedBytes: number
+  diskTotalBytes: number
+  diskIoDevice?: string
 }
 
 // 兼容字段：服务端仍可返回；概览页已不再使用（历史上 UI 多块误标）。
@@ -120,8 +131,6 @@ export interface HostRuntimeMeta {
   hostname: string
   sampledAt: string
   os?: string
-  /** 原始 1 分钟 load average */
-  load1?: number
   error?: string
 }
 
@@ -144,6 +153,7 @@ export interface DashboardData {
 /** 导航栏资源圆环专用（super_admin） */
 export interface DashboardHostResources {
   resourceUsage: ResourceUsage
+  resourceDetail?: HostResourceDetail
   hostRuntime?: HostRuntimeMeta
 }
 

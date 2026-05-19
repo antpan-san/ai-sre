@@ -2,7 +2,10 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
@@ -15,17 +18,28 @@ import (
 
 // hostRuntimeSample 采集运行本后端的操作系统主机上的资源占用（与业务侧 Machine 心跳无关）。
 type hostRuntimeSample struct {
-	CPU        float64
-	Memory     float64
-	Disk       float64
-	Load       float64 // 1 分钟 load average 相对 CPU 核数的百分比（0–100）
-	Load1      float64 // 原始 1 分钟 load average，供 tooltip
-	DiskIO     float64 // 磁盘 IO 忙百分比（两次采样 IoTime/读写时间增量）
-	Hostname   string
-	SampledAt  string
-	OS         string
-	ErrCollect string `json:"errCollect,omitempty"`
+	CPU          float64
+	CPUCores     int
+	Memory       float64
+	MemUsed      uint64
+	MemTotal     uint64
+	Disk         float64
+	DiskUsed     uint64
+	DiskTotal    uint64
+	DiskPath     string
+	Load1        float64 // 1 分钟 load average
+	DiskIO       float64 // 根盘 IO 忙百分比
+	DiskIODevice string
+	Hostname     string
+	SampledAt    string
+	OS           string
+	ErrCollect   string `json:"errCollect,omitempty"`
 }
+
+var (
+	reNVMEPart = regexp.MustCompile(`^(nvme\d+n\d+)p\d+$`)
+	reSdPart   = regexp.MustCompile(`^([a-z]+)\d+$`)
+)
 
 func readHostname() string {
 	h, err := os.Hostname()
@@ -42,18 +56,41 @@ func rootPathForDiskUsage() string {
 	return "/"
 }
 
-func collectLoadPct(ctx context.Context) (pct float64, load1 float64, err error) {
+func rootDiskMountDevice(ctx context.Context) (string, error) {
+	root := rootPathForDiskUsage()
+	parts, err := disk.PartitionsWithContext(ctx, false)
+	if err != nil {
+		return "", err
+	}
+	for _, p := range parts {
+		if p.Mountpoint == root {
+			if p.Device == "" {
+				break
+			}
+			return p.Device, nil
+		}
+	}
+	return "", fmt.Errorf("root mount %q not found", root)
+}
+
+func diskNameForIO(device string) string {
+	name := filepath.Base(device)
+	name = strings.TrimPrefix(name, "/dev/")
+	if m := reNVMEPart.FindStringSubmatch(name); len(m) > 1 {
+		return m[1]
+	}
+	if m := reSdPart.FindStringSubmatch(name); len(m) > 1 {
+		return m[1]
+	}
+	return name
+}
+
+func collectLoad1(ctx context.Context) (load1 float64, err error) {
 	avg, err := load.AvgWithContext(ctx)
 	if err != nil {
-		return 0, 0, err
+		return 0, err
 	}
-	n, err := cpu.CountsWithContext(ctx, false)
-	if err != nil || n <= 0 {
-		n = 1
-	}
-	load1 = avg.Load1
-	pct = clampPct((load1 / float64(n)) * 100)
-	return pct, load1, nil
+	return avg.Load1, nil
 }
 
 func ioBusyDelta(s1, s2 disk.IOCountersStat) uint64 {
@@ -89,6 +126,28 @@ func diskIOBusyFromCounters(c1, c2 map[string]disk.IOCountersStat, interval time
 	return clampPct(float64(delta) / ms * 100)
 }
 
+func collectRootDiskIOBusy(ctx context.Context, interval time.Duration) (busy float64, ioName string, err error) {
+	dev, err := rootDiskMountDevice(ctx)
+	if err != nil {
+		return 0, "", err
+	}
+	ioName = diskNameForIO(dev)
+	c1, err := disk.IOCountersWithContext(ctx, ioName)
+	if err != nil {
+		return 0, ioName, err
+	}
+	select {
+	case <-ctx.Done():
+		return 0, ioName, ctx.Err()
+	case <-time.After(interval):
+	}
+	c2, err := disk.IOCountersWithContext(ctx, ioName)
+	if err != nil {
+		return 0, ioName, err
+	}
+	return diskIOBusyFromCounters(c1, c2, interval), ioName, nil
+}
+
 func appendCollectErr(existing, part string) string {
 	part = strings.TrimSpace(part)
 	if part == "" {
@@ -100,39 +159,57 @@ func appendCollectErr(existing, part string) string {
 	return existing + "; " + part
 }
 
-// collectHostRuntime 阻塞约 interval（CPU 与磁盘 IO 采样）；ctx 建议带超时。
+// collectHostRuntime 阻塞约 interval（CPU 与根盘 IO 采样）；ctx 建议带超时。
 func collectHostRuntime(ctx context.Context, interval time.Duration) hostRuntimeSample {
 	out := hostRuntimeSample{
 		Hostname:  readHostname(),
 		SampledAt: time.Now().UTC().Format(time.RFC3339),
 		OS:        runtime.GOOS + "/" + runtime.GOARCH,
+		DiskPath:  rootPathForDiskUsage(),
 	}
 	if interval <= 0 {
 		interval = 280 * time.Millisecond
 	}
+	cores, err := cpu.CountsWithContext(ctx, false)
+	if err != nil || cores <= 0 {
+		cores = 1
+	}
+	out.CPUCores = cores
+
 	vm, err := mem.VirtualMemoryWithContext(ctx)
 	if err != nil {
 		out.ErrCollect = "memory: " + err.Error()
 		return out
 	}
 	out.Memory = clampPct(vm.UsedPercent)
+	out.MemUsed = vm.Used
+	out.MemTotal = vm.Total
 
-	du, err := disk.UsageWithContext(ctx, rootPathForDiskUsage())
+	du, err := disk.UsageWithContext(ctx, out.DiskPath)
 	if err != nil {
 		out.ErrCollect = "disk: " + err.Error()
 		return out
 	}
 	out.Disk = clampPct(du.UsedPercent)
+	out.DiskUsed = du.Used
+	out.DiskTotal = du.Total
 
-	loadPct, load1, err := collectLoadPct(ctx)
+	load1, err := collectLoad1(ctx)
 	if err != nil {
 		out.ErrCollect = appendCollectErr(out.ErrCollect, "load: "+err.Error())
 	} else {
-		out.Load = loadPct
 		out.Load1 = load1
 	}
 
-	io1, ioErr := disk.IOCountersWithContext(ctx)
+	io1, ioName, ioErr := func() (map[string]disk.IOCountersStat, string, error) {
+		dev, err := rootDiskMountDevice(ctx)
+		if err != nil {
+			return nil, "", err
+		}
+		name := diskNameForIO(dev)
+		c, err := disk.IOCountersWithContext(ctx, name)
+		return c, name, err
+	}()
 
 	cpuPct, err := cpu.PercentWithContext(ctx, interval, false)
 	if err != nil {
@@ -144,11 +221,12 @@ func collectHostRuntime(ctx context.Context, interval time.Duration) hostRuntime
 	}
 
 	if ioErr == nil {
-		io2, err2 := disk.IOCountersWithContext(ctx)
+		io2, err2 := disk.IOCountersWithContext(ctx, ioName)
 		if err2 != nil {
 			out.ErrCollect = appendCollectErr(out.ErrCollect, "diskIo: "+err2.Error())
 		} else {
 			out.DiskIO = diskIOBusyFromCounters(io1, io2, interval)
+			out.DiskIODevice = ioName
 		}
 	} else {
 		out.ErrCollect = appendCollectErr(out.ErrCollect, "diskIo: "+ioErr.Error())
