@@ -85,7 +85,22 @@ func applyCheckTargetContext(ctx map[string]string, topic string, args []string)
 	}
 	target := explicit
 	if target == "" {
+		// -d / --set values in ctx take precedence over env and smart defaults.
+		if v := strings.TrimSpace(ctx[spec.PrimaryKey]); v != "" {
+			target = v
+		}
+		for _, k := range spec.AliasKeys {
+			if v := strings.TrimSpace(ctx[k]); v != "" {
+				target = v
+				break
+			}
+		}
+	}
+	if target == "" {
 		target = resolveCheckTargetFromEnv(spec.EnvKeys)
+	}
+	if target == "" {
+		target = smartDefaultCheckTarget(t)
 	}
 	if target == "" {
 		target = spec.Default
@@ -108,6 +123,28 @@ func setCheckContextKey(ctx map[string]string, key, value string) {
 		return
 	}
 	ctx[key] = value
+}
+
+// smartDefaultCheckTarget derives middleware targets from the bound OpsFleet console host (no user env).
+func smartDefaultCheckTarget(topic string) string {
+	host := opsfleetConsoleHost()
+	if host == "" {
+		return ""
+	}
+	switch topic {
+	case "redis":
+		return host + ":6379"
+	case "kafka":
+		return host + ":9092"
+	case "mysql":
+		return fmt.Sprintf("root@tcp(%s:3306)/", host)
+	case "postgresql":
+		return fmt.Sprintf("postgres://%s:5432/postgres?sslmode=disable", host)
+	case "elasticsearch":
+		return "http://" + host + ":9200"
+	default:
+		return ""
+	}
 }
 
 func resolveCheckTargetFromEnv(keys []string) string {

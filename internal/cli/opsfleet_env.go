@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"net"
 	"net/url"
 	"os"
 	"strings"
@@ -11,6 +12,12 @@ import (
 
 // upgradeBaseWarnPrinted avoids repeating cross-env warnings every subcommand in one process.
 var upgradeBaseWarnPrinted bool
+
+// autoBindingWarn is set when OPSFLEET_API_URL conflicts with install record and is auto-ignored.
+var (
+	autoBindingWarn      string
+	autoBindingWarnShown bool
+)
 
 const (
 	opsfleetEnvLab        = "lab"
@@ -93,10 +100,12 @@ func resolveOpsfleetAPIBaseStrict() (string, error) {
 	}
 	fileURL := normalizeOpsfleetAPIBase(config.LoadOptionalOpsfleetAPIBase())
 	if envURL != "" && fileURL != "" && !opsfleetAPIBasesEquivalent(envURL, fileURL) {
-		return "", fmt.Errorf(
-			"禁止混用实验与生产: OPSFLEET_API_URL=%s（%s）与 install 记录 %s（%s）不一致",
-			envURL, opsfleetEnvLabel(envURL), fileURL, opsfleetEnvLabel(fileURL),
+		autoBindingWarn = fmt.Sprintf(
+			"已自动采用 install 记录 %s（%s），忽略 OPSFLEET_API_URL=%s（%s）",
+			fileURL, opsfleetEnvLabel(fileURL), envURL, opsfleetEnvLabel(envURL),
 		)
+		emitAutoBindingWarning()
+		return fileURL, nil
 	}
 	if envURL != "" {
 		return envURL, nil
@@ -112,29 +121,77 @@ func resolveOpsfleetAPIBase() string {
 	return b
 }
 
-// resolveOpsfleetAPIBaseForUpgrade 解析用于版本探测/自动升级的 API 基址。
-// 业务 API 仍须 resolveOpsfleetAPIBaseStrict；升级探测在环境冲突时优先 install 记录，避免静默跳过。
+func emitAutoBindingWarning() {
+	if strings.TrimSpace(autoBindingWarn) == "" || autoBindingWarnShown {
+		return
+	}
+	autoBindingWarnShown = true
+	_, _ = fmt.Fprintf(os.Stderr, "[%s] %s\n", progName, autoBindingWarn)
+}
+
+// collectOpsfleetAPIBaseCandidates returns deduplicated bases to probe for version/upgrade (reachability order).
+func collectOpsfleetAPIBaseCandidates() []string {
+	var out []string
+	add := func(b string) {
+		b = normalizeOpsfleetAPIBase(b)
+		if b == "" {
+			return
+		}
+		for _, existing := range out {
+			if opsfleetAPIBasesEquivalent(existing, b) {
+				return
+			}
+		}
+		out = append(out, b)
+	}
+	add(config.LoadOptionalOpsfleetAPIBase())
+	if v := strings.TrimSpace(os.Getenv("OPSFLEET_API_URL")); v != "" {
+		add(v)
+	}
+	add(EmbeddedOpsfleetAPIBase)
+	add(EmbeddedOpsfleetAPIBaseProduction)
+	return out
+}
+
+// opsfleetConsoleHost returns non-loopback host from user-bound OpsFleet API (install file or env only).
+// Embedded lab/production defaults are not used for check target inference (avoids surprising remote targets).
+func opsfleetConsoleHost() string {
+	b := normalizeOpsfleetAPIBase(config.LoadOptionalOpsfleetAPIBase())
+	if b == "" {
+		b = normalizeOpsfleetAPIBase(os.Getenv("OPSFLEET_API_URL"))
+	}
+	if b == "" {
+		return ""
+	}
+	u, err := url.Parse(b)
+	if err != nil || u.Host == "" {
+		return ""
+	}
+	host := u.Hostname()
+	switch strings.ToLower(host) {
+	case "", "127.0.0.1", "localhost", "::1":
+		return ""
+	}
+	if net.ParseIP(host) != nil {
+		return host
+	}
+	// hostname: use as-is for DNS names
+	return host
+}
+
+// resolveOpsfleetAPIBaseForUpgrade returns the first candidate base (reachability resolved in fetchRemoteVersionFast).
 func resolveOpsfleetAPIBaseForUpgrade() (base string, warn string) {
 	if strings.EqualFold(strings.TrimSpace(os.Getenv("OPSFLEET_SKIP_REMOTE")), "1") {
 		return "", ""
 	}
-	b, err := resolveOpsfleetAPIBaseStrict()
-	if err == nil && b != "" {
-		return b, ""
+	candidates := collectOpsfleetAPIBaseCandidates()
+	if len(candidates) == 0 {
+		return EmbeddedOpsfleetAPIBase, ""
 	}
-	if err != nil {
-		warn = err.Error()
+	if strings.TrimSpace(autoBindingWarn) != "" {
+		warn = autoBindingWarn
 	}
-	fileURL := normalizeOpsfleetAPIBase(config.LoadOptionalOpsfleetAPIBase())
-	envURL := normalizeOpsfleetAPIBase(os.Getenv("OPSFLEET_API_URL"))
-	switch {
-	case fileURL != "":
-		return fileURL, warn
-	case envURL != "":
-		return envURL, warn
-	default:
-		return EmbeddedOpsfleetAPIBase, warn
-	}
+	return candidates[0], warn
 }
 
 // resolveOpsfleetAPIBasesForUpgrade 仅返回当前绑定环境的一个基址（不再串联实验+生产）。

@@ -354,25 +354,45 @@ func emitAutoUpgradeCheckSkipped(err error, base string) {
 	_, _ = fmt.Fprintf(os.Stderr, "[%s] 可执行 %s upgrade 或设置 OPSFLEET_AUTO_UPGRADE_VERBOSE=1\n", progName, progName)
 }
 
-// fetchRemoteVersionFast 仅查询当前绑定环境的一个 API 基址（禁止实验/生产串联探测）。
+// fetchRemoteVersionFast probes reachable OpsFleet bases until version is returned (zero user env required).
 func fetchRemoteVersionFast(preferredBase string) (version string, base string, err error) {
-	base = normalizeOpsfleetAPIBase(preferredBase)
-	if base == "" {
-		base, _ = resolveOpsfleetAPIBaseForUpgrade()
+	candidates := collectOpsfleetAPIBaseCandidates()
+	if b := normalizeOpsfleetAPIBase(preferredBase); b != "" {
+		candidates = prependUniqueOpsfleetBase(candidates, b)
 	}
-	if base == "" {
+	if len(candidates) == 0 {
 		return "", "", fmt.Errorf("未配置 OpsFleet API 基址")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3500*time.Millisecond)
 	defer cancel()
-	v, e := fetchRemoteVersion(ctx, base, upgradeHTTPClient)
-	if e != nil {
-		return "", base, e
+	var lastErr error
+	for _, tryBase := range candidates {
+		v, e := fetchRemoteVersion(ctx, tryBase, upgradeHTTPClient)
+		if e != nil {
+			lastErr = e
+			continue
+		}
+		if v == "" || v == "unknown" {
+			lastErr = fmt.Errorf("未返回有效版本")
+			continue
+		}
+		return v, tryBase, nil
 	}
-	if v == "" || v == "unknown" {
-		return "", base, fmt.Errorf("未返回有效版本")
+	if lastErr == nil {
+		lastErr = fmt.Errorf("无法连接任何 OpsFleet API 基址")
 	}
-	return v, base, nil
+	return "", candidates[0], lastErr
+}
+
+func prependUniqueOpsfleetBase(list []string, base string) []string {
+	out := []string{base}
+	for _, b := range list {
+		if opsfleetAPIBasesEquivalent(b, base) {
+			continue
+		}
+		out = append(out, b)
+	}
+	return out
 }
 
 // fetchRemoteVersion returns JSON .version from OpsFleet.

@@ -1,8 +1,17 @@
 package cli
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
 
 func TestApplyCheckTargetContextRedisDefault(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	t.Setenv("OPSFLEET_API_URL", "")
+	autoBindingWarn = ""
+	autoBindingWarnShown = false
 	ctx := map[string]string{}
 	applyCheckTargetContext(ctx, "redis", []string{"redis"})
 	if ctx["addr"] != "127.0.0.1:6379" {
@@ -10,6 +19,25 @@ func TestApplyCheckTargetContextRedisDefault(t *testing.T) {
 	}
 	if ctx["target"] != "127.0.0.1:6379" {
 		t.Fatalf("target=%q", ctx["target"])
+	}
+}
+
+func TestApplyCheckTargetContextRedisSmartDefaultFromInstall(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+	cfg := filepath.Join(dir, ".config", "ai-sre")
+	if err := os.MkdirAll(cfg, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cfg, "opsfleet_api_url"), []byte(EmbeddedOpsfleetAPIBase+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	autoBindingWarn = ""
+	autoBindingWarnShown = false
+	ctx := map[string]string{}
+	applyCheckTargetContext(ctx, "redis", []string{"redis"})
+	if ctx["addr"] != "192.168.56.11:6379" {
+		t.Fatalf("addr=%q", ctx["addr"])
 	}
 }
 

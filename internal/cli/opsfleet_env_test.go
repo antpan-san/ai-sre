@@ -28,9 +28,11 @@ func TestResolveOpsfleetAPIBasesSingleEnvironment(t *testing.T) {
 	}
 }
 
-func TestResolveOpsfleetAPIBaseRejectsCrossEnvironment(t *testing.T) {
+func TestResolveOpsfleetAPIBaseAutoBindsOnCrossEnvironment(t *testing.T) {
 	t.Setenv("OPSFLEET_SKIP_REMOTE", "")
 	t.Setenv("OPSFLEET_API_URL", EmbeddedOpsfleetAPIBaseProduction)
+	autoBindingWarn = ""
+	autoBindingWarnShown = false
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 	cfg := filepath.Join(dir, ".config", "ai-sre")
@@ -40,20 +42,18 @@ func TestResolveOpsfleetAPIBaseRejectsCrossEnvironment(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(cfg, "opsfleet_api_url"), []byte(EmbeddedOpsfleetAPIBase+"\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	_, err := resolveOpsfleetAPIBaseStrict()
-	if err == nil || !strings.Contains(err.Error(), "禁止混用") {
-		t.Fatalf("want cross-env error, got %v", err)
+	base, err := resolveOpsfleetAPIBaseStrict()
+	if err != nil {
+		t.Fatalf("want auto-bind without error, got %v", err)
 	}
-	base, warn := resolveOpsfleetAPIBaseForUpgrade()
 	if base != EmbeddedOpsfleetAPIBase {
-		t.Fatalf("upgrade probe should prefer install file, got %q", base)
+		t.Fatalf("want install lab base, got %q", base)
 	}
-	if warn == "" || !strings.Contains(warn, "禁止混用") {
-		t.Fatalf("want upgrade warn, got %q", warn)
+	if !strings.Contains(autoBindingWarn, "已自动采用 install") {
+		t.Fatalf("want auto-bind warn, got %q", autoBindingWarn)
 	}
-	bases := resolveOpsfleetAPIBasesForUpgrade()
-	if len(bases) != 1 || bases[0] != EmbeddedOpsfleetAPIBase {
-		t.Fatalf("upgrade bases=%v", bases)
+	if got := smartDefaultCheckTarget("redis"); got != "192.168.56.11:6379" {
+		t.Fatalf("smart redis default=%q", got)
 	}
 }
 
