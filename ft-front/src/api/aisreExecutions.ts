@@ -37,6 +37,9 @@ export interface ClientExecutionStats {
   ai_calls_24h: number
   auto_iteration_24h: number
   incomplete_evidence_24h: number
+  skill_samples_24h?: number
+  rule_hit_24h?: number
+  enhancement_open_24h?: number
 }
 
 export interface ClientExecutionDetail {

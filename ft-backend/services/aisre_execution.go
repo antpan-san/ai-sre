@@ -97,6 +97,9 @@ type ClientExecutionStats struct {
 	AICalls24h         int64 `json:"ai_calls_24h"`
 	AutoIteration24h   int64 `json:"auto_iteration_24h"`
 	IncompleteEvidence int64 `json:"incomplete_evidence_24h"`
+	SkillSamples24h    int64 `json:"skill_samples_24h"`
+	RuleHit24h         int64 `json:"rule_hit_24h"`
+	EnhancementOpen24h int64 `json:"enhancement_open_24h"`
 }
 
 // ClientExecutionDetail aggregates a session and related child records.
@@ -187,6 +190,21 @@ func GetClientExecutionStats(tenantID uuid.UUID, role, username string, since ti
 	autoIter = ApplyClientExecutionTopLevelScope(autoIter)
 	autoIter = ApplyClientExecutionMemberScope(autoIter, role, username)
 	autoIter.Where("COALESCE(metadata->>'auto_iteration_id','') <> ''").Count(&st.AutoIteration24h)
+
+	samples := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tenantID).Where("created_at >= ?", since)
+	samples = ApplyClientExecutionTopLevelScope(samples)
+	samples = ApplyClientExecutionMemberScope(samples, role, username)
+	samples.Where("COALESCE(metadata->>'skill_sample_recorded','') IN ('true','1')").Count(&st.SkillSamples24h)
+
+	ruleHit := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tenantID).Where("created_at >= ?", since)
+	ruleHit = ApplyClientExecutionTopLevelScope(ruleHit)
+	ruleHit = ApplyClientExecutionMemberScope(ruleHit, role, username)
+	ruleHit.Where("COALESCE(metadata->>'rule_hit','') IN ('true','1')").Count(&st.RuleHit24h)
+
+	enhOpen := database.DB.Model(&models.ExecutionRecord{}).Where("tenant_id = ?", tenantID).Where("created_at >= ?", since)
+	enhOpen = ApplyClientExecutionTopLevelScope(enhOpen)
+	enhOpen = ApplyClientExecutionMemberScope(enhOpen, role, username)
+	enhOpen.Where("COALESCE(metadata->>'enhancement_review_triggered','') IN ('true','1') OR COALESCE(metadata->'skill_enhancement_review'->>'needs_enhancement','') IN ('true','1')").Count(&st.EnhancementOpen24h)
 
 	return st, nil
 }

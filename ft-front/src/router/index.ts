@@ -134,8 +134,19 @@ const routes: Array<RouteRecordRaw> = [
         }
       },
       {
+        path: 'ai-sre/skill-refinement',
+        name: 'AdminAISreSkillRefinement',
+        component: () => import('../views/ai-sre/SkillRefinement.vue'),
+        meta: {
+          title: '技能精炼',
+          requireAuth: true,
+          roles: superAdminRoles,
+          breadcrumb: [{ title: 'ai-sre 中心' }, { title: '技能精炼' }]
+        }
+      },
+      {
         path: 'ai-sre/skills',
-        redirect: '/admin/billing/ai-sre-skills'
+        redirect: '/admin/ai-sre/skill-refinement'
       },
       {
         path: 'service/deploy',

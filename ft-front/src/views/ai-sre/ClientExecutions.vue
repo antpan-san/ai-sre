@@ -34,6 +34,18 @@
         <span class="stat-label">证据不完整</span>
         <strong>{{ stats?.incomplete_evidence_24h ?? 0 }}</strong>
       </article>
+      <article v-if="isSuperAdmin" class="stat-tile">
+        <span class="stat-label">样本入库</span>
+        <strong>{{ stats?.skill_samples_24h ?? 0 }}</strong>
+      </article>
+      <article class="stat-tile stat-tile--ok">
+        <span class="stat-label">本地规则</span>
+        <strong>{{ stats?.rule_hit_24h ?? 0 }}</strong>
+      </article>
+      <article v-if="isSuperAdmin" class="stat-tile stat-tile--warn">
+        <span class="stat-label">待增强</span>
+        <strong>{{ stats?.enhancement_open_24h ?? 0 }}</strong>
+      </article>
     </section>
 
     <el-tabs v-model="activeView" class="view-tabs" @tab-change="onViewChange">
@@ -128,7 +140,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   getAISreExecutionStats,
@@ -140,6 +152,15 @@ import {
 const router = useRouter()
 const route = useRoute()
 const shellPrefix = route.path.startsWith('/app') ? '/app' : '/admin'
+
+const isSuperAdmin = computed(() => {
+  try {
+    const u = JSON.parse(localStorage.getItem('userInfo') || '{}')
+    return u?.role === 'super_admin'
+  } catch {
+    return false
+  }
+})
 
 const loading = ref(false)
 const statsLoading = ref(false)

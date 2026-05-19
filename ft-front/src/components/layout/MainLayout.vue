@@ -62,6 +62,10 @@
                 <el-icon><List /></el-icon>
                 <template #title>客户端执行</template>
               </el-menu-item>
+              <el-menu-item v-if="isSuperAdmin" index="/admin/ai-sre/skill-refinement">
+                <el-icon><MagicStick /></el-icon>
+                <template #title>技能精炼</template>
+              </el-menu-item>
               <el-menu-item index="/admin/execution-records">
                 <el-icon><DocumentCopy /></el-icon>
                 <template #title>通用执行审计</template>
@@ -370,7 +374,8 @@ import {
   Setting,
   List,
   Collection,
-  Refresh
+  Refresh,
+  MagicStick
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'

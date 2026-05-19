@@ -399,6 +399,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getAdminAiSkillDetail, getAdminAiSkills, type RegisteredSkill, type SkillSummary } from '../../api/aiSkills'
 import {
@@ -434,6 +435,7 @@ import {
 } from '../../api/skillEnhancement'
 
 const activeTab = ref('registry')
+const route = useRoute()
 
 const loading = ref(false)
 const rows = ref<SkillSummary[]>([])
@@ -922,6 +924,10 @@ const copyAssetJson = async () => {
 }
 
 onMounted(() => {
+  const tab = String(route.query.tab || '').trim()
+  if (['tree', 'commercial', 'registry', 'review', 'enhancement', 'usage'].includes(tab)) {
+    activeTab.value = tab
+  }
   void loadSkillTree()
   void loadRegistry()
   void loadReviewPendingCount()
