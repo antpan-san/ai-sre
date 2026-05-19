@@ -60,7 +60,22 @@ func ExecuteAs(programName string) {
 	}
 	reporter := newExecutionReporter(programName, os.Args[1:])
 	reporter.start()
+	args := os.Args[1:]
+	if programName == "ai-sre" {
+		if res := ValidateParamContract(root, args); res != nil && !res.OK {
+			reporter.finish(errParamContract)
+			emitParamContractError(res)
+			os.Exit(2)
+		}
+	}
 	if err := root.Execute(); err != nil {
+		if programName == "ai-sre" {
+			if res := ClassifyCobraError(root, args, err); res != nil && !res.OK {
+				reporter.finish(errParamContract)
+				emitParamContractError(res)
+				os.Exit(2)
+			}
+		}
 		reporter.finish(err)
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

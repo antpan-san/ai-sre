@@ -71,6 +71,10 @@ type updateAutoIterationSettingsReq struct {
 	Enabled                  *bool  `json:"enabled"`
 	MaxConcurrent            *int   `json:"max_concurrent"`
 	HighRiskRequiresApproval *bool  `json:"high_risk_requires_approval"`
+	AutoDispatchEnabled      *bool  `json:"auto_dispatch_enabled"`
+	LowRiskAutoDeployEnabled *bool  `json:"low_risk_auto_deploy_enabled"`
+	GitHubSyncEnabled        *bool  `json:"github_sync_enabled"`
+	DingTalkNotifyEnabled    *bool  `json:"dingtalk_notify_enabled"`
 	Notes                    string `json:"notes"`
 }
 
@@ -79,7 +83,10 @@ func AdminUpdateAutoIterationSettings(c *gin.Context) {
 	_ = c.ShouldBindJSON(&req)
 	name, _ := c.Get("username")
 	username, _ := name.(string)
-	settings, err := services.UpdateAutoIterationSettings(req.Enabled, req.MaxConcurrent, req.HighRiskRequiresApproval, req.Notes, username)
+	settings, err := services.UpdateAutoIterationSettings(
+		req.Enabled, req.MaxConcurrent, req.HighRiskRequiresApproval,
+		req.AutoDispatchEnabled, req.LowRiskAutoDeployEnabled, req.GitHubSyncEnabled, req.DingTalkNotifyEnabled,
+		req.Notes, username)
 	if err != nil {
 		response.ServerError(c, "更新设置失败")
 		return

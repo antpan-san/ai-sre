@@ -37,6 +37,10 @@ type AutoIterationSettingsView struct {
 	Enabled                  bool   `json:"enabled"`
 	MaxConcurrent            int    `json:"max_concurrent"`
 	HighRiskRequiresApproval bool   `json:"high_risk_requires_approval"`
+	AutoDispatchEnabled      bool   `json:"auto_dispatch_enabled"`
+	LowRiskAutoDeployEnabled bool   `json:"low_risk_auto_deploy_enabled"`
+	GitHubSyncEnabled        bool   `json:"github_sync_enabled"`
+	DingTalkNotifyEnabled    bool   `json:"dingtalk_notify_enabled"`
 	GitHubRepo               string `json:"github_repo,omitempty"`
 	HasDingTalkWebhook       bool   `json:"has_dingtalk_webhook"`
 	Notes                    string `json:"notes,omitempty"`
@@ -67,6 +71,10 @@ func EnsureAutoIterationSettings() error {
 		Enabled:                  cfg.Enabled,
 		MaxConcurrent:            cfg.MaxConcurrent,
 		HighRiskRequiresApproval: cfg.HighRiskRequiresApproval,
+		AutoDispatchEnabled:      true,
+		LowRiskAutoDeployEnabled: false,
+		GitHubSyncEnabled:        true,
+		DingTalkNotifyEnabled:    true,
 		UpdatedAt:                time.Now().UTC(),
 	}
 	return database.DB.Create(&row).Error
@@ -85,6 +93,10 @@ func GetAutoIterationSettings() (*AutoIterationSettingsView, error) {
 		Enabled:                  row.Enabled,
 		MaxConcurrent:            row.MaxConcurrent,
 		HighRiskRequiresApproval: row.HighRiskRequiresApproval,
+		AutoDispatchEnabled:      row.AutoDispatchEnabled,
+		LowRiskAutoDeployEnabled: row.LowRiskAutoDeployEnabled,
+		GitHubSyncEnabled:        row.GitHubSyncEnabled,
+		DingTalkNotifyEnabled:    row.DingTalkNotifyEnabled,
 		GitHubRepo:               cfg.GitHubRepo,
 		HasDingTalkWebhook:       cfg.DingTalkWebhook != "",
 		Notes:                    row.Notes,
@@ -93,7 +105,7 @@ func GetAutoIterationSettings() (*AutoIterationSettingsView, error) {
 	}, nil
 }
 
-func UpdateAutoIterationSettings(enabled *bool, maxConcurrent *int, highRisk *bool, notes, updatedBy string) (*AutoIterationSettingsView, error) {
+func UpdateAutoIterationSettings(enabled *bool, maxConcurrent *int, highRisk *bool, autoDispatch, lowRiskDeploy, githubSync, dingTalk *bool, notes, updatedBy string) (*AutoIterationSettingsView, error) {
 	if err := EnsureAutoIterationSettings(); err != nil {
 		return nil, err
 	}
@@ -109,6 +121,18 @@ func UpdateAutoIterationSettings(enabled *bool, maxConcurrent *int, highRisk *bo
 	}
 	if highRisk != nil {
 		updates["high_risk_requires_approval"] = *highRisk
+	}
+	if autoDispatch != nil {
+		updates["auto_dispatch_enabled"] = *autoDispatch
+	}
+	if lowRiskDeploy != nil {
+		updates["low_risk_auto_deploy_enabled"] = *lowRiskDeploy
+	}
+	if githubSync != nil {
+		updates["github_sync_enabled"] = *githubSync
+	}
+	if dingTalk != nil {
+		updates["dingtalk_notify_enabled"] = *dingTalk
 	}
 	if notes != "" {
 		updates["notes"] = limitAuditText(notes, 2000)
@@ -230,6 +254,10 @@ func CreateManualAutoIteration(title, description, command, topic, createdBy str
 }
 
 func notifyAutoIterationDingTalkKind(kind AutoIterationDingTalkKind, row models.AutoIteration, summary, actor string) {
+	settings, err := GetAutoIterationSettings()
+	if err == nil && settings != nil && !settings.DingTalkNotifyEnabled {
+		return
+	}
 	f := autoIterationDingTalkFields{
 		Title:   row.Title,
 		TaskID:  row.ID.String(),
@@ -350,8 +378,12 @@ func ApproveAutoIteration(id uuid.UUID, userID uuid.UUID, actorName, notes strin
 			// Route already super_admin only.
 		}
 		now := time.Now().UTC()
+		toStatus := models.AutoIterationStatusApproved
+		if row.Status == models.AutoIterationStatusAwaitingApproval && row.AssignedAgentID == nil {
+			toStatus = models.AutoIterationStatusPending
+		}
 		updates := map[string]interface{}{
-			"status":              models.AutoIterationStatusApproved,
+			"status":              toStatus,
 			"approved_by_user_id": userID,
 			"approved_by":         limitAuditText(actorName, 80),
 			"approved_at":         &now,
@@ -359,7 +391,7 @@ func ApproveAutoIteration(id uuid.UUID, userID uuid.UUID, actorName, notes strin
 		if err := tx.Model(&row).Updates(updates).Error; err != nil {
 			return err
 		}
-		row.Status = models.AutoIterationStatusApproved
+		row.Status = toStatus
 		return appendAutoIterationEvent(tx, id, models.AutoIterationEventStateChange, "super_admin", actorName,
 			"已批准上线: "+limitAuditText(notes, 500), map[string]interface{}{"approved": true})
 	})
@@ -610,6 +642,9 @@ func CodeAgentPullTask(bindingID uuid.UUID) (*models.AutoIteration, error) {
 	if err != nil {
 		return nil, err
 	}
+	if settings != nil && !settings.AutoDispatchEnabled {
+		return nil, nil
+	}
 	maxConcurrent := 2
 	if settings != nil && settings.MaxConcurrent > 0 {
 		maxConcurrent = settings.MaxConcurrent
@@ -624,6 +659,7 @@ func CodeAgentPullTask(bindingID uuid.UUID) (*models.AutoIteration, error) {
 	var row models.AutoIteration
 	err = database.DB.Where("status = ?", models.AutoIterationStatusPending).
 		Where("assigned_agent_id IS NULL").
+		Where("requires_super_admin_approval = ?", false).
 		Order("created_at ASC").First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Reclaim orphaned running tasks (e.g. manual Start set running without agent).

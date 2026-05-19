@@ -23,13 +23,39 @@ func ensureExecutionAllowedWithContext(ctx context.Context, intent executionInte
 	if err == nil {
 		return nil
 	}
-	if !isCapabilityNotFoundError(err) {
+	if !isCapabilityNotFoundError(err) && !isPaywallError(err) {
 		return err
 	}
-	if gapErr := requestCapabilityGap(ctx, intent, contextKV); gapErr != nil {
+	failureKind := "capability_not_found"
+	if isPaywallError(err) {
+		failureKind = "subscription_required"
+	}
+	root := newRoot(progName)
+	plan, planErr := requestFulfillmentPlan(ctx, root, intent, failureKind, err.Error(), contextKV)
+	switch {
+	case plan != nil && plan.RetryAllowed && (plan.Action == fulfillmentActionGrantedRetry || plan.Action == fulfillmentActionAutoIterationCreated):
+		return checkExecutionAllowedFromSync(ctx, intent, true)
+	case plan != nil:
+		return fulfillmentPlanUserMessage(plan, err)
+	case planErr != nil:
+		// Legacy fallback when fulfillment endpoint unavailable.
+		if failureKind == "capability_not_found" {
+			if gapErr := requestCapabilityGap(ctx, intent, contextKV); gapErr != nil {
+				return err
+			}
+			return checkExecutionAllowedFromSync(ctx, intent, true)
+		}
+		return err
+	default:
 		return err
 	}
-	return checkExecutionAllowedFromSync(ctx, intent, true)
+}
+
+func isPaywallError(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "能力不可执行") || strings.Contains(err.Error(), "paywall")
 }
 
 func checkExecutionAllowedFromSync(ctx context.Context, intent executionIntent, refresh bool) error {

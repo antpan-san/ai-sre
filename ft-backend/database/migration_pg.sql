@@ -1108,6 +1108,12 @@ COMMENT ON COLUMN tasks.target_ids          IS '目标机器ID列表 (JSONB)';
 COMMENT ON COLUMN sub_tasks.payload         IS '执行参数 (JSONB)';
 COMMENT ON COLUMN task_logs.details         IS '日志附加信息 (JSONB)';
 
+-- auto_iteration_settings: CLI fulfillment / worker dispatch toggles
+ALTER TABLE auto_iteration_settings ADD COLUMN IF NOT EXISTS auto_dispatch_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE auto_iteration_settings ADD COLUMN IF NOT EXISTS low_risk_auto_deploy_enabled BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE auto_iteration_settings ADD COLUMN IF NOT EXISTS github_sync_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+ALTER TABLE auto_iteration_settings ADD COLUMN IF NOT EXISTS dingtalk_notify_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+
 COMMIT;
 
 -- ============================================================

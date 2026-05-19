@@ -25,6 +25,18 @@
               <el-form-item label="高风险需审批">
                 <el-switch v-model="settings.high_risk_requires_approval" @change="scheduleSaveSettings" />
               </el-form-item>
+              <el-form-item label="自动派发">
+                <el-switch v-model="settings.auto_dispatch_enabled" @change="scheduleSaveSettings" />
+              </el-form-item>
+              <el-form-item label="低风险自动上线">
+                <el-switch v-model="settings.low_risk_auto_deploy_enabled" @change="scheduleSaveSettings" />
+              </el-form-item>
+              <el-form-item label="GitHub 同步">
+                <el-switch v-model="settings.github_sync_enabled" @change="scheduleSaveSettings" />
+              </el-form-item>
+              <el-form-item label="钉钉通知">
+                <el-switch v-model="settings.dingtalk_notify_enabled" @change="scheduleSaveSettings" />
+              </el-form-item>
               <el-form-item label="钉钉">
                 <el-tag :type="settings.has_dingtalk_webhook ? 'success' : 'info'" size="small">
                   {{ settings.has_dingtalk_webhook ? '已配置' : '未配置' }}
@@ -334,6 +346,10 @@ const settings = reactive<AutoIterationSettings>({
   enabled: false,
   max_concurrent: 2,
   high_risk_requires_approval: true,
+  auto_dispatch_enabled: true,
+  low_risk_auto_deploy_enabled: false,
+  github_sync_enabled: true,
+  dingtalk_notify_enabled: true,
   has_dingtalk_webhook: false
 })
 
@@ -360,7 +376,9 @@ const STATUS_LABELS: Record<string, string> = {
   rejected: '已驳回',
   cancelled: '已取消',
   completed: '已完成',
-  failed: '失败'
+  failed: '失败',
+  rollback_required: '待回滚',
+  rolled_back: '已回滚'
 }
 
 const STATUS_FILTER_OPTIONS = Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))
@@ -595,7 +613,11 @@ const saveSettings = async () => {
     const data = await updateAutoIterationSettings({
       enabled: settings.enabled,
       max_concurrent: settings.max_concurrent,
-      high_risk_requires_approval: settings.high_risk_requires_approval
+      high_risk_requires_approval: settings.high_risk_requires_approval,
+      auto_dispatch_enabled: settings.auto_dispatch_enabled,
+      low_risk_auto_deploy_enabled: settings.low_risk_auto_deploy_enabled,
+      github_sync_enabled: settings.github_sync_enabled,
+      dingtalk_notify_enabled: settings.dingtalk_notify_enabled
     })
     Object.assign(settings, data.settings)
     ElMessage.success('已保存')

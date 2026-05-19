@@ -17,6 +17,8 @@ const (
 	AutoIterationStatusCancelled         = "cancelled"
 	AutoIterationStatusCompleted         = "completed"
 	AutoIterationStatusFailed            = "failed"
+	AutoIterationStatusRollbackRequired  = "rollback_required"
+	AutoIterationStatusRolledBack        = "rolled_back"
 
 	AutoIterationRiskLow    = "low"
 	AutoIterationRiskMedium = "medium"
@@ -73,13 +75,17 @@ type AutoIterationEvent struct {
 func (AutoIterationEvent) TableName() string { return "auto_iteration_events" }
 
 type AutoIterationSettings struct {
-	ID        int       `gorm:"primaryKey" json:"id"`
-	Enabled   bool      `gorm:"not null;default:false" json:"enabled"`
-	MaxConcurrent int   `gorm:"not null;default:2" json:"max_concurrent"`
-	HighRiskRequiresApproval bool `gorm:"not null;default:true" json:"high_risk_requires_approval"`
-	Notes     string    `gorm:"size:2000" json:"notes,omitempty"`
-	UpdatedAt time.Time `json:"updated_at"`
-	UpdatedBy string    `gorm:"size:80" json:"updated_by,omitempty"`
+	ID                       int       `gorm:"primaryKey" json:"id"`
+	Enabled                  bool      `gorm:"not null;default:false" json:"enabled"`
+	MaxConcurrent            int       `gorm:"not null;default:2" json:"max_concurrent"`
+	HighRiskRequiresApproval bool      `gorm:"not null;default:true" json:"high_risk_requires_approval"`
+	AutoDispatchEnabled      bool      `gorm:"not null;default:true" json:"auto_dispatch_enabled"`
+	LowRiskAutoDeployEnabled bool      `gorm:"not null;default:false" json:"low_risk_auto_deploy_enabled"`
+	GitHubSyncEnabled        bool      `gorm:"not null;default:true" json:"github_sync_enabled"`
+	DingTalkNotifyEnabled    bool      `gorm:"not null;default:true" json:"dingtalk_notify_enabled"`
+	Notes                    string    `gorm:"size:2000" json:"notes,omitempty"`
+	UpdatedAt                time.Time `json:"updated_at"`
+	UpdatedBy                string    `gorm:"size:80" json:"updated_by,omitempty"`
 }
 
 func (AutoIterationSettings) TableName() string { return "auto_iteration_settings" }

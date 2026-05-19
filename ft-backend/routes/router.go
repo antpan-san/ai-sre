@@ -69,6 +69,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/cli/go-runtime/reports", middleware.RateLimit("cli-go-runtime-report", 300, time.Minute), handlers.PostCLIGoRuntimeReport)
 		public.GET("/cli/sync", middleware.RateLimit("cli-sync", 300, time.Minute), handlers.GetCLISync)
 		public.POST("/cli/capability-gap", middleware.RateLimit("cli-capability-gap", 60, time.Minute), handlers.PostCLICapabilityGap)
+		public.POST("/cli/fulfillment/plan", middleware.RateLimit("cli-fulfillment-plan", 60, time.Minute), handlers.PostCLIFulfillmentPlan)
 		public.POST("/cli/diagnostics/plan", middleware.RateLimit("cli-diagnostic-plan", 120, time.Minute), handlers.CreateCLIDiagnosticPlan)
 		public.POST("/cli/diagnostics/observations", middleware.RateLimit("cli-diagnostic-observations", 240, time.Minute), handlers.PostCLIDiagnosticPlanObservations)
 		public.POST("/cli/feedback/analyze", middleware.RateLimit("cli-feedback-analyze", 60, time.Minute), handlers.PostCLIFeedbackAnalyze)

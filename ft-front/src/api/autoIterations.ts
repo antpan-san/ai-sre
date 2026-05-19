@@ -4,6 +4,10 @@ export interface AutoIterationSettings {
   enabled: boolean
   max_concurrent: number
   high_risk_requires_approval: boolean
+  auto_dispatch_enabled: boolean
+  low_risk_auto_deploy_enabled: boolean
+  github_sync_enabled: boolean
+  dingtalk_notify_enabled: boolean
   github_repo?: string
   has_dingtalk_webhook: boolean
   notes?: string

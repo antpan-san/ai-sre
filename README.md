@@ -36,6 +36,8 @@ Go CLI + 同仓 **OpsFleetPilot** Web/API（`ft-backend/`、`ft-front/`、`deplo
 | `ai-sre skills list` | 列出内置 + `--skills-dir` 合并后的技能包 |
 | `ai-sre skills server` | 列出 OpsFleet 服务端注册的技能包（builtin + 生成中的 generated 版本） |
 | `ai-sre skills status` | 通过 CLI token 同步当前可执行能力、订阅状态、执行模式和是否需要服务端计划单；不返回技能 YAML / Prompt |
+| CLI 参数层纠错 | 未知命令/flag 或 flag 作用域错误时，仅本地给出最多 3 条建议（含 `auto_iteration_created=false`），**不**触发自动迭代 |
+| CLI 能力层 fulfillment | 命令与参数正确但能力不足时，调用 `POST /api/cli/fulfillment/plan`（须带 `command_catalog_digest`）；服务端返回 `subscription_required` / `granted_retry` / `auto_iteration_created` / `awaiting_approval` 等公开字段 |
 | `ai-sre skills feedback --topic <t> -m "…"` | 把本次诊断的有效性反馈给服务端，进入下次精炼样本 |
 | `ai-sre skills refine --topic <t>` | 让服务端基于最近 N 次样本 + 反馈调用 LLM 产出新版技能包（生成在 `OPSFLEET_AI_SKILL_DATA_DIR/generated/<topic>.yaml`） |
 | `ai-sre check … --no-feedback` | 关掉本次诊断后的「是否帮到你」反馈提示（仅 TTY 下有效） |

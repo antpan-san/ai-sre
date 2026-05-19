@@ -127,9 +127,14 @@ func CreateCapabilityGapAutoIteration(title, command, topic, createdBy string, u
 	if !settings.Enabled {
 		return nil, ErrAutoIterationDisabled
 	}
-	risk := models.AutoIterationRiskLow
-	if settings.HighRiskRequiresApproval {
-		risk = models.AutoIterationRiskMedium
+	risk, high := assessFulfillmentRisk(command, "capability_gap", "", SkillExecutionIntent{Topic: topic})
+	status := models.AutoIterationStatusPending
+	requiresApproval := high && settings.HighRiskRequiresApproval
+	if requiresApproval {
+		status = models.AutoIterationStatusAwaitingApproval
+	}
+	if !settings.AutoDispatchEnabled {
+		status = models.AutoIterationStatusDraft
 	}
 	userBody := strings.TrimSpace(command)
 	desc, cmd := FormatAutoIterationUserRequirement(title, userBody, topic)
@@ -137,10 +142,10 @@ func CreateCapabilityGapAutoIteration(title, command, topic, createdBy string, u
 		Title:                      limitAuditText(title, 200),
 		Description:                desc,
 		Command:                    cmd,
-		Status:                     models.AutoIterationStatusPending,
+		Status:                     status,
 		Source:                     models.AutoIterationSourceCapabilityGap,
 		RiskLevel:                  risk,
-		RequiresSuperAdminApproval: risk == models.AutoIterationRiskHigh || settings.HighRiskRequiresApproval,
+		RequiresSuperAdminApproval: requiresApproval,
 		Topic:                      strings.TrimSpace(topic),
 		CreatedByUserID:            &userID,
 		CreatedBy:                  limitAuditText(createdBy, 80),
