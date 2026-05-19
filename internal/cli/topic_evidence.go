@@ -2,7 +2,6 @@ package cli
 
 import (
 	"context"
-	"fmt"
 	"os/exec"
 	"strings"
 	"time"
@@ -120,26 +119,12 @@ func gatherKafkaEvidence(ctx context.Context, flags map[string]string, out map[s
 }
 
 func gatherRedisEvidence(ctx context.Context, flags map[string]string, out map[string]string) {
-	tgt := strings.TrimSpace(flags["addr"])
-	if tgt == "" {
-		tgt = strings.TrimSpace(flags["target"])
+	body, _, err := collectRedisProbeJSON(ctx, flags)
+	if err == errRedisAuthRequired && body != "" {
+		out["redis_diagnose_json"] = body
+		out["redis_auth_required"] = "true"
+		return
 	}
-	if tgt == "" {
-		host := strings.TrimSpace(flags["host"])
-		port := strings.TrimSpace(flags["port"])
-		if host == "" {
-			return
-		}
-		if port == "" {
-			port = "6379"
-		}
-		tgt = fmt.Sprintf("%s:%s", host, port)
-	}
-	args := []string{"probe", "redis", tgt, "--json"}
-	if pw := strings.TrimSpace(flags["password"]); pw != "" {
-		args = append(args, "--password", pw)
-	}
-	body := runSelfSubcommand(ctx, 20*time.Second, args...)
 	if body != "" {
 		out["redis_diagnose_json"] = body
 	}

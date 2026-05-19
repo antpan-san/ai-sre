@@ -107,6 +107,9 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	for k, v := range gatherTopicEvidence(cmd.Context(), topic, ctx) {
 		ctx[k] = v
 	}
+	if err := finishRedisCheckEvidence(topic, ctx); err != nil {
+		return err
+	}
 	if shouldRequestServerDiagnosticPlan(topic, ctx) {
 		obs, ran, err := maybeRunServerDiagnosticPlan(cmd.Context(), topic, ctx, diagnosticPlanYes)
 		if err != nil {
@@ -123,6 +126,7 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	} else if hasTopicEvidence(ctx) {
 		ctx["diagnosis_style"] = "evidence_root_cause"
 	}
+	stripSensitiveCheckContext(ctx)
 	diag, err := runAnalyzeWithOrchestrator(context.Background(), topic, ctx)
 	if err != nil {
 		return err

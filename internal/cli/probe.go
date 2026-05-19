@@ -32,13 +32,6 @@ func probeKafkaCmd() *cobra.Command {
 	return c
 }
 
-func probeRedisCmd() *cobra.Command {
-	c := redisDiagnoseCmd()
-	c.Use = "redis <addr>"
-	c.Short = "Redis 只读快采：INFO 与连接压力"
-	return c
-}
-
 func probeMySQLCmd() *cobra.Command {
 	c := mysqlDiagnoseCmd()
 	c.Use = "mysql <dsn>"

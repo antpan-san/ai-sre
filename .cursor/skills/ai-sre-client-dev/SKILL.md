@@ -17,7 +17,7 @@ description: >-
 | 版本 | 每条功能指令前 `PersistentPreRunE` → `tryAutoUpgradeInPlace`；有新版则下载 + `exec` 同 argv，**用户无感** |
 | API 绑定 | `resolveOpsfleetAPIBaseStrict`：install 记录 > `OPSFLEET_API_URL` > 内嵌实验室；**冲突时自动采用 install**，stderr 一行说明，**不报错阻断** |
 | 可达性 | `fetchRemoteVersionFast` + `collectOpsfleetAPIBaseCandidates`：**按序探测** install / env / 实验室 / 生产，直到 `GET .../version` 成功 |
-| 诊断目标 | `check redis` 等：`smartDefaultCheckTarget` 从已绑定控制台 host 推导（如实验室 `192.168.56.11:6379`），再回退 `127.0.0.1` |
+| 诊断目标 | `check redis` 等：默认本机 `127.0.0.1`；`check redis <addr>` 支持任意 host:port（见 `check_target.go`） |
 | 禁止 | 文档/实现要求用户「先设环境变量」「先 upgrade 再 check」；禁止混环境时直接 `return err` 阻断 |
 | 实现 | `opsfleet_env.go`、`upgrade.go`、`check_target.go` |
 | 唯一豁免 | `version` / `upgrade` / `help` / `completion`、`-h`/`--help`、显式 `--no-auto-upgrade` / `OPSFLEET_NO_AUTO_UPGRADE=1` |
@@ -39,6 +39,10 @@ description: >-
 | `-d` / flag | K8s、密码、`--yes` 等高级场景；不得覆盖用户已 `-d` 的值 |
 
 实现：`applyCheckTargetContext`、`smartDefaultCheckTarget`（`check_target.go`）。
+
+## 诊断契约（强制）
+
+所有 `check <topic>`：**先 probe 采集，再 AI**；禁止 AI 让用户手工采集。详见 **`.cursor/skills/ai-sre-diagnosis-contract/SKILL.md`**。Redis 样板：`redis_probe.go`、`check_redis.go`。
 
 ## 安装/下载失败 → 服务端 AI（强制）
 

@@ -11,15 +11,15 @@ func TestBuildServerDiagnosePromptEvidenceRootCause(t *testing.T) {
 		"pod":             "pending",
 		"kubectl_nodes":   "NAME     STATUS\nmaster   Ready",
 	})
-	if !strings.Contains(p, "集群采集输出") {
+	if !strings.Contains(p, "只读采集输出") {
 		head := p
 		if len(head) > 200 {
 			head = head[:200]
 		}
 		t.Fatalf("expected evidence section header, got: %s", head)
 	}
-	if !strings.Contains(p, "禁止") || !strings.Contains(p, "kubectl") {
-		t.Fatalf("expected anti-tutorial instruction")
+	if !strings.Contains(p, "禁止") || !strings.Contains(p, "redis-cli") {
+		t.Fatalf("expected anti-manual-collection instruction")
 	}
 	if !strings.Contains(p, "### kubectl_nodes") {
 		t.Fatalf("expected labeled kubectl block")

@@ -380,25 +380,43 @@ func sortedStringKeys(m map[string]string) []string {
 	return keys
 }
 
-// sortedEvidenceKeysForPrompt lists kubectl_* / host_* keys with kubectl_focus_* first.
+// sortedEvidenceKeysForPrompt lists collected evidence keys; kubectl_focus_* and *_diagnose_json first.
 func sortedEvidenceKeysForPrompt(evidence map[string]string) []string {
 	if len(evidence) == 0 {
 		return nil
 	}
-	var focus, rest []string
+	var focus, jsonFirst, rest []string
 	for k := range evidence {
-		if strings.HasPrefix(k, "kubectl_focus_") {
+		switch {
+		case strings.HasPrefix(k, "kubectl_focus_"):
 			focus = append(focus, k)
-		} else {
+		case strings.HasSuffix(k, "_diagnose_json") || strings.HasSuffix(k, "_probe_json"):
+			jsonFirst = append(jsonFirst, k)
+		default:
 			rest = append(rest, k)
 		}
 	}
 	sort.Strings(focus)
+	sort.Strings(jsonFirst)
 	sort.Strings(rest)
 	out := make([]string, 0, len(evidence))
 	out = append(out, focus...)
+	out = append(out, jsonFirst...)
 	out = append(out, rest...)
 	return out
+}
+
+func isCollectedEvidenceKey(k string) bool {
+	switch {
+	case strings.HasPrefix(k, "kubectl_"), strings.HasPrefix(k, "host_"),
+		strings.HasPrefix(k, "redis_"), strings.HasPrefix(k, "kafka_"),
+		strings.HasPrefix(k, "mysql_"), strings.HasPrefix(k, "postgresql_"),
+		strings.HasPrefix(k, "nginx_"), strings.HasPrefix(k, "es_"),
+		strings.HasPrefix(k, "elasticsearch_"), strings.HasPrefix(k, "domain_"):
+		return true
+	default:
+		return false
+	}
 }
 
 // buildServerDiagnosePrompt is kept for backwards compatibility (tests use it).
@@ -468,7 +486,7 @@ func buildDomainConnectivityPromptWithSkill(topic string, kv map[string]string, 
 func buildDefaultServerDiagnosePromptWithSkill(topic string, kv map[string]string, matched *services.RegisteredSkill) string {
 	var b strings.Builder
 	b.WriteString("你是资深SRE，请输出可执行的中文诊断。\n")
-	b.WriteString("要求：1) 先结论 2) 最可能原因排序 3) 最快验证命令 4) 临时缓解与根治建议。\n")
+	b.WriteString("要求：1) 先结论 2) 最可能原因排序 3) 基于已有 context 的验证要点（禁止让用户执行 probe/redis-cli/kubectl 补采集）4) 临时缓解与根治建议。\n")
 	b.WriteString("topic=" + topic + "\n")
 	writeSkillSection(&b, matched)
 	if len(kv) > 0 {
@@ -532,7 +550,7 @@ func buildEvidenceRootCausePromptWithSkill(topic string, kv map[string]string, r
 				continue
 			case k == "prior_answer_round1":
 				continue
-			case strings.HasPrefix(k, "kubectl_") || strings.HasPrefix(k, "host_"):
+			case isCollectedEvidenceKey(k):
 				evidence[k] = v
 			default:
 				user[k] = v
@@ -546,23 +564,24 @@ func buildEvidenceRootCausePromptWithSkill(topic string, kv map[string]string, r
 			break
 		}
 	}
-	b.WriteString("你是资深 Kubernetes SRE。下方「集群采集输出」来自 ai-sre 在客户环境本机自动执行的只读 kubectl 结果，是**真实集群状态**。\n\n")
+	b.WriteString("你是资深 SRE。下方「只读采集输出」由 ai-sre 在客户环境自动执行 probe/check 采集（kubectl、Redis INFO、Kafka 等），是**真实观测事实**。\n\n")
 	if refine {
-		b.WriteString("【第二轮：精炼】下面给出第一轮模型回答。你必须自检：若第一轮未引用「集群采集输出」中的**原文字句**作为证据，则完全重写结论；若已充分引用，则把根因写得更具体，并删除泛泛的排查教程。\n\n")
+		b.WriteString("【第二轮：精炼】下面给出第一轮模型回答。你必须自检：若第一轮未引用「只读采集输出」中的**原文字句**作为证据，则完全重写结论；若已充分引用，则把根因写得更具体，并删除泛泛的排查教程。\n\n")
 		b.WriteString("=== 第一轮模型回答（对照用） ===\n")
 		b.WriteString(prior)
 		b.WriteString("\n\n")
 	}
 	b.WriteString("硬性要求：\n")
-	b.WriteString("1) **根因**必须完全可从「集群采集输出」中推得；禁止凭空虚构集群里未出现的节点名、事件原文或错误码。\n")
-	b.WriteString("2) **禁止**输出「让客户自己去执行 kubectl xxx」的步骤化教程清单；若必须涉及操作，用「应达到的状态/应修复的组件」表述。\n")
-	b.WriteString("3) 输出必须是 Markdown，且**仅**包含以下小节（标题固定）：\n")
+	b.WriteString("1) **根因**必须完全可从「只读采集输出」中推得；禁止凭空虚构未出现的指标、日志或错误码。\n")
+	b.WriteString("2) **禁止**要求用户再去执行 redis-cli / probe / kubectl / shell 等命令补采集；若证据不足，只能说明因认证失败、ACL 拒绝或网络不可达导致哪些证据缺失。\n")
+	b.WriteString("3) **禁止**输出「你可以执行 ai-sre probe …」类提示；采集已由 CLI 完成。\n")
+	b.WriteString("4) 输出必须是 Markdown，且**仅**包含以下小节（标题固定）：\n")
 	b.WriteString("## 根因（一句话）\n")
 	b.WriteString("## 关键证据（逐条用代码块或引号摘录采集原文中的关键行）\n")
-	b.WriteString("## 修复要点（面向结果与组件，避免命令堆砌）\n")
-	b.WriteString("4) 若采集输出不足以定论，在「根因」中明确写「信息不足：缺少 xxx」，不要编造。\n")
+	b.WriteString("## 修复要点（面向目标状态、组件与配置项，避免命令堆砌）\n")
+	b.WriteString("5) 若采集输出不足以定论，在「根因」中明确写「信息不足：缺少 xxx」，不要编造。\n")
 	if hasFocusEvidence {
-		b.WriteString("5) 若存在以 `kubectl_focus_` 开头的小节，表示用户指定了**待深挖的 Pod**；根因与证据必须**优先**结合该 Pod 的 describe、events、logs（含 previous）与相关控制器/静态清单进行归因，再结合集群全景采集。\n")
+		b.WriteString("6) 若存在 `kubectl_focus_*` 小节，根因与证据必须**优先**结合该 Pod 的 describe/events/logs，再结合集群全景采集。\n")
 	}
 	if matched != nil {
 		b.WriteString("\n")
@@ -577,10 +596,10 @@ func buildEvidenceRootCausePromptWithSkill(topic string, kv map[string]string, r
 		b.WriteString("\n")
 	}
 	if len(evidence) == 0 {
-		b.WriteString("（未附带 kubectl 采集输出；仍按上述格式回答，并在根因中说明缺少采集数据。）\n")
+		b.WriteString("（未附带只读采集输出；仍按上述格式回答，并在根因中说明缺少采集数据。）\n")
 		return b.String()
 	}
-	b.WriteString("## 集群采集输出（原文）\n")
+	b.WriteString("## 只读采集输出（原文）\n")
 	for _, k := range sortedEvidenceKeysForPrompt(evidence) {
 		b.WriteString(fmt.Sprintf("\n### %s\n```text\n%s\n```\n", k, evidence[k]))
 	}
