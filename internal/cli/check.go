@@ -236,6 +236,31 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	finishMeta["evidence_completeness"] = evidenceCompletenessForContext(ctx)
 	MergeExecutionFinishMeta(finishMeta)
 
+	sampleIn := skillSampleReportInput{
+		Topic:                topic,
+		Target:               target,
+		Command:              cmd.CommandPath() + " " + strings.Join(args, " "),
+		Context:              cloneStringMap(ctx),
+		EvidenceCompleteness: evidenceCompletenessForContext(ctx),
+		RuleHit:              strings.EqualFold(strings.TrimSpace(diag.Source), "local-rule"),
+		UsedAI:               usedAI,
+		RootCauseSummary:     strings.TrimSpace(diag.Answer),
+		SkillName:            diag.SkillName,
+		Status:               "success",
+	}
+	if diag.Metadata != nil {
+		if rid, _ := diag.Metadata["request_id"].(string); rid != "" {
+			sampleIn.RequestID = rid
+		}
+		if pk, _ := diag.Metadata["pack_key"].(string); pk != "" {
+			sampleIn.PackKey = pk
+		}
+	}
+	if style := strings.TrimSpace(ctx["diagnosis_style"]); style != "" {
+		sampleIn.Style = style
+	}
+	finishCheckSkillSampleAsync(sampleIn)
+
 	_ = output.BuildPayload("check", topic, "", "", ctx, !noRAG, 0, &engine.RunResult{
 		Answer:       answer,
 		SkillName:    diag.SkillName,

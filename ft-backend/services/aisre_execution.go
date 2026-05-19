@@ -82,7 +82,10 @@ type ClientExecutionListItem struct {
 	ClientVersion        string                 `json:"client_version,omitempty"`
 	DurationMs           int64                  `json:"duration_ms,omitempty"`
 	LegacyKind           string                 `json:"legacy_kind,omitempty"`
-	HasAutoIteration     bool                   `json:"has_auto_iteration"`
+	HasAutoIteration          bool                   `json:"has_auto_iteration"`
+	SkillSampleRecorded       bool                   `json:"skill_sample_recorded,omitempty"`
+	SkillSampleClassification string                 `json:"skill_sample_classification,omitempty"`
+	EnhancementReviewTriggered bool                  `json:"enhancement_review_triggered,omitempty"`
 	Metadata             map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -106,6 +109,9 @@ type ClientExecutionDetail struct {
 	RuntimeReport  *RuntimeReportSummary    `json:"runtime_report,omitempty"`
 	Enhancement    map[string]interface{}   `json:"enhancement_review,omitempty"`
 	AutoIterationID string                  `json:"auto_iteration_id,omitempty"`
+	SkillSampleRecorded       bool            `json:"skill_sample_recorded,omitempty"`
+	SkillSampleClassification string          `json:"skill_sample_classification,omitempty"`
+	EnhancementReviewTriggered bool           `json:"enhancement_review_triggered,omitempty"`
 }
 
 type ClientExecutionPhase struct {
@@ -219,6 +225,12 @@ func GetClientExecutionDetail(id uuid.UUID, role, username string) (*ClientExecu
 	if aid, _ := meta["auto_iteration_id"].(string); strings.TrimSpace(aid) != "" {
 		detail.AutoIterationID = strings.TrimSpace(aid)
 	}
+	detail.SkillSampleRecorded = boolMeta(meta, "skill_sample_recorded")
+	detail.SkillSampleClassification = strMeta(meta, "skill_sample_classification")
+	detail.EnhancementReviewTriggered = boolMeta(meta, "enhancement_review_triggered")
+	if detail.EnhancementReviewTriggered == false && detail.Enhancement != nil {
+		detail.EnhancementReviewTriggered = boolMeta(detail.Enhancement, "needs_enhancement")
+	}
 	return detail, nil
 }
 
@@ -311,6 +323,9 @@ func buildClientExecutionListItem(rec *models.ExecutionRecord) (ClientExecutionL
 		item.AISource = "platform_ai"
 	}
 	item.HasAutoIteration = strings.TrimSpace(strMeta(meta, "auto_iteration_id")) != ""
+	item.SkillSampleRecorded = boolMeta(meta, "skill_sample_recorded")
+	item.SkillSampleClassification = strMeta(meta, "skill_sample_classification")
+	item.EnhancementReviewTriggered = boolMeta(meta, "enhancement_review_triggered") || item.EnhancementNeeds
 
 	if database.DB != nil && rec.ID != uuid.Nil {
 		var childCount int64

@@ -27,6 +27,10 @@ const (
 	AutoIterationSourceManual         = "manual"
 	AutoIterationSourceCLIFeedback    = "cli_feedback"
 	AutoIterationSourceCapabilityGap  = "cli_capability_gap"
+	AutoIterationSourceSkillRefine    = "skill_refine"
+	AutoIterationSourceRuleCandidate  = "rule_candidate"
+	AutoIterationSourceDiagnosisGap   = "diagnosis_insufficient"
+	AutoIterationSourceAICostReduce   = "ai_cost_reduction"
 
 	AutoIterationEventLog         = "log"
 	AutoIterationEventStateChange = "state_change"

@@ -44,6 +44,16 @@ func autoIterationSourceLabelForDingTalk(source string) string {
 		return "页面手动"
 	case models.AutoIterationSourceCLIFeedback:
 		return "CLI 反馈"
+	case models.AutoIterationSourceCapabilityGap:
+		return "能力缺口"
+	case models.AutoIterationSourceSkillRefine:
+		return "技能精炼"
+	case models.AutoIterationSourceRuleCandidate:
+		return "规则候选"
+	case models.AutoIterationSourceDiagnosisGap:
+		return "诊断不足"
+	case models.AutoIterationSourceAICostReduce:
+		return "AI 成本优化"
 	default:
 		if source == "" {
 			return "-"

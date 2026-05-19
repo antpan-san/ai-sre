@@ -556,7 +556,7 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 		return nil, err
 	}
 	classification := classifyFeedback(topic, summary, payload)
-	needIteration := settings.Enabled && (classification == "bug" || classification == "improvement")
+	needIteration := settings.Enabled && iterationClassificationsNeedTask(classification)
 	userMessage := "感谢反馈，我们已记录。"
 	nextAction := "none"
 	action := ""
@@ -577,8 +577,11 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 	}
 	if needIteration {
 		failureKind := classification
-		if failureKind == "improvement" {
+		switch failureKind {
+		case "improvement":
 			failureKind = "product_gap"
+		case "diagnosis_insufficient", "ai_failure":
+			// keep as-is for title/description
 		}
 		plan, planErr := handleProductGapFulfillment(userID, "cli_feedback", command, topic, failureKind, summary, SkillExecutionIntent{Topic: topic})
 		if planErr == nil && plan != nil {
@@ -621,19 +624,37 @@ func AnalyzeCLIFeedback(userID uuid.UUID, bindingID *uuid.UUID, topic, command, 
 }
 
 func classifyFeedback(topic, summary string, payload map[string]interface{}) string {
-	text := strings.ToLower(topic + " " + summary)
-	if strings.Contains(text, "bug") || strings.Contains(text, "error") || strings.Contains(text, "fail") {
-		return "bug"
-	}
-	if strings.Contains(text, "improve") || strings.Contains(text, "feature") {
-		return "improvement"
-	}
 	if payload != nil {
-		if v, ok := payload["classification"].(string); ok && v != "" {
+		if v, ok := payload["classification"].(string); ok && strings.TrimSpace(v) != "" {
 			return strings.TrimSpace(v)
 		}
 	}
+	text := strings.ToLower(topic + " " + summary)
+	if strings.Contains(text, "bug") || strings.Contains(text, "panic") {
+		return "bug"
+	}
+	if strings.Contains(text, "diagnosis_insufficient") || strings.Contains(text, "证据不足") || strings.Contains(text, "信息不足") {
+		return "diagnosis_insufficient"
+	}
+	if strings.Contains(text, "ai_failure") || strings.Contains(text, "ai 调用失败") {
+		return "ai_failure"
+	}
+	if strings.Contains(text, "product_gap") || strings.Contains(text, "improve") || strings.Contains(text, "feature") || strings.Contains(text, "能力缺口") {
+		return "product_gap"
+	}
+	if strings.Contains(text, "error") || strings.Contains(text, "fail") {
+		return "bug"
+	}
 	return "general"
+}
+
+func iterationClassificationsNeedTask(classification string) bool {
+	switch strings.TrimSpace(classification) {
+	case "bug", "improvement", "product_gap", "diagnosis_insufficient", "ai_failure":
+		return true
+	default:
+		return false
+	}
 }
 
 func sanitizeFeedbackPayload(payload map[string]interface{}) map[string]interface{} {

@@ -87,6 +87,21 @@
                 :value="opt.value"
               />
             </el-select>
+            <el-select
+              v-model="listFilters.source"
+              placeholder="来源"
+              clearable
+              size="small"
+              class="filter-source"
+              @change="applyListFilters"
+            >
+              <el-option
+                v-for="opt in SOURCE_FILTER_OPTIONS"
+                :key="opt.value"
+                :label="opt.label"
+                :value="opt.value"
+              />
+            </el-select>
             <el-button type="primary" size="small" @click="applyListFilters">筛选</el-button>
             <el-button size="small" link @click="resetListFilters">重置</el-button>
           </div>
@@ -385,8 +400,15 @@ const STATUS_FILTER_OPTIONS = Object.entries(STATUS_LABELS).map(([value, label])
 
 const SOURCE_LABELS: Record<string, string> = {
   manual: '手动',
-  cli_feedback: 'CLI'
+  cli_feedback: 'CLI 反馈',
+  cli_capability_gap: '能力缺口',
+  skill_refine: '技能精炼',
+  rule_candidate: '规则候选',
+  diagnosis_insufficient: '诊断不足',
+  ai_cost_reduction: 'AI 成本优化'
 }
+
+const SOURCE_FILTER_OPTIONS = Object.entries(SOURCE_LABELS).map(([value, label]) => ({ value, label }))
 
 const statusLabel = (s: string) => STATUS_LABELS[s] || s
 const sourceLabel = (s: string) => SOURCE_LABELS[s] || s

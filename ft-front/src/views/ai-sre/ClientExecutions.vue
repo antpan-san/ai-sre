@@ -85,12 +85,14 @@
             <span v-else class="muted">—</span>
           </template>
         </el-table-column>
-        <el-table-column label="技能增强" width="96" align="center">
+        <el-table-column label="沉淀/增强" width="108" align="center">
           <template #default="{ row }">
-            <el-tag v-if="row.enhancement_needs" :type="enhancementTag(row.enhancement_priority)" size="small">
+            <el-tag v-if="row.skill_sample_recorded" size="small" type="info">样本</el-tag>
+            <el-tag v-if="row.enhancement_needs || row.enhancement_review_triggered" :type="enhancementTag(row.enhancement_priority)" size="small">
               {{ enhancementLabel(row.enhancement_priority) }}
             </el-tag>
-            <span v-else class="muted">—</span>
+            <el-tag v-if="row.has_auto_iteration" size="small" type="warning">迭代</el-tag>
+            <span v-if="!row.skill_sample_recorded && !row.enhancement_needs && !row.has_auto_iteration" class="muted">—</span>
           </template>
         </el-table-column>
         <el-table-column prop="summary" label="结论摘要" min-width="160" show-overflow-tooltip />

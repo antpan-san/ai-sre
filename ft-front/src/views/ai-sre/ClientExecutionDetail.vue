@@ -44,6 +44,30 @@
         </el-collapse>
       </el-card>
 
+      <el-card shadow="never" class="block">
+        <template #header><span>技能沉淀</span></template>
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="样本池">
+            <el-tag :type="detail.skill_sample_recorded ? 'success' : 'info'" size="small">
+              {{ detail.skill_sample_recorded ? '已入库' : '未上报' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="样本分类">{{ sampleClassificationLabel(detail.skill_sample_classification) }}</el-descriptions-item>
+          <el-descriptions-item label="精炼审查">
+            <el-tag :type="detail.enhancement_review_triggered ? 'warning' : 'success'" size="small">
+              {{ detail.enhancement_review_triggered ? '已触发' : '未触发' }}
+            </el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="自动迭代">
+            <router-link v-if="detail.auto_iteration_id && isSuperAdmin" :to="`/admin/auto-iterations?id=${detail.auto_iteration_id}`">
+              #{{ detail.auto_iteration_id.slice(0, 8) }}
+            </router-link>
+            <span v-else-if="detail.auto_iteration_id">#{{ detail.auto_iteration_id.slice(0, 8) }}</span>
+            <span v-else>—</span>
+          </el-descriptions-item>
+        </el-descriptions>
+      </el-card>
+
       <el-card v-if="enhancement" shadow="never" class="block">
         <template #header><span>技能包自动增强</span></template>
         <el-descriptions :column="2" border size="small">
@@ -207,6 +231,18 @@ const aiSourceLabel = (s?: string) => {
       return '混合'
     default:
       return s || 'AI'
+  }
+}
+const sampleClassificationLabel = (c?: string) => {
+  switch (c) {
+    case 'valuable_sample':
+      return '有价值样本'
+    case 'rule_candidate':
+      return '规则候选'
+    case 'diagnosis_insufficient':
+      return '诊断不足'
+    default:
+      return c || '—'
   }
 }
 const legacyLabel = (k: string) => {

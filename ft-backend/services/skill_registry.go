@@ -61,6 +61,21 @@ type DiagnoseSample struct {
 	PackKey           string                  `json:"pack_key,omitempty"`
 	ProblemKey        string                  `json:"problem_key,omitempty"`
 	EnhancementReview *SkillEnhancementReview `json:"enhancement_review,omitempty"`
+	// CLI check sample fields (cli_sample source)
+	Target               string `json:"target,omitempty"`
+	Command              string `json:"command,omitempty"`
+	CLIVersion           string `json:"cli_version,omitempty"`
+	UsedAI               bool   `json:"used_ai,omitempty"`
+	RuleHit              bool   `json:"local_rule_hit,omitempty"`
+	EvidenceCompleteness string `json:"evidence_completeness,omitempty"`
+	RootCauseDigest      string `json:"root_cause_digest,omitempty"`
+	RecommendationDigest string `json:"recommendation_digest,omitempty"`
+	SampleStatus         string `json:"sample_status,omitempty"`
+	Severity             string `json:"severity,omitempty"`
+	DurationMs           int64  `json:"duration_ms,omitempty"`
+	ErrorClassification  string `json:"error_classification,omitempty"`
+	ExecutionID          string `json:"execution_id,omitempty"`
+	SampleSource         string `json:"sample_source,omitempty"`
 }
 
 // SkillFeedback is what a client sends back after a diagnose.

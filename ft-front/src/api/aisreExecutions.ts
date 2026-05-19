@@ -25,6 +25,9 @@ export interface ClientExecutionListItem {
   duration_ms?: number
   legacy_kind?: string
   has_auto_iteration?: boolean
+  skill_sample_recorded?: boolean
+  skill_sample_classification?: string
+  enhancement_review_triggered?: boolean
 }
 
 export interface ClientExecutionStats {
@@ -51,6 +54,9 @@ export interface ClientExecutionDetail {
   }
   enhancement_review?: Record<string, unknown>
   auto_iteration_id?: string
+  skill_sample_recorded?: boolean
+  skill_sample_classification?: string
+  enhancement_review_triggered?: boolean
 }
 
 export function listAISreExecutions(params: Record<string, string | number | boolean | undefined>) {
