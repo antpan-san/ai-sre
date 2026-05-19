@@ -21,7 +21,7 @@ func TestBuildLinuxPerformancePromptIncludesSections(t *testing.T) {
 	p := buildLinuxPerformanceEvidencePromptWithSkill("linux", map[string]string{
 		"linux_perf_probe_json": `{"topic":"linux","cpu":{"user_pct":10}}`,
 	}, nil)
-	for _, sec := range []string{"【根因判断】", "【关键证据】", "linux_perf_probe_json"} {
+	for _, sec := range []string{"【根因判断】", "【关键证据】", "【系统与网络】", "linux_perf_probe_json"} {
 		if !strings.Contains(p, sec) {
 			t.Fatalf("prompt missing %q", sec)
 		}

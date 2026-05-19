@@ -14,7 +14,10 @@ type LinuxPerfReport struct {
 	Disks          []linuxPerfDisk        `json:"disks"`
 	DiskIO         []linuxPerfDiskIO      `json:"disk_io"`
 	PSI            map[string]any         `json:"psi"`
-	ProcessTop     linuxPerfProcessTop    `json:"process_top"`
+	Network        linuxPerfNetwork       `json:"network"`
+	Connections    linuxPerfConnections   `json:"connections"`
+	System         linuxPerfSystem        `json:"system"`
+	ProcessHotspots []linuxPerfProcess    `json:"process_hotspots,omitempty"`
 	LeakRisks      []linuxPerfLeakRisk    `json:"leak_risks"`
 	KernelSignals  []string               `json:"kernel_signals"`
 	Findings       []string               `json:"findings"`
@@ -92,13 +95,40 @@ type linuxPerfDiskIO struct {
 	WeightedIOTime float64 `json:"weighted_io_time,omitempty"`
 }
 
-type linuxPerfProcessTop struct {
-	CPU      []linuxPerfProcess `json:"cpu"`
-	Memory   []linuxPerfProcess `json:"memory"`
-	IO       []linuxPerfProcess `json:"io"`
-	FD       []linuxPerfProcess `json:"fd"`
-	Threads  []linuxPerfProcess `json:"threads"`
-	Risk     []linuxPerfProcess `json:"risk"`
+type linuxPerfNetwork struct {
+	TotalRxBps   float64              `json:"total_rx_bps,omitempty"`
+	TotalTxBps   float64              `json:"total_tx_bps,omitempty"`
+	TotalRxErr   uint64               `json:"total_rx_errors,omitempty"`
+	TotalTxErr   uint64               `json:"total_tx_errors,omitempty"`
+	TotalRxDrop  uint64               `json:"total_rx_dropped,omitempty"`
+	Interfaces   []linuxPerfNetIface  `json:"interfaces,omitempty"`
+}
+
+type linuxPerfNetIface struct {
+	Name    string  `json:"name"`
+	RxBps   float64 `json:"rx_bps,omitempty"`
+	TxBps   float64 `json:"tx_bps,omitempty"`
+	RxErr   uint64  `json:"rx_errors,omitempty"`
+	TxErr   uint64  `json:"tx_errors,omitempty"`
+}
+
+type linuxPerfConnections struct {
+	SocketsUsed    int `json:"sockets_used,omitempty"`
+	TCPInUse       int `json:"tcp_inuse,omitempty"`
+	TCPEstablished int `json:"tcp_established,omitempty"`
+	TCPTimeWait    int `json:"tcp_time_wait,omitempty"`
+	TCPCloseWait   int `json:"tcp_close_wait,omitempty"`
+	TCPSynRecv     int `json:"tcp_syn_recv,omitempty"`
+	TCPOrphan      int `json:"tcp_orphan,omitempty"`
+	TCPAlloc       int `json:"tcp_alloc,omitempty"`
+	UDPInUse       int `json:"udp_inuse,omitempty"`
+}
+
+type linuxPerfSystem struct {
+	ProcessCount int   `json:"process_count,omitempty"`
+	ThreadCount  int   `json:"thread_count,omitempty"`
+	OpenFiles    int64 `json:"open_files,omitempty"`
+	MaxOpenFiles int64 `json:"max_open_files,omitempty"`
 }
 
 type linuxPerfProcess struct {

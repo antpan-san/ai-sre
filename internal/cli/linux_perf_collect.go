@@ -118,14 +118,29 @@ func CollectLinuxPerf(opts LinuxPerfOptions) *LinuxPerfReport {
 		report.Errors = append(report.Errors, "cpu stat: "+err.Error())
 	}
 	disk1, _ := parseDiskstats()
+	net1, _ := parseNetDev()
 	pids, _ := listProcPIDs()
 	snap1 := snapshotProcesses(pids)
+
+	report.Connections = parseSockstat()
+	if report.Connections.TCPEstablished == 0 {
+		report.Connections.TCPEstablished = parseTCPEstablishedFromSNMP()
+	}
+	report.Connections.TCPCloseWait = parseTCPStateCounts()
+	if report.Connections.SocketsUsed > 0 || report.Connections.TCPInUse > 0 {
+		report.EvidenceCompleteness["connections"] = true
+	}
 
 	sleepSample(interval)
 
 	cpu2, err2 := readCPUStat()
 	disk2, _ := parseDiskstats()
+	net2, _ := parseNetDev()
 	snap2 := snapshotProcesses(pids)
+	report.Network = networkDelta(net1, net2, interval.Seconds())
+	if report.Network.TotalRxBps > 0 || report.Network.TotalTxBps > 0 {
+		report.EvidenceCompleteness["network"] = true
+	}
 
 	if err == nil && err2 == nil {
 		user, system, iowait, steal, irq, softirq, idle := cpuUsagePct(cpu1, cpu2)
@@ -156,8 +171,18 @@ func CollectLinuxPerf(opts LinuxPerfOptions) *LinuxPerfReport {
 	}
 
 	procs := mergeProcessDeltas(snap1, snap2, secs, clkTck)
-	report.ProcessTop = buildProcessTops(procs, opts.TopN)
-	report.EvidenceCompleteness["process_top"] = true
+	report.ProcessHotspots = buildProcessHotspots(procs, opts.TopN)
+	report.System = collectSystemLimits()
+	report.System.ProcessCount = len(procs)
+	for _, p := range procs {
+		report.System.ThreadCount += p.Threads
+	}
+	if report.System.ProcessCount > 0 || report.System.OpenFiles > 0 {
+		report.EvidenceCompleteness["system"] = true
+	}
+	if len(report.ProcessHotspots) > 0 {
+		report.EvidenceCompleteness["process_hotspots"] = true
+	}
 
 	if opts.PID > 0 {
 		enrichTargetPID(report, opts.PID)
@@ -267,27 +292,67 @@ func mergeProcessDeltas(a, b map[int]procSnapshot, secs, clkTck float64) []procD
 	return out
 }
 
-func buildProcessTops(procs []procDelta, topN int) linuxPerfProcessTop {
-	top := func(cmp func(a, b procDelta) bool) []linuxPerfProcess {
-		cp := append([]procDelta(nil), procs...)
-		sort.Slice(cp, func(i, j int) bool { return cmp(cp[i], cp[j]) })
-		if len(cp) > topN {
-			cp = cp[:topN]
-		}
-		out := make([]linuxPerfProcess, len(cp))
-		for i, p := range cp {
-			out[i] = p.linuxPerfProcess
-		}
-		return out
+// buildProcessHotspots returns a deduplicated short list of high-impact processes for AI (no per-metric ranking tables).
+func buildProcessHotspots(procs []procDelta, topN int) []linuxPerfProcess {
+	if topN <= 0 {
+		topN = linuxPerfDefaultTop
 	}
-	return linuxPerfProcessTop{
-		CPU: top(func(a, b procDelta) bool { return a.CPUPercent > b.CPUPercent }),
-		Memory: top(func(a, b procDelta) bool { return a.RSSBytes > b.RSSBytes }),
-		IO: top(func(a, b procDelta) bool { return a.ReadBps+a.WriteBps > b.ReadBps+b.WriteBps }),
-		FD: top(func(a, b procDelta) bool { return a.FDCount > b.FDCount }),
-		Threads: top(func(a, b procDelta) bool { return a.Threads > b.Threads }),
-		Risk: top(func(a, b procDelta) bool { return a.riskScore > b.riskScore }),
+	maxOut := topN
+	if maxOut > 8 {
+		maxOut = 8
 	}
+	cp := append([]procDelta(nil), procs...)
+	sort.Slice(cp, func(i, j int) bool {
+		if cp[i].riskScore != cp[j].riskScore {
+			return cp[i].riskScore > cp[j].riskScore
+		}
+		if cp[i].CPUPercent != cp[j].CPUPercent {
+			return cp[i].CPUPercent > cp[j].CPUPercent
+		}
+		return cp[i].RSSBytes > cp[j].RSSBytes
+	})
+	seen := map[int]bool{}
+	var out []linuxPerfProcess
+	add := func(p procDelta) {
+		if seen[p.PID] {
+			return
+		}
+		seen[p.PID] = true
+		proc := p.linuxPerfProcess
+		if proc.RiskScore > 0 && proc.RiskReason == "" {
+			proc.RiskReason = summarizeProcessRisk(proc)
+		}
+		out = append(out, proc)
+	}
+	for i := 0; i < len(cp) && len(out) < maxOut; i++ {
+		if cp[i].riskScore > 0 || cp[i].CPUPercent >= 5 || cp[i].RSSBytes >= 256*1024*1024 {
+			add(cp[i])
+		}
+	}
+	for i := 0; i < len(cp) && len(out) < maxOut; i++ {
+		add(cp[i])
+	}
+	return out
+}
+
+func summarizeProcessRisk(p linuxPerfProcess) string {
+	var parts []string
+	if p.CPUPercent >= 10 {
+		parts = append(parts, "高CPU")
+	}
+	if p.RSSBytes >= 512*1024*1024 {
+		parts = append(parts, "高内存")
+	}
+	if p.FDCount >= 500 {
+		parts = append(parts, "高FD")
+	}
+	if p.Threads >= 200 {
+		parts = append(parts, "高线程")
+	}
+	if p.OOMScore > 300 {
+		parts = append(parts, "oom_score偏高")
+	}
+	return strings.Join(parts, ",")
 }
 
 func detectLeakRisks(procs []procDelta, opts LinuxPerfOptions, interval time.Duration) []linuxPerfLeakRisk {
@@ -465,6 +530,19 @@ func deriveLinuxFindings(r *LinuxPerfReport) []string {
 			f = append(f, fmt.Sprintf("磁盘 %s 使用率 %.1f%%", d.Mount, d.UsedPct))
 		}
 	}
+	if r.Connections.TCPTimeWait > 1000 {
+		f = append(f, fmt.Sprintf("TCP TIME_WAIT 较多 (%d)", r.Connections.TCPTimeWait))
+	}
+	if r.Connections.TCPCloseWait > 100 {
+		f = append(f, fmt.Sprintf("TCP CLOSE_WAIT 较多 (%d)，可能存在连接未释放", r.Connections.TCPCloseWait))
+	}
+	if r.Connections.SocketsUsed > 0 && r.System.MaxOpenFiles > 0 &&
+		float64(r.System.OpenFiles)/float64(r.System.MaxOpenFiles) > 0.85 {
+		f = append(f, fmt.Sprintf("系统打开文件数接近上限 (%d/%d)", r.System.OpenFiles, r.System.MaxOpenFiles))
+	}
+	if r.Network.TotalRxErr > 0 || r.Network.TotalTxErr > 0 {
+		f = append(f, fmt.Sprintf("网卡错误计数增加 rx_err=%d tx_err=%d", r.Network.TotalRxErr, r.Network.TotalTxErr))
+	}
 	return f
 }
 
@@ -481,16 +559,23 @@ func formatLinuxProbeText(r *LinuxPerfReport) string {
 		r.CPU.UserPct, r.CPU.SystemPct, r.CPU.IowaitPct, r.CPU.IdlePct)
 	fmt.Fprintf(&b, "内存: used=%.1f%% avail=%d MB oom_risk=%s\n",
 		r.Memory.UsedPct, r.Memory.MemAvailableKB/1024, r.Memory.OOMRisk)
-	if len(r.ProcessTop.CPU) > 0 {
-		b.WriteString("\nCPU Top:\n")
-		for i, p := range r.ProcessTop.CPU {
-			fmt.Fprintf(&b, "  %d. pid=%d %.1f%% %s\n", i+1, p.PID, p.CPUPercent, truncStr(p.Cmdline, 80))
-		}
+	if r.Connections.SocketsUsed > 0 {
+		fmt.Fprintf(&b, "连接: sockets=%d tcp_inuse=%d estab=%d timewait=%d close_wait=%d\n",
+			r.Connections.SocketsUsed, r.Connections.TCPInUse, r.Connections.TCPEstablished,
+			r.Connections.TCPTimeWait, r.Connections.TCPCloseWait)
 	}
-	if len(r.ProcessTop.Memory) > 0 {
-		b.WriteString("\n内存 Top:\n")
-		for i, p := range r.ProcessTop.Memory {
-			fmt.Fprintf(&b, "  %d. pid=%d rss=%.0fMB %s\n", i+1, p.PID, float64(p.RSSBytes)/1024/1024, truncStr(p.Cmdline, 80))
+	if r.Network.TotalRxBps > 0 || r.Network.TotalTxBps > 0 {
+		fmt.Fprintf(&b, "网络吞吐: rx=%.0f KB/s tx=%.0f KB/s\n", r.Network.TotalRxBps/1024, r.Network.TotalTxBps/1024)
+	}
+	if r.System.ProcessCount > 0 {
+		fmt.Fprintf(&b, "进程/线程: processes=%d threads=%d open_files=%d/%d\n",
+			r.System.ProcessCount, r.System.ThreadCount, r.System.OpenFiles, r.System.MaxOpenFiles)
+	}
+	if len(r.ProcessHotspots) > 0 {
+		b.WriteString("\n重点关注进程:\n")
+		for _, p := range r.ProcessHotspots {
+			fmt.Fprintf(&b, "  pid=%d cpu=%.1f%% rss=%.0fMB fd=%d thr=%d %s\n",
+				p.PID, p.CPUPercent, float64(p.RSSBytes)/1024/1024, p.FDCount, p.Threads, truncStr(p.Cmdline, 60))
 		}
 	}
 	if len(r.LeakRisks) > 0 {
