@@ -37,7 +37,6 @@ var (
 	upstream          string
 	latency           string
 	setKV             map[string]string
-	noFeedback        bool
 	goRuntimeOpts     goRuntimeCLIOptions
 	diagnosticPlanYes bool
 )

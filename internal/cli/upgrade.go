@@ -546,18 +546,23 @@ func downloadAndReplaceAIsre(ctx context.Context, apiBase, arch, destPath string
 	}
 	tmpPath := tmp.Name()
 	defer func() { _ = os.Remove(tmpPath) }()
-	pr := newProgressReader(resp.Body, resp.ContentLength, fmt.Sprintf("下载 ai-sre 二进制 (arch=%s)", arch))
-	n, err := io.Copy(tmp, pr)
-	_ = pr.Close()
-	if err != nil {
+	var n int64
+	var errCopy error
+	if upgradeCheckVerbose() {
+		pr := newProgressReader(resp.Body, resp.ContentLength, fmt.Sprintf("下载 ai-sre 二进制 (arch=%s)", arch))
+		n, errCopy = io.Copy(tmp, pr)
+		_ = pr.Close()
+	} else {
+		n, errCopy = io.Copy(tmp, resp.Body)
+	}
+	if errCopy != nil {
 		tmp.Close()
-		return err
+		return errCopy
 	}
 	if expected > 0 && n < expected {
 		tmp.Close()
 		return fmt.Errorf("下载不完整: %d/%d 字节（网络过慢或超时，可增大 OPSFLEET_UPGRADE_DOWNLOAD_TIMEOUT 或重试）", n, expected)
 	}
-	_ = pr.Close()
 	if err := tmp.Close(); err != nil {
 		return err
 	}

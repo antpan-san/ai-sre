@@ -65,7 +65,6 @@ k8s 场景 --pod 可填：
 	cmd.Flags().StringVar(&upstream, "upstream", "", "Nginx upstream 名称或服务名")
 	cmd.Flags().StringVar(&latency, "latency", "", "延迟描述，如 50ms、p99=20ms")
 	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
-	cmd.Flags().BoolVar(&noFeedback, "no-feedback", false, "禁用诊断后的反馈提示")
 	cmd.Flags().BoolVar(&diagnosticPlanYes, "yes", false, "非 TTY 环境确认执行服务端只读诊断任务单")
 	return cmd
 }
@@ -137,7 +136,6 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	if err := output.Print(outputFormat, p); err != nil {
 		return err
 	}
-	maybePromptFeedback(cmd.Context(), topic, diag)
 	return nil
 }
 

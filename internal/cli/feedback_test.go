@@ -1,29 +1,9 @@
 package cli
 
-import (
-	"testing"
-)
+import "testing"
 
-// maybePromptFeedback must be a no-op when conditions to skip apply. We can't
-// easily fake a TTY here, but we can verify the "json output" and
-// "--no-feedback" skip paths by setting package-level state and ensuring no
-// network call attempt is made (the function would otherwise hit
-// resolveOpsfleetAPIBase, fail and only print to stderr).
-func TestMaybePromptFeedbackHonoursSkips(t *testing.T) {
-	defer func(prev string, prevNo bool) {
-		outputFormat = prev
-		noFeedback = prevNo
-	}(outputFormat, noFeedback)
-
-	// 1) --no-feedback path
-	noFeedback = true
-	outputFormat = "text"
-	maybePromptFeedback(nil, "k8s", &diagnoseResponse{SkillName: "x"})
-
-	// 2) -o json path
-	noFeedback = false
-	outputFormat = "json"
-	maybePromptFeedback(nil, "k8s", &diagnoseResponse{SkillName: "x"})
+func TestMaybePromptFeedbackIsNoOp(t *testing.T) {
+	maybePromptFeedback(nil, "domain", &diagnoseResponse{SkillName: "x"})
 }
 
 func TestDiagnoseResponseRequestID(t *testing.T) {
