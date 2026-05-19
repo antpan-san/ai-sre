@@ -52,8 +52,36 @@ func TestResolvedAIConfigDefaults(t *testing.T) {
 	os.Unsetenv(EnvAIAPIKey)
 	os.Unsetenv(EnvAIBaseURL)
 	os.Unsetenv(EnvAIModel)
+	os.Unsetenv(EnvDeepSeekAPIKey)
+	os.Unsetenv(EnvDeepSeekBaseURL)
+	os.Unsetenv(EnvDeepSeekModel)
 	r := ResolvedAIConfig()
 	if r.BaseURL != "https://api.deepseek.com/v1" || r.Model != "deepseek-chat" {
 		t.Fatalf("defaults: %+v", r)
+	}
+}
+
+func TestResolvedAIConfigDeepSeekEnvAlias(t *testing.T) {
+	GlobalCfg = &Config{AI: AIConfig{}}
+	t.Cleanup(func() {
+		GlobalCfg = nil
+		os.Unsetenv(EnvAIAPIKey)
+		os.Unsetenv(EnvAIBaseURL)
+		os.Unsetenv(EnvAIModel)
+		os.Unsetenv(EnvDeepSeekAPIKey)
+		os.Unsetenv(EnvDeepSeekBaseURL)
+		os.Unsetenv(EnvDeepSeekModel)
+	})
+	t.Setenv(EnvDeepSeekAPIKey, "sk-test")
+	t.Setenv(EnvDeepSeekBaseURL, "https://api.deepseek.com")
+	t.Setenv(EnvDeepSeekModel, "deepseek-chat")
+	r := ResolvedAIConfig()
+	if r.APIKey != "sk-test" || r.BaseURL != "https://api.deepseek.com/v1" || r.Model != "deepseek-chat" {
+		t.Fatalf("deepseek env: %+v", r)
+	}
+	t.Setenv(EnvAIAPIKey, "sk-opsfleet")
+	r = ResolvedAIConfig()
+	if r.APIKey != "sk-opsfleet" {
+		t.Fatalf("opsfleet env should win: %+v", r)
 	}
 }

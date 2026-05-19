@@ -223,7 +223,7 @@
             </el-breadcrumb>
           </div>
         </div>
-        <HostMetricsRings v-if="isAdminShell && isConsoleAdmin" class="layout-header-metrics" />
+        <HostMetricsRings v-if="isAdminShell && isAdminUser" class="layout-header-metrics" />
         <div class="layout-header-right">
           <router-link
             :to="{ path: errorCodesPath }"

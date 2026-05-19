@@ -235,7 +235,7 @@ bash scripts/remote-e2e.sh         # 含 LLM（需有效 api_key）
 - **OpsFleet 后端仅使用** `ft-backend/conf/config.yaml`（由 `deploy/config.production.example.yaml` 复制编辑）；仓库内**不得**再保留根路径 `ft-backend/config.yaml` 等重复配置，以免误用。
 - **勿提交**：本机编译产物（`ai-sre`、`bin/`、`dist/`、`ft-backend/opsfleet-backend`）、`node_modules`、vim `*.swp`（见根目录 `.gitignore`）。
 - **CLI 凭据**：仅用 `~/.config/ai-sre/`，与 OpsFleet 的 PostgreSQL/JWT 配置无关。
-- **服务端 AI 回退**：若要启用无本地 key 的 `analyze` 自动回退，请在 OpsFleet 后端环境配置 `OPSFLEET_AI_API_KEY`（可选 `OPSFLEET_AI_BASE_URL`、`OPSFLEET_AI_MODEL`）。
+- **服务端 AI 回退**：若要启用无本地 key 的 `analyze` 自动回退，请在 OpsFleet 后端环境配置 `OPSFLEET_AI_API_KEY`（可选 `OPSFLEET_AI_BASE_URL`、`OPSFLEET_AI_MODEL`）。生产机也可使用 **`/etc/fleetpilots-backend.env`** 中的 `DEEPSEEK_API_KEY` / `DEEPSEEK_BASE_URL` / `DEEPSEEK_MODEL`（与 `OPSFLEET_AI_*` 等价，`OPSFLEET_*` 优先；`base_url` 可写 `https://api.deepseek.com`，后端自动补 `/v1`）。示例见 `deploy/fleetpilots-backend.env.example`。
 - **服务端技能数据目录**：可选 `OPSFLEET_AI_SKILL_DATA_DIR`（默认尝试 `/var/lib/opsfleet/ai-skills`，否则 `./data/ai-skills`）。诊断样本会以 JSONL 形式追加到该目录的 `samples/<topic>.jsonl`，反馈到 `feedback/<topic>.jsonl`；`ai-sre skills refine` 产出的新版技能包落到 `generated/<topic>.yaml`，旧版本归档到 `generated/<topic>.history/<ts>.yaml`。**全栈部署脚本会自动 mkdir + 写入 backend.env。**
 
 ---

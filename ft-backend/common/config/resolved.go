@@ -12,6 +12,10 @@ const (
 	EnvAIAPIKey           = "OPSFLEET_AI_API_KEY"
 	EnvAIBaseURL          = "OPSFLEET_AI_BASE_URL"
 	EnvAIModel            = "OPSFLEET_AI_MODEL"
+	// 生产机常见 /etc/fleetpilots-backend.env（与 OPSFLEET_AI_* 等价，OPSFLEET 优先）
+	EnvDeepSeekAPIKey  = "DEEPSEEK_API_KEY"
+	EnvDeepSeekBaseURL = "DEEPSEEK_BASE_URL"
+	EnvDeepSeekModel   = "DEEPSEEK_MODEL"
 	EnvAISkillDataDir     = "OPSFLEET_AI_SKILL_DATA_DIR"
 	EnvAISreBinaryPath    = "OPSFLEET_AISRE_BINARY_PATH"
 	EnvAISreBinaryAmd64   = "OPSFLEET_AISRE_BINARY_PATH_AMD64"
@@ -65,17 +69,36 @@ func yamlSkills() SkillsConfig {
 	return SkillsConfig{}
 }
 
+func envFirstNonEmpty(keys ...string) string {
+	for _, k := range keys {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	return ""
+}
+
+// normalizeDeepSeekBaseURL ensures chat/completions path (/v1) matches DeepSeek OpenAPI layout.
+func normalizeDeepSeekBaseURL(raw string) string {
+	u := strings.TrimRight(strings.TrimSpace(raw), "/")
+	if u == "" {
+		return "https://api.deepseek.com/v1"
+	}
+	if strings.HasSuffix(u, "/v1") {
+		return u
+	}
+	return u + "/v1"
+}
+
 // ResolvedAIConfig returns DeepSeek-compatible settings.
 func ResolvedAIConfig() ResolvedAI {
 	y := yamlAI()
 	out := ResolvedAI{
-		APIKey:  EnvOrString(EnvAIAPIKey, y.APIKey),
-		BaseURL: EnvOrString(EnvAIBaseURL, y.BaseURL),
-		Model:   EnvOrString(EnvAIModel, y.Model),
+		APIKey:  envFirstNonEmpty(EnvAIAPIKey, EnvDeepSeekAPIKey, y.APIKey),
+		BaseURL: envFirstNonEmpty(EnvAIBaseURL, EnvDeepSeekBaseURL, y.BaseURL),
+		Model:   envFirstNonEmpty(EnvAIModel, EnvDeepSeekModel, y.Model),
 	}
-	if out.BaseURL == "" {
-		out.BaseURL = "https://api.deepseek.com/v1"
-	}
+	out.BaseURL = normalizeDeepSeekBaseURL(out.BaseURL)
 	if out.Model == "" {
 		out.Model = "deepseek-chat"
 	}
