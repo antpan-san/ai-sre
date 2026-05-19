@@ -175,6 +175,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.POST("/admin/skill-assets/:id/deprecate", handlers.AdminDeprecateSkillAsset)
 		superAdmin.GET("/admin/skill-usage/summary", handlers.AdminSkillUsageSummary)
 		superAdmin.GET("/admin/skill-usage/export.csv", handlers.AdminSkillUsageCSV)
+		superAdmin.GET("/admin/skill-enhancement-reviews", handlers.AdminListSkillEnhancementReviews)
+		superAdmin.GET("/admin/skill-enhancement-reviews/summary", handlers.AdminSkillEnhancementSummary)
 
 		superAdmin.GET("/admin/auto-iterations/settings", handlers.AdminGetAutoIterationSettings)
 		superAdmin.PUT("/admin/auto-iterations/settings", handlers.AdminUpdateAutoIterationSettings)

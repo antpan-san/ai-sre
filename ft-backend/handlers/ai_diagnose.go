@@ -129,24 +129,20 @@ func AIDiagnose(c *gin.Context) {
 	}
 	recordAIExecution(ident, "analyze", "AI 诊断: "+topic, defaultString(req.Command, "ai-sre analyze "+topic), reqID, packKey, models.ExecutionStatusSuccess, answer, "", req.Context, req.Client, quotaDecision)
 
-	// Fire-and-forget sample logging for self-iteration. Never block the response.
-	go func(topic, name, requestID, answer string, ctxKV map[string]string) {
-		defer func() { _ = recover() }()
-		sample := services.DiagnoseSample{
-			Topic:       topic,
-			SkillName:   name,
-			Style:       strings.TrimSpace(ctxKV["diagnosis_style"]),
-			UserContext: stripBulkEvidenceForSample(ctxKV),
-			EvidenceKey: evidenceKeyList(ctxKV),
-			AnswerLen:   len(answer),
-			AnswerHead:  headSample(answer, 600),
-			AnswerTail:  tailSample(answer, 400),
-			RequestID:   requestID,
-		}
-		if err := services.AppendDiagnoseSample(services.DefaultSkillRegistry(), sample); err != nil {
-			logger.Error("AppendDiagnoseSample topic=%s failed: %v", topic, err)
-		}
-	}(topic, skillName, reqID, answer, req.Context)
+	review := recordPostAISuccess(services.PostAICallRecord{
+		Topic:        topic,
+		CommandKind:  "analyze",
+		SkillName:    skillName,
+		PackKey:      packKey,
+		ProblemKey:   intent.ProblemKey,
+		Style:        diagnosisStyleFromContext(req.Context),
+		RequestID:    reqID,
+		Answer:       answer,
+		UserContext:  req.Context,
+		EvidenceKeys: services.CollectEvidenceKeysFromContext(req.Context),
+		MatchedSkill: matched != nil,
+	})
+	meta["skill_enhancement_review"] = enhancementReviewToMeta(review)
 
 	response.OK(c, aiDiagnoseResponse{
 		Source:       "server-ai",
@@ -226,10 +222,23 @@ func AIAsk(c *gin.Context) {
 		return
 	}
 	commitQuota(true)
-	recordAIExecution(ident, "ask", "AI 问答", defaultString(req.Command, "ai-sre ask"), req.RequestID, packKey, models.ExecutionStatusSuccess, answer, "", map[string]string{"question": req.Question}, req.Client, quotaDecision)
+	reqID := requestIDOrNow(req.RequestID)
+	recordAIExecution(ident, "ask", "AI 问答", defaultString(req.Command, "ai-sre ask"), reqID, packKey, models.ExecutionStatusSuccess, answer, "", map[string]string{"question": req.Question}, req.Client, quotaDecision)
+	topic := services.InferTopicFromText(req.Question)
+	review := recordPostAISuccess(services.PostAICallRecord{
+		Topic:        topic,
+		CommandKind:  "ask",
+		PackKey:      packKey,
+		RequestID:    reqID,
+		Answer:       answer,
+		UserContext:  map[string]string{"question": req.Question},
+		EvidenceKeys: nil,
+		MatchedSkill: false,
+	})
 	response.OK(c, gin.H{
-		"answer": answer,
-		"source": "server-ai",
+		"answer":   answer,
+		"source":   "server-ai",
+		"metadata": gin.H{"request_id": reqID, "skill_enhancement_review": enhancementReviewToMeta(review)},
 	})
 }
 
@@ -259,10 +268,26 @@ func AIRunbook(c *gin.Context) {
 		return
 	}
 	commitQuota(true)
-	recordAIExecution(ident, "runbook", "AI Runbook", defaultString(req.Command, "ai-sre runbook"), req.RequestID, packKey, models.ExecutionStatusSuccess, answer, "", req.Context, req.Client, quotaDecision)
+	reqID := requestIDOrNow(req.RequestID)
+	recordAIExecution(ident, "runbook", "AI Runbook", defaultString(req.Command, "ai-sre runbook"), reqID, packKey, models.ExecutionStatusSuccess, answer, "", req.Context, req.Client, quotaDecision)
+	topic := services.InferTopicFromText(req.Scenario)
+	review := recordPostAISuccess(services.PostAICallRecord{
+		Topic:        topic,
+		CommandKind:  "runbook",
+		PackKey:      packKey,
+		RequestID:    reqID,
+		Answer:       answer,
+		UserContext:  req.Context,
+		EvidenceKeys: services.CollectEvidenceKeysFromContext(req.Context),
+		MatchedSkill: false,
+	})
 	response.OK(c, gin.H{
 		"answer": answer,
 		"source": "server-ai",
+		"metadata": gin.H{
+			"request_id":               reqID,
+			"skill_enhancement_review": enhancementReviewToMeta(review),
+		},
 	})
 }
 

@@ -216,6 +216,50 @@
         </el-card>
       </el-tab-pane>
 
+      <el-tab-pane name="enhancement">
+        <template #label>
+          <span>待增强技能包</span>
+          <el-badge v-if="enhancementOpenCount > 0" :value="enhancementOpenCount" class="review-badge" />
+        </template>
+        <div class="tab-toolbar">
+          <el-button :loading="enhancementLoading" @click="loadEnhancement">刷新</el-button>
+          <span v-if="enhancementSummary" class="page-desc--muted">
+            待处理 {{ enhancementSummary.open_count }} · 高优 {{ enhancementSummary.high_priority }} ·
+            节省潜力分 {{ enhancementSummary.total_savings_score }}
+          </span>
+        </div>
+        <el-card shadow="never" v-loading="enhancementLoading">
+          <h4 class="section-title">按 Topic 聚合</h4>
+          <el-table :data="enhancementSummary?.top_topics || []" stripe border size="small" empty-text="暂无待增强项">
+            <el-table-column prop="topic" label="Topic" width="120" />
+            <el-table-column prop="open_count" label="待增强次数" width="120" align="right" />
+            <el-table-column prop="savings_score" label="累计潜力分" width="120" align="right" />
+          </el-table>
+          <h4 class="section-title bindings-title">最近审查记录</h4>
+          <el-table :data="enhancementRows" stripe border size="small" empty-text="暂无记录">
+            <el-table-column prop="time" label="时间" width="170" show-overflow-tooltip />
+            <el-table-column prop="topic" label="Topic" width="90" />
+            <el-table-column prop="command_kind" label="来源" width="90" />
+            <el-table-column label="优先级" width="90" align="center">
+              <template #default="{ row }">
+                <el-tag :type="enhancementPriorityTag(row.priority)" size="small">{{ row.priority }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="savings_score" label="潜力分" width="80" align="right" />
+            <el-table-column label="建议" min-width="240">
+              <template #default="{ row }">
+                <span class="enhancement-rec">{{ (row.recommendations || []).join('；') || '—' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="动作" width="140" align="center">
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="openEnhancementReviewTab(row)">待审资产</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-card>
+      </el-tab-pane>
+
       <el-tab-pane label="运营统计" name="usage">
         <div class="tab-toolbar">
           <el-select v-model="usageDays" class="review-status-select" @change="loadUsage">
@@ -382,6 +426,12 @@ import {
   type ProductNodeBinding
 } from '../../api/skillCommercial'
 import { copyTextToClipboard } from '../../utils/clipboard'
+import {
+  getAdminSkillEnhancementSummary,
+  listAdminSkillEnhancementReviews,
+  type SkillEnhancementReview,
+  type SkillEnhancementSummary
+} from '../../api/skillEnhancement'
 
 const activeTab = ref('registry')
 
@@ -422,6 +472,11 @@ const usageLoading = ref(false)
 const usageDays = ref(30)
 const usageStats = ref<SkillUsageSummary | null>(null)
 const usageCsvHref = computed(() => exportAdminSkillUsageCSV(usageDays.value))
+
+const enhancementLoading = ref(false)
+const enhancementRows = ref<SkillEnhancementReview[]>([])
+const enhancementSummary = ref<SkillEnhancementSummary | null>(null)
+const enhancementOpenCount = computed(() => enhancementSummary.value?.open_count ?? 0)
 
 const registryDetailOpen = ref(false)
 const registryDetailLoading = ref(false)
@@ -641,6 +696,8 @@ const onTabChange = (name: string | number) => {
     void loadCommercial()
   } else if (name === 'usage') {
     void loadUsage()
+  } else if (name === 'enhancement') {
+    void loadEnhancement()
   }
 }
 
@@ -723,6 +780,44 @@ const loadUsage = async () => {
   } finally {
     usageLoading.value = false
   }
+}
+
+const enhancementPriorityTag = (p: string) => {
+  switch (p) {
+    case 'high':
+      return 'danger'
+    case 'medium':
+      return 'warning'
+    default:
+      return 'info'
+  }
+}
+
+const loadEnhancement = async () => {
+  enhancementLoading.value = true
+  try {
+    const [sum, list] = await Promise.all([
+      getAdminSkillEnhancementSummary(30),
+      listAdminSkillEnhancementReviews(80, true)
+    ])
+    enhancementSummary.value = sum
+    enhancementRows.value = (list.reviews || []).map((r) => ({
+      ...r,
+      time: r.time ? String(r.time).replace('T', ' ').slice(0, 19) : ''
+    }))
+  } catch {
+    enhancementSummary.value = null
+    enhancementRows.value = []
+  } finally {
+    enhancementLoading.value = false
+  }
+}
+
+const openEnhancementReviewTab = (row: SkillEnhancementReview) => {
+  reviewTopic.value = row.topic || ''
+  reviewStatus.value = 'review'
+  activeTab.value = 'review'
+  void loadReview()
 }
 
 const onApprove = async (row: SkillAssetListItem | SkillAssetDetail) => {
@@ -830,6 +925,7 @@ onMounted(() => {
   void loadSkillTree()
   void loadRegistry()
   void loadReviewPendingCount()
+  void loadEnhancement()
 })
 </script>
 
@@ -886,6 +982,11 @@ onMounted(() => {
   margin-top: 14px;
   display: flex;
   justify-content: flex-end;
+}
+
+.enhancement-rec {
+  font-size: 12px;
+  color: var(--el-text-color-regular);
 }
 
 .data-dir-hint {

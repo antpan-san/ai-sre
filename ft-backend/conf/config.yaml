@@ -86,6 +86,14 @@ skills:
         topics:
             - go_runtime
             - k8s
+            - redis
+            - kafka
+            - linux
+            - nginx
+            - mysql
+            - postgresql
+            - elasticsearch
+            - domain
         max_per_day: 3
 
 log:

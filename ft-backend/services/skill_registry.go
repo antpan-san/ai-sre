@@ -47,16 +47,20 @@ type SkillSummary struct {
 
 // DiagnoseSample is the anonymized record appended after each successful diagnose.
 type DiagnoseSample struct {
-	Time        time.Time         `json:"time"`
-	Topic       string            `json:"topic"`
-	SkillName   string            `json:"skill_name,omitempty"`
-	Style       string            `json:"style,omitempty"`
-	UserContext map[string]string `json:"user_context,omitempty"`
-	EvidenceKey []string          `json:"evidence_keys,omitempty"`
-	AnswerHead  string            `json:"answer_head,omitempty"`
-	AnswerTail  string            `json:"answer_tail,omitempty"`
-	AnswerLen   int               `json:"answer_len,omitempty"`
-	RequestID   string            `json:"request_id,omitempty"`
+	Time              time.Time               `json:"time"`
+	Topic             string                  `json:"topic"`
+	SkillName         string                  `json:"skill_name,omitempty"`
+	Style             string                  `json:"style,omitempty"`
+	UserContext       map[string]string       `json:"user_context,omitempty"`
+	EvidenceKey       []string                `json:"evidence_keys,omitempty"`
+	AnswerHead        string                  `json:"answer_head,omitempty"`
+	AnswerTail        string                  `json:"answer_tail,omitempty"`
+	AnswerLen         int                     `json:"answer_len,omitempty"`
+	RequestID         string                  `json:"request_id,omitempty"`
+	CommandKind       string                  `json:"command_kind,omitempty"`
+	PackKey           string                  `json:"pack_key,omitempty"`
+	ProblemKey        string                  `json:"problem_key,omitempty"`
+	EnhancementReview *SkillEnhancementReview `json:"enhancement_review,omitempty"`
 }
 
 // SkillFeedback is what a client sends back after a diagnose.

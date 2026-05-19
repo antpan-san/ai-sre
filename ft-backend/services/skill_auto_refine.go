@@ -31,6 +31,28 @@ func AppendDiagnoseSample(reg *SkillRegistry, s DiagnoseSample) error {
 	if reg == nil {
 		reg = DefaultSkillRegistry()
 	}
+	if s.Time.IsZero() {
+		s.Time = time.Now().UTC()
+	}
+	if s.EnhancementReview == nil {
+		topic := strings.ToLower(strings.TrimSpace(s.Topic))
+		if topic != "" && !strings.HasPrefix(topic, "_") {
+			review := EvaluateSkillEnhancement(reg, PostAICallRecord{
+				Topic:        topic,
+				CommandKind:  s.CommandKind,
+				SkillName:    s.SkillName,
+				PackKey:      s.PackKey,
+				ProblemKey:   s.ProblemKey,
+				Style:        s.Style,
+				RequestID:    s.RequestID,
+				Answer:       s.AnswerHead + "\n" + s.AnswerTail,
+				UserContext:  s.UserContext,
+				EvidenceKeys: s.EvidenceKey,
+				MatchedSkill: s.SkillName != "" && !strings.Contains(s.SkillName, "_auto"),
+			})
+			s.EnhancementReview = &review
+		}
+	}
 	if err := reg.AppendSample(s); err != nil {
 		return err
 	}
@@ -40,6 +62,12 @@ func AppendDiagnoseSample(reg *SkillRegistry, s DiagnoseSample) error {
 	}
 	if err := incrementAutoRefineSampleCounter(reg, topic); err != nil {
 		log.Printf("skill auto-refine: increment state topic=%s: %v", topic, err)
+	}
+	if s.EnhancementReview != nil && s.EnhancementReview.Priority == "high" {
+		_ = incrementAutoRefineSampleCounter(reg, topic)
+	}
+	if s.EnhancementReview != nil && s.EnhancementReview.NeedsEnhancement {
+		_ = appendEnhancementReviewLog(reg, *s.EnhancementReview)
 	}
 	go MaybeAutoRefine(reg, topic)
 	return nil

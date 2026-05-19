@@ -737,11 +737,13 @@ func CodeAgentReportEvent(iterationID, bindingID uuid.UUID, message string, payl
 
 // CodeAgentTaskResult carries worker completion details (public fields only).
 type CodeAgentTaskResult struct {
-	Success          bool
-	Summary          string
-	GitHubSync       string // ok | failed | skipped
-	DeployStatus     string // ok | failed | skipped
-	RollbackRequired bool
+	Success                 bool
+	Summary                 string
+	GitHubSync              string // ok | failed | skipped
+	DeployStatus            string // ok | failed | skipped
+	RollbackRequired        bool
+	SkillPackEnhanced       string // yes | no | partial
+	SkillPackEnhanceReason  string
 }
 
 func CodeAgentReportResult(iterationID, bindingID uuid.UUID, result CodeAgentTaskResult) error {
@@ -765,6 +767,16 @@ func CodeAgentReportResult(iterationID, bindingID uuid.UUID, result CodeAgentTas
 			"github_sync":   strings.TrimSpace(result.GitHubSync),
 			"deploy_status": strings.TrimSpace(result.DeployStatus),
 		})
+		if v := strings.TrimSpace(result.SkillPackEnhanced); v != "" {
+			meta = mergeAutoIterationMeta(meta, map[string]interface{}{
+				"skill_pack_enhanced": v,
+			})
+		}
+		if v := strings.TrimSpace(result.SkillPackEnhanceReason); v != "" {
+			meta = mergeAutoIterationMeta(meta, map[string]interface{}{
+				"skill_pack_enhance_reason": limitAuditText(v, 500),
+			})
+		}
 		if result.GitHubSync == "failed" {
 			meta = mergeAutoIterationMeta(meta, map[string]interface{}{"github_sync_retry": true})
 		}
