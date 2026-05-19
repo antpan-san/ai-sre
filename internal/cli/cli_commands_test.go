@@ -24,7 +24,7 @@ func TestAllowedCLIAISreDiagnosticCommand_probeAndCheck(t *testing.T) {
 	}
 }
 
-func TestCheckDomainAcceptsTwoArgs(t *testing.T) {
+func TestCheckTopicOptionalTargetArgs(t *testing.T) {
 	root := newRoot("ai-sre")
 	cmd, _, err := root.Find([]string{"check"})
 	if err != nil {
@@ -33,8 +33,11 @@ func TestCheckDomainAcceptsTwoArgs(t *testing.T) {
 	if err := cmd.Args(cmd, []string{"domain", "opsfleetpilot.com"}); err != nil {
 		t.Fatalf("check domain args: %v", err)
 	}
-	if err := cmd.Args(cmd, []string{"kafka", "extra"}); err == nil {
-		t.Fatal("check kafka with 2 args should fail")
+	if err := cmd.Args(cmd, []string{"redis", "127.0.0.1:6379"}); err != nil {
+		t.Fatalf("check redis with target: %v", err)
+	}
+	if err := cmd.Args(cmd, []string{"k8s", "extra"}); err == nil {
+		t.Fatal("check k8s with positional target should fail")
 	}
 }
 

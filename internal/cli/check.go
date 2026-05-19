@@ -15,12 +15,12 @@ func checkCmd() *cobra.Command {
 	cmd := newCheckTopicCommand()
 	cmd.Use = "check [topic]"
 	cmd.Short = "AI 故障诊断（技能包；未购买时每日免费 5 次）"
-	cmd.Example = fmt.Sprintf(`  %s check kafka --lag 100000 --topic orders
+	cmd.Example = fmt.Sprintf(`  %s check redis
+  %s check redis 192.168.56.11:6379
+  %s check kafka
   %s check k8s --pod pending
   %s check domain opsfleetpilot.com
-  %s check domain -d domain=opsfleetpilot.com
   %s check go --pid 1234
-  %s check elasticsearch -d base_url=http://127.0.0.1:9200
   %s -o json check domain opsfleetpilot.com
   %s check code OPSFLEET_K8S_E_PAUSE_MISSING`,
 		progName, progName, progName, progName, progName, progName, progName, progName)
@@ -43,9 +43,13 @@ func newCheckTopicCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Long: `topic 取值: kafka | k8s | nginx | redis | mysql | postgresql | elasticsearch | domain | dns
 
+中间件（redis / kafka / mysql / postgresql / elasticsearch）：
+  · 最简：ai-sre check redis  （默认连本机常用端口；可用环境变量覆盖，见 AI_SRE_REDIS_ADDR）
+  · 指定目标：ai-sre check redis <host:port>  或仅 host（自动补默认端口）
+  · 高级场景仍可用 -d / --set，且优先于默认值
+
 domain / dns：DNS、HTTP(S)、TLS 只读采集（纯文本报告）+ 服务端 AI 分析（非 K8s）
   · ai-sre check domain <fqdn>  例: check domain opsfleetpilot.com
-  · 或 check domain -d domain=<fqdn>  可选 -d scheme=https -d port=443
   · 仅采集不调用 AI: ai-sre probe domain <fqdn>
 
 k8s 场景 --pod 可填：
@@ -76,8 +80,13 @@ func checkTopicArgs(cmd *cobra.Command, args []string) error {
 	if len(args) > 2 {
 		return fmt.Errorf("at most 2 arguments: check <topic> [target]")
 	}
-	if len(args) == 2 && !isDomainTopic(args[0]) {
-		return fmt.Errorf("topic %q accepts 1 argument; domain/dns use: check domain <fqdn>", args[0])
+	if len(args) == 2 {
+		if !checkTopicAcceptsOptionalTarget(args[0]) {
+			return fmt.Errorf("topic %q 不接受位置参数目标，请用专用 flag 或子命令", args[0])
+		}
+		if err := validateCheckTargetLiteral(strings.TrimSpace(args[1])); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -85,6 +94,7 @@ func checkTopicArgs(cmd *cobra.Command, args []string) error {
 func runCheckTopic(cmd *cobra.Command, args []string) error {
 	ctx := buildContextMap()
 	topic := args[0]
+	applyCheckTargetContext(ctx, topic, args)
 	mergeDomainIntoContext(ctx, topic, args)
 	if isDomainTopic(topic) && strings.TrimSpace(ctx["domain"]) == "" {
 		return fmt.Errorf("domain 诊断需要域名：check domain <fqdn> 或 -d domain=<fqdn>")

@@ -95,6 +95,12 @@ func selfExecutablePath() string {
 func gatherKafkaEvidence(ctx context.Context, flags map[string]string, out map[string]string) {
 	boot := strings.TrimSpace(flags["bootstrap"])
 	if boot == "" {
+		boot = strings.TrimSpace(flags["bootstrap_server"])
+	}
+	if boot == "" {
+		boot = strings.TrimSpace(flags["addr"])
+	}
+	if boot == "" {
 		boot = strings.TrimSpace(flags["kafka_bootstrap"])
 	}
 	if boot == "" {
@@ -114,7 +120,10 @@ func gatherKafkaEvidence(ctx context.Context, flags map[string]string, out map[s
 }
 
 func gatherRedisEvidence(ctx context.Context, flags map[string]string, out map[string]string) {
-	tgt := strings.TrimSpace(flags["target"])
+	tgt := strings.TrimSpace(flags["addr"])
+	if tgt == "" {
+		tgt = strings.TrimSpace(flags["target"])
+	}
 	if tgt == "" {
 		host := strings.TrimSpace(flags["host"])
 		port := strings.TrimSpace(flags["port"])
@@ -176,9 +185,12 @@ func gatherNginxEvidence(ctx context.Context, flags map[string]string, out map[s
 }
 
 func gatherElasticsearchEvidence(ctx context.Context, flags map[string]string, out map[string]string) {
-	url := strings.TrimSpace(flags["base_url"])
+	url := strings.TrimSpace(flags["url"])
 	if url == "" {
-		url = strings.TrimSpace(flags["url"])
+		url = strings.TrimSpace(flags["base_url"])
+	}
+	if url == "" {
+		url = strings.TrimSpace(flags["addr"])
 	}
 	if url == "" {
 		return

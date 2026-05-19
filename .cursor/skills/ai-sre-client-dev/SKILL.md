@@ -8,6 +8,20 @@ description: >-
 
 # ai-sre 客户端开发规范
 
+## 精简参数原则（强制）
+
+**产品要求**：用户侧命令以**最少位置参数**完成主路径；禁止把 `-d key=value` / `--set` 当作日常必选项。
+
+| 原则 | 说明 |
+|------|------|
+| 主路径 | `ai-sre check <topic>` 即可启动诊断（中间件 topic 自动填充本机默认地址，见 `check_target.go`） |
+| 可选覆盖 | `ai-sre check <topic> <target>` 一个位置参数覆盖连接目标（与 `probe <topic> <target>` 对齐） |
+| 环境变量 | 非本机默认时用 `AI_SRE_*`（如 `AI_SRE_REDIS_ADDR`），**不算**「额外 CLI 参数」 |
+| `-d` / flag | 仅用于 K8s 场景、Kafka lag/topic、密码、非 TTY `--yes` 等**高级**场景；已有 `-d` 时**不得**被默认值覆盖 |
+| 新增 topic | 必须在 `checkTargetSpecs`（或 domain 专用逻辑）登记默认目标；README / `check` Long 须给出一行最简示例 |
+
+实现入口：`applyCheckTargetContext`、`checkTopicAcceptsOptionalTarget`（`internal/cli/check_target.go`）。
+
 ## 安装/下载失败 → 服务端 AI（强制）
 
 **产品要求**：`install` / `upgrade` / 自动升级任一步失败时，**禁止**仅输出本地 error 后结束；**必须** `POST /api/ai/diagnose`（topic=`install`）→ 失败则 `/api/ai/ask` → 再输出内置 `curl` 手工步骤。
