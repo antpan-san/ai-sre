@@ -95,7 +95,6 @@ func Migrate() error {
 		&models.Service{},
 		&models.ServiceDeployment{},
 		&models.ServiceDeploymentEvent{},
-		&models.ProxyConfig{},
 		&models.FeatureBillingSetting{},
 		&models.Subscription{},
 		&models.Entitlement{},

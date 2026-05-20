@@ -168,13 +168,6 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		admin.GET("/k8s/deploy/relay/preflight", handlers.GetK8sRelayPreflight)
 		admin.POST("/k8s/deploy/relay/warm", handlers.PostK8sRelayWarm)
 
-		// ---- Proxy Configuration ----
-		admin.GET("/proxy/config/list", handlers.GetProxyConfigList)
-		admin.GET("/proxy/config/detail", handlers.GetProxyConfigDetail)
-		admin.POST("/proxy/config/save", handlers.SaveProxyConfig)
-		admin.DELETE("/proxy/config/delete", handlers.DeleteProxyConfig)
-		admin.POST("/proxy/config/apply", handlers.ApplyProxyConfig)
-
 		// ---- Init Tools ----
 		admin.GET("/init-tools/system-params", handlers.GetSystemParams)
 		admin.POST("/init-tools/system-params", handlers.ApplySystemParams)

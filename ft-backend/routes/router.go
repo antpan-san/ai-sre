@@ -280,13 +280,8 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		k8sAdminPaid.POST("/k8s/deploy/bundle-invite", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionDownload), handlers.CreateK8sBundleInvite)
 		k8sAdminPaid.POST("/k8s/deploy/relay/warm", middleware.RequireCapability(models.FeatureKeyK8sDelivery, middleware.CapabilityActionDownload), handlers.PostK8sRelayWarm)
 
-		// ---- Proxy / Monitoring / Init Tools（计费开启时需 pack.node_ops / pack.monitoring） ----
+		// ---- Monitoring / Init Tools（计费开启时需 pack.node_ops / pack.monitoring） ----
 		infraAdmin := console.Group("")
-		infraAdmin.GET("/proxy/config/list", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetProxyConfigList)
-		infraAdmin.GET("/proxy/config/detail", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetProxyConfigDetail)
-		infraAdmin.POST("/proxy/config/save", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.SaveProxyConfig)
-		infraAdmin.DELETE("/proxy/config/delete", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.DeleteProxyConfig)
-		infraAdmin.POST("/proxy/config/apply", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplyProxyConfig)
 		infraAdmin.GET("/init-tools/system-params", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetSystemParams)
 		infraAdmin.POST("/init-tools/system-params", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplySystemParams)
 		infraAdmin.POST("/init-tools/time-sync", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.ApplyTimeSync)

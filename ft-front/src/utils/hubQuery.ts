@@ -5,7 +5,6 @@ export const ZONE_TO_CAP: Record<string, string> = {
   services: 'service_deploy',
   linux: 'linux_hosts',
   init: 'init_tools',
-  proxy: 'proxy',
   mirror: 'k8s_mirror'
 }
 

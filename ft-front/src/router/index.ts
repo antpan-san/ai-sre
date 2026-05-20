@@ -30,8 +30,6 @@ const routes: Array<RouteRecordRaw> = [
   { path: '/admin/service/k8s/clusters', redirect: '/admin/execution-records?tab=k8s' },
   { path: '/service/linux', redirect: '/admin/service/linux' },
   { path: '/service', redirect: '/admin/service/deploy' },
-  { path: '/proxy/config', redirect: '/admin/proxy/config' },
-  { path: '/proxy', redirect: '/admin/proxy/config' },
   { path: '/monitoring/prometheus', redirect: '/admin/monitoring/prometheus' },
   { path: '/monitoring/node-exporter', redirect: '/admin/monitoring/node-exporter' },
   { path: '/monitoring/jmx-exporter', redirect: '/admin/monitoring/jmx-exporter' },
@@ -204,12 +202,6 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AdminLinuxServiceManagement',
         component: () => import('../views/service/LinuxServiceManagement.vue'),
         meta: { title: 'Linux 主机', requireAuth: true, roles: appRoles }
-      },
-      {
-        path: 'proxy/config',
-        name: 'AdminProxyConfig',
-        component: () => import('../views/proxy/ProxyConfig.vue'),
-        meta: { title: '出口代理', requireAuth: true, roles: appRoles }
       },
       {
         path: 'monitoring/prometheus',
@@ -413,12 +405,6 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AppK8sMirrorCatalog',
         component: () => import('../views/service/k8s-mirror/K8sMirrorCatalog.vue'),
         meta: { title: '制品目录', requireAuth: true, roles: appRoles, ...appHub('delivery', 'k8s_mirror') }
-      },
-      {
-        path: 'proxy/config',
-        name: 'AppProxyConfig',
-        component: () => import('../views/proxy/ProxyConfig.vue'),
-        meta: { title: '出口代理', requireAuth: true, roles: appRoles, ...appHub('delivery', 'proxy') }
       },
       {
         path: 'init-tools',

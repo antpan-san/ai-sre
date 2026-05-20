@@ -151,18 +151,6 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     execution_source: 'init-tools'
   },
   {
-    id: 'proxy',
-    name: '出口代理',
-    description: '集群与主机访问外网的代理配置',
-    category: 'delivery',
-    feature_key: 'feature.node_ops',
-    pack_key: 'pack.node_ops',
-    direct_route: '/proxy/config',
-    icon: 'Link',
-    keywords: ['代理', 'proxy', '出口'],
-    workload_tier: 'secondary'
-  },
-  {
     id: 'k8s_mirror',
     name: 'K8s 制品目录',
     description: '内网制品 manifest 与离线安装包索引',

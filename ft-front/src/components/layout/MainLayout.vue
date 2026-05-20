@@ -116,10 +116,6 @@
                 <template #title>Linux 主机</template>
               </el-menu-item>
             </el-sub-menu>
-            <el-menu-item v-if="featureVisible('feature.node_ops')" index="/admin/proxy/config">
-              <el-icon><Link /></el-icon>
-              <template #title>出口代理</template>
-            </el-menu-item>
             <el-menu-item v-if="featureVisible('feature.k8s_delivery')" index="/admin/k8s-mirror">
               <el-icon><Download /></el-icon>
               <template #title>制品目录<span v-if="featureBillingEnabled('feature.k8s_delivery')" class="menu-pack-tag">订阅</span></template>
@@ -351,7 +347,6 @@ import {
   Operation,
   Connection,
   Cpu,
-  Link,
   Download,
   Reading,
   Setting,
@@ -390,7 +385,6 @@ const routeIconMap: Record<string, Component> = {
   '/service/k8s-deploy': Connection,
   '/k8s-mirror': Download,
   '/service/linux': Cpu,
-  '/proxy': Link,
   '/monitoring': Monitor,
   '/job': Management,
   '/security-audit': Lock,
@@ -405,7 +399,6 @@ const routeIconMap: Record<string, Component> = {
 
 const sectionDefaultPath: Record<string, string> = {
   '/service': '/service/deploy',
-  '/proxy': '/proxy/config',
   '/monitoring': '/monitoring/prometheus',
   '/job': '/job/center',
   '/security-audit': '/security-audit/operation-logs',

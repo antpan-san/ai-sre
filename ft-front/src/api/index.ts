@@ -82,15 +82,6 @@ export {
   deleteAlertRule,
 } from './monitoring'
 
-// 代理配置相关
-export {
-  getProxyConfigList,
-  getProxyConfigDetail,
-  saveProxyConfig,
-  deleteProxyConfig,
-  applyProxyConfig,
-} from './proxy'
-
 // 安全与审计相关
 export {
   getOperationLogs,
