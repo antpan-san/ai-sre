@@ -319,8 +319,38 @@ const routes: Array<RouteRecordRaw> = [
       {
         path: 'dashboard',
         name: 'AppDashboard',
-        component: () => import('../views/Dashboard.vue'),
+        component: () => import('../views/app/AppDashboard.vue'),
         meta: { title: '概览', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'execution-records',
+        name: 'AppExecutionRecords',
+        component: () => import('../views/execution-records/ExecutionRecords.vue'),
+        meta: { title: '执行记录', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'executions/:id',
+        name: 'AppExecutionDetail',
+        component: () => import('../views/ai-sre/ClientExecutionDetail.vue'),
+        meta: { title: '执行详情', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'workloads',
+        name: 'AppWorkloads',
+        component: () => import('../views/app/Workloads.vue'),
+        meta: { title: '工作负载', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'capabilities',
+        name: 'AppCapabilities',
+        component: () => import('../views/app/CapabilityCenter.vue'),
+        meta: { title: '能力中心', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'troubleshooting',
+        name: 'AppTroubleshooting',
+        component: () => import('../views/app/Troubleshooting.vue'),
+        meta: { title: '问题排查', requireAuth: true, roles: appRoles }
       },
       {
         path: 'job/center',
@@ -329,33 +359,88 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '作业中心', requireAuth: true, roles: appRoles }
       },
       {
-        path: 'ai-sre/executions',
-        name: 'AppAISreExecutions',
-        component: () => import('../views/ai-sre/ClientExecutions.vue'),
-        meta: { title: '客户端执行', requireAuth: true, roles: appRoles }
+        path: 'settings',
+        name: 'AppSettings',
+        component: () => import('../views/app/AppSettings.vue'),
+        meta: { title: '设置', requireAuth: true, roles: appRoles }
       },
       {
-        path: 'ai-sre/executions/:id',
-        name: 'AppAISreExecutionDetail',
-        component: () => import('../views/ai-sre/ClientExecutionDetail.vue'),
-        meta: { title: '执行复盘', requireAuth: true, roles: appRoles }
+        path: 'service/deploy',
+        name: 'AppServiceDeploy',
+        component: () => import('../views/service/ServiceDeploy.vue'),
+        meta: { title: '应用服务', requireAuth: true, roles: appRoles }
       },
       {
-        path: 'execution-records',
-        name: 'AppExecutionRecords',
-        component: () => import('../views/execution-records/ExecutionRecords.vue'),
-        meta: {
-          title: '通用执行审计',
-          requireAuth: true,
-          roles: appRoles,
-          breadcrumb: [{ title: 'ai-sre 中心', path: '/app/ai-sre/executions' }, { title: '通用执行审计' }]
-        }
+        path: 'service/k8s-deploy',
+        name: 'AppK8sDeploy',
+        component: () => import('../views/service/k8s-deploy/K8sDeployForm.vue'),
+        meta: { title: 'Kubernetes', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'service/k8s-deploy/progress',
+        name: 'AppK8sDeployProgress',
+        component: () => import('../views/service/k8s-deploy/K8sDeployProgress.vue'),
+        meta: { title: 'K8s 进度', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'service/linux',
+        name: 'AppLinuxServiceManagement',
+        component: () => import('../views/service/LinuxServiceManagement.vue'),
+        meta: { title: 'Linux 主机', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'k8s-mirror',
+        name: 'AppK8sMirrorCatalog',
+        component: () => import('../views/service/k8s-mirror/K8sMirrorCatalog.vue'),
+        meta: { title: '制品目录', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'proxy/config',
+        name: 'AppProxyConfig',
+        component: () => import('../views/proxy/ProxyConfig.vue'),
+        meta: { title: '出口代理', requireAuth: true, roles: appRoles }
       },
       {
         path: 'init-tools',
         name: 'AppInitTools',
         component: () => import('../views/init-tools/InitToolsHome.vue'),
         meta: { title: '初始化', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'monitoring/prometheus',
+        name: 'AppPrometheus',
+        component: () => import('../views/monitoring/PrometheusConfig.vue'),
+        meta: { title: 'Prometheus', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'monitoring/node-exporter',
+        name: 'AppNodeExporter',
+        component: () => import('../views/monitoring/NodeExporterConfig.vue'),
+        meta: { title: 'Node Exporter', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'monitoring/jmx-exporter',
+        name: 'AppJmxExporter',
+        component: () => import('../views/monitoring/JmxExporterConfig.vue'),
+        meta: { title: 'JMX Exporter', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'monitoring/redis-exporter',
+        name: 'AppRedisExporter',
+        component: () => import('../views/monitoring/RedisExporterConfig.vue'),
+        meta: { title: 'Redis Exporter', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'monitoring/mongodb-exporter',
+        name: 'AppMongoDBExporter',
+        component: () => import('../views/monitoring/MongoDBExporterConfig.vue'),
+        meta: { title: 'MongoDB Exporter', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'monitoring/blackbox-exporter',
+        name: 'AppBlackboxExporter',
+        component: () => import('../views/monitoring/BlackboxExporterConfig.vue'),
+        meta: { title: 'Blackbox Exporter', requireAuth: true, roles: appRoles }
       },
       {
         path: 'advanced/backup-restore',
@@ -373,24 +458,16 @@ const routes: Array<RouteRecordRaw> = [
         path: 'advanced/runtime-observe',
         name: 'AppRuntimeObserve',
         component: () => import('../views/advanced/RuntimeObserve.vue'),
-        meta: {
-          title: '运行时诊断',
-          requireAuth: true,
-          roles: appRoles,
-          breadcrumb: [{ title: 'ai-sre 中心', path: '/app/ai-sre/executions' }, { title: '运行时诊断' }]
-        }
+        meta: { title: '运行时诊断', requireAuth: true, roles: appRoles }
       },
       {
         path: 'help/error-codes',
         name: 'AppErrorCodesLookup',
         component: () => import('../views/help/ErrorCodesLookup.vue'),
-        meta: {
-          title: '错误码',
-          requireAuth: true,
-          roles: appRoles,
-          breadcrumb: [{ title: '工具' }, { title: '错误码' }]
-        }
-      }
+        meta: { title: '错误码', requireAuth: true, roles: appRoles }
+      },
+      { path: 'ai-sre/executions', redirect: '/app/execution-records' },
+      { path: 'ai-sre/executions/:id', redirect: (to) => ({ path: `/app/executions/${to.params.id}` }) }
     ]
   },
 
@@ -433,9 +510,15 @@ router.beforeEach((to, _from, next) => {
           return
         }
 
-        if (to.meta.roles && user?.role) {
+        const role = user?.role || ''
+        if (role === 'user' && to.path.startsWith('/admin')) {
+          next('/app/dashboard')
+          return
+        }
+
+        if (to.meta.roles && role) {
           const roles = to.meta.roles as Array<string>
-          if (roles.includes(user.role)) {
+          if (roles.includes(role)) {
             next()
           } else {
             ElMessage.error('没有权限访问该页面')

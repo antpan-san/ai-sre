@@ -2,14 +2,12 @@
   <div class="execution-records page-shell">
     <header class="page-header page-header--row">
       <div class="page-header-copy">
-        <h2 class="page-title">通用执行审计</h2>
-        <el-popover placement="bottom-start" :width="280" trigger="click">
+        <h2 class="page-title">{{ pageTitle }}</h2>
+        <el-popover placement="bottom-start" :width="320" trigger="click">
           <template #reference>
             <el-button text type="primary" size="small">说明</el-button>
           </template>
-          <p class="page-desc--muted" style="margin: 0">
-            脚本副本、作业、K8s 安装等非 ai-sre CLI 主路径的审计流水。CLI 复盘请使用同组「客户端执行」。
-          </p>
+          <p class="page-desc--muted" style="margin: 0">{{ pageHint }}</p>
         </el-popover>
       </div>
     </header>
@@ -246,7 +244,13 @@ import { displayExecutionTarget } from '../../utils/executionRecordDisplay'
 
 const route = useRoute()
 const router = useRouter()
-
+const isAppShell = computed(() => route.path.startsWith('/app'))
+const pageTitle = computed(() => (isAppShell.value ? '执行记录' : '通用执行审计'))
+const pageHint = computed(() =>
+  isAppShell.value
+    ? '统一展示 CLI、Web、脚本、安装、诊断、恢复与卸载等执行结果；点击详情查看结论、证据与命令上下文。'
+    : '脚本副本、作业、K8s 安装等非 ai-sre CLI 主路径的审计流水。CLI 复盘请使用同组「客户端执行」。'
+)
 const isAdminShell = computed(() => route.path.startsWith('/admin'))
 const capabilityByFeature = ref<Record<string, BillingCapabilityFeature>>({})
 

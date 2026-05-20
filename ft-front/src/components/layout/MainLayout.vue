@@ -177,47 +177,30 @@
               <el-icon><PieChart /></el-icon>
               <template #title>概览</template>
             </el-menu-item>
-            <el-sub-menu index="app-aisre">
-              <template #title>
-                <el-icon><Collection /></el-icon>
-                <span>ai-sre 中心</span>
-              </template>
-              <el-menu-item index="/app/ai-sre/executions">
-                <el-icon><List /></el-icon>
-                <template #title>客户端执行</template>
-              </el-menu-item>
-              <el-menu-item index="/app/execution-records">
-                <el-icon><DocumentCopy /></el-icon>
-                <template #title>通用执行审计</template>
-              </el-menu-item>
-              <el-menu-item v-if="featureVisible('feature.runtime_observe')" index="/app/advanced/runtime-observe">
-                <el-icon><Monitor /></el-icon>
-                <template #title
-                  >运行时诊断<span v-if="featureBillingEnabled('feature.runtime_observe')" class="menu-pack-tag">订阅</span></template
-                >
-              </el-menu-item>
-            </el-sub-menu>
+            <el-menu-item index="/app/execution-records">
+              <el-icon><DocumentCopy /></el-icon>
+              <template #title>执行记录</template>
+            </el-menu-item>
+            <el-menu-item index="/app/workloads">
+              <el-icon><Box /></el-icon>
+              <template #title>工作负载</template>
+            </el-menu-item>
+            <el-menu-item index="/app/capabilities">
+              <el-icon><Collection /></el-icon>
+              <template #title>能力中心</template>
+            </el-menu-item>
+            <el-menu-item index="/app/troubleshooting">
+              <el-icon><Search /></el-icon>
+              <template #title>问题排查</template>
+            </el-menu-item>
             <el-menu-item index="/app/job/center">
               <el-icon><Management /></el-icon>
               <template #title>作业中心</template>
             </el-menu-item>
-            <el-menu-item v-if="featureVisible('feature.node_ops')" index="/app/init-tools">
-              <el-icon><Tools /></el-icon>
-              <template #title>节点初始化</template>
+            <el-menu-item index="/app/settings">
+              <el-icon><Setting /></el-icon>
+              <template #title>设置</template>
             </el-menu-item>
-            <el-sub-menu v-if="featureVisible('feature.backup_performance')" index="app-advanced">
-              <template #title>
-                <el-icon><DocumentCopy /></el-icon>
-                <span>
-                  数据
-                  <span v-if="featureBillingEnabled('feature.backup_performance')" class="menu-pack-tag">订阅</span>
-                </span>
-              </template>
-              <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/app/advanced/backup-restore"
-                >备份</el-menu-item>
-              <el-menu-item v-if="featureVisible('feature.backup_performance')" index="/app/advanced/performance-analysis"
-                >性能</el-menu-item>
-            </el-sub-menu>
           </template>
         </el-menu>
       </el-scrollbar>
@@ -319,6 +302,10 @@
             </div>
             <template #dropdown>
               <el-dropdown-menu>
+                <el-dropdown-item v-if="isAdminUser" @click="handleSwitchShell">
+                  <el-icon><Monitor /></el-icon>
+                  {{ isAdminShell ? '切换到工作台' : '切换到管理控制台' }}
+                </el-dropdown-item>
                 <el-dropdown-item v-if="isAdminUser" @click="handleUserManagement">
                   <el-icon><User /></el-icon>
                   用户
@@ -375,7 +362,8 @@ import {
   List,
   Collection,
   Refresh,
-  MagicStick
+  MagicStick,
+  Search
 } from '@element-plus/icons-vue'
 import { wsService } from '../../utils/websocket'
 import { copyTextToClipboard } from '../../utils/clipboard'
@@ -470,10 +458,7 @@ const menuDefaultOpeneds = computed(() => {
   const p = route.path
   const open: string[] = []
   if (p.startsWith('/app')) {
-    if (p.includes('/app/ai-sre') || p.includes('/app/execution-records') || isRuntimeObservePath(p)) {
-      open.push('app-aisre')
-    }
-    if (p.includes('/app/advanced') && !isRuntimeObservePath(p)) open.push('app-advanced')
+    if (p.includes('/app/workloads')) open.push('app-workloads')
     return open
   }
   if (p.includes('/admin/ai-sre') || p.includes('/admin/execution-records') || isRuntimeObservePath(p)) {
@@ -592,6 +577,10 @@ onUnmounted(() => {
 
 const handleUserManagement = () => {
   router.push('/admin/user/list')
+}
+
+const handleSwitchShell = () => {
+  router.push(isAdminShell.value ? '/app/dashboard' : '/admin/dashboard')
 }
 
 const activeMenu = computed(() => {

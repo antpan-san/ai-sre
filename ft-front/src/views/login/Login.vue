@@ -4,13 +4,14 @@
     <div class="login-shell">
       <aside class="login-hero" aria-hidden="true">
         <div class="login-hero-inner">
-          <div class="login-hero-mark">OP</div>
-          <h2 class="login-hero-title">OpsFleetPilot</h2>
-          <p class="login-hero-lead">交付、Kubernetes 与可观测的一体化控制台。</p>
+          <div class="login-hero-mark">ai</div>
+          <h2 class="login-hero-title">ai-sre · OpsFleetPilot</h2>
+          <p class="login-hero-lead">CLI + Web + AI 技能包 + 自动迭代的运维问题解决平台。</p>
           <ul class="login-hero-points">
-            <li>RBAC 与审计</li>
-            <li>JWT 会话</li>
-            <li>可按策略开放注册</li>
+            <li>用一条 ai-sre 命令完成采集、诊断、恢复和复盘</li>
+            <li>本地规则优先，AI 兜底，每次诊断反哺技能包</li>
+            <li>支持 K8s、Linux、Redis、Kafka、MySQL、Nginx、Elasticsearch、Go Runtime</li>
+            <li>Web 统一记录执行、订阅、复盘与自动迭代</li>
           </ul>
         </div>
       </aside>
@@ -19,7 +20,7 @@
         <div class="login-card">
           <header class="login-card-head">
             <h1 class="login-title">欢迎回来</h1>
-            <p class="login-subtitle">登录到控制台</p>
+            <p class="login-subtitle">登录 ai-sre 工作台</p>
           </header>
 
           <el-form
@@ -221,7 +222,9 @@ const handleLogin = async () => {
           localStorage.removeItem('rememberedUsername')
         }
         ElMessage.success('登录成功')
-        await router.push('/admin/dashboard')
+        const role = String(userStore.currentUser?.role ?? '')
+        const home = role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : '/app/dashboard'
+        await router.push(home)
         return
       }
       loginError.value = '用户名或密码错误，请重试'

@@ -293,7 +293,7 @@ const goK8sClusters = () => {
   router.push({ path: '/admin/execution-records', query: { tab: 'k8s' } })
 }
 const goExecRecords = () => {
-  router.push(`${shellPrefix.value}/ai-sre/executions`)
+  router.push(`${shellPrefix.value}/execution-records`)
 }
 const goServiceDeploy = () => {
   if (!isConsoleAdmin.value) {
