@@ -656,7 +656,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
       }
     })
   } else if (hubMenu && hubSection) {
-    const sectionPath = `${hubMenu}?section=${hubSection}`
+    const sectionPath = `${hubMenu}?tab=${hubSection}`
     pushBreadcrumb(items, '工作负载', sectionPath)
     const sectionTitle = CAPABILITY_CATEGORY_LABELS[hubSection]
     if (sectionTitle) {

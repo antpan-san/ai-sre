@@ -185,3 +185,11 @@
 .hub-main {
   min-width: 0;
 }
+
+.hub-tabs :deep(.el-tabs__header) {
+  margin-bottom: 0;
+}
+
+.hub-tabs :deep(.el-tabs__nav-wrap) {
+  padding: 0 2px;
+}
