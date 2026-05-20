@@ -72,7 +72,7 @@
         <template #header>
           <div class="panel-head">
             <span>已订阅能力</span>
-            <el-link type="primary" :underline="false" @click="goCapabilities">能力中心</el-link>
+            <el-link type="primary" :underline="false" @click="goCapabilities">我的功能包</el-link>
           </div>
         </template>
         <ul class="sub-list">
@@ -113,7 +113,7 @@ const refresh = async () => {
 
 const goExec = () => router.push('/app/execution-records')
 const goJobs = () => router.push('/app/job/center')
-const goCapabilities = () => router.push('/app/capabilities')
+const goCapabilities = () => router.push('/app/capabilities#packs')
 
 const formatTs = (iso?: string) => {
   if (!iso) return '—'

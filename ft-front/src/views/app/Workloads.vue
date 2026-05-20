@@ -1,116 +1,161 @@
 <template>
-  <div class="workloads page-shell">
-    <header class="page-head">
-      <div class="page-head-copy">
-        <h2 class="page-title">工作负载</h2>
-        <p class="page-desc--muted">Kubernetes、应用服务、Linux 主机与初始化工具；执行受订阅状态控制。</p>
-      </div>
-    </header>
+  <div class="workloads page-shell page-shell--crud-wide">
+    <AppPageHeader
+      title="工作负载"
+      description="Kubernetes、应用服务、Linux 主机与初始化工具；执行受订阅状态控制。"
+    >
+      <template #actions>
+        <el-button size="small" link type="primary" @click="router.push('/app/capabilities')">能力中心</el-button>
+        <el-button size="small" :loading="dashLoading" @click="refresh">刷新</el-button>
+      </template>
+    </AppPageHeader>
 
-    <el-tabs v-model="activeTab" class="workload-tabs">
-      <el-tab-pane label="Kubernetes" name="k8s">
-        <WorkloadPanel
-          title="Kubernetes 集群"
-          description="安装、恢复与卸载离线/在线 K8s 集群。"
-          :cap="capById('k8s_delivery')"
-          :commands="k8sCommands"
-          @open="go('/service/k8s-deploy')"
-          @subscribe="sub"
-        />
-      </el-tab-pane>
-      <el-tab-pane label="应用服务" name="services">
-        <WorkloadPanel
-          title="应用服务部署"
-          description="中间件与应用组件的安装、更新与卸载。"
-          :cap="capById('service_deploy')"
-          :commands="serviceCommands"
-          @open="go('/service/deploy')"
-          @subscribe="sub"
-        />
-      </el-tab-pane>
-      <el-tab-pane label="Linux 主机" name="linux">
-        <WorkloadPanel
-          title="Linux 主机"
-          description="查看与管理主机上的服务状态。"
-          :cap="capById('linux_hosts')"
-          @open="go('/service/linux')"
-          @subscribe="sub"
-        />
-      </el-tab-pane>
-      <el-tab-pane label="初始化工具" name="init">
-        <WorkloadPanel
-          title="节点初始化"
-          description="系统参数、时间同步、安全加固等脚本。"
-          :cap="capById('init_tools')"
-          @open="go('/init-tools')"
-          @subscribe="sub"
-        />
-      </el-tab-pane>
-      <el-tab-pane label="出口代理" name="proxy">
-        <WorkloadPanel
-          title="出口代理"
-          description="配置主机与集群访问外网。"
-          :cap="capById('proxy')"
-          @open="go('/proxy/config')"
-          @subscribe="sub"
-        />
-      </el-tab-pane>
-      <el-tab-pane label="制品目录" name="mirror">
-        <WorkloadPanel
-          title="K8s 制品目录"
-          description="内网 manifest 与离线包索引。"
-          :cap="capById('k8s_mirror')"
-          @open="go('/k8s-mirror')"
-          @subscribe="sub"
-        />
-      </el-tab-pane>
-    </el-tabs>
+    <section v-loading="dashLoading" class="app-stats-row">
+      <article class="app-stat-tile app-stat-tile--link app-stat-tile--ok" @click="goExec()">
+        <span class="app-stat-label">运行中服务</span>
+        <strong>{{ dash?.serviceStatusStats?.running ?? 0 }}</strong>
+      </article>
+      <article class="app-stat-tile app-stat-tile--link" @click="goExec()">
+        <span class="app-stat-label">部署中</span>
+        <strong>{{ dash?.serviceStatusStats?.deploying ?? 0 }}</strong>
+      </article>
+      <article class="app-stat-tile app-stat-tile--link app-stat-tile--warn" @click="goExec()">
+        <span class="app-stat-label">异常/停止</span>
+        <strong>{{ errorStopped }}</strong>
+      </article>
+      <article class="app-stat-tile app-stat-tile--link" @click="goExec('k8s')">
+        <span class="app-stat-label">近 24h K8s 执行</span>
+        <strong>{{ dash?.platformSummary?.executionsBySourceLast24h?.k8s ?? 0 }}</strong>
+      </article>
+    </section>
+
+    <section v-if="recentDelivery.length" class="app-recent-strip">
+      <strong>最近动态</strong>
+      <ul>
+        <li v-for="row in recentDelivery" :key="row.id" @click="goExecution(row.id)">
+          <span>{{ row.name }}</span>
+          <el-tag size="small" :type="row.status === 'success' ? 'success' : row.status === 'failed' ? 'danger' : 'info'">
+            {{ row.status }}
+          </el-tag>
+        </li>
+      </ul>
+    </section>
+
+    <div class="app-workload-grid">
+      <WorkloadZoneCard
+        v-for="item in primaryZones"
+        :key="item.id"
+        :item="item"
+        :highlighted="highlightId === item.id"
+        @open="openItem"
+        @subscribe="subscribeItem"
+        @executions="goExecForItem"
+      />
+    </div>
+    <div class="app-workload-grid app-workload-grid--secondary">
+      <WorkloadZoneCard
+        v-for="item in secondaryZones"
+        :key="item.id"
+        :item="item"
+        :highlighted="highlightId === item.id"
+        @open="openItem"
+        @subscribe="subscribeItem"
+        @executions="goExecForItem"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import WorkloadPanel from '../../components/app/WorkloadPanel.vue'
+import AppPageHeader from '../../components/app/AppPageHeader.vue'
+import WorkloadZoneCard from '../../components/app/WorkloadZoneCard.vue'
+import '../../assets/app-workbench.css'
 import { useCapabilityCatalog, type ResolvedCapability } from '../../composables/useCapabilityCatalog'
+import { useDashboardStore } from '../../stores/dashboard'
+import type { DashboardData } from '../../types/dashboard'
+import { openCapability } from '../../utils/capabilityNavigation'
+
+const ZONE_TO_ID: Record<string, string> = {
+  k8s: 'k8s_delivery',
+  services: 'service_deploy',
+  linux: 'linux_hosts',
+  init: 'init_tools',
+  proxy: 'proxy',
+  mirror: 'k8s_mirror'
+}
 
 const route = useRoute()
 const router = useRouter()
-const { resolved, shellPrefix, subscribe } = useCapabilityCatalog()
+const dashboardStore = useDashboardStore()
+const { deliveryCapabilities, shellPrefix, load: loadCaps, subscribe } = useCapabilityCatalog()
 
-const activeTab = ref(String(route.query.tab || 'k8s'))
+const highlightId = ref('')
+
+const dashLoading = computed(() => dashboardStore.loading)
+const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
+
+const errorStopped = computed(() => {
+  const s = dash.value?.serviceStatusStats
+  return (s?.error ?? 0) + (s?.stopped ?? 0)
+})
+
+const primaryZones = computed(() => deliveryCapabilities.value.filter((c) => c.workload_tier !== 'secondary'))
+const secondaryZones = computed(() => deliveryCapabilities.value.filter((c) => c.workload_tier === 'secondary'))
+
+const DELIVERY_SOURCES = new Set(['k8s', 'cli', 'job'])
+
+const recentDelivery = computed(() => {
+  const rows = dash.value?.recentExecutions ?? []
+  return rows
+    .filter((r) => (r.source ? DELIVERY_SOURCES.has(r.source) : true))
+    .slice(0, 5)
+})
+
+const applyZoneQuery = async () => {
+  const zone = String(route.query.zone || '')
+  const id = ZONE_TO_ID[zone] || (zone.includes('_') ? zone : '')
+  highlightId.value = id
+  if (id) {
+    await nextTick()
+    document.querySelector('.zone-card--highlight')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  }
+}
 
 watch(
-  () => route.query.tab,
-  (t) => {
-    if (typeof t === 'string' && t) activeTab.value = t
+  () => route.query.zone,
+  () => {
+    void applyZoneQuery()
   }
 )
 
-const capById = (id: string) => resolved.value.find((c) => c.id === id)
-
-const k8sCommands = [
-  'ai-sre ops k8s install --help',
-  'ai-sre ops k8s recover --cluster <name>',
-  'ai-sre ops k8s uninstall --cluster <name>'
-]
-const serviceCommands = [
-  'ai-sre ops service install <service> --target <host>',
-  'ai-sre ops service update <service> --target <host>',
-  'ai-sre ops service uninstall <service> --target <host>'
-]
-
-const go = (suffix: string) => {
-  router.push(`${shellPrefix.value}${suffix}`)
+const refresh = async () => {
+  await Promise.all([dashboardStore.fetchDashboardData(), loadCaps(true)])
 }
 
-const sub = (item: ResolvedCapability) => {
+const openItem = (item: ResolvedCapability) => openCapability(router, item)
+
+const subscribeItem = (item: ResolvedCapability) => {
   void subscribe(item)
 }
-</script>
 
-<style scoped>
-.workload-tabs {
-  margin-top: 8px;
+const goExec = (source?: string) => {
+  const query = source ? { source } : undefined
+  router.push({ path: `${shellPrefix.value}/execution-records`, query })
 }
-</style>
+
+const goExecForItem = (item: ResolvedCapability) => {
+  const source = item.execution_source
+  goExec(source || undefined)
+}
+
+const goExecution = (id: string) => {
+  router.push(`${shellPrefix.value}/executions/${id}`)
+}
+
+onMounted(async () => {
+  await Promise.all([dashboardStore.fetchDashboardData(), loadCaps()])
+  await applyZoneQuery()
+})
+</script>

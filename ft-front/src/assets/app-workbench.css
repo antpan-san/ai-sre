@@ -1,0 +1,112 @@
+.app-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.app-stat-tile {
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.app-stat-tile--link {
+  cursor: pointer;
+}
+
+.app-stat-tile--link:hover {
+  border-color: var(--el-color-primary-light-5);
+}
+
+.app-stat-tile--warn strong {
+  color: var(--el-color-warning);
+}
+
+.app-stat-tile--ok strong {
+  color: var(--el-color-success);
+}
+
+.app-stat-label {
+  display: block;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.app-cap-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 14px;
+}
+
+.app-workload-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .app-workload-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.app-workload-grid--secondary {
+  margin-top: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+
+.app-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 16px;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 0;
+  background: var(--layout-content-bg, var(--el-bg-color));
+}
+
+.app-category-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.app-pack-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.app-recent-strip {
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
+}
+
+.app-recent-strip ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.app-recent-strip li {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.app-recent-strip li:hover {
+  color: var(--el-color-primary);
+}

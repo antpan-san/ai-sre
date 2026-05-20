@@ -14,6 +14,13 @@ export type SubscriptionStatusLabel =
   | '暂不可用'
   | '联系管理员开通'
 
+export type WorkloadTier = 'primary' | 'secondary'
+
+export interface CatalogCommand {
+  label: string
+  template: string
+}
+
 export interface CatalogCapability {
   id: string
   name: string
@@ -22,8 +29,14 @@ export interface CatalogCapability {
   feature_key?: string
   pack_key?: string
   route_suffix?: string
+  direct_route?: string
   cli_topic?: string
   cli_hint?: string
+  icon?: string
+  keywords?: string[]
+  workload_tier?: WorkloadTier
+  commands?: CatalogCommand[]
+  execution_source?: string
   admin_only?: boolean
   super_admin_only?: boolean
   always_free?: boolean
@@ -38,6 +51,15 @@ export const CAPABILITY_CATEGORY_LABELS: Record<CapabilityCategory, string> = {
   evolution: '自动进化'
 }
 
+export const CAPABILITY_CATEGORY_SHORT: Record<CapabilityCategory, string> = {
+  delivery: '交付',
+  troubleshoot: '排查',
+  observe: '观测',
+  monitoring: '监控',
+  data: '数据',
+  evolution: '进化'
+}
+
 export const CAPABILITY_CATALOG: CatalogCapability[] = [
   {
     id: 'k8s_delivery',
@@ -46,7 +68,16 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'delivery',
     feature_key: 'feature.k8s_delivery',
     pack_key: 'pack.k8s_delivery',
-    route_suffix: '/workloads?tab=k8s'
+    direct_route: '/service/k8s-deploy',
+    icon: 'Connection',
+    keywords: ['k8s', 'kubernetes', '集群', '安装'],
+    workload_tier: 'primary',
+    execution_source: 'k8s',
+    commands: [
+      { label: '安装', template: 'ai-sre ops k8s install --help' },
+      { label: '恢复', template: 'ai-sre ops k8s recover --cluster <name>' },
+      { label: '卸载', template: 'ai-sre ops k8s uninstall --cluster <name>' }
+    ]
   },
   {
     id: 'service_deploy',
@@ -55,7 +86,16 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'delivery',
     feature_key: 'feature.node_ops',
     pack_key: 'pack.node_ops',
-    route_suffix: '/workloads?tab=services'
+    direct_route: '/service/deploy',
+    icon: 'Box',
+    keywords: ['服务', '部署', 'redis', 'mysql', 'nginx'],
+    workload_tier: 'primary',
+    execution_source: 'cli',
+    commands: [
+      { label: '安装', template: 'ai-sre ops service install <service> --target <host>' },
+      { label: '更新', template: 'ai-sre ops service update <service> --target <host>' },
+      { label: '卸载', template: 'ai-sre ops service uninstall <service> --target <host>' }
+    ]
   },
   {
     id: 'linux_hosts',
@@ -64,7 +104,10 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'delivery',
     feature_key: 'feature.node_ops',
     pack_key: 'pack.node_ops',
-    route_suffix: '/workloads?tab=linux'
+    direct_route: '/service/linux',
+    icon: 'Cpu',
+    keywords: ['linux', '主机', 'systemd'],
+    workload_tier: 'primary'
   },
   {
     id: 'init_tools',
@@ -73,7 +116,11 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'delivery',
     feature_key: 'feature.node_ops',
     pack_key: 'pack.node_ops',
-    route_suffix: '/workloads?tab=init'
+    direct_route: '/init-tools',
+    icon: 'Tools',
+    keywords: ['初始化', '加固', 'ntp'],
+    workload_tier: 'primary',
+    execution_source: 'init-tools'
   },
   {
     id: 'proxy',
@@ -82,7 +129,10 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'delivery',
     feature_key: 'feature.node_ops',
     pack_key: 'pack.node_ops',
-    route_suffix: '/workloads?tab=proxy'
+    direct_route: '/proxy/config',
+    icon: 'Link',
+    keywords: ['代理', 'proxy', '出口'],
+    workload_tier: 'secondary'
   },
   {
     id: 'k8s_mirror',
@@ -91,7 +141,10 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'delivery',
     feature_key: 'feature.k8s_delivery',
     pack_key: 'pack.k8s_delivery',
-    route_suffix: '/workloads?tab=mirror'
+    direct_route: '/k8s-mirror',
+    icon: 'Download',
+    keywords: ['制品', 'manifest', '离线包'],
+    workload_tier: 'secondary'
   },
   {
     id: 'check_redis',
@@ -101,6 +154,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.redis',
     cli_topic: 'redis',
+    icon: 'Coin',
+    keywords: ['redis', '缓存', '内存'],
     route_suffix: '/troubleshooting?topic=redis'
   },
   {
@@ -111,6 +166,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.k8s',
     cli_topic: 'linux',
+    icon: 'Monitor',
+    keywords: ['linux', 'cpu', 'io', '性能'],
     route_suffix: '/troubleshooting?topic=linux'
   },
   {
@@ -121,6 +178,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.k8s',
     cli_topic: 'k8s',
+    icon: 'Connection',
+    keywords: ['k8s', 'pod', 'kubernetes'],
     route_suffix: '/troubleshooting?topic=k8s'
   },
   {
@@ -131,6 +190,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.kafka',
     cli_topic: 'kafka',
+    icon: 'Message',
+    keywords: ['kafka', '消息', 'lag'],
     route_suffix: '/troubleshooting?topic=kafka'
   },
   {
@@ -141,6 +202,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.mysql',
     cli_topic: 'mysql',
+    icon: 'Coin',
+    keywords: ['mysql', '数据库', '慢sql'],
     route_suffix: '/troubleshooting?topic=mysql'
   },
   {
@@ -151,6 +214,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.postgresql',
     cli_topic: 'postgresql',
+    icon: 'Coin',
+    keywords: ['postgresql', 'postgres', 'pg'],
     route_suffix: '/troubleshooting?topic=postgresql'
   },
   {
@@ -161,6 +226,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.nginx',
     cli_topic: 'nginx',
+    icon: 'Share',
+    keywords: ['nginx', '网关', '502'],
     route_suffix: '/troubleshooting?topic=nginx'
   },
   {
@@ -171,6 +238,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.elasticsearch',
     cli_topic: 'elasticsearch',
+    icon: 'Search',
+    keywords: ['elasticsearch', 'es', '分片'],
     route_suffix: '/troubleshooting?topic=elasticsearch'
   },
   {
@@ -181,6 +250,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.ai_diagnosis',
     pack_key: 'skillpack.domain',
     cli_topic: 'domain',
+    icon: 'Link',
+    keywords: ['dns', '域名', '解析'],
     route_suffix: '/troubleshooting?topic=domain'
   },
   {
@@ -191,6 +262,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     feature_key: 'feature.runtime_observe',
     pack_key: 'pack.runtime_observe',
     cli_topic: 'go_runtime',
+    icon: 'Cpu',
+    keywords: ['go', 'runtime', 'golang'],
     route_suffix: '/troubleshooting?topic=go_runtime'
   },
   {
@@ -199,7 +272,9 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     description: '部署与平台错误码根因库',
     category: 'troubleshoot',
     always_free: true,
-    route_suffix: '/help/error-codes'
+    icon: 'Reading',
+    keywords: ['错误码', 'error', '部署失败'],
+    direct_route: '/help/error-codes'
   },
   {
     id: 'runtime_observe',
@@ -208,7 +283,9 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'observe',
     feature_key: 'feature.runtime_observe',
     pack_key: 'pack.runtime_observe',
-    route_suffix: '/advanced/runtime-observe'
+    direct_route: '/advanced/runtime-observe',
+    icon: 'View',
+    keywords: ['观测', '进程', 'runtime']
   },
   {
     id: 'prometheus',
@@ -217,7 +294,9 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'monitoring',
     feature_key: 'feature.monitoring',
     pack_key: 'pack.monitoring',
-    route_suffix: '/monitoring/prometheus'
+    direct_route: '/monitoring/prometheus',
+    icon: 'TrendCharts',
+    keywords: ['prometheus', '监控', 'metrics']
   },
   {
     id: 'exporters',
@@ -226,7 +305,9 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'monitoring',
     feature_key: 'feature.monitoring',
     pack_key: 'pack.monitoring',
-    route_suffix: '/monitoring/node-exporter'
+    direct_route: '/monitoring/node-exporter',
+    icon: 'DataLine',
+    keywords: ['exporter', 'node', 'jmx']
   },
   {
     id: 'backup',
@@ -235,7 +316,9 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'data',
     feature_key: 'feature.backup_performance',
     pack_key: 'pack.backup_performance',
-    route_suffix: '/advanced/backup-restore'
+    direct_route: '/advanced/backup-restore',
+    icon: 'FolderOpened',
+    keywords: ['备份', '恢复', 'backup']
   },
   {
     id: 'performance',
@@ -244,7 +327,9 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     category: 'data',
     feature_key: 'feature.backup_performance',
     pack_key: 'pack.backup_performance',
-    route_suffix: '/advanced/performance-analysis'
+    direct_route: '/advanced/performance-analysis',
+    icon: 'Odometer',
+    keywords: ['性能', '报告', '分析']
   },
   {
     id: 'skill_refinement',
@@ -252,7 +337,8 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     description: '诊断样本驱动的技能包增强队列（管理）',
     category: 'evolution',
     super_admin_only: true,
-    route_suffix: '/ai-sre/skill-refinement'
+    icon: 'MagicStick',
+    direct_route: '/ai-sre/skill-refinement'
   },
   {
     id: 'auto_iterations',
@@ -260,12 +346,23 @@ export const CAPABILITY_CATALOG: CatalogCapability[] = [
     description: '平台能力缺口与 CLI 自动改进任务（管理）',
     category: 'evolution',
     super_admin_only: true,
-    route_suffix: '/auto-iterations'
+    icon: 'Refresh',
+    direct_route: '/auto-iterations'
   }
 ]
 
 export const TROUBLESHOOT_TOPICS = CAPABILITY_CATALOG.filter((c) => c.cli_topic)
 
+export const DELIVERY_CAPABILITIES = CAPABILITY_CATALOG.filter((c) => c.category === 'delivery')
+
 export function categoryOrder(): CapabilityCategory[] {
   return ['delivery', 'troubleshoot', 'observe', 'monitoring', 'data', 'evolution']
+}
+
+export function catalogRoutePath(item: CatalogCapability): string {
+  return item.direct_route || item.route_suffix || ''
+}
+
+export function capabilitiesForPack(packKey: string): CatalogCapability[] {
+  return CAPABILITY_CATALOG.filter((c) => c.pack_key === packKey)
 }

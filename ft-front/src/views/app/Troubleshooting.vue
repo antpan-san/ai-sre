@@ -35,7 +35,7 @@
 </template>
 
 <script setup lang="ts">
-import { reactive } from 'vue'
+import { onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { TROUBLESHOOT_TOPICS } from '../../config/capabilityCatalog'
@@ -43,7 +43,7 @@ import { useCapabilityCatalog } from '../../composables/useCapabilityCatalog'
 import { copyTextToClipboard } from '../../utils/clipboard'
 
 const router = useRouter()
-const { resolved, shellPrefix } = useCapabilityCatalog()
+const { resolved, shellPrefix, load } = useCapabilityCatalog()
 const targets = reactive<Record<string, string>>({})
 
 const topics = TROUBLESHOOT_TOPICS
@@ -73,6 +73,10 @@ const copyCmd = async (topic: (typeof topics)[0]) => {
 const goSettings = () => {
   router.push(`${shellPrefix.value}/settings`)
 }
+
+onMounted(() => {
+  void load()
+})
 </script>
 
 <style scoped>
