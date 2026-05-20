@@ -4,7 +4,7 @@
       <div class="page-head-copy">
         <h2 class="page-title">技能精炼</h2>
         <p class="page-desc--muted">
-          诊断样本池、待增强审查与本地规则命中率；高频模式可触发自动迭代任务。
+          诊断样本池、待增强审查与本地规则命中率。客户端 check 跳过 AI 依赖 CLI 内置本地规则（非「已精炼」按钮）；「精炼」更新服务端技能包 prompt。
         </p>
       </div>
       <div class="page-head-actions">
@@ -72,7 +72,7 @@
             <template #default="{ row }">
               <el-button v-if="row.request_id" link type="primary" size="small" @click="openByRequest(row.request_id)">复盘</el-button>
               <el-button link type="primary" size="small" @click="openRefine(row.topic)">精炼</el-button>
-              <el-button link size="small" @click="markReview(row, 'refined')">已精炼</el-button>
+              <el-button link size="small" @click="markReview(row, 'refined')">关闭审查</el-button>
               <el-button link type="danger" size="small" @click="markReview(row, 'dismissed')">忽略</el-button>
             </template>
           </el-table-column>
@@ -408,9 +408,18 @@ const markReview = async (row: SkillEnhancementReview, status: 'refined' | 'dism
       review_key: reviewKey || undefined,
       topic: row.topic,
       status,
-      note: status === 'refined' ? '管理员标记已精炼' : '管理员忽略'
+      note: status === 'refined' ? '管理员关闭审查项' : '管理员忽略'
     })
-    ElMessage.success('已更新')
+    const wantsLocalRule = (row.suggested_actions || []).includes('local_rule')
+    if (status === 'refined' && wantsLocalRule) {
+      ElMessage.success({
+        message:
+          '已关闭审查项。若要客户端 check 不再调用 AI，须发布含对应本地规则的 ai-sre 新版本；「精炼」仅更新服务端技能包。',
+        duration: 6000
+      })
+    } else {
+      ElMessage.success('已更新')
+    }
     await reload()
   } catch {
     ElMessage.error('更新失败')

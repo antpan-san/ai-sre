@@ -74,3 +74,8 @@ func atoi64OrZero(s string) int64 {
 	n, _ := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
 	return n
 }
+
+func atofOrZero(s string) float64 {
+	f, _ := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return f
+}
