@@ -403,6 +403,13 @@ func ApproveAutoIteration(id uuid.UUID, userID uuid.UUID, actorName, notes strin
 		return nil, err
 	}
 	notifyAutoIterationDingTalkKind(DingTalkKindApproved, row, "", actorName)
+	if isSkillAccumulationSource(row.Source) {
+		meta := decodeRecordMetadata(row.Metadata)
+		if !boolMeta(meta, "auto_iteration_experience_recorded") {
+			_ = RecordAutoIterationExperienceSample(row, models.AutoIterationStatusApproved, row.Summary,
+				strMeta(meta, "skill_pack_enhanced"), strMeta(meta, "skill_pack_enhance_reason"))
+		}
+	}
 	return &row, nil
 }
 
@@ -864,6 +871,10 @@ func CodeAgentReportResult(iterationID, bindingID uuid.UUID, result CodeAgentTas
 	})
 	if err == nil {
 		notifyAutoIterationWorkerResult(row, toStatus, result.Summary)
+		if shouldRecordAutoIterationExperience(result.Success, toStatus) &&
+			(isSkillAccumulationSource(row.Source) || strings.TrimSpace(result.SkillPackEnhanced) != "") {
+			_ = RecordAutoIterationExperienceSample(row, toStatus, result.Summary, result.SkillPackEnhanced, result.SkillPackEnhanceReason)
+		}
 	}
 	return err
 }

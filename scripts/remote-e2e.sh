@@ -25,6 +25,10 @@ HOME="$t" OPSFLEET_SKIP_REMOTE=1 ./ai-sre expert ask x 2>&1 | grep -q "credentia
 set -o pipefail
 rm -rf "$t"
 echo OK
+if [[ "${OPSFLEET_SKIP_REMOTE:-}" != 1 && "${SKIP_SKILL_SAMPLES_VERIFY:-}" != 1 ]]; then
+  echo "==> skill samples lab verify"
+  SKIP_CLI_CHECK="${SKIP_SKILL_SAMPLES_CLI:-1}" ./scripts/verify-skill-samples-lab.sh
+fi
 echo "==> LLM smoke (set SHORT=1 to skip)"
 if [[ "${SHORT:-}" == 1 ]]; then
   echo "skipped"
