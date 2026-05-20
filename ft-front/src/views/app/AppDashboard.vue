@@ -43,7 +43,7 @@
         </template>
         <div class="next-actions">
           <el-button @click="router.push('/app/troubleshooting')">问题排查</el-button>
-          <el-button @click="router.push('/app/deploy')">部署配置</el-button>
+          <el-button @click="router.push('/app/deploy')">部署中心</el-button>
           <el-button @click="router.push('/app/deploy?expand=subscribe')">可订阅能力</el-button>
           <el-button @click="router.push('/app/settings')">安装 CLI</el-button>
         </div>
@@ -75,7 +75,7 @@
         <template #header>
           <div class="panel-head">
             <span>已订阅能力</span>
-            <el-link type="primary" :underline="false" @click="goDeploy">部署配置</el-link>
+            <el-link type="primary" :underline="false" @click="goDeploy">部署中心</el-link>
           </div>
         </template>
         <ul class="sub-list">

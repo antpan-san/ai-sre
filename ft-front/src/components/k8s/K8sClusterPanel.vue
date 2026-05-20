@@ -1,15 +1,15 @@
 <template>
   <div class="k8s-cluster-panel">
-    <div v-if="showToolbar" class="k8s-cluster-panel__toolbar">
+    <div class="k8s-cluster-panel__toolbar">
       <p class="k8s-cluster-panel__hint page-desc--muted">
-        {{ hintText }}
+        租户内已登记的 Kubernetes 集群；新建部署请从「部署中心 → Kubernetes」进入。
       </p>
       <el-button type="primary" size="small" @click="goToDeploy">新建集群</el-button>
     </div>
 
     <el-table
       v-loading="loading"
-      :data="displayList"
+      :data="clusterList"
       stripe
       border
       size="small"
@@ -55,29 +55,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { getClusterList } from '../../api/k8s-deploy'
 
-const props = withDefaults(
-  defineProps<{
-    deployPath?: string
-    progressPath?: string
-    maxRows?: number
-    hint?: string
-    showToolbar?: boolean
-  }>(),
-  {
-    deployPath: '/admin/service/k8s-deploy',
-    progressPath: '/admin/service/k8s-deploy/progress',
-    maxRows: 0,
-    hint: '',
-    showToolbar: true,
-  }
-)
-
 const router = useRouter()
+
+const deployPath = '/admin/service/k8s-deploy'
 
 interface ClusterItem {
   id: string
@@ -90,19 +75,8 @@ interface ClusterItem {
 const loading = ref(false)
 const clusterList = ref<ClusterItem[]>([])
 
-const hintText = computed(
-  () =>
-    props.hint ||
-    '租户内已登记的 Kubernetes 集群；新建部署请从「部署配置 → Kubernetes」进入。'
-)
-
-const displayList = computed(() => {
-  if (!props.maxRows || props.maxRows <= 0) return clusterList.value
-  return clusterList.value.slice(0, props.maxRows)
-})
-
 const goToDeploy = () => {
-  router.push(props.deployPath)
+  router.push(deployPath)
 }
 
 const loadClusters = async () => {
