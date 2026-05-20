@@ -59,7 +59,7 @@ func serviceCmd() *cobra.Command {
 		Use:   "service",
 		Short: "基础服务安装（从 OpsFleet 服务端拉取参数）",
 	}
-	cmd.AddCommand(serviceInstallCmd(), serviceUninstallCmd())
+	cmd.AddCommand(serviceInstallCmd(), serviceRecoverCmd(), serviceUninstallCmd())
 	return cmd
 }
 
@@ -97,6 +97,7 @@ func runServiceInstall(cmd *cobra.Command, opts serviceInstallOptions) error {
 		_ = postServiceEvent(apiURL, deployID, token, step, status, msg)
 	}
 	if err := runServiceTemplate(spec, report); err != nil {
+		captureServiceInstallFailure(spec.Service, "install", "template", 1, err.Error())
 		_ = postServiceFinish(apiURL, deployID, token, "failed", err.Error())
 		return err
 	}

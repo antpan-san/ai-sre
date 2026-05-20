@@ -15,6 +15,92 @@ type executionIntent struct {
 	ExecutionMode     string `json:"execution_mode,omitempty"`
 }
 
+func buildOpsExecutionIntent(args []string) executionIntent {
+	if len(args) < 2 || args[0] != "ops" {
+		return executionIntent{}
+	}
+	intent := executionIntent{
+		CommandKind: "ops",
+		Action:      "delivery_ops",
+		PackKey:     "pack.k8s_delivery",
+	}
+	switch args[1] {
+	case "k8s":
+		if len(args) < 3 {
+			return intent
+		}
+		intent.Topic = "k8s"
+		intent.CapabilityKey = "cap.delivery.k8s"
+		intent.PackKey = "pack.k8s_delivery"
+		switch args[2] {
+		case "recover":
+			intent.ProblemKey = "install_recovery"
+			intent.ExecutionMode = "server_job_write"
+			intent.NodePath = "ops.delivery_implementation.kubernetes.recovery"
+			intent.SkillKey = "skill.k8s.delivery.recovery"
+		case "install":
+			intent.ProblemKey = "install"
+			intent.ExecutionMode = "download_or_install"
+			intent.NodePath = "ops.delivery_implementation.kubernetes.install"
+			intent.SkillKey = "skill.k8s.delivery.install"
+		case "uninstall":
+			intent.ProblemKey = "uninstall"
+			intent.ExecutionMode = "server_job_write"
+			intent.NodePath = "ops.delivery_implementation.kubernetes.uninstall"
+			intent.SkillKey = "skill.k8s.delivery.uninstall"
+		case "preflight":
+			intent.ProblemKey = "preflight"
+			intent.ExecutionMode = "local_readonly"
+			intent.NodePath = "ops.delivery_implementation.kubernetes.preflight"
+			intent.SkillKey = "skill.k8s.delivery.preflight"
+		}
+	case "uninstall":
+		if len(args) >= 3 && args[2] == "k8s" {
+			intent.Topic = "k8s"
+			intent.ProblemKey = "uninstall"
+			intent.CapabilityKey = "cap.delivery.k8s"
+			intent.PackKey = "pack.k8s_delivery"
+			intent.ExecutionMode = "server_job_write"
+			intent.NodePath = "ops.delivery_implementation.kubernetes.uninstall"
+			intent.SkillKey = "skill.k8s.delivery.uninstall"
+		}
+	case "service":
+		if len(args) < 3 {
+			return intent
+		}
+		intent.CapabilityKey = "cap.delivery.service"
+		intent.PackKey = "pack.node_ops"
+		switch args[2] {
+		case "recover":
+			intent.Topic = "service"
+			if len(args) >= 4 {
+				intent.Topic = normalizeIntentTopic(args[3])
+			}
+			intent.ProblemKey = "install_recovery"
+			intent.ExecutionMode = "server_job_write"
+			intent.NodePath = "ops.delivery_implementation.node_ops.service_recovery"
+			intent.SkillKey = "skill.service.delivery.recovery"
+		case "install":
+			intent.Topic = "service"
+			intent.ProblemKey = "install"
+			intent.ExecutionMode = "download_or_install"
+			intent.NodePath = "ops.delivery_implementation.node_ops.service_install"
+			intent.SkillKey = "skill.service.delivery.install"
+		case "uninstall":
+			intent.Topic = "service"
+			if len(args) >= 4 {
+				intent.Topic = normalizeIntentTopic(args[3])
+			}
+			intent.ProblemKey = "uninstall"
+			intent.ExecutionMode = "server_job_write"
+			intent.NodePath = "ops.delivery_implementation.node_ops.service_uninstall"
+			intent.SkillKey = "skill.service.delivery.uninstall"
+		}
+	}
+	intent.CandidateNodePath = intent.NodePath
+	return intent
+}
+
 func buildExecutionIntent(commandKind, topic string, kv map[string]string) executionIntent {
 	t := normalizeIntentTopic(topic)
 	problem := inferIntentProblem(t, kv)
@@ -134,6 +220,12 @@ func intentTreeCoordinates(topic, problem string) (nodePath, skillKey, capabilit
 			return "ops.incident_diagnosis.kubernetes.workload.sandbox_changed", "skill.k8s.workload.sandbox_changed", capabilityKey
 		case "preflight":
 			return "ops.delivery_implementation.kubernetes.preflight", "skill.k8s.delivery.preflight", "cap.delivery.k8s"
+		case "install":
+			return "ops.delivery_implementation.kubernetes.install", "skill.k8s.delivery.install", "cap.delivery.k8s"
+		case "install_recovery":
+			return "ops.delivery_implementation.kubernetes.recovery", "skill.k8s.delivery.recovery", "cap.delivery.k8s"
+		case "uninstall":
+			return "ops.delivery_implementation.kubernetes.uninstall", "skill.k8s.delivery.uninstall", "cap.delivery.k8s"
 		default:
 			return "ops.incident_diagnosis.kubernetes.workload.general", "skill.k8s.workload.general", capabilityKey
 		}

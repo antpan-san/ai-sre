@@ -306,10 +306,13 @@
             <el-button size="small" :icon="DocumentCopy" @click="copy(aiSreUpdateCommand)">复制更新命令</el-button>
           </div>
           <pre v-if="aiSreUpdateCommand" class="code-block">{{ aiSreUpdateCommand }}</pre>
-          <div v-if="aiSreUninstallCommand" class="tab-actions" style="margin-top: 12px">
+          <div v-if="aiSreRecoverCommand || aiSreUninstallCommand" class="tab-actions" style="margin-top: 12px">
+            <el-tag v-if="aiSreRecoverCommand" size="small" type="success">恢复</el-tag>
+            <el-button v-if="aiSreRecoverCommand" size="small" :icon="DocumentCopy" @click="copy(aiSreRecoverCommand)">复制恢复命令</el-button>
             <el-tag size="small" type="warning">卸载</el-tag>
             <el-button size="small" :icon="DocumentCopy" @click="copy(aiSreUninstallCommand)">复制卸载命令</el-button>
           </div>
+          <pre v-if="aiSreRecoverCommand" class="code-block">{{ aiSreRecoverCommand }}</pre>
           <pre v-if="aiSreUninstallCommand" class="code-block">{{ aiSreUninstallCommand }}</pre>
         </el-tab-pane>
       </el-tabs>
@@ -1001,6 +1004,13 @@ const aiSreUpdateCommand = computed(() => {
 const aiSreUninstallCommand = computed(() => {
   if (generatedDeployment.value?.aiSreUninstallCommand) return generatedDeployment.value.aiSreUninstallCommand
   if (form.service) return `sudo ai-sre ops service uninstall ${form.service}`
+  return ''
+})
+const aiSreRecoverCommand = computed(() => {
+  if (generatedDeployment.value?.aiSreRecoverCommand) return generatedDeployment.value.aiSreRecoverCommand
+  if (form.service && ['redis', 'mysql', 'postgresql', 'kafka', 'haproxy'].includes(form.service)) {
+    return `sudo ai-sre ops service recover ${form.service}`
+  }
   return ''
 })
 

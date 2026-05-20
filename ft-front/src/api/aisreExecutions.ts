@@ -44,6 +44,7 @@ export interface ClientExecutionStats {
 
 export interface ClientExecutionDetail {
   record: Record<string, unknown>
+  parent?: Record<string, unknown>
   legacy_kind?: string
   children?: Record<string, unknown>[]
   events?: Record<string, unknown>[]

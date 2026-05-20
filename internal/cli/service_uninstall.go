@@ -1,7 +1,10 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -12,6 +15,7 @@ import (
 type managedServiceUninstallOptions struct {
 	PurgePackage bool
 	PurgeData    bool
+	PurgeToken   string
 	Force        bool
 }
 
@@ -39,10 +43,12 @@ func runManagedServiceUninstall(cmd *cobra.Command, service string, opts managed
 		method = "package"
 	}
 	if opts.PurgeData {
-		return fmt.Errorf("删除 %s 数据目录为高风险操作，当前版本请人工审批后执行", service)
+		if err := requirePurgeDataApproval(service, state, opts.PurgeToken); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintf(cmd.OutOrStdout(), "[uninstall] %s (%s) start\n", service, method)
-	if err := runBash(managedServiceUninstallScript(service, method, opts.PurgePackage)); err != nil {
+	if err := runBash(managedServiceUninstallScript(service, method, opts.PurgePackage, opts.PurgeData)); err != nil {
 		if state != nil {
 			_ = postServiceFinish(state.APIURL, state.DeployID, state.Token, "uninstall_failed", err.Error())
 		}
@@ -50,13 +56,55 @@ func runManagedServiceUninstall(cmd *cobra.Command, service string, opts managed
 	}
 	_ = removeServiceDeploymentState(service)
 	if state != nil && state.APIURL != "" && state.DeployID != "" && state.Token != "" {
-		_ = postServiceFinish(state.APIURL, state.DeployID, state.Token, "uninstalled", service+" uninstalled (service stopped, data retained)")
+		msg := service + " uninstalled (service stopped, data retained)"
+		if opts.PurgeData {
+			msg = service + " uninstalled with data purge"
+		}
+		_ = postServiceFinish(state.APIURL, state.DeployID, state.Token, "uninstalled", msg)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "[uninstall] %s success (data retained)\n", service)
+	fmt.Fprintf(cmd.OutOrStdout(), "[uninstall] %s success (%s)\n", service, uninstallOutcomeLabel(opts.PurgeData))
 	return nil
 }
 
-func managedServiceUninstallScript(service, method string, purgePackage bool) string {
+func uninstallOutcomeLabel(purgeData bool) string {
+	if purgeData {
+		return "data purged"
+	}
+	return "data retained"
+}
+
+func requirePurgeDataApproval(service string, state *serviceDeploymentState, purgeToken string) error {
+	purgeToken = strings.TrimSpace(purgeToken)
+	if purgeToken == "" {
+		return fmt.Errorf("删除 %s 数据目录为高风险操作，须在控制台审批后使用 --purge-data --purge-token", service)
+	}
+	if state == nil || state.APIURL == "" || state.DeployID == "" || state.Token == "" {
+		return fmt.Errorf("删除数据须存在 ai-sre 平台部署状态以校验审批 token")
+	}
+	base := strings.TrimRight(state.APIURL, "/")
+	verifyURL := fmt.Sprintf("%s/api/service-deploy/deployments/%s/purge-token/verify?token=%s&purge_token=%s",
+		base, url.PathEscape(state.DeployID), url.QueryEscape(state.Token), url.QueryEscape(purgeToken))
+	resp, err := http.Get(verifyURL)
+	if err != nil {
+		return fmt.Errorf("校验 purge token 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("purge token 无效或已过期: HTTP %d", resp.StatusCode)
+	}
+	var env struct {
+		Data struct {
+			OK bool `json:"ok"`
+		} `json:"data"`
+	}
+	if json.Unmarshal(raw, &env) == nil && env.Data.OK {
+		return nil
+	}
+	return fmt.Errorf("purge token 无效或已过期")
+}
+
+func managedServiceUninstallScript(service, method string, purgePackage, purgeData bool) string {
 	service = strings.TrimSpace(strings.ToLower(service))
 	if method == "docker" {
 		name := service
@@ -107,6 +155,20 @@ exit 0`, name)
 		b.WriteString(` 2>/dev/null || true
 fi
 `)
+	}
+	if purgeData {
+		switch service {
+		case "redis":
+			b.WriteString("rm -rf /var/lib/redis /var/lib/redis-server 2>/dev/null || true\n")
+		case "mysql":
+			b.WriteString("rm -rf /var/lib/mysql 2>/dev/null || true\n")
+		case "postgresql":
+			b.WriteString("rm -rf /var/lib/postgresql 2>/dev/null || true\n")
+		case "kafka":
+			b.WriteString("rm -rf /var/lib/kafka /opt/kafka/logs 2>/dev/null || true\n")
+		case "haproxy":
+			b.WriteString("rm -rf /var/lib/haproxy 2>/dev/null || true\n")
+		}
 	}
 	b.WriteString("exit 0\n")
 	return b.String()

@@ -2,6 +2,26 @@ package cli
 
 import "testing"
 
+func TestBuildOpsExecutionIntentK8sRecover(t *testing.T) {
+	got := buildOpsExecutionIntent([]string{"ops", "k8s", "recover"})
+	if got.NodePath != "ops.delivery_implementation.kubernetes.recovery" {
+		t.Fatalf("unexpected node path: %+v", got)
+	}
+	if got.SkillKey != "skill.k8s.delivery.recovery" || got.ProblemKey != "install_recovery" {
+		t.Fatalf("unexpected intent: %+v", got)
+	}
+}
+
+func TestBuildOpsExecutionIntentServiceUninstall(t *testing.T) {
+	got := buildOpsExecutionIntent([]string{"ops", "service", "uninstall", "redis"})
+	if got.NodePath != "ops.delivery_implementation.node_ops.service_uninstall" {
+		t.Fatalf("unexpected node path: %+v", got)
+	}
+	if got.Topic != "redis" {
+		t.Fatalf("unexpected topic: %+v", got)
+	}
+}
+
 func TestBuildExecutionIntentK8sCrashLoop(t *testing.T) {
 	got := buildExecutionIntent("analyze", "k8s", map[string]string{"issue": "crashloop"})
 	if got.NodePath != "ops.incident_diagnosis.kubernetes.workload.crashloop" {

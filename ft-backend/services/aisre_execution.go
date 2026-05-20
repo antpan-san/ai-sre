@@ -104,9 +104,10 @@ type ClientExecutionStats struct {
 
 // ClientExecutionDetail aggregates a session and related child records.
 type ClientExecutionDetail struct {
-	Record         models.ExecutionRecord   `json:"record"`
-	LegacyKind     string                   `json:"legacy_kind,omitempty"`
-	Children       []models.ExecutionRecord `json:"children,omitempty"`
+	Record                      models.ExecutionRecord   `json:"record"`
+	Parent                      *models.ExecutionRecord  `json:"parent,omitempty"`
+	LegacyKind                  string                   `json:"legacy_kind,omitempty"`
+	Children                    []models.ExecutionRecord `json:"children,omitempty"`
 	Events         []models.ExecutionEvent  `json:"events,omitempty"`
 	Timeline       []ClientExecutionPhase   `json:"timeline,omitempty"`
 	RuntimeReport  *RuntimeReportSummary    `json:"runtime_report,omitempty"`
@@ -218,6 +219,15 @@ func GetClientExecutionDetail(id uuid.UUID, role, username string) (*ClientExecu
 		return nil, gorm.ErrRecordNotFound
 	}
 	detail := &ClientExecutionDetail{Record: rec, LegacyKind: legacyKindForRecord(rec)}
+
+	if rec.ParentExecutionID != nil && *rec.ParentExecutionID != uuid.Nil {
+		var parent models.ExecutionRecord
+		if err := database.DB.Where("id = ?", *rec.ParentExecutionID).First(&parent).Error; err == nil {
+			if clientExecutionVisible(parent, role, username) {
+				detail.Parent = &parent
+			}
+		}
+	}
 
 	var children []models.ExecutionRecord
 	database.DB.Where("parent_execution_id = ?", rec.ID).Order("created_at ASC").Find(&children)
@@ -412,6 +422,11 @@ func buildClientExecutionTimeline(rec models.ExecutionRecord, events []models.Ex
 	if strings.HasPrefix(rec.Category, "k8s_") && rec.Status != models.ExecutionStatusSuccess {
 		out = append(out, ClientExecutionPhase{
 			Phase: "install_failed", Message: firstNonEmpty(strMeta(meta, "recovery_failed_step"), rec.StderrSummary, "安装未完成"), Time: rec.CreatedAt, Level: "warn",
+		})
+	}
+	if strings.HasPrefix(rec.Category, "service_") && rec.Status != models.ExecutionStatusSuccess {
+		out = append(out, ClientExecutionPhase{
+			Phase: "install_failed", Message: firstNonEmpty(strMeta(meta, "recovery_failed_step"), rec.StderrSummary, "服务安装未完成"), Time: rec.CreatedAt, Level: "warn",
 		})
 	}
 	if boolMeta(meta, "install_recovery") {

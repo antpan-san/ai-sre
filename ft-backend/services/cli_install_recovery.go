@@ -27,10 +27,18 @@ type InstallRecoveryPlan struct {
 // AnalyzeInstallRecovery builds a recovery plan from CLI-collected evidence (rule-first, optional AI later).
 func AnalyzeInstallRecovery(topic, operation, command string, ctx map[string]interface{}) InstallRecoveryPlan {
 	plan := InstallRecoveryPlan{
-		RequestID:  uuid.NewString(),
-		ResumeFrom: "install.sh",
+		RequestID: uuid.NewString(),
+	}
+	if isServiceInstallRecoveryTopic(topic) {
+		plan.ResumeFrom = "service_install"
+	} else {
+		plan.ResumeFrom = "install.sh"
 	}
 	logTail := strings.ToLower(strCtx(ctx, "log_tail") + "\n" + strCtx(ctx, "state_tail"))
+	resumeAction := "resume_install"
+	if isServiceInstallRecoveryTopic(topic) {
+		resumeAction = "resume_service_install"
+	}
 	switch {
 	case strings.Contains(logTail, "dpkg frontend lock") || strings.Contains(logTail, "unattended-upgr"):
 		plan.RootCause = "Ubuntu apt/dpkg 锁被 unattended-upgrades 占用"
@@ -38,7 +46,7 @@ func AnalyzeInstallRecovery(topic, operation, command string, ctx map[string]int
 		plan.Summary = "等待后台 apt 完成后 recover；必要时 --cleanup-first"
 		plan.SafeActions = []InstallRecoveryAction{
 			{ID: "wait_apt_lock", Description: "等待 dpkg 锁释放", Risk: "low"},
-			{ID: "resume_install", Description: "继续 install.sh", Risk: "medium"},
+			{ID: resumeAction, Description: "继续安装", Risk: "medium"},
 		}
 		plan.NeedIteration = true
 	case strings.Contains(logTail, "permission denied") && strings.Contains(logTail, "install.sh"):
@@ -46,14 +54,23 @@ func AnalyzeInstallRecovery(topic, operation, command string, ctx map[string]int
 		plan.FailedStep = "install.sh"
 		plan.SafeActions = []InstallRecoveryAction{
 			{ID: "chmod_install_scripts", Description: "修复 install.sh 权限", Risk: "low"},
-			{ID: "resume_install", Description: "继续 install.sh", Risk: "medium"},
+			{ID: resumeAction, Description: "继续 install.sh", Risk: "medium"},
 		}
 	default:
-		plan.RootCause = "K8s 离线安装失败"
-		plan.Summary = "采集现场后尝试修复脚本权限并继续 install.sh"
-		plan.SafeActions = []InstallRecoveryAction{
-			{ID: "chmod_install_scripts", Description: "修复 install.sh 权限", Risk: "low"},
-			{ID: "resume_install", Description: "继续 install.sh", Risk: "medium"},
+		if isServiceInstallRecoveryTopic(topic) {
+			plan.RootCause = "基础服务安装失败"
+			plan.Summary = "可等待 apt 锁释放后重试安装"
+			plan.SafeActions = []InstallRecoveryAction{
+				{ID: "wait_apt_lock", Description: "等待 dpkg 锁释放", Risk: "low"},
+				{ID: "resume_service_install", Description: "重新执行服务安装", Risk: "medium"},
+			}
+		} else {
+			plan.RootCause = "K8s 离线安装失败"
+			plan.Summary = "采集现场后尝试修复脚本权限并继续 install.sh"
+			plan.SafeActions = []InstallRecoveryAction{
+				{ID: "chmod_install_scripts", Description: "修复 install.sh 权限", Risk: "low"},
+				{ID: "resume_install", Description: "继续 install.sh", Risk: "medium"},
+			}
 		}
 	}
 	if ssh, ok := ctx["ssh_preflight"].(map[string]interface{}); ok && strCtx(ssh, "status") == "fail" {
@@ -76,6 +93,15 @@ func strCtx(m map[string]interface{}, key string) string {
 	}
 	v, _ := m[key].(string)
 	return strings.TrimSpace(v)
+}
+
+func isServiceInstallRecoveryTopic(topic string) bool {
+	switch strings.ToLower(strings.TrimSpace(topic)) {
+	case "service", "redis", "mysql", "postgresql", "postgres", "kafka", "haproxy", "nginx", "elasticsearch":
+		return true
+	default:
+		return false
+	}
 }
 
 // FinishInstallRecovery may trigger feedback/auto-iteration when recovery indicates platform gaps.

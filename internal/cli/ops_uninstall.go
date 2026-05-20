@@ -97,6 +97,8 @@ func opsUninstallTopicCmd(topic, label string) *cobra.Command {
 
 func serviceUninstallCmd() *cobra.Command {
 	var dryRun, yes, force bool
+	var purgePackage, purgeData bool
+	var purgeToken string
 	cmd := &cobra.Command{
 		Use:   "uninstall [service]",
 		Short: "卸载基础服务（须存在 ai-sre 平台安装状态证明）",
@@ -106,23 +108,32 @@ func serviceUninstallCmd() *cobra.Command {
 			if err := requireOpsRoot("服务卸载"); err != nil {
 				return err
 			}
+			if purgeData && !yes {
+				return fmt.Errorf("--purge-data 须与 --yes 一并使用")
+			}
 			if dryRun {
 				if _, err := loadServiceDeploymentState(svc); err != nil {
 					return fmt.Errorf("dry-run: 无 ai-sre 管理状态 (%w)", err)
 				}
-				fmt.Printf("将卸载服务 %s（停止服务，保留数据）\n", svc)
+				fmt.Printf("将卸载服务 %s（停止服务，%s）\n", svc, map[bool]string{true: "删除数据", false: "保留数据"}[purgeData])
 				return nil
 			}
 			if err := requireOpsMutationConfirm(yes, "服务卸载"); err != nil {
 				return err
 			}
+			opts := managedServiceUninstallOptions{
+				PurgePackage: purgePackage,
+				PurgeData:    purgeData,
+				PurgeToken:   purgeToken,
+				Force:        force,
+			}
 			switch svc {
 			case "nginx":
-				return runNginxUninstall(c, nginxUninstallOptions{Force: force})
+				return runNginxUninstall(c, nginxUninstallOptions{PurgePackage: purgePackage, Force: force})
 			case "elasticsearch":
-				return runElasticsearchUninstall(c, elasticsearchUninstallOptions{Force: force})
+				return runElasticsearchUninstall(c, elasticsearchUninstallOptions{PurgePackage: purgePackage, PurgeData: purgeData, Force: force})
 			case "redis", "mysql", "postgresql", "kafka", "haproxy":
-				return runManagedServiceUninstall(c, svc, managedServiceUninstallOptions{Force: force})
+				return runManagedServiceUninstall(c, svc, opts)
 			default:
 				return fmt.Errorf("未知服务 %q", svc)
 			}
@@ -131,5 +142,8 @@ func serviceUninstallCmd() *cobra.Command {
 	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只检查状态证明")
 	cmd.Flags().BoolVar(&yes, "yes", false, "非 TTY 确认")
 	cmd.Flags().BoolVar(&force, "force", false, "强制本地卸载")
+	cmd.Flags().BoolVar(&purgePackage, "purge-package", false, "卸载系统包（高风险）")
+	cmd.Flags().BoolVar(&purgeData, "purge-data", false, "删除数据目录（须控制台 --purge-token）")
+	cmd.Flags().StringVar(&purgeToken, "purge-token", "", "控制台审批的数据清理 token")
 	return cmd
 }

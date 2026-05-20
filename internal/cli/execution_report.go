@@ -83,6 +83,25 @@ func (r *executionReporter) start() {
 		target = host
 	}
 	topic := executionTopicFromArgv(os.Args[1:])
+	intent := buildOpsExecutionIntent(os.Args[1:])
+	meta := map[string]interface{}{
+		"record_kind":        "client_execution",
+		"argv0":              os.Args[0],
+		"version":            Version,
+		"topic":              topic,
+		"normalized_command": r.category,
+		"hostname":           host,
+		"binding_id":         resolveOpsfleetBindingID(),
+		"fingerprint_hash":   resolveOpsfleetFingerprint(),
+		"diagnosis_target":   target,
+	}
+	if intent.NodePath != "" {
+		meta["node_path"] = intent.NodePath
+		meta["skill_key"] = intent.SkillKey
+		meta["capability_key"] = intent.CapabilityKey
+		meta["pack_key"] = intent.PackKey
+		meta["execution_intent"] = intent
+	}
 	payload := map[string]interface{}{
 		"correlation_id":      r.correlationID,
 		"source":              r.source,
@@ -98,17 +117,10 @@ func (r *executionReporter) start() {
 		"rollback_capability": rollbackCapabilityForArgs(os.Args[1:]),
 		"rollback_plan":       rollbackPlanForArgs(os.Args[1:]),
 		"rollback_advice":     rollbackAdviceForArgs(os.Args[1:]),
-		"metadata": map[string]interface{}{
-			"record_kind":        "client_execution",
-			"argv0":                os.Args[0],
-			"version":              Version,
-			"topic":                topic,
-			"normalized_command":   r.category,
-			"hostname":             host,
-			"binding_id":           resolveOpsfleetBindingID(),
-			"fingerprint_hash":     resolveOpsfleetFingerprint(),
-			"diagnosis_target":     target,
-		},
+		"metadata":            meta,
+	}
+	if pid := parentExecutionIDForOpsRecover(); pid != "" {
+		payload["parent_execution_id"] = pid
 	}
 	if u := strings.TrimSpace(os.Getenv("OPSFLEET_EXECUTION_USERNAME")); u != "" {
 		payload["created_by"] = u
@@ -200,6 +212,46 @@ func executionTopicFromArgv(args []string) string {
 	case "check", "analyze", "probe":
 		if len(args) >= 2 {
 			return strings.ToLower(strings.TrimSpace(args[1]))
+		}
+	case "ops":
+		if len(args) >= 3 {
+			switch args[1] {
+			case "k8s":
+				return "k8s"
+			case "service":
+				if len(args) >= 4 {
+					return strings.ToLower(strings.TrimSpace(args[3]))
+				}
+				return "service"
+			case "uninstall":
+				if len(args) >= 3 {
+					return strings.ToLower(strings.TrimSpace(args[2]))
+				}
+			}
+		}
+	}
+	return ""
+}
+
+func parentExecutionIDForOpsRecover() string {
+	args := os.Args[1:]
+	if len(args) < 3 || args[0] != "ops" {
+		return ""
+	}
+	switch args[1] {
+	case "k8s":
+		if args[2] != "recover" {
+			return ""
+		}
+		if st, err := loadK8sRecoveryState(); err == nil {
+			return strings.TrimSpace(st.FailedExecutionID)
+		}
+	case "service":
+		if args[2] != "recover" || len(args) < 4 {
+			return ""
+		}
+		if st, err := loadServiceRecoveryState(args[3]); err == nil {
+			return strings.TrimSpace(st.FailedExecutionID)
 		}
 	}
 	return ""

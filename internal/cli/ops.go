@@ -13,6 +13,7 @@ func opsCmd() *cobra.Command {
   sudo ` + progName + ` ops k8s install 'ofpk8s1.…'
   sudo ` + progName + ` ops k8s cleanup 'ofpk8s1.…'
   sudo ` + progName + ` ops k8s recover
+  sudo ` + progName + ` ops service recover redis
   sudo ` + progName + ` ops uninstall k8s
   sudo ` + progName + ` ops service install --api-url … --deploy-id … --token …
   sudo ` + progName + ` ops node tune time-sync

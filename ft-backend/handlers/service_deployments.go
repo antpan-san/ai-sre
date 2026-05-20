@@ -75,14 +75,16 @@ func CreateServiceDeployment(c *gin.Context) {
 	aiSreCmd := fmt.Sprintf("sudo ai-sre ops service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(id), quoteShellSingleLine(token))
 	aiSreUpdateCmd := serviceDeploymentUpdateCommand(req.Service)
 	aiSreUninstallCmd := serviceDeploymentUninstallCommand(req.Service)
+	aiSreRecoverCmd := serviceDeploymentRecoverCommand(req.Service)
 	response.OK(c, gin.H{
-		"deploymentId":         id,
-		"token":                token,
-		"curlCommand":          curlCmd,
-		"aiSreCommand":         aiSreCmd,
-		"aiSreUpdateCommand":   aiSreUpdateCmd,
+		"deploymentId":          id,
+		"token":                 token,
+		"curlCommand":           curlCmd,
+		"aiSreCommand":          aiSreCmd,
+		"aiSreUpdateCommand":    aiSreUpdateCmd,
 		"aiSreUninstallCommand": aiSreUninstallCmd,
-		"status":               dep.Status,
+		"aiSreRecoverCommand":   aiSreRecoverCmd,
+		"status":                dep.Status,
 	})
 }
 
@@ -142,9 +144,10 @@ func UpdateServiceDeployment(c *gin.Context) {
 		"token":              req.Token,
 		"curlCommand":        curlCmd,
 		"aiSreCommand":       aiSreCmd,
-		"aiSreUpdateCommand": serviceDeploymentUpdateCommand(req.Service),
+		"aiSreUpdateCommand":    serviceDeploymentUpdateCommand(req.Service),
 		"aiSreUninstallCommand": serviceDeploymentUninstallCommand(req.Service),
-		"status":             "pending_update",
+		"aiSreRecoverCommand":   serviceDeploymentRecoverCommand(req.Service),
+		"status":                "pending_update",
 	})
 }
 
@@ -302,6 +305,14 @@ func serviceDeploymentUninstallCommand(service string) string {
 	return ""
 }
 
+func serviceDeploymentRecoverCommand(service string) string {
+	switch service {
+	case "redis", "mysql", "postgresql", "kafka", "haproxy":
+		return "sudo ai-sre ops service recover " + service
+	}
+	return ""
+}
+
 func loadServiceDeploymentByToken(c *gin.Context) (models.ServiceDeployment, string, bool) {
 	var dep models.ServiceDeployment
 	id, err := uuid.Parse(c.Param("id"))
@@ -343,4 +354,84 @@ func randomToken() (string, error) {
 func hashToken(token string) string {
 	sum := sha256.Sum256([]byte(token))
 	return hex.EncodeToString(sum[:])
+}
+
+// IssueServiceDeploymentPurgeToken creates a short-lived approval token for --purge-data.
+func IssueServiceDeploymentPurgeToken(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "无效的部署 ID")
+		return
+	}
+	var dep models.ServiceDeployment
+	if err := database.DB.Where("id = ?", id).First(&dep).Error; err != nil {
+		response.NotFound(c, "部署任务不存在")
+		return
+	}
+	token, err := randomToken()
+	if err != nil {
+		response.ServerError(c, "生成 purge token 失败")
+		return
+	}
+	expires := time.Now().Add(15 * time.Minute)
+	params := serviceDeploymentParamsMap(dep.Params)
+	params["purge_token_hash"] = hashToken(token)
+	params["purge_token_expires"] = expires.UTC().Format(time.RFC3339)
+	if err := database.DB.Model(&dep).Update("params", models.NewJSONBFromMap(params)).Error; err != nil {
+		response.ServerError(c, "保存 purge token 失败")
+		return
+	}
+	response.OK(c, gin.H{
+		"purge_token": token,
+		"expires_at":  expires.UTC().Format(time.RFC3339),
+		"usage":       fmt.Sprintf("sudo ai-sre ops service uninstall %s --purge-data --purge-token %s --yes", dep.Service, token),
+	})
+}
+
+// VerifyServiceDeploymentPurgeToken validates CLI --purge-token using deployment token auth.
+func VerifyServiceDeploymentPurgeToken(c *gin.Context) {
+	dep, _, ok := loadServiceDeploymentByToken(c)
+	if !ok {
+		return
+	}
+	purgeToken := strings.TrimSpace(c.Query("purge_token"))
+	if purgeToken == "" {
+		response.BadRequest(c, "缺少 purge_token")
+		return
+	}
+	params := serviceDeploymentParamsMap(dep.Params)
+	if hashToken(purgeToken) != strings.TrimSpace(strParam(params, "purge_token_hash")) {
+		response.BadRequest(c, "purge token 无效")
+		return
+	}
+	expRaw := strings.TrimSpace(strParam(params, "purge_token_expires"))
+	if expRaw == "" {
+		response.BadRequest(c, "purge token 未签发")
+		return
+	}
+	exp, err := time.Parse(time.RFC3339, expRaw)
+	if err != nil || time.Now().After(exp) {
+		response.BadRequest(c, "purge token 已过期")
+		return
+	}
+	response.OK(c, gin.H{"ok": true})
+}
+
+func serviceDeploymentParamsMap(raw models.JSONB) map[string]interface{} {
+	out := map[string]interface{}{}
+	if len(raw) > 0 {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	if out == nil {
+		out = map[string]interface{}{}
+	}
+	return out
+}
+
+func strParam(m map[string]interface{}, key string) string {
+	if m == nil {
+		return ""
+	}
+	v, _ := m[key].(string)
+	return strings.TrimSpace(v)
 }

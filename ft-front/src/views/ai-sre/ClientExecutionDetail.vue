@@ -124,12 +124,25 @@
       </el-card>
 
       <el-card v-if="(detail.children || []).length" shadow="never" class="block">
-        <template #header><span>AI 分析阶段</span></template>
+        <template #header><span>{{ recoveryChainHeader }}</span></template>
         <el-table :data="detail.children" size="small" border stripe>
-          <el-table-column prop="category" label="类型" width="120" />
+          <el-table-column prop="category" label="类型" width="160" />
           <el-table-column prop="status" label="状态" width="90" />
-          <el-table-column prop="stdout_summary" label="回答摘要" min-width="240" show-overflow-tooltip />
+          <el-table-column prop="command" label="命令" min-width="200" show-overflow-tooltip />
+          <el-table-column prop="stdout_summary" label="摘要" min-width="180" show-overflow-tooltip />
         </el-table>
+      </el-card>
+
+      <el-card v-if="parentRecord" shadow="never" class="block">
+        <template #header><span>关联安装失败</span></template>
+        <el-descriptions :column="2" border size="small">
+          <el-descriptions-item label="命令" :span="2">{{ parentRecord.command }}</el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="statusTag(String(parentRecord.status || ''))" size="small">{{ parentRecord.status }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="时间">{{ formatTime(String(parentRecord.created_at || '')) }}</el-descriptions-item>
+        </el-descriptions>
+        <el-button link type="primary" size="small" @click="goParentExecution">查看失败安装记录</el-button>
       </el-card>
 
       <el-card shadow="never" class="block">
@@ -211,6 +224,7 @@ const loading = ref(false)
 const feedbackLoading = ref(false)
 const detail = ref<ClientExecutionDetail | null>(null)
 const rec = computed(() => (detail.value?.record || {}) as Record<string, any>)
+const parentRecord = computed(() => detail.value?.parent as Record<string, any> | undefined)
 const meta = computed(() => (rec.value.metadata || {}) as Record<string, any>)
 const enhancement = computed(() => {
   const fromDetail = detail.value?.enhancement_review
@@ -245,13 +259,24 @@ const recoveryMeta = computed(() => {
 
 const recoveryActions = computed(() => {
   const plan = meta.value.install_recovery_plan as { safe_actions?: { id?: string; description?: string }[] } | undefined
-  return Array.isArray(plan?.safe_actions) ? plan!.safe_actions! : []
+  return plan?.safe_actions || []
+})
+
+const recoveryChainHeader = computed(() => {
+  const children = detail.value?.children || []
+  const hasRecover = children.some((c) => String((c as Record<string, unknown>).category || '').includes('recover'))
+  return hasRecover ? '恢复 / 关联执行' : 'AI 分析阶段'
 })
 
 const deliveryRecoverCommand = computed(() => {
   const plan = rec.value.rollback_plan as Record<string, unknown> | undefined
   const manual = plan?.manual_command
   if (typeof manual === 'string' && manual.trim()) return manual.trim()
+  const cat = String(rec.value.category || '')
+  if (cat.startsWith('service_')) {
+    const topic = String(meta.value.topic || cat.replace(/^service_[^_]+_/, ''))
+    if (topic) return `sudo ai-sre ops service recover ${topic}`
+  }
   return 'sudo ai-sre ops k8s recover'
 })
 
@@ -259,7 +284,12 @@ const deliveryUninstallCommand = computed(() => {
   const plan = rec.value.rollback_plan as Record<string, unknown> | undefined
   const cmd = plan?.cleanup_command
   if (typeof cmd === 'string' && cmd.trim()) return cmd.trim()
-  if (String(rec.value.category || '').startsWith('k8s_')) return 'sudo ai-sre ops uninstall k8s'
+  const cat = String(rec.value.category || '')
+  if (cat.startsWith('k8s_')) return 'sudo ai-sre ops uninstall k8s'
+  const topic = String(meta.value.topic || '')
+  if (topic && ['redis', 'mysql', 'postgresql', 'kafka', 'haproxy'].includes(topic)) {
+    return `sudo ai-sre ops service uninstall ${topic}`
+  }
   return ''
 })
 
@@ -383,6 +413,10 @@ const submitFeedback = async (helpful: boolean) => {
 }
 
 const goBack = () => router.push(`${shellPrefix}/ai-sre/executions`)
+const goParentExecution = () => {
+  const id = String(parentRecord.value?.id || '')
+  if (id) router.push(`${shellPrefix}/ai-sre/executions/${id}`)
+}
 const goRuntime = () => router.push(`${shellPrefix}/advanced/runtime-observe`)
 const goAutoIteration = () => router.push({ path: '/admin/auto-iterations', query: { id: detail.value?.auto_iteration_id } })
 const goErrorCodes = () => router.push(`${shellPrefix}/help/error-codes`)

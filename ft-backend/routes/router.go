@@ -61,6 +61,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.GET("/service-deploy/deployments/:id/spec", handlers.GetServiceDeploymentSpec)
 		public.POST("/service-deploy/deployments/:id/events", handlers.PostServiceDeploymentEvent)
 		public.POST("/service-deploy/deployments/:id/finish", handlers.FinishServiceDeployment)
+		public.GET("/service-deploy/deployments/:id/purge-token/verify", handlers.VerifyServiceDeploymentPurgeToken)
 		public.POST("/execution-records/report/start", handlers.StartExecutionRecord)
 		public.POST("/execution-records/report/event", handlers.PostExecutionEvent)
 		public.POST("/execution-records/report/finish", handlers.FinishExecutionRecord)
@@ -259,6 +260,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		svcAdmin.POST("/service/linux/operate", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.OperateLinuxService)
 		svcAdmin.POST("/service-deploy/deployments", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.CreateServiceDeployment)
 		svcAdmin.PUT("/service-deploy/deployments/:id", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.UpdateServiceDeployment)
+		svcAdmin.POST("/service-deploy/deployments/:id/purge-token", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.IssueServiceDeploymentPurgeToken)
 
 		// ---- K8s Deployment（计费开启时需 pack.k8s_delivery） ----
 		k8sPaid := protected.Group("")

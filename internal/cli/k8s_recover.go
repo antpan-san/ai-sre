@@ -285,10 +285,10 @@ func postInstallRecoveryAnalyze(ctx context.Context, evidence map[string]interfa
 		return plan, errors.New("missing OPSFLEET_API_URL or CLI token")
 	}
 	body, _ := json.Marshal(map[string]interface{}{
-		"topic":     "k8s",
-		"operation": "install_recovery",
-		"context":   evidence,
-		"command":   strings.Join(os.Args, " "),
+		"topic":      evidenceTopic(evidence),
+		"operation":  "install_recovery",
+		"context":    evidence,
+		"command":    strings.Join(os.Args, " "),
 		"request_id": uuid.NewString(),
 	})
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, base+"/api/cli/install-recovery/analyze", bytes.NewReader(body))
@@ -357,6 +357,7 @@ func applyK8sRecoveryPlan(ctx context.Context, evidence map[string]interface{}, 
 		"recovery_request_id":     plan.RequestID,
 		"recovery_need_iteration": plan.NeedIteration,
 		"install_recovery_plan":   planToMeta(plan),
+		"execution_intent":        buildOpsExecutionIntent([]string{"ops", "k8s", "recover"}),
 	})
 	fmt.Printf("【根因】%s\n", strings.TrimSpace(plan.RootCause))
 	if plan.FailedStep != "" {
@@ -457,6 +458,16 @@ func aptLockHeld() bool {
 	}
 	out, _ := exec.Command("pgrep", "-x", "unattended-upgr").CombinedOutput()
 	return len(strings.TrimSpace(string(out))) > 0
+}
+
+func evidenceTopic(ev map[string]interface{}) string {
+	if ev == nil {
+		return "k8s"
+	}
+	if t, _ := ev["topic"].(string); strings.TrimSpace(t) != "" {
+		return strings.TrimSpace(t)
+	}
+	return "k8s"
 }
 
 func postInstallRecoveryFinish(ctx context.Context, plan installRecoveryPlan, status, message string) {

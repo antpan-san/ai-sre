@@ -20,11 +20,12 @@ type K8sRecoveryState struct {
 	InviteID    string    `json:"invite_id,omitempty"`
 	BundleRoot  string    `json:"bundle_root,omitempty"`
 	LastBundle  string    `json:"last_bundle,omitempty"`
-	FailedStep  string    `json:"failed_step,omitempty"`
-	ExitCode    int       `json:"exit_code,omitempty"`
-	LogTail     string    `json:"log_tail,omitempty"`
-	Inventory   string    `json:"inventory_path,omitempty"`
-	AnsibleRoot string    `json:"ansible_root,omitempty"`
+	FailedStep         string    `json:"failed_step,omitempty"`
+	ExitCode           int       `json:"exit_code,omitempty"`
+	LogTail            string    `json:"log_tail,omitempty"`
+	Inventory          string    `json:"inventory_path,omitempty"`
+	AnsibleRoot        string    `json:"ansible_root,omitempty"`
+	FailedExecutionID  string    `json:"failed_execution_id,omitempty"`
 }
 
 func loadK8sRecoveryState() (*K8sRecoveryState, error) {
@@ -70,14 +71,15 @@ func captureK8sInstallFailure(bundleRoot, installRef, operation string, exitCode
 		root = K8sLastBundlePath
 	}
 	st := K8sRecoveryState{
-		Operation:   firstNonEmptyStr(operation, "install"),
-		InstallRef:  strings.TrimSpace(installRef),
-		BundleRoot:  root,
-		LastBundle:  K8sLastBundlePath,
-		FailedStep:  strings.TrimSpace(failedStep),
-		ExitCode:    exitCode,
-		Inventory:   filepath.Join(root, "inventory", "hosts.ini"),
-		AnsibleRoot: filepath.Join(root, "ansible-agent"),
+		Operation:         firstNonEmptyStr(operation, "install"),
+		InstallRef:        strings.TrimSpace(installRef),
+		BundleRoot:        root,
+		LastBundle:        K8sLastBundlePath,
+		FailedStep:        strings.TrimSpace(failedStep),
+		ExitCode:          exitCode,
+		Inventory:         filepath.Join(root, "inventory", "hosts.ini"),
+		AnsibleRoot:       filepath.Join(root, "ansible-agent"),
+		FailedExecutionID: strings.TrimSpace(ActiveExecutionRecordID()),
 	}
 	if st.InstallRef != "" {
 		if wire, err := decodeInstallRefV1(st.InstallRef); err == nil {
