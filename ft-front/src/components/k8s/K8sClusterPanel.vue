@@ -2,7 +2,7 @@
   <div class="k8s-cluster-panel">
     <div class="k8s-cluster-panel__toolbar">
       <p class="k8s-cluster-panel__hint page-desc--muted">
-        租户内已登记的 Kubernetes 集群；新建部署请从「工作负载 → Kubernetes」进入。
+        租户内已登记的 Kubernetes 集群；新建部署请从「部署中心 → Kubernetes」进入。
       </p>
       <el-button type="primary" size="small" @click="goToDeploy">新建集群</el-button>
     </div>

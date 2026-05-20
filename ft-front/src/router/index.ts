@@ -10,7 +10,7 @@ type AppHubSection = 'delivery' | 'troubleshoot' | 'observe' | 'monitoring' | 'd
 
 function appHub(section: AppHubSection, hubCapabilityId?: string) {
   return {
-    hubMenu: '/app/workloads',
+    hubMenu: '/app/deploy',
     hubSection: section,
     ...(hubCapabilityId ? { hubCapabilityId } : {})
   }
@@ -345,15 +345,23 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '执行详情', requireAuth: true, roles: appRoles }
       },
       {
+        path: 'deploy',
+        name: 'AppDeployCenter',
+        component: () => import('../views/app/DeployCenter.vue'),
+        meta: { title: '部署中心', requireAuth: true, roles: appRoles }
+      },
+      {
         path: 'workloads',
-        name: 'AppWorkloads',
-        component: () => import('../views/app/Workloads.vue'),
-        meta: { title: '工作负载', requireAuth: true, roles: appRoles }
+        redirect: (to) => ({
+          path: '/app/deploy',
+          query: to.query,
+          hash: to.hash || undefined
+        })
       },
       {
         path: 'capabilities',
         redirect: (to) => ({
-          path: '/app/workloads',
+          path: '/app/deploy',
           query: to.query,
           hash: to.hash || undefined
         })

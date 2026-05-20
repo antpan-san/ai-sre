@@ -22,6 +22,9 @@
         <article class="kpi-tile kpi-tile--link" @click="goCapabilities">
           <span class="kpi-tile__label">已订阅能力</span>
           <div class="kpi-tile__value">{{ subscribedCount }}</div>
+          <el-link class="kpi-tile__link" type="primary" :underline="false" @click.stop="goSubscribeable">
+            查看可订阅
+          </el-link>
         </article>
         <article class="kpi-tile">
           <span class="kpi-tile__label">业务服务</span>
@@ -40,8 +43,8 @@
         </template>
         <div class="next-actions">
           <el-button @click="router.push('/app/troubleshooting')">问题排查</el-button>
-          <el-button @click="router.push('/app/workloads')">管理工作负载</el-button>
-          <el-button @click="router.push('/app/workloads?tab=packs')">我的功能包</el-button>
+          <el-button @click="router.push('/app/deploy')">部署中心</el-button>
+          <el-button @click="router.push('/app/deploy?expand=subscribe')">可订阅能力</el-button>
           <el-button @click="router.push('/app/settings')">安装 CLI</el-button>
         </div>
       </el-card>
@@ -72,7 +75,7 @@
         <template #header>
           <div class="panel-head">
             <span>已订阅能力</span>
-            <el-link type="primary" :underline="false" @click="goCapabilities">我的功能包</el-link>
+            <el-link type="primary" :underline="false" @click="goDeploy">部署中心</el-link>
           </div>
         </template>
         <ul class="sub-list">
@@ -113,7 +116,9 @@ const refresh = async () => {
 
 const goExec = () => router.push('/app/execution-records')
 const goJobs = () => router.push('/app/job/center')
-const goCapabilities = () => router.push('/app/workloads?tab=packs')
+const goDeploy = () => router.push('/app/deploy')
+const goCapabilities = () => router.push('/app/deploy')
+const goSubscribeable = () => router.push('/app/deploy?expand=subscribe')
 
 const formatTs = (iso?: string) => {
   if (!iso) return '—'
@@ -192,6 +197,10 @@ onMounted(() => {
   margin-top: auto;
   font-size: 10px;
   color: var(--el-text-color-placeholder);
+}
+.kpi-tile__link {
+  margin-top: auto;
+  font-size: 11px;
 }
 .dash-panels--app {
   display: grid;
