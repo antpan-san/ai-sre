@@ -396,13 +396,16 @@ const submitRefine = async () => {
 }
 
 const markReview = async (row: SkillEnhancementReview, status: 'refined' | 'dismissed') => {
-  if (!row.request_id) {
-    ElMessage.warning('缺少 request_id，无法更新状态')
+  const reviewKey = row.review_key?.trim()
+  const requestId = row.request_id?.trim()
+  if (!requestId && !reviewKey) {
+    ElMessage.warning('缺少 review_key，无法更新状态')
     return
   }
   try {
     await updateSkillEnhancementStatus({
-      request_id: row.request_id,
+      request_id: requestId || undefined,
+      review_key: reviewKey || undefined,
       topic: row.topic,
       status,
       note: status === 'refined' ? '管理员标记已精炼' : '管理员忽略'

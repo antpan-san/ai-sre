@@ -35,7 +35,7 @@ func TestUpdateEnhancementReviewStatus(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := UpdateEnhancementReviewStatus(reg, "req-1", "redis", "refined", "ok"); err != nil {
+	if err := UpdateEnhancementReviewStatus(reg, "req-1", "", "redis", "refined", "ok"); err != nil {
 		t.Fatal(err)
 	}
 	rows, err := ListEnhancementReviews(reg, 10, false)

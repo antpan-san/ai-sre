@@ -15,6 +15,7 @@ import (
 type SkillEnhancementReview struct {
 	Time               time.Time `json:"time"`
 	RequestID          string    `json:"request_id,omitempty"`
+	ReviewKey          string    `json:"review_key,omitempty"` // stable dedup id; required when request_id is empty
 	Topic              string    `json:"topic"`
 	CommandKind        string    `json:"command_kind,omitempty"` // analyze, ask, runbook
 	SkillName          string    `json:"skill_name,omitempty"`
@@ -273,7 +274,32 @@ func evaluateRedisEnhancement(kv map[string]string, answer string) []string {
 	return out
 }
 
+func enhancementReviewKey(r SkillEnhancementReview) string {
+	if k := strings.TrimSpace(r.ReviewKey); k != "" {
+		return k
+	}
+	topic := strings.ToLower(strings.TrimSpace(r.Topic))
+	if rid := strings.TrimSpace(r.RequestID); rid != "" {
+		return topic + "|" + rid
+	}
+	if !r.Time.IsZero() {
+		return topic + "|@|" + r.Time.UTC().Format(time.RFC3339Nano)
+	}
+	return ""
+}
+
+func ensureEnhancementReviewKey(r *SkillEnhancementReview) {
+	if r == nil {
+		return
+	}
+	if strings.TrimSpace(r.ReviewKey) != "" {
+		return
+	}
+	r.ReviewKey = enhancementReviewKey(*r)
+}
+
 func appendEnhancementReviewLog(reg *SkillRegistry, review SkillEnhancementReview) error {
+	ensureEnhancementReviewKey(&review)
 	dir := reg.DataDir()
 	if dir == "" {
 		return nil
@@ -305,9 +331,10 @@ func ListEnhancementReviews(reg *SkillRegistry, limit int, openOnly bool) ([]Ski
 		if json.Unmarshal([]byte(ln), &r) != nil {
 			continue
 		}
-		key := strings.ToLower(strings.TrimSpace(r.Topic)) + "|" + strings.TrimSpace(r.RequestID)
-		if key == "|" {
-			key = r.Time.Format(time.RFC3339Nano)
+		ensureEnhancementReviewKey(&r)
+		key := enhancementReviewKey(r)
+		if key == "" {
+			continue
 		}
 		if prev, ok := latest[key]; !ok || r.Time.After(prev.Time) {
 			latest[key] = r
@@ -328,9 +355,19 @@ func ListEnhancementReviews(reg *SkillRegistry, limit int, openOnly bool) ([]Ski
 }
 
 // UpdateEnhancementReviewStatus records a refined/dismissed decision for a review.
-func UpdateEnhancementReviewStatus(reg *SkillRegistry, requestID, topic, status, note string) error {
+// Either requestID or reviewKey must identify the row (reviewKey is required when requestID is empty).
+func UpdateEnhancementReviewStatus(reg *SkillRegistry, requestID, reviewKey, topic, status, note string) error {
 	if reg == nil {
 		reg = DefaultSkillRegistry()
+	}
+	requestID = strings.TrimSpace(requestID)
+	reviewKey = strings.TrimSpace(reviewKey)
+	topic = strings.ToLower(strings.TrimSpace(topic))
+	if requestID == "" && reviewKey == "" {
+		return fmt.Errorf("request_id or review_key required")
+	}
+	if topic == "" {
+		return fmt.Errorf("topic required")
 	}
 	status = strings.ToLower(strings.TrimSpace(status))
 	if status != "refined" && status != "dismissed" {
@@ -338,8 +375,9 @@ func UpdateEnhancementReviewStatus(reg *SkillRegistry, requestID, topic, status,
 	}
 	review := SkillEnhancementReview{
 		Time:              time.Now().UTC(),
-		RequestID:         strings.TrimSpace(requestID),
-		Topic:             strings.ToLower(strings.TrimSpace(topic)),
+		RequestID:         requestID,
+		ReviewKey:         reviewKey,
+		Topic:             topic,
 		CommandKind:       "admin_review",
 		NeedsEnhancement:  false,
 		Priority:          "low",

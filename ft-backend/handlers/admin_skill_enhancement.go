@@ -43,7 +43,8 @@ func AdminSkillEnhancementSummary(c *gin.Context) {
 }
 
 type adminEnhancementStatusRequest struct {
-	RequestID string `json:"request_id" binding:"required"`
+	RequestID string `json:"request_id"`
+	ReviewKey string `json:"review_key"`
 	Topic     string `json:"topic" binding:"required"`
 	Status    string `json:"status" binding:"required"`
 	Note      string `json:"note"`
@@ -56,7 +57,13 @@ func AdminUpdateSkillEnhancementStatus(c *gin.Context) {
 		response.BadRequest(c, "无效参数")
 		return
 	}
-	if err := services.UpdateEnhancementReviewStatus(services.DefaultSkillRegistry(), req.RequestID, req.Topic, req.Status, req.Note); err != nil {
+	req.RequestID = strings.TrimSpace(req.RequestID)
+	req.ReviewKey = strings.TrimSpace(req.ReviewKey)
+	if req.RequestID == "" && req.ReviewKey == "" {
+		response.BadRequest(c, "request_id 或 review_key 必填其一")
+		return
+	}
+	if err := services.UpdateEnhancementReviewStatus(services.DefaultSkillRegistry(), req.RequestID, req.ReviewKey, req.Topic, req.Status, req.Note); err != nil {
 		logger.Error("AdminUpdateSkillEnhancementStatus: %v", err)
 		response.BadRequest(c, err.Error())
 		return

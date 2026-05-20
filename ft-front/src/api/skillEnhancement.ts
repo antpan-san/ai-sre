@@ -3,6 +3,7 @@ import request from '../utils/request'
 export interface SkillEnhancementReview {
   time?: string
   request_id?: string
+  review_key?: string
   topic: string
   command_kind?: string
   skill_name?: string
@@ -47,7 +48,8 @@ export function listAdminSkillEnhancementReviews(limit = 50, openOnly = true) {
 }
 
 export function updateSkillEnhancementStatus(body: {
-  request_id: string
+  request_id?: string
+  review_key?: string
   topic: string
   status: 'refined' | 'dismissed'
   note?: string
