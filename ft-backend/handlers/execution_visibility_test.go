@@ -1,6 +1,13 @@
 package handlers
 
-import "testing"
+import (
+	"testing"
+
+	"ft-backend/models"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
 
 func TestExecutionCategoryUsesAICapability(t *testing.T) {
 	cases := []struct {
@@ -42,5 +49,20 @@ func TestExecutionCategoryVisibleToOwner(t *testing.T) {
 		if got := executionCategoryVisibleToOwner(tc.cat); got != tc.ok {
 			t.Fatalf("category %q: want %v got %v", tc.cat, tc.ok, got)
 		}
+	}
+}
+
+func TestApplyExecutionConsoleMemberScopeSQL(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{DryRun: true})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	var total int64
+	tx := applyExecutionConsoleMemberScope(db.Model(&models.ExecutionRecord{}), "user", "testuser").Count(&total)
+	if tx.Error != nil {
+		t.Fatalf("member scope count dry-run: %v", tx.Error)
+	}
+	if tx.Statement.SQL.String() == "" {
+		t.Fatal("expected generated SQL")
 	}
 }

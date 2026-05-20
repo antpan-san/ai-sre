@@ -50,7 +50,7 @@ func applyExecutionConsoleMemberScope(db *gorm.DB, role, username string) *gorm.
 	ownerCats := []string{"analyze", "ask", "runbook", "skills", "doctor", "elasticsearch", "go_runtime", "install_ai_sre"}
 	return db.Where("(created_by = ? OR trigger_user = ?)", u, u).
 		Where(
-			"(LOWER(status) IN ? OR LOWER(category) IN ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(source) IN ?)",
+			"(LOWER(status) IN ? OR LOWER(category) IN ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(category) LIKE ? OR LOWER(source) IN ?)",
 			term,
 			ownerCats,
 			"analyze%",
