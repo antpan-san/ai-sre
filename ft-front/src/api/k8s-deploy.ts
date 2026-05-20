@@ -139,6 +139,8 @@ export function createK8sBundleInvite(
   bootstrapCommand: string
   /** 部署失败或需重置：按页面 inventory 对全部节点执行 pre_cleanup */
   cleanupCommand: string
+  recoverCommand?: string
+  uninstallCommand?: string
 }> {
   const body = {
     ...buildK8sDeployFlatBody(config),

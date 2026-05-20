@@ -632,6 +632,27 @@
                     复制
                   </el-button>
                 </el-collapse-item>
+                <el-collapse-item title="安装失败恢复" name="recover">
+                  <p class="confirm-cmd-card__hint">
+                    安装/bootstrap 失败后会写入 <code>/var/lib/opsfleet-k8s/recovery-state.json</code>，在控制机执行一条命令即可分析并继续安装。
+                  </p>
+                  <el-input
+                    type="textarea"
+                    :rows="2"
+                    readonly
+                    :model-value="lastInvite.recoverCommand || `sudo ai-sre ops k8s recover '${lastInvite.installRef}'`"
+                    class="install-command-textarea"
+                  />
+                </el-collapse-item>
+                <el-collapse-item title="卸载集群（保留 last-bundle 快照）" name="uninstall">
+                  <el-input
+                    type="textarea"
+                    :rows="2"
+                    readonly
+                    :model-value="lastInvite.uninstallCommand || 'sudo ai-sre ops uninstall k8s'"
+                    class="install-command-textarea"
+                  />
+                </el-collapse-item>
                 <el-collapse-item title="全节点清理（部署失败或重置环境）" name="cleanup">
                   <p class="confirm-cmd-card__hint">
                     与页面「节点配置」中的 master/worker 一致：重新拉取同一离线包，对 inventory 中全部节点执行
@@ -943,6 +964,8 @@ const lastInvite = ref<{
   installCommand: string
   bootstrapCommand: string
   cleanupCommand: string
+  recoverCommand?: string
+  uninstallCommand?: string
 } | null>(null)
 /** true：离线 zip（推荐）；false：经 Agent 在线部署 */
 const offlineBundleMode = ref(true)
@@ -1495,7 +1518,9 @@ const handleCreateInstallRef = async () => {
       installRef: data.installRef,
       installCommand: data.installCommand,
       bootstrapCommand: data.bootstrapCommand,
-      cleanupCommand: data.cleanupCommand || `sudo ai-sre ops k8s cleanup '${data.installRef}'`
+      cleanupCommand: data.cleanupCommand || `sudo ai-sre ops k8s cleanup '${data.installRef}'`,
+      recoverCommand: data.recoverCommand,
+      uninstallCommand: data.uninstallCommand
     }
     try {
       await navigator.clipboard.writeText(data.bootstrapCommand)

@@ -1,4 +1,8 @@
 ---
+# conntrack / ipset 是 kube-proxy（iptables/ipvs）在节点 OS 上的运行时依赖，与 control_plane_deploy_method=binary 无关。
+- name: Wait for apt lock before kube-proxy OS dependencies
+  ansible.builtin.import_tasks: ../../../tasks/wait_for_apt_lock.yml
+
 - name: Install kube-proxy dependencies (Ubuntu)
   ansible.builtin.apt:
     name:
@@ -6,6 +10,8 @@
       - ipset
     state: present
     update_cache: false
+    lock_timeout: "{{ apt_lock_timeout_seconds | default(600) }}"
+  when: ansible_facts.get('os_family') == 'Debian'
 
 - name: Ensure PKI directory on node
   ansible.builtin.file:

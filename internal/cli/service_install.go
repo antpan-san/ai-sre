@@ -59,7 +59,7 @@ func serviceCmd() *cobra.Command {
 		Use:   "service",
 		Short: "基础服务安装（从 OpsFleet 服务端拉取参数）",
 	}
-	cmd.AddCommand(serviceInstallCmd())
+	cmd.AddCommand(serviceInstallCmd(), serviceUninstallCmd())
 	return cmd
 }
 

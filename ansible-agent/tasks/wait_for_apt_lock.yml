@@ -1,0 +1,26 @@
+---
+# Debian/Ubuntu：等待 unattended-upgrades 等后台 apt 释放 dpkg 锁后再装包。
+# 二进制 K8s 部署仍可能需要少量 OS 依赖（如 kube-proxy 的 conntrack/ipset）。
+- name: Wait for apt/dpkg lock (background unattended-upgrades)
+  ansible.builtin.shell: |
+    set -euo pipefail
+    end=$((SECONDS + {{ apt_lock_wait_seconds | default(600) }}))
+    while [ "$SECONDS" -lt "$end" ]; do
+      locked=0
+      for lock in /var/lib/dpkg/lock-frontend /var/lib/dpkg/lock /var/lib/apt/lists/lock; do
+        if [ -e "$lock" ] && fuser "$lock" >/dev/null 2>&1; then
+          locked=1
+          break
+        fi
+      done
+      if [ "$locked" -eq 0 ] && ! pgrep -x unattended-upgr >/dev/null 2>&1; then
+        exit 0
+      fi
+      sleep 5
+    done
+    echo "[ERROR-CODE] OPSFLEET_K8S_APT_LOCK_TIMEOUT Unable to acquire dpkg lock within {{ apt_lock_wait_seconds | default(600) }}s (often unattended-upgrades on Ubuntu)" >&2
+    exit 1
+  args:
+    executable: /bin/bash
+  changed_when: false
+  when: ansible_facts.get('os_family') == 'Debian'

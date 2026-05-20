@@ -99,7 +99,7 @@ func k8sCmd() *cobra.Command {
   sudo %s k8s diagnose --preflight            # 只做部署前预检
   sudo %s k8s diagnose --json | tee diag.json # JSON 便于喂给 LLM`, progName, progName, progName, progName, progName, progName, progName, progName, progName, progName, progName),
 	}
-	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sCleanupCmd(), k8sUninstallCmd(), k8sDiagnoseCmd())
+	cmd.AddCommand(k8sDownloadCmd(), k8sInstallCmd(), k8sCleanupCmd(), k8sRecoverCmd(), k8sUninstallCmd(), k8sDiagnoseCmd())
 	return cmd
 }
 
@@ -480,8 +480,14 @@ func downloadInviteZipAndRunInstall(apiBase, inviteID, token, refHint string) er
 	defer cleanup()
 
 	err = runInstallSh(root)
+	if err != nil {
+		captureK8sInstallFailure(root, refHint, "install", 1, "install.sh")
+		if strings.TrimSpace(refHint) != "" {
+			fmt.Fprintf(os.Stderr, "\n[%s] 安装未成功。执行恢复: sudo %s ops k8s recover '%s'\n", progName, progName, strings.TrimSpace(refHint))
+			fmt.Fprintf(os.Stderr, "  或清理: sudo %s ops uninstall k8s\n", progName)
+		}
+	}
 	if err != nil && strings.TrimSpace(refHint) != "" {
-		fmt.Fprintf(os.Stderr, "\n[%s] 安装未成功。可在同一台控制机上（须已对 inventory 中各节点 root 免密）任选其一清理：\n  sudo %s uninstall k8s\n  sudo %s k8s cleanup '%s'\n", progName, progName, progName, strings.TrimSpace(refHint))
 		fmt.Fprintf(os.Stderr, "  可选：export OPSFLEET_K8S_AUTO_CLEANUP_ON_FAIL=1 后重试安装，失败时将自动对包内节点执行 pre_cleanup。\n")
 	}
 	if err != nil {
@@ -712,24 +718,33 @@ func k8sCleanupCmd() *cobra.Command {
 }
 
 func k8sUninstallCmd() *cobra.Command {
-	var workdir string
+	var refOverride, workdir string
+	var force, dryRun, yes bool
 	cmd := &cobra.Command{
 		Use:   "uninstall",
-		Short: "在已解压的离线包目录上执行 Ansible pre_cleanup（清理 K8s/etcd 残留）",
-		Long: `等同 k8s cleanup --workdir：停止 systemd 单元并删除 /var/lib/etcd、/etc/kubernetes 等。
-推荐新流程使用 k8s cleanup 'ofpk8s1…'（无需保留解压目录）。`,
+		Short: "卸载 K8s 集群（优先 last-bundle，等同 ops uninstall k8s）",
+		Long: `优先使用 ` + K8sLastBundlePath + ` 执行 pre_cleanup；也可 --workdir 或 --ref。
+
+推荐: sudo ai-sre ops uninstall k8s`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if strings.TrimSpace(workdir) == "" {
-				return errors.New("请指定 --workdir <离线包解压根目录>")
-			}
-			root, err := filepath.Abs(workdir)
-			if err != nil {
+			if err := requireOpsRoot("K8s 卸载"); err != nil {
 				return err
 			}
-			return runCleanupPlaybook(filepath.Join(root, "ansible-agent"), filepath.Join(root, "inventory", "hosts.ini"))
+			if dryRun {
+				fmt.Println("将执行 runUninstallK8s")
+				return nil
+			}
+			if err := requireOpsMutationConfirm(yes, "K8s 卸载"); err != nil {
+				return err
+			}
+			return runUninstallK8s(refOverride, workdir, force)
 		},
 	}
+	cmd.Flags().StringVar(&refOverride, "ref", "", "显式 ofpk8s1 安装引用")
 	cmd.Flags().StringVar(&workdir, "workdir", "", "离线包解压根目录")
+	cmd.Flags().BoolVar(&force, "force", false, "仅使用本机 last-bundle")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", false, "只展示将执行的操作")
+	cmd.Flags().BoolVar(&yes, "yes", false, "非 TTY 确认")
 	return cmd
 }
 

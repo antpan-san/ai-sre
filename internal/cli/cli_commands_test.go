@@ -15,6 +15,8 @@ func TestAllowedCLIAISreDiagnosticCommand_probeAndCheck(t *testing.T) {
 		{name: "reject analyze", argv: []string{"ai-sre", "analyze", "kafka", "--lag", "1"}, want: false},
 		{name: "reject legacy k8s install path", argv: []string{"ai-sre", "k8s", "install", "ref"}, want: false},
 		{name: "ops k8s install", argv: []string{"ai-sre", "ops", "k8s", "install", "ref"}, want: true},
+		{name: "ops k8s recover", argv: []string{"ai-sre", "ops", "k8s", "recover"}, want: true},
+		{name: "ops uninstall k8s", argv: []string{"ai-sre", "ops", "uninstall", "k8s"}, want: true},
 		{name: "reject shell", argv: []string{"ai-sre", "expert", "probe", "redis", "127.0.0.1:6379", ";rm"}, want: false},
 	}
 	for _, tc := range cases {

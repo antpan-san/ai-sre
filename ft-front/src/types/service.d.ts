@@ -49,6 +49,7 @@ export interface CreateServiceDeploymentResponse {
   curlCommand: string
   aiSreCommand: string
   aiSreUpdateCommand?: string
+  aiSreUninstallCommand?: string
   status: string
 }
 

@@ -490,11 +490,18 @@ func allowedCLIAISreOpsCommand(argv []string) bool {
 			return false
 		}
 		switch argv[3] {
-		case "install", "cleanup", "uninstall", "download", "diagnose":
+		case "install", "cleanup", "uninstall", "download", "diagnose", "recover":
 			return true
 		}
 	case "service":
-		return len(argv) >= 4 && argv[3] == "install"
+		if len(argv) >= 4 {
+			switch argv[3] {
+			case "install", "uninstall":
+				return true
+			}
+		}
+	case "uninstall":
+		return len(argv) >= 3
 	case "node":
 		return len(argv) >= 5 && argv[3] == "tune"
 	case "job":

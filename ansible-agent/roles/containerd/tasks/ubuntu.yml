@@ -1,4 +1,7 @@
 ---
+- name: Wait for apt lock before containerd packages
+  ansible.builtin.import_tasks: ../../../tasks/wait_for_apt_lock.yml
+
 - name: Install containerd and runc (Ubuntu)
   ansible.builtin.apt:
     name:
@@ -6,6 +9,7 @@
       - runc
     state: present
     update_cache: true
+    lock_timeout: "{{ apt_lock_timeout_seconds | default(600) }}"
 
 # apt 包有时不会预先创建 /etc/containerd，重定向写 config.toml 会报 Directory nonexistent
 - name: Ensure /etc/containerd directory exists

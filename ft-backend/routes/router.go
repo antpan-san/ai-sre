@@ -73,6 +73,9 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		public.POST("/cli/diagnostics/plan", middleware.RateLimit("cli-diagnostic-plan", 120, time.Minute), handlers.CreateCLIDiagnosticPlan)
 		public.POST("/cli/diagnostics/observations", middleware.RateLimit("cli-diagnostic-observations", 240, time.Minute), handlers.PostCLIDiagnosticPlanObservations)
 		public.POST("/cli/feedback/analyze", middleware.RateLimit("cli-feedback-analyze", 60, time.Minute), handlers.PostCLIFeedbackAnalyze)
+		public.POST("/cli/install-recovery/analyze", middleware.RateLimit("cli-install-recovery-analyze", 30, time.Minute), handlers.PostCLIInstallRecoveryAnalyze)
+		public.POST("/cli/install-recovery/events", middleware.RateLimit("cli-install-recovery-events", 120, time.Minute), handlers.PostCLIInstallRecoveryEvent)
+		public.POST("/cli/install-recovery/finish", middleware.RateLimit("cli-install-recovery-finish", 60, time.Minute), handlers.PostCLIInstallRecoveryFinish)
 		public.POST("/cli/skill-samples", middleware.RateLimit("cli-skill-samples", 120, time.Minute), handlers.PostCLISkillSample)
 
 		codeAgent := public.Group("/code-agent")

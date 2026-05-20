@@ -301,6 +301,16 @@
             <el-button size="small" :icon="DocumentCopy" :disabled="!generatedDeployment" @click="copy(aiSreInstallCommand)">复制命令</el-button>
           </div>
           <pre class="code-block">{{ aiSreInstallCommand }}</pre>
+          <div v-if="aiSreUpdateCommand" class="tab-actions" style="margin-top: 12px">
+            <el-tag size="small">更新</el-tag>
+            <el-button size="small" :icon="DocumentCopy" @click="copy(aiSreUpdateCommand)">复制更新命令</el-button>
+          </div>
+          <pre v-if="aiSreUpdateCommand" class="code-block">{{ aiSreUpdateCommand }}</pre>
+          <div v-if="aiSreUninstallCommand" class="tab-actions" style="margin-top: 12px">
+            <el-tag size="small" type="warning">卸载</el-tag>
+            <el-button size="small" :icon="DocumentCopy" @click="copy(aiSreUninstallCommand)">复制卸载命令</el-button>
+          </div>
+          <pre v-if="aiSreUninstallCommand" class="code-block">{{ aiSreUninstallCommand }}</pre>
         </el-tab-pane>
       </el-tabs>
     </el-dialog>
@@ -985,7 +995,12 @@ const aiSreInstallCommand = computed(() => generatedDeployment.value?.aiSreComma
 const updatableServices = new Set(['nginx', 'elasticsearch'])
 const aiSreUpdateCommand = computed(() => {
   if (generatedDeployment.value?.aiSreUpdateCommand) return generatedDeployment.value.aiSreUpdateCommand
-  if (form.service && updatableServices.has(form.service)) return `sudo ai-sre ${form.service} update`
+  if (form.service && updatableServices.has(form.service)) return `sudo ai-sre ops ${form.service} update`
+  return ''
+})
+const aiSreUninstallCommand = computed(() => {
+  if (generatedDeployment.value?.aiSreUninstallCommand) return generatedDeployment.value.aiSreUninstallCommand
+  if (form.service) return `sudo ai-sre ops service uninstall ${form.service}`
   return ''
 })
 

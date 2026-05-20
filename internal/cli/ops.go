@@ -12,6 +12,8 @@ func opsCmd() *cobra.Command {
 示例:
   sudo ` + progName + ` ops k8s install 'ofpk8s1.…'
   sudo ` + progName + ` ops k8s cleanup 'ofpk8s1.…'
+  sudo ` + progName + ` ops k8s recover
+  sudo ` + progName + ` ops uninstall k8s
   sudo ` + progName + ` ops service install --api-url … --deploy-id … --token …
   sudo ` + progName + ` ops node tune time-sync
   ` + progName + ` ops job run --machines … -c 'uptime'`,
@@ -19,6 +21,7 @@ func opsCmd() *cobra.Command {
 	cmd.AddCommand(
 		k8sCmd(),
 		serviceCmd(),
+		opsUninstallCmd(),
 		opsNginxCmd(),
 		opsElasticsearchCmd(),
 		nodeCmd(),

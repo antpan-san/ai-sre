@@ -74,13 +74,15 @@ func CreateServiceDeployment(c *gin.Context) {
 	curlCmd := fmt.Sprintf("curl -fsSL '%s/api/service-deploy/deployments/%s/bootstrap.sh?token=%s' | sudo bash", base, id, token)
 	aiSreCmd := fmt.Sprintf("sudo ai-sre ops service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(id), quoteShellSingleLine(token))
 	aiSreUpdateCmd := serviceDeploymentUpdateCommand(req.Service)
+	aiSreUninstallCmd := serviceDeploymentUninstallCommand(req.Service)
 	response.OK(c, gin.H{
-		"deploymentId":       id,
-		"token":              token,
-		"curlCommand":        curlCmd,
-		"aiSreCommand":       aiSreCmd,
-		"aiSreUpdateCommand": aiSreUpdateCmd,
-		"status":             dep.Status,
+		"deploymentId":         id,
+		"token":                token,
+		"curlCommand":          curlCmd,
+		"aiSreCommand":         aiSreCmd,
+		"aiSreUpdateCommand":   aiSreUpdateCmd,
+		"aiSreUninstallCommand": aiSreUninstallCmd,
+		"status":               dep.Status,
 	})
 }
 
@@ -141,6 +143,7 @@ func UpdateServiceDeployment(c *gin.Context) {
 		"curlCommand":        curlCmd,
 		"aiSreCommand":       aiSreCmd,
 		"aiSreUpdateCommand": serviceDeploymentUpdateCommand(req.Service),
+		"aiSreUninstallCommand": serviceDeploymentUninstallCommand(req.Service),
 		"status":             "pending_update",
 	})
 }
@@ -252,6 +255,14 @@ func FinishServiceDeployment(c *gin.Context) {
 		response.ServerError(c, "更新部署状态失败")
 		return
 	}
+	if req.Status == "uninstalling" || req.Status == "uninstalled" || req.Status == "uninstall_failed" || req.Status == "pending_uninstall" {
+		_ = database.DB.Create(&models.ServiceDeploymentEvent{
+			DeploymentID: dep.ID,
+			Step:         "uninstall",
+			Status:       req.Status,
+			Message:      req.Message,
+		}).Error
+	}
 	response.OK(c, gin.H{"ok": true})
 }
 
@@ -272,9 +283,21 @@ func normalizeServiceDeploymentRequest(req *serviceDeploymentCreateRequest) {
 func serviceDeploymentUpdateCommand(service string) string {
 	switch service {
 	case "nginx":
-		return "sudo ai-sre nginx update"
+		return "sudo ai-sre ops nginx update"
 	case "elasticsearch":
-		return "sudo ai-sre elasticsearch update"
+		return "sudo ai-sre ops elasticsearch update"
+	}
+	return ""
+}
+
+func serviceDeploymentUninstallCommand(service string) string {
+	switch service {
+	case "nginx":
+		return "sudo ai-sre ops uninstall nginx"
+	case "elasticsearch":
+		return "sudo ai-sre ops uninstall elasticsearch"
+	case "redis", "mysql", "postgresql", "kafka", "haproxy":
+		return "sudo ai-sre ops service uninstall " + service
 	}
 	return ""
 }

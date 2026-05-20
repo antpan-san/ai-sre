@@ -262,12 +262,26 @@ def main():
         except Exception:
             pass
         if p.returncode != 0:
+            try:
+                rec = {
+                    "operation": "bootstrap",
+                    "install_ref": ref.strip(),
+                    "bundle_root": root,
+                    "last_bundle": last_snap,
+                    "exit_code": p.returncode,
+                    "failed_step": "install.sh",
+                    "log_tail": state[-8000:] if state else "",
+                }
+                os.makedirs("/var/lib/opsfleet-k8s", exist_ok=True)
+                with open("/var/lib/opsfleet-k8s/recovery-state.json", "w", encoding="utf-8") as rf:
+                    json.dump(rec, rf, indent=2)
+            except Exception:
+                pass
             print(
-                "\n安装未完成。若需按控制台「节点配置」中的全部 master/worker 清理 K8s/etcd 残留"
-                "（须已对各节点 root 免密，与 install.sh 相同）：\n"
-                "  sudo ai-sre uninstall k8s\n"
-                "  或: sudo ai-sre k8s cleanup %r\n"
-                "（须已安装 ai-sre；将重新拉包并执行 pre_cleanup；引用须在有效期内。）\n"
+                "\n安装未完成。执行恢复:\n"
+                "  sudo ai-sre ops k8s recover %r\n"
+                "清理:\n"
+                "  sudo ai-sre ops uninstall k8s\n"
                 % (ref,),
                 file=sys.stderr,
             )
