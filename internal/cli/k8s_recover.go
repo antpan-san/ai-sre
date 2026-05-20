@@ -347,6 +347,17 @@ func postInstallRecoveryEvent(ctx context.Context, requestID, step, status, mess
 }
 
 func applyK8sRecoveryPlan(ctx context.Context, evidence map[string]interface{}, plan installRecoveryPlan, opts k8sRecoverOptions) error {
+	MergeExecutionFinishMeta(map[string]interface{}{
+		"topic":                   "k8s",
+		"operation":               "install_recovery",
+		"install_recovery":        true,
+		"recovery_root_cause":     plan.RootCause,
+		"recovery_failed_step":    plan.FailedStep,
+		"recovery_summary":        plan.Summary,
+		"recovery_request_id":     plan.RequestID,
+		"recovery_need_iteration": plan.NeedIteration,
+		"install_recovery_plan":   planToMeta(plan),
+	})
 	fmt.Printf("【根因】%s\n", strings.TrimSpace(plan.RootCause))
 	if plan.FailedStep != "" {
 		fmt.Printf("【失败步骤】%s\n", plan.FailedStep)
@@ -380,10 +391,12 @@ func applyK8sRecoveryPlan(ctx context.Context, evidence map[string]interface{}, 
 			if err := waitForAptLock(600); err != nil {
 				return err
 			}
+			appendRecoveryActionMeta(action.ID, "success")
 		case "chmod_install_scripts":
 			if root != "" {
 				_ = exec.Command("chmod", "+x", filepath.Join(root, "install.sh")).Run()
 			}
+			appendRecoveryActionMeta(action.ID, "success")
 		case "resume_install":
 			if root == "" {
 				return errors.New("未找到 last-bundle，无法继续 install.sh")
@@ -401,6 +414,26 @@ func applyK8sRecoveryPlan(ctx context.Context, evidence map[string]interface{}, 
 		return runInstallSh(root)
 	}
 	return errors.New("未找到可执行的恢复动作或 last-bundle")
+}
+
+func planToMeta(plan installRecoveryPlan) map[string]interface{} {
+	actions := make([]map[string]interface{}, 0, len(plan.SafeActions))
+	for _, a := range plan.SafeActions {
+		actions = append(actions, map[string]interface{}{
+			"id": a.ID, "description": a.Description, "risk": a.Risk,
+		})
+	}
+	return map[string]interface{}{
+		"root_cause": plan.RootCause, "failed_step": plan.FailedStep, "summary": plan.Summary,
+		"resume_from": plan.ResumeFrom, "safe_actions": actions, "need_iteration": plan.NeedIteration,
+	}
+}
+
+func appendRecoveryActionMeta(id, status string) {
+	MergeExecutionFinishMeta(map[string]interface{}{
+		"recovery_last_action": id,
+		"recovery_last_status": status,
+	})
 }
 
 func waitForAptLock(maxSec int) error {

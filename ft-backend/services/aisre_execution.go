@@ -408,6 +408,22 @@ func clientExecutionVisible(rec models.ExecutionRecord, role, username string) b
 
 func buildClientExecutionTimeline(rec models.ExecutionRecord, events []models.ExecutionEvent, children []models.ExecutionRecord) []ClientExecutionPhase {
 	out := []ClientExecutionPhase{{Phase: "cli_start", Message: "CLI 执行开始", Time: rec.CreatedAt, Level: "info"}}
+	meta := decodeRecordMetadata(rec.Metadata)
+	if strings.HasPrefix(rec.Category, "k8s_") && rec.Status != models.ExecutionStatusSuccess {
+		out = append(out, ClientExecutionPhase{
+			Phase: "install_failed", Message: firstNonEmpty(strMeta(meta, "recovery_failed_step"), rec.StderrSummary, "安装未完成"), Time: rec.CreatedAt, Level: "warn",
+		})
+	}
+	if boolMeta(meta, "install_recovery") {
+		if rc := strMeta(meta, "recovery_root_cause"); rc != "" {
+			out = append(out, ClientExecutionPhase{Phase: "recovery_analyze", Message: "恢复分析: " + rc, Time: rec.CreatedAt, Level: "info"})
+		}
+		if act := strMeta(meta, "recovery_last_action"); act != "" {
+			out = append(out, ClientExecutionPhase{
+				Phase: "recovery_action", Message: "执行动作 " + act + " (" + strMeta(meta, "recovery_last_status") + ")", Time: rec.CreatedAt, Level: "info",
+			})
+		}
+	}
 	for _, e := range events {
 		out = append(out, ClientExecutionPhase{Phase: e.Phase, Message: e.Message, Time: e.CreatedAt, Level: e.Level})
 	}

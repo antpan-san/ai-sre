@@ -145,6 +145,31 @@
         </div>
       </el-card>
 
+      <el-card v-if="isDeliveryExecution" shadow="never" class="block">
+        <template #header><span>平台交付 / 安装恢复</span></template>
+        <el-descriptions :column="1" border size="small">
+          <el-descriptions-item v-if="recoveryMeta.root_cause" label="恢复根因">{{ recoveryMeta.root_cause }}</el-descriptions-item>
+          <el-descriptions-item v-if="recoveryMeta.failed_step" label="失败步骤">{{ recoveryMeta.failed_step }}</el-descriptions-item>
+          <el-descriptions-item v-if="recoveryMeta.summary" label="恢复建议">{{ recoveryMeta.summary }}</el-descriptions-item>
+          <el-descriptions-item label="恢复命令">
+            <code>{{ deliveryRecoverCommand }}</code>
+            <el-button link type="primary" size="small" @click="copyRecoverCommand">复制</el-button>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="deliveryUninstallCommand" label="卸载命令">
+            <code>{{ deliveryUninstallCommand }}</code>
+          </el-descriptions-item>
+          <el-descriptions-item v-if="recoveryMeta.need_iteration" label="自动迭代">
+            <el-tag type="warning" size="small">已标记需迭代</el-tag>
+          </el-descriptions-item>
+        </el-descriptions>
+        <div v-if="recoveryActions.length" class="enh-block">
+          <h4>计划安全动作</h4>
+          <ul class="enh-list">
+            <li v-for="(a, i) in recoveryActions" :key="i">{{ a.description || a.id }} <span class="muted">({{ a.id }})</span></li>
+          </ul>
+        </div>
+      </el-card>
+
       <el-card shadow="never" class="block">
         <template #header><span>审计与回滚</span></template>
         <el-descriptions :column="1" border size="small">
@@ -202,6 +227,43 @@ const enhancementActions = computed(() => {
   const v = enhancement.value?.suggested_actions
   return Array.isArray(v) ? v.map(String) : []
 })
+
+const isDeliveryExecution = computed(() => {
+  const cat = String(rec.value.category || '')
+  return cat.startsWith('k8s_') || Boolean(meta.value.install_recovery) || cat.startsWith('service_') || cat.startsWith('ops_uninstall')
+})
+
+const recoveryMeta = computed(() => {
+  const plan = meta.value.install_recovery_plan as Record<string, unknown> | undefined
+  return {
+    root_cause: String(meta.value.recovery_root_cause || plan?.root_cause || ''),
+    failed_step: String(meta.value.recovery_failed_step || plan?.failed_step || ''),
+    summary: String(meta.value.recovery_summary || plan?.summary || rec.value.rollback_advice || ''),
+    need_iteration: Boolean(meta.value.recovery_need_iteration || plan?.need_iteration),
+  }
+})
+
+const recoveryActions = computed(() => {
+  const plan = meta.value.install_recovery_plan as { safe_actions?: { id?: string; description?: string }[] } | undefined
+  return Array.isArray(plan?.safe_actions) ? plan!.safe_actions! : []
+})
+
+const deliveryRecoverCommand = computed(() => {
+  const plan = rec.value.rollback_plan as Record<string, unknown> | undefined
+  const manual = plan?.manual_command
+  if (typeof manual === 'string' && manual.trim()) return manual.trim()
+  return 'sudo ai-sre ops k8s recover'
+})
+
+const deliveryUninstallCommand = computed(() => {
+  const plan = rec.value.rollback_plan as Record<string, unknown> | undefined
+  const cmd = plan?.cleanup_command
+  if (typeof cmd === 'string' && cmd.trim()) return cmd.trim()
+  if (String(rec.value.category || '').startsWith('k8s_')) return 'sudo ai-sre ops uninstall k8s'
+  return ''
+})
+
+const copyRecoverCommand = () => void copyText(deliveryRecoverCommand.value, '恢复命令')
 
 const diagnosisRootCause = computed(() =>
   String(meta.value.root_cause || meta.value.summary || rec.value.stdout_summary || '').trim()

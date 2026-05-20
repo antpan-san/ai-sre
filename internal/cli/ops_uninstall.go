@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 	"strings"
 
@@ -107,11 +106,11 @@ func serviceUninstallCmd() *cobra.Command {
 			if err := requireOpsRoot("服务卸载"); err != nil {
 				return err
 			}
-			if _, err := loadServiceDeploymentState(svc); err != nil {
-				return fmt.Errorf("拒绝卸载 %s：无 ai-sre 管理状态证明（%w）", svc, err)
-			}
 			if dryRun {
-				fmt.Printf("将卸载服务 %s\n", svc)
+				if _, err := loadServiceDeploymentState(svc); err != nil {
+					return fmt.Errorf("dry-run: 无 ai-sre 管理状态 (%w)", err)
+				}
+				fmt.Printf("将卸载服务 %s（停止服务，保留数据）\n", svc)
 				return nil
 			}
 			if err := requireOpsMutationConfirm(yes, "服务卸载"); err != nil {
@@ -123,7 +122,7 @@ func serviceUninstallCmd() *cobra.Command {
 			case "elasticsearch":
 				return runElasticsearchUninstall(c, elasticsearchUninstallOptions{Force: force})
 			case "redis", "mysql", "postgresql", "kafka", "haproxy":
-				return errors.New("服务 " + svc + " 的安全卸载尚未实现；请使用平台服务部署页生成的命令或联系运维")
+				return runManagedServiceUninstall(c, svc, managedServiceUninstallOptions{Force: force})
 			default:
 				return fmt.Errorf("未知服务 %q", svc)
 			}
