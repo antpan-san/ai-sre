@@ -33,6 +33,26 @@ export interface DiagnoseSampleSummary {
   top_topics: { topic: string; count: number }[]
 }
 
+export interface DiagnoseSampleTrendBucket {
+  bucket_start: string
+  total: number
+  rule_hit: number
+  used_ai: number
+  cli_check: number
+}
+
+export interface DiagnoseSampleTrend {
+  since_hours: number
+  bucket_hours: number
+  buckets: DiagnoseSampleTrendBucket[]
+}
+
+export function getAdminDiagnoseSampleTrend(hours = 168, bucketHours = 24) {
+  return request.get<DiagnoseSampleTrend>('/api/admin/diagnose-samples/trend', {
+    params: { hours, bucket_hours: bucketHours }
+  })
+}
+
 export function getAdminDiagnoseSampleSummary(hours = 24) {
   return request.get<DiagnoseSampleSummary>('/api/admin/diagnose-samples/summary', { params: { hours } })
 }

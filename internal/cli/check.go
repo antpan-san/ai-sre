@@ -52,6 +52,7 @@ func newCheckTopicCommand() *cobra.Command {
 	cmd.Flags().StringVar(&latency, "latency", "", "延迟描述，如 50ms、p99=20ms")
 	cmd.Flags().StringToStringVarP(&setKV, "set", "d", nil, "附加上下文 key=value，可多次使用")
 	cmd.Flags().BoolVar(&diagnosticPlanYes, "yes", false, "非 TTY 环境确认执行服务端只读诊断任务单")
+	cmd.Flags().BoolVar(&checkCompareAI, "compare-ai", false, "本地规则命中时 shadow 调用 AI 并对比根因摘要（不替换主结论）")
 	return cmd
 }
 
@@ -192,6 +193,8 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 		usedAI = strings.EqualFold(strings.TrimSpace(diag.Source), "server-ai")
 	}
 
+	aiCompare := maybeCompareCheckWithAI(cmd.Context(), topic, ctx, diag)
+
 	answer := formatCheckAnswerText(topic, diag.Answer)
 	if !usedAI && strings.EqualFold(strings.TrimSpace(diag.Source), "local-rule") {
 		answer = diag.Answer
@@ -211,11 +214,14 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 	}
 
 	if strings.EqualFold(outputFormat, "json") {
-		if err := printCheckJSONResult(topic, target, diag, ctx, usedAI); err != nil {
+		if err := printCheckJSONResultWithCompare(topic, target, diag, ctx, usedAI, aiCompare); err != nil {
 			return err
 		}
 	} else {
 		fmt.Println(answer)
+		if cmpText := formatCheckCompareText(aiCompare); cmpText != "" {
+			fmt.Println(cmpText)
+		}
 	}
 
 	rootCause, evidenceLines, recLines := splitAnswerSections(diag)
@@ -248,6 +254,9 @@ func runCheckTopic(cmd *cobra.Command, args []string) error {
 		}
 	}
 	finishMeta["evidence_completeness"] = evidenceCompletenessForContext(ctx)
+	if aiCompare != nil && aiCompare.Enabled {
+		finishMeta["ai_compare"] = checkCompareToMap(aiCompare)
+	}
 	MergeExecutionFinishMeta(finishMeta)
 
 	sampleIn := skillSampleReportInput{

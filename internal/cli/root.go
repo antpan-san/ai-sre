@@ -39,6 +39,7 @@ var (
 	setKV             map[string]string
 	goRuntimeOpts     goRuntimeCLIOptions
 	diagnosticPlanYes bool
+	checkCompareAI    bool
 )
 
 // Execute runs the Cobra root (entry from main) as ai-sre.

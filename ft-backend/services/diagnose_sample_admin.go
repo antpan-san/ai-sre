@@ -91,7 +91,8 @@ func SummarizeDiagnoseSamples(reg *SkillRegistry, since time.Time, sinceHours in
 		reg = DefaultSkillRegistry()
 	}
 	if diagnoseSamplePGEnabled() {
-		if out, err := summarizeDiagnoseSamplesPG(since, sinceHours); err == nil && out.TotalSamples > 0 {
+		out, err := summarizeDiagnoseSamplesPG(since, sinceHours)
+		if err == nil {
 			return out, nil
 		}
 	}

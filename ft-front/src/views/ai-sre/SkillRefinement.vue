@@ -150,6 +150,33 @@
         </el-table>
       </el-tab-pane>
 
+      <el-tab-pane label="质量趋势" name="trend">
+        <div class="toolbar">
+          <el-select v-model="trendHours" size="small" class="filter-hours" @change="loadTrend">
+            <el-option :value="168" label="7d" />
+            <el-option :value="720" label="30d" />
+          </el-select>
+          <el-button type="primary" size="small" @click="loadTrend">刷新趋势</el-button>
+        </div>
+        <div v-if="!trendBuckets.length" class="muted trend-empty">暂无趋势数据（可先执行回填 PG 样本）</div>
+        <div v-else class="trend-chart">
+          <div v-for="row in trendBuckets" :key="row.bucket_start" class="trend-row">
+            <span class="trend-label">{{ formatTrendLabel(row.bucket_start) }}</span>
+            <div class="trend-bars">
+              <span class="trend-bar trend-bar--total" :style="{ width: trendBarWidth(row.total) }" :title="`样本 ${row.total}`" />
+              <span class="trend-bar trend-bar--rule" :style="{ width: trendBarWidth(row.rule_hit) }" :title="`规则 ${row.rule_hit}`" />
+              <span class="trend-bar trend-bar--ai" :style="{ width: trendBarWidth(row.used_ai) }" :title="`AI ${row.used_ai}`" />
+            </div>
+            <span class="trend-counts">{{ row.total }} / {{ row.rule_hit }} / {{ row.used_ai }}</span>
+          </div>
+          <div class="trend-legend">
+            <span><i class="dot dot--total" />样本</span>
+            <span><i class="dot dot--rule" />规则命中</span>
+            <span><i class="dot dot--ai" />AI</span>
+          </div>
+        </div>
+      </el-tab-pane>
+
       <el-tab-pane label="高频 Topic" name="topics">
         <el-table :data="sampleSummary?.top_topics || []" stripe border size="small" empty-text="暂无数据">
           <el-table-column prop="topic" label="Topic" />
@@ -193,6 +220,7 @@ import {
   adminRefineSkill,
   backfillAdminDiagnoseSamples,
   getAdminDiagnoseSampleSummary,
+  getAdminDiagnoseSampleTrend,
   getAdminSkillEnhancementSummary,
   listAdminAutoIterationFeedbacks,
   listAdminDiagnoseSamples,
@@ -202,6 +230,7 @@ import {
   type AutoIterationFeedbackItem,
   type DiagnoseSample,
   type DiagnoseSampleSummary,
+  type DiagnoseSampleTrendBucket,
   type SkillEnhancementReview,
   type SkillEnhancementSummary
 } from '../../api/skillRefinement'
@@ -224,8 +253,13 @@ const refineHint = ref('')
 const refineDryRun = ref(true)
 const refineDraftYaml = ref('')
 const backfillLoading = ref(false)
+const trendHours = ref(168)
+const trendBuckets = ref<DiagnoseSampleTrendBucket[]>([])
+const trendMax = ref(1)
 
 const formatTime = (t?: string) => (t ? String(t).replace('T', ' ').slice(0, 19) : '—')
+const formatTrendLabel = (t: string) => String(t).replace('T', ' ').slice(0, 10)
+const trendBarWidth = (n: number) => `${Math.max(4, Math.round((n / trendMax.value) * 100))}%`
 const priorityTag = (p?: string) => (p === 'high' ? 'danger' : p === 'medium' ? 'warning' : 'info')
 
 const loadSamples = async () => {
@@ -253,6 +287,17 @@ const loadFeedbacks = async () => {
   }
 }
 
+const loadTrend = async () => {
+  try {
+    const data = await getAdminDiagnoseSampleTrend(trendHours.value, 24)
+    trendBuckets.value = data.buckets || []
+    trendMax.value = Math.max(1, ...trendBuckets.value.map((b) => b.total))
+  } catch {
+    trendBuckets.value = []
+    trendMax.value = 1
+  }
+}
+
 const reload = async () => {
   loading.value = true
   try {
@@ -269,6 +314,9 @@ const reload = async () => {
     }
     if (activeTab.value === 'feedbacks') {
       await loadFeedbacks()
+    }
+    if (activeTab.value === 'trend') {
+      await loadTrend()
     }
   } catch {
     sampleSummary.value = null
@@ -377,6 +425,9 @@ watch(activeTab, (tab) => {
   if (tab === 'samples' && !samples.value.length) {
     void loadSamples()
   }
+  if (tab === 'trend' && !trendBuckets.value.length) {
+    void loadTrend()
+  }
 })
 </script>
 
@@ -451,5 +502,80 @@ watch(activeTab, (tab) => {
   border-radius: 4px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+.trend-empty {
+  padding: 24px 0;
+  text-align: center;
+}
+.trend-chart {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.trend-row {
+  display: grid;
+  grid-template-columns: 88px 1fr 96px;
+  gap: 10px;
+  align-items: center;
+  font-size: 12px;
+}
+.trend-label {
+  color: var(--el-text-color-secondary);
+}
+.trend-bars {
+  position: relative;
+  height: 18px;
+  background: var(--el-fill-color-light);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.trend-bar {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  min-width: 2px;
+  opacity: 0.85;
+}
+.trend-bar--total {
+  background: var(--el-color-primary-light-5);
+  z-index: 1;
+}
+.trend-bar--rule {
+  background: var(--el-color-success);
+  z-index: 2;
+}
+.trend-bar--ai {
+  background: var(--el-color-warning);
+  z-index: 3;
+}
+.trend-counts {
+  text-align: right;
+  color: var(--el-text-color-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.trend-legend {
+  display: flex;
+  gap: 16px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: middle;
+}
+.dot--total {
+  background: var(--el-color-primary-light-5);
+}
+.dot--rule {
+  background: var(--el-color-success);
+}
+.dot--ai {
+  background: var(--el-color-warning);
 }
 </style>

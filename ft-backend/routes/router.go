@@ -181,6 +181,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		superAdmin.GET("/admin/skill-enhancement-reviews/summary", handlers.AdminSkillEnhancementSummary)
 		superAdmin.GET("/admin/diagnose-samples", handlers.AdminListDiagnoseSamples)
 		superAdmin.GET("/admin/diagnose-samples/summary", handlers.AdminDiagnoseSampleSummary)
+		superAdmin.GET("/admin/diagnose-samples/trend", handlers.AdminDiagnoseSampleTrend)
 		superAdmin.POST("/admin/diagnose-samples/backfill", handlers.AdminBackfillDiagnoseSamples)
 		superAdmin.POST("/admin/skills/refine", handlers.AdminRefineSkill)
 		superAdmin.POST("/admin/skill-enhancement-reviews/status", handlers.AdminUpdateSkillEnhancementStatus)

@@ -48,6 +48,31 @@ else
 fi
 EOF
 
+if [[ "${SKIP_SAMPLE_BACKFILL:-}" != "1" ]]; then
+  echo "==> JSONL → PG backfill (lab, best-effort)"
+  ssh -o BatchMode=yes -o ConnectTimeout=60 "$REMOTE" "bash -s" <<'EOF' || echo "WARN: backfill skipped"
+set -euo pipefail
+cd /root/sre/ft-backend
+export OPSFLEET_AI_SKILL_DATA_DIR="${OPSFLEET_AI_SKILL_DATA_DIR:-/var/lib/opsfleet/ai-skills}"
+if [[ -f /etc/opsfleet/backend.env ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source /etc/opsfleet/backend.env
+  set +a
+fi
+go run ./cmd/backfill-diagnose-samples/
+EOF
+fi
+
+echo "==> PostgreSQL diagnose_samples (post-backfill)"
+ssh -o BatchMode=yes -o ConnectTimeout=15 "$REMOTE" "bash -s" <<'EOF' || true
+set -euo pipefail
+if command -v psql >/dev/null 2>&1; then
+  cnt=$(sudo -u postgres psql -d opsfleetpilot -tAc "select count(*) from diagnose_samples" 2>/dev/null || psql -d opsfleetpilot -tAc "select count(*) from diagnose_samples" 2>/dev/null || echo "")
+  [[ -n "${cnt:-}" ]] && echo "diagnose_samples rows: ${cnt}"
+fi
+EOF
+
 echo "==> OpsFleet health"
 curl -sfS "http://${REMOTE_HOST}:9080/health" >/dev/null && echo "health OK" || { echo "FAIL: health check"; exit 1; }
 

@@ -60,3 +60,20 @@ func AdminBackfillDiagnoseSamples(c *gin.Context) {
 	}
 	response.OK(c, out)
 }
+
+// AdminDiagnoseSampleTrend returns time-bucketed sample quality metrics.
+func AdminDiagnoseSampleTrend(c *gin.Context) {
+	hours, _ := strconv.Atoi(c.DefaultQuery("hours", "168"))
+	bucketHours, _ := strconv.Atoi(c.DefaultQuery("bucket_hours", "24"))
+	if hours <= 0 || hours > 24*90 {
+		hours = 168
+	}
+	since := time.Now().UTC().Add(-time.Duration(hours) * time.Hour)
+	trend, err := services.TrendDiagnoseSamples(services.DefaultSkillRegistry(), since, hours, bucketHours)
+	if err != nil {
+		logger.Error("AdminDiagnoseSampleTrend: %v", err)
+		response.ServerError(c, "查询样本趋势失败")
+		return
+	}
+	response.OK(c, trend)
+}
