@@ -6,6 +6,16 @@ const adminRoles = ['admin', 'super_admin']
 const superAdminRoles = ['super_admin']
 const appRoles = ['admin', 'super_admin', 'user']
 
+type AppHubSection = 'delivery' | 'troubleshoot' | 'observe' | 'monitoring' | 'data'
+
+function appHub(section: AppHubSection, hubCapabilityId?: string) {
+  return {
+    hubMenu: '/app/workloads',
+    hubSection: section,
+    ...(hubCapabilityId ? { hubCapabilityId } : {})
+  }
+}
+
 const routes: Array<RouteRecordRaw> = [
   { path: '/', redirect: '/admin/dashboard' },
   { path: '/dashboard', redirect: '/admin/dashboard' },
@@ -342,9 +352,11 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: 'capabilities',
-        name: 'AppCapabilities',
-        component: () => import('../views/app/CapabilityCenter.vue'),
-        meta: { title: '能力中心', requireAuth: true, roles: appRoles }
+        redirect: (to) => ({
+          path: '/app/workloads',
+          query: to.query,
+          hash: to.hash || undefined
+        })
       },
       {
         path: 'troubleshooting',
@@ -368,97 +380,97 @@ const routes: Array<RouteRecordRaw> = [
         path: 'service/deploy',
         name: 'AppServiceDeploy',
         component: () => import('../views/service/ServiceDeploy.vue'),
-        meta: { title: '应用服务', requireAuth: true, roles: appRoles }
+        meta: { title: '应用服务', requireAuth: true, roles: appRoles, ...appHub('delivery', 'service_deploy') }
       },
       {
         path: 'service/k8s-deploy',
         name: 'AppK8sDeploy',
         component: () => import('../views/service/k8s-deploy/K8sDeployForm.vue'),
-        meta: { title: 'Kubernetes', requireAuth: true, roles: appRoles }
+        meta: { title: 'Kubernetes', requireAuth: true, roles: appRoles, ...appHub('delivery', 'k8s_delivery') }
       },
       {
         path: 'service/k8s-deploy/progress',
         name: 'AppK8sDeployProgress',
         component: () => import('../views/service/k8s-deploy/K8sDeployProgress.vue'),
-        meta: { title: 'K8s 进度', requireAuth: true, roles: appRoles }
+        meta: { title: 'K8s 进度', requireAuth: true, roles: appRoles, ...appHub('delivery', 'k8s_delivery') }
       },
       {
         path: 'service/linux',
         name: 'AppLinuxServiceManagement',
         component: () => import('../views/service/LinuxServiceManagement.vue'),
-        meta: { title: 'Linux 主机', requireAuth: true, roles: appRoles }
+        meta: { title: 'Linux 主机', requireAuth: true, roles: appRoles, ...appHub('delivery', 'linux_hosts') }
       },
       {
         path: 'k8s-mirror',
         name: 'AppK8sMirrorCatalog',
         component: () => import('../views/service/k8s-mirror/K8sMirrorCatalog.vue'),
-        meta: { title: '制品目录', requireAuth: true, roles: appRoles }
+        meta: { title: '制品目录', requireAuth: true, roles: appRoles, ...appHub('delivery', 'k8s_mirror') }
       },
       {
         path: 'proxy/config',
         name: 'AppProxyConfig',
         component: () => import('../views/proxy/ProxyConfig.vue'),
-        meta: { title: '出口代理', requireAuth: true, roles: appRoles }
+        meta: { title: '出口代理', requireAuth: true, roles: appRoles, ...appHub('delivery', 'proxy') }
       },
       {
         path: 'init-tools',
         name: 'AppInitTools',
         component: () => import('../views/init-tools/InitToolsHome.vue'),
-        meta: { title: '初始化', requireAuth: true, roles: appRoles }
+        meta: { title: '初始化', requireAuth: true, roles: appRoles, ...appHub('delivery', 'init_tools') }
       },
       {
         path: 'monitoring/prometheus',
         name: 'AppPrometheus',
         component: () => import('../views/monitoring/PrometheusConfig.vue'),
-        meta: { title: 'Prometheus', requireAuth: true, roles: appRoles }
+        meta: { title: 'Prometheus', requireAuth: true, roles: appRoles, ...appHub('monitoring', 'prometheus') }
       },
       {
         path: 'monitoring/node-exporter',
         name: 'AppNodeExporter',
         component: () => import('../views/monitoring/NodeExporterConfig.vue'),
-        meta: { title: 'Node Exporter', requireAuth: true, roles: appRoles }
+        meta: { title: 'Node Exporter', requireAuth: true, roles: appRoles, ...appHub('monitoring', 'exporters') }
       },
       {
         path: 'monitoring/jmx-exporter',
         name: 'AppJmxExporter',
         component: () => import('../views/monitoring/JmxExporterConfig.vue'),
-        meta: { title: 'JMX Exporter', requireAuth: true, roles: appRoles }
+        meta: { title: 'JMX Exporter', requireAuth: true, roles: appRoles, ...appHub('monitoring', 'exporters') }
       },
       {
         path: 'monitoring/redis-exporter',
         name: 'AppRedisExporter',
         component: () => import('../views/monitoring/RedisExporterConfig.vue'),
-        meta: { title: 'Redis Exporter', requireAuth: true, roles: appRoles }
+        meta: { title: 'Redis Exporter', requireAuth: true, roles: appRoles, ...appHub('monitoring', 'exporters') }
       },
       {
         path: 'monitoring/mongodb-exporter',
         name: 'AppMongoDBExporter',
         component: () => import('../views/monitoring/MongoDBExporterConfig.vue'),
-        meta: { title: 'MongoDB Exporter', requireAuth: true, roles: appRoles }
+        meta: { title: 'MongoDB Exporter', requireAuth: true, roles: appRoles, ...appHub('monitoring', 'exporters') }
       },
       {
         path: 'monitoring/blackbox-exporter',
         name: 'AppBlackboxExporter',
         component: () => import('../views/monitoring/BlackboxExporterConfig.vue'),
-        meta: { title: 'Blackbox Exporter', requireAuth: true, roles: appRoles }
+        meta: { title: 'Blackbox Exporter', requireAuth: true, roles: appRoles, ...appHub('monitoring', 'exporters') }
       },
       {
         path: 'advanced/backup-restore',
         name: 'AppBackupRestore',
         component: () => import('../views/advanced/BackupRestore.vue'),
-        meta: { title: '备份', requireAuth: true, roles: appRoles }
+        meta: { title: '备份', requireAuth: true, roles: appRoles, ...appHub('data', 'backup') }
       },
       {
         path: 'advanced/performance-analysis',
         name: 'AppPerformanceAnalysis',
         component: () => import('../views/advanced/PerformanceAnalysis.vue'),
-        meta: { title: '性能', requireAuth: true, roles: appRoles }
+        meta: { title: '性能', requireAuth: true, roles: appRoles, ...appHub('data', 'performance') }
       },
       {
         path: 'advanced/runtime-observe',
         name: 'AppRuntimeObserve',
         component: () => import('../views/advanced/RuntimeObserve.vue'),
-        meta: { title: '运行时诊断', requireAuth: true, roles: appRoles }
+        meta: { title: '运行时诊断', requireAuth: true, roles: appRoles, ...appHub('observe', 'runtime_observe') }
       },
       {
         path: 'help/error-codes',

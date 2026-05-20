@@ -41,7 +41,7 @@
         <div class="next-actions">
           <el-button @click="router.push('/app/troubleshooting')">问题排查</el-button>
           <el-button @click="router.push('/app/workloads')">管理工作负载</el-button>
-          <el-button @click="router.push('/app/capabilities')">浏览能力中心</el-button>
+          <el-button @click="router.push('/app/workloads#packs')">我的功能包</el-button>
           <el-button @click="router.push('/app/settings')">安装 CLI</el-button>
         </div>
       </el-card>
@@ -113,7 +113,7 @@ const refresh = async () => {
 
 const goExec = () => router.push('/app/execution-records')
 const goJobs = () => router.push('/app/job/center')
-const goCapabilities = () => router.push('/app/capabilities#packs')
+const goCapabilities = () => router.push('/app/workloads#packs')
 
 const formatTs = (iso?: string) => {
   if (!iso) return '—'

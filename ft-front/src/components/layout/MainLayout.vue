@@ -185,10 +185,6 @@
               <el-icon><Box /></el-icon>
               <template #title>工作负载</template>
             </el-menu-item>
-            <el-menu-item index="/app/capabilities">
-              <el-icon><Collection /></el-icon>
-              <template #title>能力中心</template>
-            </el-menu-item>
             <el-menu-item index="/app/troubleshooting">
               <el-icon><Search /></el-icon>
               <template #title>问题排查</template>
@@ -372,6 +368,7 @@ import { useMachineStore } from '../../stores/machine'
 import { getBillingCapabilities, type BillingCapabilityFeature } from '../../api/billing'
 import { createCLIInstallSession, fetchAiSreCLIVersion } from '../../api/cli'
 import HostResourceRings from './HostResourceRings.vue'
+import { CAPABILITY_CATEGORY_LABELS, type CapabilityCategory } from '../../config/capabilityCatalog'
 
 type BreadcrumbMetaItem = {
   title: string
@@ -584,6 +581,8 @@ const handleSwitchShell = () => {
 }
 
 const activeMenu = computed(() => {
+  const hub = route.meta.hubMenu as string | undefined
+  if (hub) return hub
   return route.path
 })
 
@@ -647,12 +646,26 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
   const items: BreadcrumbItem[] = []
 
   const explicitBreadcrumb = route.meta.breadcrumb as BreadcrumbMetaItem[] | undefined
+  const hubMenu = route.meta.hubMenu as string | undefined
+  const hubSection = route.meta.hubSection as CapabilityCategory | undefined
+
   if (Array.isArray(explicitBreadcrumb) && explicitBreadcrumb.length > 0) {
     explicitBreadcrumb.forEach(item => {
       if (item.title?.trim()) {
         pushBreadcrumb(items, item.title.trim(), item.path)
       }
     })
+  } else if (hubMenu && hubSection) {
+    const sectionPath = `${hubMenu}?section=${hubSection}`
+    pushBreadcrumb(items, '工作负载', sectionPath)
+    const sectionTitle = CAPABILITY_CATEGORY_LABELS[hubSection]
+    if (sectionTitle) {
+      pushBreadcrumb(items, sectionTitle, sectionPath)
+    }
+    const pageTitle = route.meta.title
+    if (typeof pageTitle === 'string' && pageTitle.trim()) {
+      pushBreadcrumb(items, pageTitle.trim(), undefined)
+    }
   } else {
     route.matched
       .filter(routeItem => routeItem.name !== 'Login')

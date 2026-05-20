@@ -60,6 +60,34 @@ export const CAPABILITY_CATEGORY_SHORT: Record<CapabilityCategory, string> = {
   evolution: '进化'
 }
 
+export const CAPABILITY_CATEGORY_DESC: Record<CapabilityCategory, string> = {
+  delivery: '安装与管理 K8s、应用服务、主机与初始化工具',
+  troubleshoot: 'ai-sre check 证据驱动诊断（详细表单见问题排查）',
+  observe: '进程与运行时持续观测',
+  monitoring: 'Prometheus 与 Exporter 监控栈',
+  data: '备份恢复与性能分析',
+  evolution: '平台自动进化（管理员）'
+}
+
+export const CAPABILITY_CATEGORY_ICON: Record<CapabilityCategory, string> = {
+  delivery: 'Box',
+  troubleshoot: 'Search',
+  observe: 'View',
+  monitoring: 'Monitor',
+  data: 'FolderOpened',
+  evolution: 'MagicStick'
+}
+
+/** 普通用户 Hub 左栏可见分类（不含 evolution 除非有项） */
+export const HUB_CATEGORY_ORDER: CapabilityCategory[] = [
+  'delivery',
+  'troubleshoot',
+  'observe',
+  'monitoring',
+  'data',
+  'evolution'
+]
+
 export const CAPABILITY_CATALOG: CatalogCapability[] = [
   {
     id: 'k8s_delivery',

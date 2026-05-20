@@ -30,7 +30,7 @@
     <el-card shadow="never" class="settings-card">
       <template #header>订阅与能力</template>
       <p class="hint">查看全部能力与订阅状态，或发起订阅。</p>
-      <el-button type="primary" link @click="goCapabilities">打开能力中心</el-button>
+      <el-button type="primary" link @click="goWorkloads">打开工作负载</el-button>
     </el-card>
 
     <el-card shadow="never" class="settings-card">
@@ -88,7 +88,7 @@ const genInstall = async () => {
   }
 }
 
-const goCapabilities = () => router.push('/app/capabilities')
+const goWorkloads = () => router.push('/app/workloads')
 const goErrorCodes = () => router.push('/app/help/error-codes')
 
 onMounted(async () => {
