@@ -340,7 +340,7 @@ const routes: Array<RouteRecordRaw> = [
         path: 'deploy',
         name: 'AppDeployCenter',
         component: () => import('../views/app/DeployCenter.vue'),
-        meta: { title: '部署中心', requireAuth: true, roles: appRoles }
+        meta: { title: '部署配置', requireAuth: true, roles: appRoles }
       },
       {
         path: 'workloads',
@@ -378,9 +378,11 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: 'service/deploy',
-        name: 'AppServiceDeploy',
-        component: () => import('../views/service/ServiceDeploy.vue'),
-        meta: { title: '应用服务', requireAuth: true, roles: appRoles, ...appHub('delivery', 'service_deploy') }
+        redirect: (to) => ({
+          path: '/app/deploy',
+          hash: '#services',
+          query: to.query,
+        }),
       },
       {
         path: 'service/k8s-deploy',
@@ -408,9 +410,11 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: 'init-tools',
-        name: 'AppInitTools',
-        component: () => import('../views/init-tools/InitToolsHome.vue'),
-        meta: { title: '初始化', requireAuth: true, roles: appRoles, ...appHub('delivery', 'init_tools') }
+        redirect: (to) => ({
+          path: '/app/deploy',
+          hash: '#init-tools',
+          query: to.query,
+        }),
       },
       {
         path: 'monitoring/prometheus',

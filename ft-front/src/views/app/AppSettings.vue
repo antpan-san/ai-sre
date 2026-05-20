@@ -30,7 +30,7 @@
     <el-card shadow="never" class="settings-card">
       <template #header>订阅与能力</template>
       <p class="hint">查看全部能力与订阅状态，或发起订阅。</p>
-      <el-button type="primary" link @click="goDeploy">打开部署中心</el-button>
+      <el-button type="primary" link @click="goDeploy">打开部署配置</el-button>
     </el-card>
 
     <el-card shadow="never" class="settings-card">

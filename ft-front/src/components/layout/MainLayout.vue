@@ -179,7 +179,7 @@
             </el-menu-item>
             <el-menu-item index="/app/deploy">
               <el-icon><Box /></el-icon>
-              <template #title>部署中心</template>
+              <template #title>部署配置</template>
             </el-menu-item>
             <el-menu-item index="/app/troubleshooting">
               <el-icon><Search /></el-icon>
@@ -649,7 +649,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
       }
     })
   } else if (hubMenu && hubSection) {
-    pushBreadcrumb(items, '部署中心', hubMenu)
+    pushBreadcrumb(items, '部署配置', hubMenu)
     const sectionTitle = CAPABILITY_CATEGORY_LABELS[hubSection]
     if (sectionTitle) {
       pushBreadcrumb(items, sectionTitle, hubMenu)
