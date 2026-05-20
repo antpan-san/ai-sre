@@ -85,8 +85,8 @@ type AutoIterationSettings struct {
 	HighRiskRequiresApproval bool      `gorm:"not null;default:true" json:"high_risk_requires_approval"`
 	AutoDispatchEnabled      bool      `gorm:"not null;default:true" json:"auto_dispatch_enabled"`
 	LowRiskAutoDeployEnabled bool      `gorm:"not null;default:false" json:"low_risk_auto_deploy_enabled"`
-	GitHubSyncEnabled        bool      `gorm:"not null;default:true" json:"github_sync_enabled"`
-	DingTalkNotifyEnabled    bool      `gorm:"not null;default:true" json:"dingtalk_notify_enabled"`
+	GitHubSyncEnabled        bool      `gorm:"column:github_sync_enabled;not null;default:true" json:"github_sync_enabled"`
+	DingTalkNotifyEnabled    bool      `gorm:"column:dingtalk_notify_enabled;not null;default:true" json:"dingtalk_notify_enabled"`
 	Notes                    string    `gorm:"size:2000" json:"notes,omitempty"`
 	UpdatedAt                time.Time `json:"updated_at"`
 	UpdatedBy                string    `gorm:"size:80" json:"updated_by,omitempty"`

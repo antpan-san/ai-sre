@@ -61,6 +61,7 @@ type CLIFeedbackAnalyzeResult struct {
 }
 
 func EnsureAutoIterationSettings() error {
+	normalizeAutoIterationSettingsSchema()
 	var row models.AutoIterationSettings
 	err := database.DB.First(&row, "id = ?", 1).Error
 	if err == nil {
@@ -113,38 +114,82 @@ func UpdateAutoIterationSettings(enabled *bool, maxConcurrent *int, highRisk *bo
 	if err := EnsureAutoIterationSettings(); err != nil {
 		return nil, err
 	}
-	updates := map[string]interface{}{
-		"updated_at": time.Now().UTC(),
-		"updated_by": limitAuditText(updatedBy, 80),
+	fields := []string{"updated_at", "updated_by"}
+	row := models.AutoIterationSettings{
+		ID:        1,
+		UpdatedAt: time.Now().UTC(),
+		UpdatedBy: limitAuditText(updatedBy, 80),
 	}
 	if enabled != nil {
-		updates["enabled"] = *enabled
+		row.Enabled = *enabled
+		fields = append(fields, "enabled")
 	}
 	if maxConcurrent != nil && *maxConcurrent > 0 {
-		updates["max_concurrent"] = *maxConcurrent
+		row.MaxConcurrent = *maxConcurrent
+		fields = append(fields, "max_concurrent")
 	}
 	if highRisk != nil {
-		updates["high_risk_requires_approval"] = *highRisk
+		row.HighRiskRequiresApproval = *highRisk
+		fields = append(fields, "high_risk_requires_approval")
 	}
 	if autoDispatch != nil {
-		updates["auto_dispatch_enabled"] = *autoDispatch
+		row.AutoDispatchEnabled = *autoDispatch
+		fields = append(fields, "auto_dispatch_enabled")
 	}
 	if lowRiskDeploy != nil {
-		updates["low_risk_auto_deploy_enabled"] = *lowRiskDeploy
+		row.LowRiskAutoDeployEnabled = *lowRiskDeploy
+		fields = append(fields, "low_risk_auto_deploy_enabled")
 	}
 	if githubSync != nil {
-		updates["github_sync_enabled"] = *githubSync
+		row.GitHubSyncEnabled = *githubSync
+		fields = append(fields, "github_sync_enabled")
 	}
 	if dingTalk != nil {
-		updates["dingtalk_notify_enabled"] = *dingTalk
+		row.DingTalkNotifyEnabled = *dingTalk
+		fields = append(fields, "dingtalk_notify_enabled")
 	}
 	if notes != "" {
-		updates["notes"] = limitAuditText(notes, 2000)
+		row.Notes = limitAuditText(notes, 2000)
+		fields = append(fields, "notes")
 	}
-	if err := database.DB.Model(&models.AutoIterationSettings{}).Where("id = ?", 1).Updates(updates).Error; err != nil {
+	if err := database.DB.Model(&models.AutoIterationSettings{}).Where("id = ?", 1).Select(fields).Updates(&row).Error; err != nil {
 		return nil, err
 	}
 	return GetAutoIterationSettings()
+}
+
+// normalizeAutoIterationSettingsSchema renames legacy GORM snake columns to the
+// canonical names used in migration_pg.sql and API JSON.
+func normalizeAutoIterationSettingsSchema() {
+	if database.DB == nil {
+		return
+	}
+	switch database.DB.Dialector.Name() {
+	case "postgres":
+		_ = database.DB.Exec(`
+DO $migrate$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'git_hub_sync_enabled'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'github_sync_enabled'
+  ) THEN
+    ALTER TABLE auto_iteration_settings RENAME COLUMN git_hub_sync_enabled TO github_sync_enabled;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'ding_talk_notify_enabled'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'dingtalk_notify_enabled'
+  ) THEN
+    ALTER TABLE auto_iteration_settings RENAME COLUMN ding_talk_notify_enabled TO dingtalk_notify_enabled;
+  END IF;
+END
+$migrate$`).Error
+	}
 }
 
 func ListAutoIterations(filter AutoIterationListFilter) ([]models.AutoIteration, int64, error) {

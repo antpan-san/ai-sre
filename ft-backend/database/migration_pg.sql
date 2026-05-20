@@ -1155,6 +1155,30 @@ ALTER TABLE auto_iteration_settings ADD COLUMN IF NOT EXISTS low_risk_auto_deplo
 ALTER TABLE auto_iteration_settings ADD COLUMN IF NOT EXISTS github_sync_enabled BOOLEAN NOT NULL DEFAULT TRUE;
 ALTER TABLE auto_iteration_settings ADD COLUMN IF NOT EXISTS dingtalk_notify_enabled BOOLEAN NOT NULL DEFAULT TRUE;
 
+-- Rename legacy GORM AutoMigrate column names to canonical names.
+DO $migrate$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'git_hub_sync_enabled'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'github_sync_enabled'
+  ) THEN
+    ALTER TABLE auto_iteration_settings RENAME COLUMN git_hub_sync_enabled TO github_sync_enabled;
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'ding_talk_notify_enabled'
+  ) AND NOT EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema() AND table_name = 'auto_iteration_settings' AND column_name = 'dingtalk_notify_enabled'
+  ) THEN
+    ALTER TABLE auto_iteration_settings RENAME COLUMN ding_talk_notify_enabled TO dingtalk_notify_enabled;
+  END IF;
+END
+$migrate$;
+
 COMMIT;
 
 -- ============================================================

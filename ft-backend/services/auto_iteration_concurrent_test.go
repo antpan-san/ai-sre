@@ -205,3 +205,17 @@ func TestCodeAgentReportResultAwaitingApprovalWhenRequired(t *testing.T) {
 		t.Fatalf("status=%s want awaiting_approval", row.Status)
 	}
 }
+
+func TestUpdateAutoIterationSettingsAllToggles(t *testing.T) {
+	setupAutoIterationWorkerDB(t)
+	enabled := true
+	github := true
+	dingtalk := false
+	got, err := UpdateAutoIterationSettings(&enabled, nil, nil, nil, nil, &github, &dingtalk, "", "tester")
+	if err != nil {
+		t.Fatalf("update settings: %v", err)
+	}
+	if !got.Enabled || !got.GitHubSyncEnabled || got.DingTalkNotifyEnabled {
+		t.Fatalf("unexpected settings: %+v", got)
+	}
+}
