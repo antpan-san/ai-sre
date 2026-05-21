@@ -1,4 +1,0 @@
-interface:
-  display_name: "飞书服务发布"
-  short_description: "从飞书服务表读取记录并在云枢创建服务、绑定 Git 与授权服务组。"
-  default_prompt: "按飞书服务表记录创建云枢服务，先 dry-run 展示计划，确认后执行。"
