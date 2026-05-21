@@ -677,10 +677,6 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
 })
 
 const handleMenuSelect = (index: string) => {
-  if ((route.path === '/app/workloads' || route.path === '/app/deploy') && index !== route.path) {
-    window.location.assign(index)
-    return
-  }
   router.push(index)
 }
 

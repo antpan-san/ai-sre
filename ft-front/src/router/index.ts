@@ -365,6 +365,21 @@ const routes: Array<RouteRecordRaw> = [
         meta: { title: '工作负载', requireAuth: true, roles: appRoles }
       },
       {
+        path: 'workloads/service/:serviceKey',
+        redirect: (to) => ({ path: `/app/service/deploy/${encodeURIComponent(String(to.params.serviceKey || ''))}` })
+      },
+      {
+        path: 'workloads/:capId',
+        name: 'AppWorkloadCapabilityDetail',
+        component: () => import('../views/app/WorkloadCapabilityDetail.vue'),
+        meta: {
+          title: '工作负载详情',
+          requireAuth: true,
+          roles: appRoles,
+          ...appHub('delivery')
+        }
+      },
+      {
         path: 'capabilities',
         name: 'AppCapabilityCenter',
         component: () => import('../views/app/CapabilityCenter.vue'),
@@ -387,6 +402,12 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AppSettings',
         component: () => import('../views/app/AppSettings.vue'),
         meta: { title: '设置', requireAuth: true, roles: appRoles }
+      },
+      {
+        path: 'service/deploy/:serviceKey',
+        name: 'AppServiceDeployDetail',
+        component: () => import('../views/service/AppServiceDeployDetail.vue'),
+        meta: { title: '服务部署', requireAuth: true, roles: appRoles, ...appHub('delivery', 'service_deploy') }
       },
       {
         path: 'service/deploy',

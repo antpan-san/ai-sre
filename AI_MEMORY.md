@@ -195,12 +195,20 @@ AI 读取记忆时按以下层级加载:
 
 ## 6. 项目索引
 
+### 6.1 权威目录约定
+
+- 路径: 个人 AI 规范权威目录 => `/Users/panshuai/Documents/个性规范`
+- 路径: ai-sre 项目权威目录 => `/Users/panshuai/Documents/work/code/ai-sre`
+- 规则: 处理 ai-sre 开发、部署、文档、项目记忆时, 以 `/Users/panshuai/Documents/work/code/ai-sre` 为准。
+- 规则: `/Users/panshuai/Documents/workspace/...` 仅视为历史或临时路径, 除非用户明确指定, 不作为 ai-sre 权威目录。
+- 规则: ai-sre 仓库内的 `AI_MEMORY.md` / `AGENTS.md` 是项目本地入口; 跨项目个人规范仍以个人 AI 规范权威目录为准。
+
 当前项目索引:
 
 | 名称 | 路径 | 说明 |
 | --- | --- | --- |
-| 个人 AI 规范 | `/Users/panshuai/Documents/个性规范` | 存放个人 AI 使用规范和记忆系统主入口 |
-| ai-sre | `/Users/panshuai/Documents/work/code/ai-sre` | AI SRE / OpsFleetPilot 同仓项目 |
+| 个人 AI 规范 | `/Users/panshuai/Documents/个性规范` | 个人 AI 规范权威目录 |
+| ai-sre | `/Users/panshuai/Documents/work/code/ai-sre` | ai-sre / OpsFleetPilot 权威代码目录 |
 
 后续新增项目时, 只在这里写一行索引。项目细节除非高度稳定, 否则留在项目自身仓库中。
 
@@ -219,6 +227,7 @@ AI 读取记忆时按以下层级加载:
 | 2026-05-21 | v0.1 | 建立个人 AI 使用与记忆系统主入口, 明确低 token、单入口、动态更新原则 |
 | 2026-05-21 | v0.1.1 | 将 ai-sre 加入项目索引, 准备应用为项目本地记忆入口 |
 | 2026-05-21 | v0.1.2 | 将跨模型自动入口明确为 AGENTS.md, 避免覆盖已有项目 README |
+| 2026-05-21 | v0.1.3 | 明确个人 AI 规范权威目录与 ai-sre 项目权威目录, 排除 workspace 历史路径 |
 
 ---
 

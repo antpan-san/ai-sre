@@ -6,8 +6,8 @@
         <el-row :gutter="16">
           <el-col :xs="24" :md="8">
             <el-form-item label="目标系统类型">
-              <el-select v-model="deploy.form.osType" style="width: 100%">
-                <el-option v-for="os in deploy.osTypeOptions" :key="os.value" :label="os.label" :value="os.value" />
+                  <el-select v-model="deploy.form.osType" style="width: 100%">
+                <el-option v-for="os in osTypeOptions" :key="os.value" :label="os.label" :value="os.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -15,7 +15,7 @@
             <el-form-item label="安装方式">
               <el-select v-model="deploy.form.installMethod" style="width: 100%">
                 <el-option
-                  v-for="method in deploy.availableInstallMethods"
+                  v-for="method in installMethodOptions"
                   :key="method.value"
                   :label="method.label"
                   :value="method.value"
@@ -26,7 +26,7 @@
           <el-col :xs="24" :md="8">
             <el-form-item label="部署场景">
               <el-select v-model="deploy.form.profile" style="width: 100%">
-                <el-option v-for="profile in deploy.profileOptions" :key="profile.value" :label="profile.label" :value="profile.value" />
+                <el-option v-for="profile in profileOptions" :key="profile.value" :label="profile.label" :value="profile.value" />
               </el-select>
             </el-form-item>
           </el-col>
@@ -38,7 +38,7 @@
         <el-col :xs="24" :sm="8">
           <el-form-item label="系统">
             <el-select v-model="deploy.form.osType" size="small" style="width: 100%">
-              <el-option v-for="os in deploy.osTypeOptions" :key="os.value" :label="os.label" :value="os.value" />
+              <el-option v-for="os in osTypeOptions" :key="os.value" :label="os.label" :value="os.value" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -46,7 +46,7 @@
           <el-form-item label="安装方式">
             <el-select v-model="deploy.form.installMethod" size="small" style="width: 100%">
               <el-option
-                v-for="method in deploy.availableInstallMethods"
+                v-for="method in installMethodOptions"
                 :key="method.value"
                 :label="method.label"
                 :value="method.value"
@@ -57,7 +57,7 @@
         <el-col :xs="24" :sm="8">
           <el-form-item label="场景">
             <el-select v-model="deploy.form.profile" size="small" style="width: 100%">
-              <el-option v-for="profile in deploy.profileOptions" :key="profile.value" :label="profile.label" :value="profile.value" />
+              <el-option v-for="profile in profileOptions" :key="profile.value" :label="profile.label" :value="profile.value" />
             </el-select>
           </el-form-item>
         </el-col>
@@ -65,7 +65,7 @@
     </el-form>
 
     <el-card
-      v-for="sec in deploy.regularSections"
+      v-for="sec in regularSections"
       :key="sec.key"
       class="config-card"
       shadow="never"
@@ -81,7 +81,7 @@
           <div class="section-normal-fields">
             <el-row :gutter="16">
               <el-col
-                v-for="field in deploy.normalFields(sec.fields)"
+                v-for="field in normalFields(sec.fields)"
                 :key="field.key"
                 :xs="24"
                 :md="deploy.sectionNormalColMd(field)"
@@ -99,7 +99,7 @@
                     v-model="deploy.form.params[field.key]"
                     style="width: 100%"
                   >
-                    <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                    <el-option v-for="opt in optionValues(field.options)" :key="opt" :label="opt" :value="opt" />
                   </el-select>
                   <el-select
                     v-else-if="field.type === 'autocomplete'"
@@ -110,7 +110,7 @@
                     :placeholder="field.placeholder || '选择或输入自定义值'"
                     style="width: 100%"
                   >
-                    <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                    <el-option v-for="opt in optionValues(field.options)" :key="opt" :label="opt" :value="opt" />
                   </el-select>
                   <el-input
                     v-else-if="field.type === 'textarea'"
@@ -124,8 +124,8 @@
               </el-col>
             </el-row>
           </div>
-          <div v-if="deploy.switchFields(sec.fields).length" class="section-switch-fields">
-            <div v-for="field in deploy.switchFields(sec.fields)" :key="field.key" class="switch-row switch-row--compact">
+          <div v-if="switchFields(sec.fields).length" class="section-switch-fields">
+            <div v-for="field in switchFields(sec.fields)" :key="field.key" class="switch-row switch-row--compact">
               <span class="switch-row-label">
                 {{ field.label }}
                 <el-tooltip v-if="field.tip" :content="field.tip" placement="top">
@@ -140,20 +140,20 @@
     </el-card>
 
     <el-collapse
-      v-if="deploy.collapsibleSections.length"
+      v-if="collapsibleSections.length"
       v-model="deploy.activeCollapseSections"
       class="advanced-collapse"
     >
       <el-collapse-item
-        v-for="sec in deploy.collapsibleSections"
+        v-for="sec in collapsibleSections"
         :key="sec.key"
         :name="sec.key"
-        :title="`${deploy.selected?.name} · ${sec.title}${sec.hint ? '（' + sec.hint + '）' : ''}`"
+        :title="`${selectedName} · ${sec.title}${sec.hint ? '（' + sec.hint + '）' : ''}`"
       >
         <el-form v-if="sec.fields.length" label-position="top">
           <el-row :gutter="16">
             <el-col
-              v-for="field in deploy.visibleFields(sec.fields)"
+              v-for="field in visibleFields(sec.fields)"
               :key="field.key"
               :xs="24"
               :md="deploy.colMd(field)"
@@ -167,7 +167,7 @@
                   style="width: 100%"
                 />
                 <el-select v-else-if="field.type === 'select'" v-model="deploy.form.params[field.key]" style="width: 100%">
-                  <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                  <el-option v-for="opt in optionValues(field.options)" :key="opt" :label="opt" :value="opt" />
                 </el-select>
                 <el-select
                   v-else-if="field.type === 'autocomplete'"
@@ -177,7 +177,7 @@
                   default-first-option
                   style="width: 100%"
                 >
-                  <el-option v-for="opt in field.options" :key="opt" :label="opt" :value="opt" />
+                  <el-option v-for="opt in optionValues(field.options)" :key="opt" :label="opt" :value="opt" />
                 </el-select>
                 <el-switch
                   v-else-if="field.type === 'switch'"
@@ -265,16 +265,53 @@
 </template>
 
 <script setup lang="ts">
+import { computed, proxyRefs } from 'vue'
 import { InfoFilled } from '@element-plus/icons-vue'
-import { useServiceDeploy } from '../../composables/useServiceDeploy'
+import { useServiceDeploy, type CatalogField, type CatalogSection } from '../../composables/useServiceDeploy'
 
 const props = defineProps<{
   serviceKey: string
   compact?: boolean
 }>()
 
-const deploy = useServiceDeploy({ fixedServiceKey: props.serviceKey }) as any
+const deploy = proxyRefs(useServiceDeploy({ fixedServiceKey: props.serviceKey }) as any)
 const { Upload, RefreshRight, Check, DocumentCopy } = deploy
+
+type SelectOption = { value: string; label: string }
+
+const sanitizeList = <T>(items: T[] | null | undefined): T[] =>
+  Array.isArray(items) ? items.filter((item): item is NonNullable<T> => Boolean(item)) : []
+
+const isSelectOption = (item: unknown): item is SelectOption =>
+  Boolean(item && typeof (item as SelectOption).value === 'string' && typeof (item as SelectOption).label === 'string')
+
+const hasFields = (section: unknown): section is CatalogSection =>
+  Boolean(section && typeof (section as CatalogSection).key === 'string' && Array.isArray((section as CatalogSection).fields))
+
+const hasKey = (field: unknown): field is CatalogField =>
+  Boolean(field && typeof (field as CatalogField).key === 'string')
+
+const osTypeOptions = computed<SelectOption[]>(() => sanitizeList(deploy.osTypeOptions).filter(isSelectOption))
+const installMethodOptions = computed(() =>
+  sanitizeList(deploy.availableInstallMethods).filter(isSelectOption)
+)
+const profileOptions = computed(() =>
+  sanitizeList(deploy.profileOptions).filter(isSelectOption)
+)
+const regularSections = computed(() =>
+  sanitizeList(deploy.regularSections).filter(hasFields)
+)
+const collapsibleSections = computed(() =>
+  sanitizeList(deploy.collapsibleSections).filter(hasFields)
+)
+const selectedName = computed(() => deploy.selected?.name || '当前服务')
+const optionValues = (items: string[] | undefined) => sanitizeList(items)
+const visibleFields = (fields: CatalogField[]) =>
+  sanitizeList(deploy.visibleFields(fields)).filter(hasKey)
+const normalFields = (fields: CatalogField[]) =>
+  sanitizeList(deploy.normalFields(fields)).filter(hasKey)
+const switchFields = (fields: CatalogField[]) =>
+  sanitizeList(deploy.switchFields(fields)).filter(hasKey)
 </script>
 
 <style scoped>

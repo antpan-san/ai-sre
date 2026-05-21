@@ -38,7 +38,11 @@
     <div class="tool-grid">
 
       <!-- ════════ 1. 时间同步 ════════ -->
-      <el-card class="tool-card tool-card--recommended" shadow="hover">
+      <el-card
+        id="time-sync"
+        :class="['tool-card', 'tool-card--recommended', { 'tool-card--focused': focusedSection === 'time-sync' }]"
+        shadow="hover"
+      >
         <template #header>
           <div class="tool-card-header">
             <div class="tool-card-icon" style="background: linear-gradient(135deg, #FCD34D, #F59E0B);">
@@ -127,7 +131,11 @@
       </el-card>
 
       <!-- ════════ 2. 系统参数优化 ════════ -->
-      <el-card class="tool-card tool-card--recommended" shadow="hover">
+      <el-card
+        id="sys-param"
+        :class="['tool-card', 'tool-card--recommended', { 'tool-card--focused': focusedSection === 'sys-param' }]"
+        shadow="hover"
+      >
         <template #header>
           <div class="tool-card-header">
             <div class="tool-card-icon" style="background: linear-gradient(135deg, #93C5FD, #2563EB);">
@@ -196,7 +204,11 @@
       </el-card>
 
       <!-- ════════ 3. 系统安全加固 ════════ -->
-      <el-card class="tool-card" shadow="hover">
+      <el-card
+        id="security"
+        :class="['tool-card', { 'tool-card--focused': focusedSection === 'security' }]"
+        shadow="hover"
+      >
         <template #header>
           <div class="tool-card-header">
             <div class="tool-card-icon" style="background: linear-gradient(135deg, #FCA5A5, #DC2626);">
@@ -269,7 +281,11 @@
       </el-card>
 
       <!-- ════════ 4. 磁盘分区优化 ════════ -->
-      <el-card class="tool-card" shadow="hover">
+      <el-card
+        id="disk"
+        :class="['tool-card', { 'tool-card--focused': focusedSection === 'disk' }]"
+        shadow="hover"
+      >
         <template #header>
           <div class="tool-card-header">
             <div class="tool-card-icon" style="background: linear-gradient(135deg, #C4B5FD, #7C3AED);">
@@ -352,7 +368,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import {
@@ -373,6 +389,7 @@ const route = useRoute()
 
 const fromK8sDeploy = computed(() => route.query.from === 'k8s-deploy')
 const k8sCluster = computed(() => (route.query.cluster as string) || '')
+const focusedSection = ref('')
 
 // ──── 弹窗 ────────────────────────────────────────────────────────────────────
 const dialogVisible = ref(false)
@@ -513,11 +530,32 @@ const backToK8sDeploy = () => {
   router.push({ path: '/service/k8s-deploy' })
 }
 
+const VALID_SECTION_IDS = new Set(['time-sync', 'sys-param', 'security', 'disk'])
+
+const syncFocusedSection = async () => {
+  const raw = String(route.hash || '').replace(/^#/, '').trim()
+  const targetId = VALID_SECTION_IDS.has(raw) ? raw : ''
+  focusedSection.value = targetId
+  if (!targetId) return
+  await nextTick()
+  const el = document.getElementById(targetId)
+  if (!el) return
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
+
 onMounted(() => {
   if (fromK8sDeploy.value) {
     ElMessage.info('建议顺序：先「时间同步」→ 再「系统参数优化」')
   }
+  void syncFocusedSection()
 })
+
+watch(
+  () => route.hash,
+  () => {
+    void syncFocusedSection()
+  }
+)
 </script>
 
 <style scoped>
@@ -600,6 +638,15 @@ onMounted(() => {
 
 .tool-card:hover {
   transform: translateY(-2px);
+}
+
+.tool-card--focused {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12), 0 16px 38px rgba(37, 99, 235, 0.14);
+}
+
+.tool-card--focused.tool-card--recommended {
+  border-color: #2563eb;
 }
 
 .tool-card--recommended {
