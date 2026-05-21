@@ -20,6 +20,11 @@
           <el-button size="small" link type="primary" @click="copyCmd(topic)">复制</el-button>
         </div>
         <el-input v-model="targets[topic.cli_topic!]" size="small" placeholder="目标（可选，如 host:6379）" class="topic-target" />
+        <footer class="topic-card__actions">
+          <el-button size="small" :type="actionType(topic)" @click="handleTopicAction(topic)">
+            {{ actionLabel(topic) }}
+          </el-button>
+        </footer>
       </article>
     </div>
 
@@ -43,7 +48,7 @@ import { useCapabilityCatalog } from '../../composables/useCapabilityCatalog'
 import { copyTextToClipboard } from '../../utils/clipboard'
 
 const router = useRouter()
-const { resolved, shellPrefix, load } = useCapabilityCatalog()
+const { resolved, shellPrefix, load, subscribe, isEntitledStatus } = useCapabilityCatalog()
 const targets = reactive<Record<string, string>>({})
 
 const topics = TROUBLESHOOT_TOPICS
@@ -55,8 +60,41 @@ const topicStatus = (topic: (typeof topics)[0]) => topicCap(topic.cli_topic || '
 const statusType = (topic: (typeof topics)[0]) => {
   const s = topicStatus(topic)
   if (s === '已订阅' || s === '免费可用' || s === '管理员已开通') return 'success'
-  if (s === '未订阅') return 'warning'
+  if (s === '未订阅' || s === '联系管理员开通') return 'warning'
   return 'info'
+}
+
+const actionLabel = (topic: (typeof topics)[0]) => {
+  const cap = topicCap(topic.cli_topic || '')
+  if (!cap) return '载入中'
+  if (isEntitledStatus(cap.status)) return '复制命令'
+  if (cap.can_subscribe) return '订阅技能包'
+  if (cap.status === '联系管理员开通') return '联系管理员'
+  return '暂不可用'
+}
+
+const actionType = (topic: (typeof topics)[0]) => {
+  const cap = topicCap(topic.cli_topic || '')
+  if (cap && isEntitledStatus(cap.status)) return 'primary'
+  if (cap?.can_subscribe) return 'warning'
+  return 'info'
+}
+
+const handleTopicAction = async (topic: (typeof topics)[0]) => {
+  const cap = topicCap(topic.cli_topic || '')
+  if (!cap) {
+    ElMessage.info('能力状态载入中')
+    return
+  }
+  if (isEntitledStatus(cap.status)) {
+    await copyCmd(topic)
+    return
+  }
+  if (cap.can_subscribe) {
+    void subscribe(cap)
+    return
+  }
+  ElMessage.info('请联系管理员开通此技能包')
 }
 
 const commandFor = (topic: (typeof topics)[0]) => {
@@ -124,6 +162,11 @@ onMounted(() => {
 }
 .topic-target {
   width: 100%;
+}
+.topic-card__actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
 }
 .advanced-collapse {
   max-width: 640px;

@@ -34,7 +34,7 @@ export function hubDeployPath(cap?: string, expandSubscribe = false): string {
   if (expandSubscribe) query.expand = 'subscribe'
   const qs = new URLSearchParams(query).toString()
   const hash = cap ? CAP_TO_DEPLOY_HASH[cap] : ''
-  const base = qs ? `/app/deploy?${qs}` : '/app/deploy'
+  const base = qs ? `/app/workloads?${qs}` : '/app/workloads'
   return hash ? `${base}#${hash}` : base
 }
 

@@ -747,7 +747,7 @@ const selectService = (key: string) => {
   savedDeploymentSnapshot.value = ''
   form.params = seedParams(item)
   if (!item.installMethods.includes(form.installMethod)) {
-    form.installMethod = item.installMethods[0]
+    form.installMethod = item.installMethods[0] || form.installMethod
   }
   form.profile = profileOptions.value[0]?.value || 'default'
   activeCollapseSections.value = (item.sections || [])
@@ -803,7 +803,7 @@ const onSubmitUpdate = async () => {
 const onReset = () => {
   if (!selected.value) return
   form.params = seedParams(selected.value)
-  form.installMethod = selected.value.installMethods[0]
+  form.installMethod = selected.value.installMethods[0] || form.installMethod
   form.profile = profileOptions.value[0]?.value || 'default'
   activeCollapseSections.value = (selected.value.sections || [])
     .filter(s => s.collapsible && s.defaultOpen)
@@ -1254,17 +1254,17 @@ sudo ss -lntp | grep :${p.port || 5432} || true`
   return `${pkgInstall(form.osType, ['postgresql', 'postgresql-contrib'])}
 PG_CONF_DIR="$(sudo -u postgres psql -tAc 'show config_file' 2>/dev/null | xargs dirname || true)"
 if [ -z "$PG_CONF_DIR" ]; then PG_CONF_DIR="/etc/postgresql"; fi
-sudo mkdir -p "${PG_CONF_DIR}/conf.d" 2>/dev/null || true
-if [ -d "${PG_CONF_DIR}/conf.d" ]; then
-  sudo tee "${PG_CONF_DIR}/conf.d/99-ai-sre.conf" >/dev/null <<"PGCONF"
+sudo mkdir -p "\${PG_CONF_DIR}/conf.d" 2>/dev/null || true
+if [ -d "\${PG_CONF_DIR}/conf.d" ]; then
+  sudo tee "\${PG_CONF_DIR}/conf.d/99-ai-sre.conf" >/dev/null <<"PGCONF"
 ${postgresConf}
 PGCONF
 else
-  sudo tee -a "${PG_CONF_DIR}/postgresql.conf" >/dev/null <<"PGCONF"
+  sudo tee -a "\${PG_CONF_DIR}/postgresql.conf" >/dev/null <<"PGCONF"
 ${postgresConf}
 PGCONF
 fi
-echo "${hbaLine}" | sudo tee -a "${PG_CONF_DIR}/pg_hba.conf" >/dev/null || true
+echo "${hbaLine}" | sudo tee -a "\${PG_CONF_DIR}/pg_hba.conf" >/dev/null || true
 sudo systemctl enable postgresql
 sudo systemctl restart postgresql
 sudo -u postgres psql -c "ALTER USER postgres WITH PASSWORD '${p.password}';" || true
@@ -1370,6 +1370,9 @@ return {
   onSubmitUpdate,
   onReset,
   copy,
+  defaultBashFilename,
+  bashScript,
+  aiSreCommand,
   Check,
   Upload,
   RefreshRight,

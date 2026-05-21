@@ -1,8 +1,8 @@
 <template>
   <div class="deploy-center deploy-config-page page-shell page-shell--crud-wide">
     <AppPageHeader
-      title="部署配置"
-      description="集群与主机、基础服务安装、节点初始化工具，统一在此配置并生成脚本。"
+      title="工作负载"
+      description="Kubernetes、应用服务、Linux 主机与初始化工具统一入口；未订阅能力可先查看说明再开通。"
     >
       <template #actions>
         <el-button size="small" :loading="loading || dashLoading" @click="refresh">刷新</el-button>
@@ -15,6 +15,22 @@
         <span class="deploy-recent__status">{{ row.status }}</span>
       </li>
     </ul>
+
+    <section class="workload-capability-grid" aria-label="工作负载能力状态">
+      <article v-for="item in workloadCaps" :key="item.id" class="workload-capability-card">
+        <div>
+          <h3>{{ item.name }}</h3>
+          <p>{{ item.description }}</p>
+          <span>{{ item.pack_display_name || item.pack_key || '免费能力' }}</span>
+        </div>
+        <div class="workload-capability-card__actions">
+          <el-tag size="small" :type="statusType(item.status)">{{ item.status }}</el-tag>
+          <el-button size="small" :type="actionType(item)" @click="handleWorkloadAction(item)">
+            {{ actionLabel(item) }}
+          </el-button>
+        </div>
+      </article>
+    </section>
 
     <section id="cluster" class="deploy-config-category">
       <h3 class="deploy-config-category__title">集群与主机</h3>
@@ -90,6 +106,10 @@ const subscribeCollapse = ref<string[]>([])
 const dashLoading = computed(() => dashboardStore.loading)
 const dash = computed<DashboardData | null>(() => dashboardStore.dashboardData)
 
+const workloadCaps = computed(() =>
+  filterCapabilities({ category: 'delivery', status: 'all' }).filter((c) => INLINE_ON_DEPLOY_CAP_IDS.has(c.id))
+)
+
 const deliveryItems = computed(() =>
   filterCapabilities({ category: 'delivery', status: 'all' }).filter((c) => !INLINE_ON_DEPLOY_CAP_IDS.has(c.id))
 )
@@ -143,6 +163,37 @@ const refresh = async () => {
   await Promise.all([dashboardStore.fetchDashboardData(), loadCaps(true)])
 }
 
+const statusType = (status: string) => {
+  if (status === '已订阅' || status === '免费可用' || status === '管理员已开通') return 'success'
+  if (status === '未订阅' || status === '联系管理员开通') return 'warning'
+  return 'info'
+}
+
+const actionLabel = (item: ResolvedCapability) => {
+  if (isEntitledStatus(item.status)) return item.open_path ? '打开' : '已可用'
+  if (item.can_subscribe) return '订阅'
+  if (item.status === '联系管理员开通') return '联系管理员'
+  return '查看说明'
+}
+
+const actionType = (item: ResolvedCapability) => {
+  if (isEntitledStatus(item.status)) return 'primary'
+  if (item.can_subscribe) return 'warning'
+  return 'info'
+}
+
+const handleWorkloadAction = (item: ResolvedCapability) => {
+  if (isEntitledStatus(item.status)) {
+    if (item.open_path) void router.push(item.open_path)
+    return
+  }
+  if (item.can_subscribe) {
+    void subscribe(item)
+    return
+  }
+  contactAdmin()
+}
+
 const subscribeItem = (item: ResolvedCapability) => {
   void subscribe(item)
 }
@@ -166,6 +217,51 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.workload-capability-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 12px;
+}
+.workload-capability-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 118px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 14px;
+  background: var(--el-bg-color);
+}
+.workload-capability-card h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.workload-capability-card p {
+  margin: 0 0 8px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.45;
+}
+.workload-capability-card span {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+}
+.workload-capability-card__actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+@media (max-width: 640px) {
+  .workload-capability-card {
+    flex-direction: column;
+  }
+  .workload-capability-card__actions {
+    flex-direction: row;
+    align-items: center;
+  }
+}
 .deploy-recent {
   list-style: none;
   margin: 0 0 8px;

@@ -50,6 +50,7 @@ export interface CreateServiceDeploymentResponse {
   aiSreCommand: string
   aiSreUpdateCommand?: string
   aiSreUninstallCommand?: string
+  aiSreRecoverCommand?: string
   status: string
 }
 

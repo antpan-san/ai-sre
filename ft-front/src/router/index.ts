@@ -8,17 +8,31 @@ const appRoles = ['admin', 'super_admin', 'user']
 
 type AppHubSection = 'delivery' | 'troubleshoot' | 'observe' | 'monitoring' | 'data'
 
+function roleHomePath() {
+  try {
+    const token = localStorage.getItem('token')
+    if (!token) return '/app/dashboard'
+    const raw = localStorage.getItem('userInfo') || '{}'
+    const role = String((JSON.parse(raw) as { role?: string }).role || '')
+    return role === 'admin' || role === 'super_admin' ? '/admin/dashboard' : '/app/dashboard'
+  } catch {
+    return '/app/dashboard'
+  }
+}
+
 function appHub(section: AppHubSection, hubCapabilityId?: string) {
+  const isDelivery = section === 'delivery'
   return {
-    hubMenu: '/app/deploy',
+    hubMenu: isDelivery ? '/app/workloads' : '/app/capabilities',
+    hubTitle: isDelivery ? '工作负载' : '能力中心',
     hubSection: section,
     ...(hubCapabilityId ? { hubCapabilityId } : {})
   }
 }
 
 const routes: Array<RouteRecordRaw> = [
-  { path: '/', redirect: '/admin/dashboard' },
-  { path: '/dashboard', redirect: '/admin/dashboard' },
+  { path: '/', redirect: () => roleHomePath() },
+  { path: '/dashboard', redirect: () => roleHomePath() },
   { path: '/user', redirect: '/admin/user/list' },
   { path: '/user/list', redirect: '/admin/user/list' },
   { path: '/service/deploy', redirect: '/admin/service/deploy' },
@@ -338,25 +352,23 @@ const routes: Array<RouteRecordRaw> = [
       },
       {
         path: 'deploy',
-        name: 'AppDeployCenter',
-        component: () => import('../views/app/DeployCenter.vue'),
-        meta: { title: '部署中心', requireAuth: true, roles: appRoles }
+        redirect: (to) => ({
+          path: '/app/workloads',
+          query: to.query,
+          hash: to.hash || undefined
+        })
       },
       {
         path: 'workloads',
-        redirect: (to) => ({
-          path: '/app/deploy',
-          query: to.query,
-          hash: to.hash || undefined
-        })
+        name: 'AppWorkloads',
+        component: () => import('../views/app/DeployCenter.vue'),
+        meta: { title: '工作负载', requireAuth: true, roles: appRoles }
       },
       {
         path: 'capabilities',
-        redirect: (to) => ({
-          path: '/app/deploy',
-          query: to.query,
-          hash: to.hash || undefined
-        })
+        name: 'AppCapabilityCenter',
+        component: () => import('../views/app/CapabilityCenter.vue'),
+        meta: { title: '能力中心', requireAuth: true, roles: appRoles }
       },
       {
         path: 'troubleshooting',

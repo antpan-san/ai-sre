@@ -171,6 +171,8 @@ export interface UserListQuery {
   role?: string
 }
 
+export type UserListParams = UserListQuery
+
 export interface UserListResponse {
   list: User[]
   total: number

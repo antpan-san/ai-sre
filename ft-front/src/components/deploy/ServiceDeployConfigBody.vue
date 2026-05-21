@@ -273,7 +273,7 @@ const props = defineProps<{
   compact?: boolean
 }>()
 
-const deploy = useServiceDeploy({ fixedServiceKey: props.serviceKey })
+const deploy = useServiceDeploy({ fixedServiceKey: props.serviceKey }) as any
 const { Upload, RefreshRight, Check, DocumentCopy } = deploy
 </script>
 

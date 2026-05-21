@@ -43,8 +43,8 @@
         </template>
         <div class="next-actions">
           <el-button @click="router.push('/app/troubleshooting')">问题排查</el-button>
-          <el-button @click="router.push('/app/deploy')">部署中心</el-button>
-          <el-button @click="router.push('/app/deploy?expand=subscribe')">可订阅能力</el-button>
+          <el-button @click="router.push('/app/workloads')">工作负载</el-button>
+          <el-button @click="router.push('/app/capabilities?status=unsubscribed')">能力中心</el-button>
           <el-button @click="router.push('/app/settings')">安装 CLI</el-button>
         </div>
       </el-card>
@@ -75,7 +75,7 @@
         <template #header>
           <div class="panel-head">
             <span>已订阅能力</span>
-            <el-link type="primary" :underline="false" @click="goDeploy">部署中心</el-link>
+            <el-link type="primary" :underline="false" @click="goCapabilities">能力中心</el-link>
           </div>
         </template>
         <ul class="sub-list">
@@ -106,7 +106,7 @@ const subscribedCount = computed(
   () => resolved.value.filter((c) => ['已订阅', '免费可用', '管理员已开通'].includes(c.status)).length
 )
 const subscribedPreview = computed(() =>
-  resolved.value.filter((c) => c.status === '已订阅' || c.status === '免费可用').slice(0, 6)
+  resolved.value.filter((c) => ['已订阅', '免费可用', '管理员已开通'].includes(c.status)).slice(0, 6)
 )
 
 const refresh = async () => {
@@ -116,9 +116,8 @@ const refresh = async () => {
 
 const goExec = () => router.push('/app/execution-records')
 const goJobs = () => router.push('/app/job/center')
-const goDeploy = () => router.push('/app/deploy')
-const goCapabilities = () => router.push('/app/deploy')
-const goSubscribeable = () => router.push('/app/deploy?expand=subscribe')
+const goCapabilities = () => router.push('/app/capabilities')
+const goSubscribeable = () => router.push('/app/capabilities?status=unsubscribed')
 
 const formatTs = (iso?: string) => {
   if (!iso) return '—'

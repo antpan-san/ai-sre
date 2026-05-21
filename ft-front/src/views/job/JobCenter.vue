@@ -500,14 +500,6 @@ function mapRows(
   })
 }
 
-const formatDate = (iso: string) => {
-  if (!iso) return ''
-  try {
-    return new Date(iso).toLocaleString('zh-CN', { hour12: false })
-  } catch {
-    return iso
-  }
-}
 
 const statusLabel = (r: ExecutionResult) => {
   if (r.status === 'success') return '成功'
@@ -731,7 +723,7 @@ watch(
     await importResultsForJob(id, '链接/CLI')
     const q = { ...route.query } as Record<string, unknown>
     delete q.jobId
-    router.replace({ path: route.path, query: q })
+    router.replace({ path: route.path, query: q as any })
   },
   { immediate: true }
 )

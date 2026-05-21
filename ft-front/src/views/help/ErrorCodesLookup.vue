@@ -228,7 +228,7 @@ async function load() {
     }
     applyQueryFromRoute()
     if (!selected.value && filteredCodes.value.length) {
-      selected.value = filteredCodes.value[0]
+      selected.value = filteredCodes.value[0] ?? null
     }
   } catch {
     codes.value = []

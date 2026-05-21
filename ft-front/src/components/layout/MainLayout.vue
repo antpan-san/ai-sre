@@ -177,9 +177,13 @@
               <el-icon><DocumentCopy /></el-icon>
               <template #title>执行记录</template>
             </el-menu-item>
-            <el-menu-item index="/app/deploy">
+            <el-menu-item index="/app/workloads">
               <el-icon><Box /></el-icon>
-              <template #title>部署中心</template>
+              <template #title>工作负载</template>
+            </el-menu-item>
+            <el-menu-item index="/app/capabilities">
+              <el-icon><Collection /></el-icon>
+              <template #title>能力中心</template>
             </el-menu-item>
             <el-menu-item index="/app/troubleshooting">
               <el-icon><Search /></el-icon>
@@ -448,7 +452,7 @@ const menuDefaultOpeneds = computed(() => {
   const p = route.path
   const open: string[] = []
   if (p.startsWith('/app')) {
-    if (p.includes('/app/deploy') || p.includes('/app/workloads')) open.push('app-workloads')
+    if (p.includes('/app/workloads') || p.includes('/app/deploy')) open.push('app-workloads')
     return open
   }
   if (p.includes('/admin/ai-sre') || p.includes('/admin/execution-records') || isRuntimeObservePath(p)) {
@@ -649,7 +653,7 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
       }
     })
   } else if (hubMenu && hubSection) {
-    pushBreadcrumb(items, '部署中心', hubMenu)
+    pushBreadcrumb(items, String(route.meta.hubTitle || '能力中心'), hubMenu)
     const sectionTitle = CAPABILITY_CATEGORY_LABELS[hubSection]
     if (sectionTitle) {
       pushBreadcrumb(items, sectionTitle, hubMenu)

@@ -89,7 +89,7 @@ export const createManualAutoIteration = (body: {
   return request.post('/api/admin/auto-iterations/manual', body)
 }
 
-const postAction = (id: string, action: string, body?: Record<string, string>) =>
+const postAction = (id: string, action: string, body?: Record<string, string | boolean>) =>
   request.post(`/api/admin/auto-iterations/${encodeURIComponent(id)}/${action}`, body ?? {})
 
 export const startAutoIteration = (id: string) => postAction(id, 'start')

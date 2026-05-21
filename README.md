@@ -66,7 +66,8 @@ Go CLI + 同仓 **OpsFleetPilot** Web/API（`ft-backend/`、`ft-front/`、`deplo
 - **错误码**：`ai-sre check code <CODE>` 或控制台「错误码」页。
 - **Go 运行时**：`ai-sre check go --pid|--name|--pod` 采样 proc/cgroup，可上传至控制台「运行时诊断」。
 - **反馈**：使用 `expert skills feedback` 或能力层 fulfillment 链路提交；`check` 结束不再交互询问。
-- **订阅包**：控制台只展示独立订阅包卡片，不对外展示等级分层。订阅某个 `pack.*` 或 `skillpack.*` 后即可使用对应能力；未订阅时后端返回 `PAYWALL_<pack_key>`，前端弹出对应订阅包。Stripe Price 未配置时仍展示订阅包，但按钮显示“联系管理员开通”。
+- **普通用户工作台**：登录后进入 `/app/dashboard`，侧栏收敛为概览、执行记录、工作负载、能力中心、问题排查、作业中心、设置；`admin` / `super_admin` 仍进入 `/admin/dashboard` 管理后台。
+- **订阅包**：控制台普通用户侧通过「能力中心」展示独立订阅包卡片，不对外展示等级分层。订阅某个 `pack.*` 或 `skillpack.*` 后即可使用对应能力；未订阅时后端返回 `PAYWALL_<pack_key>`，前端弹出对应订阅包。Stripe Price 未配置时仍展示订阅包，但按钮显示“联系管理员开通”。
 
 K8s 安装细节、节点初始化、制品镜像等见 [`deploy/k8s-mirror/README.md`](deploy/k8s-mirror/README.md)、[`PRODUCT_DOC.md`](PRODUCT_DOC.md)。
 

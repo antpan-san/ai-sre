@@ -88,7 +88,7 @@ export const HUB_CATEGORY_ORDER: CapabilityCategory[] = [
   'evolution'
 ]
 
-/** 已在 /app/deploy 内联展示，不再出现在窄行「已开通」列表 */
+/** 已在 /app/workloads 内联展示，不再出现在窄行「已开通」列表 */
 export const INLINE_ON_DEPLOY_CAP_IDS = new Set([
   'k8s_delivery',
   'service_deploy',
