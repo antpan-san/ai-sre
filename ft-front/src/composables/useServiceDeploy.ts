@@ -1,4 +1,4 @@
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Upload, RefreshRight, Check, InfoFilled } from '@element-plus/icons-vue'
 import { createServiceDeployment, updateServiceDeployment } from '../api/service'
@@ -1333,7 +1333,7 @@ const copy = async (text: string) => {
 }
 
 if (options?.fixedServiceKey) {
-  onMounted(() => selectService(options.fixedServiceKey!))
+  selectService(options.fixedServiceKey)
 }
 
 return {

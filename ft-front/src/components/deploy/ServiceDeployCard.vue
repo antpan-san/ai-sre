@@ -11,11 +11,10 @@
         </div>
       </div>
     </template>
-    <el-collapse v-model="expanded" class="service-deploy-card__collapse">
-      <el-collapse-item :name="item.key" :title="expanded.includes(item.key) ? '收起配置' : '展开配置'">
-        <ServiceDeployConfigBody :service-key="item.key" compact />
-      </el-collapse-item>
-    </el-collapse>
+    <el-button class="service-deploy-card__toggle" type="primary" link size="small" @click="expanded = !expanded">
+      {{ expanded ? '收起配置' : '展开配置' }}
+    </el-button>
+    <ServiceDeployConfigBody v-if="expanded" :service-key="item.key" compact />
   </el-card>
 </template>
 
@@ -29,12 +28,12 @@ const props = defineProps<{
   defaultExpanded?: boolean
 }>()
 
-const expanded = ref<string[]>(props.defaultExpanded ? [props.item.key] : [])
+const expanded = ref(Boolean(props.defaultExpanded))
 
 watch(
   () => props.defaultExpanded,
   (v) => {
-    expanded.value = v ? [props.item.key] : []
+    expanded.value = Boolean(v)
   }
 )
 </script>
@@ -64,19 +63,8 @@ watch(
   flex-wrap: wrap;
   gap: 4px;
 }
-.service-deploy-card__collapse {
-  border: none;
-}
-.service-deploy-card__collapse :deep(.el-collapse-item__header) {
-  font-size: 13px;
-  color: var(--el-color-primary);
-  border-bottom: none;
-  height: 36px;
-}
-.service-deploy-card__collapse :deep(.el-collapse-item__wrap) {
-  border-bottom: none;
-}
-.service-deploy-card__collapse :deep(.el-collapse-item__content) {
-  padding-bottom: 0;
+.service-deploy-card__toggle {
+  margin-bottom: 8px;
+  padding-left: 0;
 }
 </style>
