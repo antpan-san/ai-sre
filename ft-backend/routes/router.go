@@ -259,6 +259,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		svcAdmin.POST("/service/batch-delete", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.BatchDeleteService)
 		svcAdmin.POST("/service/linux/operate", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.OperateLinuxService)
 		svcAdmin.POST("/service-deploy/deployments", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.CreateServiceDeployment)
+		svcAdmin.GET("/service-deploy/deployments/:id", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionView), handlers.GetServiceDeploymentDetail)
 		svcAdmin.PUT("/service-deploy/deployments/:id", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.UpdateServiceDeployment)
 		svcAdmin.POST("/service-deploy/deployments/:id/purge-token", middleware.RequireCapability(models.FeatureKeyNodeOps, middleware.CapabilityActionExecute), handlers.IssueServiceDeploymentPurgeToken)
 

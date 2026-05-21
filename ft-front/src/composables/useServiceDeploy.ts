@@ -1,8 +1,8 @@
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Upload, RefreshRight, Check, InfoFilled } from '@element-plus/icons-vue'
-import { createServiceDeployment, updateServiceDeployment } from '../api/service'
-import type { CreateServiceDeploymentResponse } from '../types/service'
+import { createServiceDeployment, getServiceDeploymentDetail, updateServiceDeployment } from '../api/service'
+import type { CreateServiceDeploymentResponse, ServiceDeploymentDetail } from '../types/service'
 import { copyTextToClipboard } from '../utils/clipboard'
 
 export interface CatalogField {
@@ -670,9 +670,13 @@ const activeTab = ref<'bash' | 'cli'>('bash')
 const generating = ref(false)
 const submittingUpdate = ref(false)
 const generatedDeployment = ref<CreateServiceDeploymentResponse | null>(null)
+const deploymentDetail = ref<ServiceDeploymentDetail | null>(null)
+const deploymentPolling = ref(false)
+let deploymentPollTimer: ReturnType<typeof window.setTimeout> | null = null
 const savedDeploymentSnapshot = ref('')
 const curlCommand = computed(() => generatedDeployment.value?.curlCommand || '')
 const aiSreInstallCommand = computed(() => generatedDeployment.value?.aiSreCommand || '')
+const deploymentTerminalStatuses = new Set(['success', 'failed', 'uninstalled', 'uninstall_failed', 'cancelled'])
 const updatableServices = new Set(['nginx', 'elasticsearch'])
 const aiSreUpdateCommand = computed(() => {
   if (generatedDeployment.value?.aiSreUpdateCommand) return generatedDeployment.value.aiSreUpdateCommand
@@ -731,6 +735,60 @@ const deploymentStatusDescription = computed(() => {
     ? `状态：${generatedDeployment.value.status}。当前页面配置已保存；后续修改后可提交，并在目标机执行 ${cmd} 更新 ${svc}。`
     : `状态：${generatedDeployment.value.status}。当前页面配置已保存。`
 })
+const deploymentEvents = computed(() => deploymentDetail.value?.events || [])
+const deploymentTimelineTitle = computed(() => {
+  if (!deploymentDetail.value) return '等待目标机执行'
+  const step = deploymentDetail.value.currentStep ? ` · ${deploymentDetail.value.currentStep}` : ''
+  return `状态：${deploymentDetail.value.status}${step}`
+})
+
+const clearDeploymentPolling = () => {
+  if (deploymentPollTimer) {
+    window.clearTimeout(deploymentPollTimer)
+    deploymentPollTimer = null
+  }
+  deploymentPolling.value = false
+}
+
+const shouldPollDeployment = (status: string) =>
+  status !== '' && !deploymentTerminalStatuses.has(status)
+
+const refreshDeploymentDetail = async (silent = false) => {
+  const current = generatedDeployment.value
+  const id = current?.deploymentId
+  if (!id) return
+  const detail = await getServiceDeploymentDetail(id, silent)
+  deploymentDetail.value = detail
+  generatedDeployment.value = {
+    ...current,
+    status: detail.status || current.status
+  }
+  if (!shouldPollDeployment(detail.status)) {
+    clearDeploymentPolling()
+  }
+}
+
+const scheduleDeploymentPolling = () => {
+  clearDeploymentPolling()
+  if (!generatedDeployment.value || !shouldPollDeployment(generatedDeployment.value.status)) return
+  deploymentPolling.value = true
+  const tick = async () => {
+    if (!generatedDeployment.value) {
+      clearDeploymentPolling()
+      return
+    }
+    try {
+      await refreshDeploymentDetail(true)
+    } finally {
+      if (generatedDeployment.value && shouldPollDeployment(generatedDeployment.value.status)) {
+        deploymentPollTimer = window.setTimeout(tick, 3000)
+      } else {
+        deploymentPolling.value = false
+      }
+    }
+  }
+  deploymentPollTimer = window.setTimeout(tick, 1200)
+}
 
 const seedParams = (item: CatalogItem) => {
   const out: Record<string, any> = {}
@@ -744,6 +802,8 @@ const selectService = (key: string) => {
   const item = catalog.find(c => c.key === key)
   if (!item) return
   generatedDeployment.value = null
+  deploymentDetail.value = null
+  clearDeploymentPolling()
   savedDeploymentSnapshot.value = ''
   form.params = seedParams(item)
   if (!item.installMethods.includes(form.installMethod)) {
@@ -764,6 +824,8 @@ const onGenerate = async () => {
   try {
     generatedDeployment.value = await createServiceDeployment(buildDeploymentPayload())
     savedDeploymentSnapshot.value = currentDeploymentSnapshot.value
+    await refreshDeploymentDetail(true)
+    scheduleDeploymentPolling()
     activeTab.value = 'bash'
     previewVisible.value = true
   } finally {
@@ -794,6 +856,8 @@ const onSubmitUpdate = async () => {
       aiSreCommand: generatedDeployment.value.aiSreCommand
     }
     savedDeploymentSnapshot.value = currentDeploymentSnapshot.value
+    await refreshDeploymentDetail(true)
+    scheduleDeploymentPolling()
     ElMessage.success(`配置已提交，目标机执行 ${aiSreUpdateCommand.value} 后生效`)
   } finally {
     submittingUpdate.value = false
@@ -1336,6 +1400,8 @@ if (options?.fixedServiceKey) {
   selectService(options.fixedServiceKey)
 }
 
+onUnmounted(clearDeploymentPolling)
+
 return {
   form,
   catalog,
@@ -1357,6 +1423,10 @@ return {
   generating,
   submittingUpdate,
   generatedDeployment,
+  deploymentDetail,
+  deploymentEvents,
+  deploymentPolling,
+  deploymentTimelineTitle,
   curlCommand,
   aiSreInstallCommand,
   aiSreUpdateCommand,
@@ -1368,6 +1438,7 @@ return {
   confPreview,
   onGenerate,
   onSubmitUpdate,
+  refreshDeploymentDetail,
   onReset,
   copy,
   defaultBashFilename,

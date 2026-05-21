@@ -226,6 +226,33 @@
       :title="`部署任务已保存：${deploy.generatedDeployment.deploymentId}`"
       :description="deploy.deploymentStatusDescription"
     />
+    <el-card v-if="deploy.generatedDeployment" class="deploy-progress-card" shadow="never">
+      <template #header>
+        <div class="deploy-progress-card__header">
+          <span>{{ deploy.deploymentTimelineTitle }}</span>
+          <div class="deploy-progress-card__actions">
+            <el-tag v-if="deploy.deploymentPolling" size="small" type="info">自动刷新中</el-tag>
+            <el-button size="small" text :icon="RefreshRight" @click="deploy.refreshDeploymentDetail()">刷新状态</el-button>
+          </div>
+        </div>
+      </template>
+      <el-empty
+        v-if="!deploy.deploymentEvents.length"
+        description="目标机尚未回传执行事件；复制上方命令到目标机运行后，这里会自动刷新。"
+        :image-size="72"
+      />
+      <el-timeline v-else>
+        <el-timeline-item
+          v-for="event in deploy.deploymentEvents"
+          :key="event.id || `${event.step}-${event.createdAt}`"
+          :timestamp="formatEventTime(event.createdAt)"
+          :type="eventStatusType(event.status)"
+        >
+          <strong>{{ event.step }} · {{ event.status }}</strong>
+          <p v-if="event.message" class="deploy-progress-card__message">{{ event.message }}</p>
+        </el-timeline-item>
+      </el-timeline>
+    </el-card>
 
     <el-dialog
       v-model="deploy.previewVisible"
@@ -312,6 +339,20 @@ const normalFields = (fields: CatalogField[]) =>
   sanitizeList(deploy.normalFields(fields)).filter(hasKey)
 const switchFields = (fields: CatalogField[]) =>
   sanitizeList(deploy.switchFields(fields)).filter(hasKey)
+
+const eventStatusType = (status: string): 'primary' | 'success' | 'warning' | 'danger' | 'info' => {
+  if (status === 'success' || status === 'uninstalled') return 'success'
+  if (status === 'failed' || status === 'uninstall_failed') return 'danger'
+  if (status === 'running' || status === 'pending_update') return 'primary'
+  if (status === 'pending' || status === 'pending_uninstall') return 'warning'
+  return 'info'
+}
+
+const formatEventTime = (value?: string) => {
+  if (!value) return ''
+  const ts = new Date(value)
+  return Number.isNaN(ts.getTime()) ? value : ts.toLocaleString()
+}
 </script>
 
 <style scoped>
@@ -401,6 +442,25 @@ const switchFields = (fields: CatalogField[]) =>
 }
 .deploy-status {
   margin-top: 8px;
+}
+.deploy-progress-card {
+  margin-top: 8px;
+  border-radius: 12px;
+}
+.deploy-progress-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+.deploy-progress-card__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.deploy-progress-card__message {
+  margin: 4px 0 0;
+  color: var(--el-text-color-secondary);
 }
 .tab-actions {
   display: flex;

@@ -38,6 +38,50 @@ type serviceDeploymentFinishRequest struct {
 	Message string `json:"message"`
 }
 
+// GetServiceDeploymentDetail returns the saved spec status and ai-sre progress events.
+func GetServiceDeploymentDetail(c *gin.Context) {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		response.BadRequest(c, "无效的部署 ID")
+		return
+	}
+	var dep models.ServiceDeployment
+	if err := database.DB.Where("id = ?", id).First(&dep).Error; err != nil {
+		response.NotFound(c, "部署任务不存在")
+		return
+	}
+	role := c.GetString("role")
+	if !models.IsAdminRole(role) && dep.CreatedBy != "" && dep.CreatedBy != c.GetString("user_id") {
+		response.NotFound(c, "部署任务不存在")
+		return
+	}
+	var events []models.ServiceDeploymentEvent
+	if err := database.DB.Where("deployment_id = ?", dep.ID).Order("created_at ASC").Find(&events).Error; err != nil {
+		response.ServerError(c, "读取部署事件失败")
+		return
+	}
+	var params map[string]interface{}
+	if len(dep.Params) > 0 {
+		_ = json.Unmarshal([]byte(dep.Params), &params)
+	}
+	response.OK(c, gin.H{
+		"deploymentId":  dep.ID.String(),
+		"service":       dep.Service,
+		"profile":       dep.Profile,
+		"installMethod": dep.InstallMethod,
+		"version":       dep.Version,
+		"params":        params,
+		"status":        dep.Status,
+		"currentStep":   dep.CurrentStep,
+		"lastError":     dep.LastError,
+		"startedAt":     dep.StartedAt,
+		"finishedAt":    dep.FinishedAt,
+		"createdAt":     dep.CreatedAt,
+		"updatedAt":     dep.UpdatedAt,
+		"events":        serviceDeploymentEventsResponse(events),
+	})
+}
+
 // CreateServiceDeployment stores a deploy spec and returns short executable commands.
 func CreateServiceDeployment(c *gin.Context) {
 	var req serviceDeploymentCreateRequest
@@ -86,6 +130,20 @@ func CreateServiceDeployment(c *gin.Context) {
 		"aiSreRecoverCommand":   aiSreRecoverCmd,
 		"status":                dep.Status,
 	})
+}
+
+func serviceDeploymentEventsResponse(events []models.ServiceDeploymentEvent) []gin.H {
+	out := make([]gin.H, 0, len(events))
+	for _, ev := range events {
+		out = append(out, gin.H{
+			"id":        ev.ID.String(),
+			"step":      ev.Step,
+			"status":    ev.Status,
+			"message":   ev.Message,
+			"createdAt": ev.CreatedAt,
+		})
+	}
+	return out
 }
 
 // UpdateServiceDeployment refreshes an existing server-side spec for later ai-sre update.
@@ -140,10 +198,10 @@ func UpdateServiceDeployment(c *gin.Context) {
 		aiSreCmd = fmt.Sprintf("sudo ai-sre ops service install --api-url %s --deploy-id %s --token %s", quoteShellSingleLine(base), quoteShellSingleLine(dep.ID.String()), quoteShellSingleLine(req.Token))
 	}
 	response.OK(c, gin.H{
-		"deploymentId":       dep.ID.String(),
-		"token":              req.Token,
-		"curlCommand":        curlCmd,
-		"aiSreCommand":       aiSreCmd,
+		"deploymentId":          dep.ID.String(),
+		"token":                 req.Token,
+		"curlCommand":           curlCmd,
+		"aiSreCommand":          aiSreCmd,
 		"aiSreUpdateCommand":    serviceDeploymentUpdateCommand(req.Service),
 		"aiSreUninstallCommand": serviceDeploymentUninstallCommand(req.Service),
 		"aiSreRecoverCommand":   serviceDeploymentRecoverCommand(req.Service),
