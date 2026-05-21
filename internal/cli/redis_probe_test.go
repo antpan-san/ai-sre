@@ -25,6 +25,7 @@ func readRedisCommand(r *bufio.Reader) string {
 }
 
 func TestCollectRedisProbeNOAUTH(t *testing.T) {
+	requireLocalTCPListen(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -49,6 +50,7 @@ func TestCollectRedisProbeNOAUTH(t *testing.T) {
 }
 
 func TestCollectRedisProbePINGAndINFO(t *testing.T) {
+	requireLocalTCPListen(t)
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)

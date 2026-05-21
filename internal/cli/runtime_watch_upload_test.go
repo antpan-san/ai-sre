@@ -10,6 +10,7 @@ import (
 )
 
 func TestCheckGoRuntimeAuthSendsCLICredentials(t *testing.T) {
+	requireLocalTCPListen(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/cli/go-runtime/auth-check" {
 			http.NotFound(w, r)
@@ -34,6 +35,7 @@ func TestCheckGoRuntimeAuthSendsCLICredentials(t *testing.T) {
 }
 
 func TestCheckGoRuntimeAuthReturnsServerFailure(t *testing.T) {
+	requireLocalTCPListen(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, `{"code":401,"msg":"fingerprint mismatch"}`, http.StatusUnauthorized)
 	}))

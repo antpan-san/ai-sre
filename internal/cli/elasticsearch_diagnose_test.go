@@ -30,6 +30,7 @@ func TestElasticsearchNormalizeBase(t *testing.T) {
 }
 
 func TestRunElasticsearchDiagnose_YellowSingleNode(t *testing.T) {
+	requireLocalTCPListen(t)
 	health := `{"cluster_name":"c1","status":"yellow","timed_out":false,"number_of_nodes":1,"number_of_data_nodes":1,"active_primary_shards":3,"active_shards":3,"relocating_shards":0,"initializing_shards":0,"unassigned_shards":3,"delayed_unassigned_shards":0,"number_of_pending_tasks":0,"active_shards_percent_as_number":100}`
 	nodes := `[{"name":"n1","heap.percent":"50","disk.used_percent":"10","node.roles":"cdfhilmrstw"}]`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -70,6 +71,7 @@ func TestRunElasticsearchDiagnose_YellowSingleNode(t *testing.T) {
 }
 
 func TestRunElasticsearchDiagnose_Red(t *testing.T) {
+	requireLocalTCPListen(t)
 	health := `{"cluster_name":"c1","status":"red","timed_out":false,"number_of_nodes":3,"number_of_data_nodes":3,"active_primary_shards":1,"active_shards":1,"relocating_shards":0,"initializing_shards":1,"unassigned_shards":2,"delayed_unassigned_shards":0,"number_of_pending_tasks":0,"active_shards_percent_as_number":40}`
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/_cluster/health" {

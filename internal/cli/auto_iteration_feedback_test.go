@@ -12,6 +12,7 @@ import (
 func TestCallCLIFeedbackAnalyzeUsesBindingAuth(t *testing.T) {
 	const tok = "test-cli-token-012345678901234567890123456"
 	const fp = "112233445566778899aabbccddeeff00112233445566778899aabbccddeeff"
+	requireLocalTCPListen(t)
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/cli/feedback/analyze" || r.Method != http.MethodPost {
 			http.NotFound(w, r)
