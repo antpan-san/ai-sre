@@ -38,6 +38,39 @@ type serviceDeploymentFinishRequest struct {
 	Message string `json:"message"`
 }
 
+// ListServiceDeployments returns recent service deployment tasks for the current console user.
+func ListServiceDeployments(c *gin.Context) {
+	limit := 20
+	if raw := strings.TrimSpace(c.Query("limit")); raw != "" {
+		var parsed int
+		if _, err := fmt.Sscanf(raw, "%d", &parsed); err == nil && parsed > 0 {
+			limit = parsed
+		}
+	}
+	if limit > 50 {
+		limit = 50
+	}
+	db := database.DB.Model(&models.ServiceDeployment{}).Order("updated_at DESC").Limit(limit)
+	service := strings.TrimSpace(strings.ToLower(c.Query("service")))
+	if service != "" {
+		db = db.Where("service = ?", service)
+	}
+	role := c.GetString("role")
+	if !models.IsAdminRole(role) {
+		db = db.Where("created_by = ?", c.GetString("user_id"))
+	}
+	var rows []models.ServiceDeployment
+	if err := db.Find(&rows).Error; err != nil {
+		response.ServerError(c, "读取部署任务失败")
+		return
+	}
+	items := make([]gin.H, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, serviceDeploymentSummaryResponse(row))
+	}
+	response.OK(c, gin.H{"items": items})
+}
+
 // GetServiceDeploymentDetail returns the saved spec status and ai-sre progress events.
 func GetServiceDeploymentDetail(c *gin.Context) {
 	id, err := uuid.Parse(c.Param("id"))
@@ -80,6 +113,23 @@ func GetServiceDeploymentDetail(c *gin.Context) {
 		"updatedAt":     dep.UpdatedAt,
 		"events":        serviceDeploymentEventsResponse(events),
 	})
+}
+
+func serviceDeploymentSummaryResponse(dep models.ServiceDeployment) gin.H {
+	return gin.H{
+		"deploymentId":  dep.ID.String(),
+		"service":       dep.Service,
+		"profile":       dep.Profile,
+		"installMethod": dep.InstallMethod,
+		"version":       dep.Version,
+		"status":        dep.Status,
+		"currentStep":   dep.CurrentStep,
+		"lastError":     dep.LastError,
+		"startedAt":     dep.StartedAt,
+		"finishedAt":    dep.FinishedAt,
+		"createdAt":     dep.CreatedAt,
+		"updatedAt":     dep.UpdatedAt,
+	}
 }
 
 // CreateServiceDeployment stores a deploy spec and returns short executable commands.

@@ -16,7 +16,9 @@ import type {
   LinuxServiceOperationResponse,
   CreateServiceDeploymentParams,
   CreateServiceDeploymentResponse,
-  ServiceDeploymentDetail
+  ServiceDeploymentDetail,
+  ListServiceDeploymentsParams,
+  ListServiceDeploymentsResponse
 } from '../types/service'
 
 /**
@@ -38,6 +40,13 @@ export const updateServiceDeployment = (deploymentId: string, data: CreateServic
 
 export const getServiceDeploymentDetail = (deploymentId: string, silent = false): Promise<ServiceDeploymentDetail> => {
   return request.get(`/api/service-deploy/deployments/${deploymentId}`, { silent })
+}
+
+export const listServiceDeployments = (
+  params?: ListServiceDeploymentsParams,
+  silent = false
+): Promise<ListServiceDeploymentsResponse> => {
+  return request.get('/api/service-deploy/deployments', { params, silent })
 }
 
 /**

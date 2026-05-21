@@ -226,6 +226,34 @@
       :title="`部署任务已保存：${deploy.generatedDeployment.deploymentId}`"
       :description="deploy.deploymentStatusDescription"
     />
+    <el-card v-if="deploy.hasDeploymentHistory" class="deploy-history-card" shadow="never">
+      <template #header>
+        <div class="deploy-history-card__header">
+          <span>最近部署任务</span>
+          <el-button size="small" text :icon="RefreshRight" :loading="deploy.loadingDeploymentHistory" @click="deploy.loadDeploymentHistory(false)">
+            刷新
+          </el-button>
+        </div>
+      </template>
+      <div class="deploy-history-list">
+        <button
+          v-for="item in deploy.deploymentHistory"
+          :key="item.deploymentId"
+          class="deploy-history-item"
+          type="button"
+          @click="deploy.openDeploymentHistory(item)"
+        >
+          <span class="deploy-history-item__main">
+            <strong>{{ item.deploymentId.slice(0, 8) }}</strong>
+            <small>{{ item.installMethod }} · {{ item.profile }}</small>
+          </span>
+          <span class="deploy-history-item__meta">
+            <el-tag size="small" :type="eventStatusType(item.status)">{{ item.status }}</el-tag>
+            <small>{{ formatEventTime(item.updatedAt || item.createdAt) }}</small>
+          </span>
+        </button>
+      </div>
+    </el-card>
     <el-card v-if="deploy.generatedDeployment" class="deploy-progress-card" shadow="never">
       <template #header>
         <div class="deploy-progress-card__header">
@@ -272,7 +300,7 @@
         <el-tab-pane label="curl + bash（推荐）" name="bash">
           <div class="tab-actions">
             <el-tag size="small" type="success">目标机执行：复制后直接运行</el-tag>
-            <el-button size="small" :icon="DocumentCopy" :disabled="!deploy.generatedDeployment" @click="deploy.copy(deploy.curlCommand)">
+            <el-button size="small" :icon="DocumentCopy" :disabled="!deploy.curlCommand" @click="deploy.copy(deploy.curlCommand)">
               复制
             </el-button>
           </div>
@@ -280,7 +308,7 @@
         </el-tab-pane>
         <el-tab-pane label="ai-sre CLI" name="cli">
           <div class="tab-actions">
-            <el-button size="small" :icon="DocumentCopy" :disabled="!deploy.generatedDeployment" @click="deploy.copy(deploy.aiSreInstallCommand)">
+            <el-button size="small" :icon="DocumentCopy" :disabled="!deploy.aiSreInstallCommand" @click="deploy.copy(deploy.aiSreInstallCommand)">
               复制命令
             </el-button>
           </div>
@@ -442,6 +470,49 @@ const formatEventTime = (value?: string) => {
 }
 .deploy-status {
   margin-top: 8px;
+}
+.deploy-history-card {
+  margin-top: 8px;
+  border-radius: 12px;
+}
+.deploy-history-card__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+.deploy-history-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 8px;
+}
+.deploy-history-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 10px;
+  background: var(--el-fill-color-extra-light);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.deploy-history-item:hover {
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
+}
+.deploy-history-item__main,
+.deploy-history-item__meta {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.deploy-history-item__main small,
+.deploy-history-item__meta small {
+  color: var(--el-text-color-secondary);
 }
 .deploy-progress-card {
   margin-top: 8px;

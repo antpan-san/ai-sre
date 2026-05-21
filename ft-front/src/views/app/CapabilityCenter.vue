@@ -31,6 +31,29 @@
       </article>
     </section>
 
+    <section class="category-menu" aria-label="能力分类">
+      <button
+        class="category-menu__item"
+        :class="{ 'is-active': activeCategory === 'all' }"
+        type="button"
+        @click="activeCategory = 'all'"
+      >
+        <span>全部分类</span>
+        <strong>{{ summary.total }}</strong>
+      </button>
+      <button
+        v-for="item in categoryMenuItems"
+        :key="item.category"
+        class="category-menu__item"
+        :class="{ 'is-active': activeCategory === item.category }"
+        type="button"
+        @click="activeCategory = item.category"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.count }}</strong>
+      </button>
+    </section>
+
     <section class="filter-bar">
       <el-input v-model="keyword" clearable placeholder="搜索能力、订阅包、CLI topic" class="filter-search" />
       <el-radio-group v-model="statusFilter" size="small">
@@ -122,6 +145,7 @@ const {
 
 const keyword = ref('')
 const statusFilter = ref<'all' | 'entitled' | 'unsubscribed' | 'free'>('all')
+const activeCategory = ref<CapabilityCategory | 'all'>('all')
 
 const role = computed(() => {
   try {
@@ -134,7 +158,7 @@ const isSuperAdmin = computed(() => role.value === 'super_admin')
 const usableCount = computed(() => summary.value.entitled)
 
 const groupedCapabilities = computed(() => {
-  const list = filterCapabilities({ q: keyword.value, status: statusFilter.value, category: 'all' })
+  const list = filterCapabilities({ q: keyword.value, status: statusFilter.value, category: activeCategory.value })
   return categoryOrder()
     .map((category: CapabilityCategory) => ({
       category,
@@ -144,6 +168,16 @@ const groupedCapabilities = computed(() => {
     }))
     .filter((group) => group.items.length > 0)
 })
+
+const categoryMenuItems = computed(() =>
+  categoryOrder()
+    .map((category: CapabilityCategory) => ({
+      category,
+      label: CAPABILITY_CATEGORY_LABELS[category],
+      count: filterCapabilities({ category, status: statusFilter.value, q: keyword.value }).length
+    }))
+    .filter((item) => item.count > 0)
+)
 
 const refresh = async () => {
   await load(true)
@@ -277,6 +311,39 @@ onMounted(() => {
 }
 .summary-card--warn strong {
   color: var(--el-color-warning);
+}
+.category-menu {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(248, 250, 252, 0.9));
+}
+.category-menu__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+}
+.category-menu__item strong {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+  font-size: 12px;
+}
+.category-menu__item.is-active {
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
 }
 .filter-bar {
   display: flex;

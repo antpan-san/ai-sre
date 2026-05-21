@@ -202,6 +202,7 @@ AI 读取记忆时按以下层级加载:
 - 规则: 处理 ai-sre 开发、部署、文档、项目记忆时, 以 `/Users/panshuai/Documents/work/code/ai-sre` 为准。
 - 规则: `/Users/panshuai/Documents/workspace/...` 仅视为历史或临时路径, 除非用户明确指定, 不作为 ai-sre 权威目录。
 - 规则: ai-sre 仓库内的 `AI_MEMORY.md` / `AGENTS.md` 是项目本地入口; 跨项目个人规范仍以个人 AI 规范权威目录为准。
+- 规则: ai-sre 每次代码更新完成后必须执行 `.cursor/skills/release-deploy/SKILL.md` 的发布检查流程。
 
 当前项目索引:
 
@@ -228,6 +229,7 @@ AI 读取记忆时按以下层级加载:
 | 2026-05-21 | v0.1.1 | 将 ai-sre 加入项目索引, 准备应用为项目本地记忆入口 |
 | 2026-05-21 | v0.1.2 | 将跨模型自动入口明确为 AGENTS.md, 避免覆盖已有项目 README |
 | 2026-05-21 | v0.1.3 | 明确个人 AI 规范权威目录与 ai-sre 项目权威目录, 排除 workspace 历史路径 |
+| 2026-05-21 | v0.1.4 | 增加 ai-sre 代码更新后必须执行 release-deploy skill 的项目规则 |
 
 ---
 

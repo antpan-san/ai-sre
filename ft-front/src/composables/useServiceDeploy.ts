@@ -1,8 +1,8 @@
 import { ref, reactive, computed, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { DocumentCopy, Upload, RefreshRight, Check, InfoFilled } from '@element-plus/icons-vue'
-import { createServiceDeployment, getServiceDeploymentDetail, updateServiceDeployment } from '../api/service'
-import type { CreateServiceDeploymentResponse, ServiceDeploymentDetail } from '../types/service'
+import { createServiceDeployment, getServiceDeploymentDetail, listServiceDeployments, updateServiceDeployment } from '../api/service'
+import type { CreateServiceDeploymentResponse, ServiceDeploymentDetail, ServiceDeploymentSummary } from '../types/service'
 import { copyTextToClipboard } from '../utils/clipboard'
 
 export interface CatalogField {
@@ -671,6 +671,8 @@ const generating = ref(false)
 const submittingUpdate = ref(false)
 const generatedDeployment = ref<CreateServiceDeploymentResponse | null>(null)
 const deploymentDetail = ref<ServiceDeploymentDetail | null>(null)
+const deploymentHistory = ref<ServiceDeploymentSummary[]>([])
+const loadingDeploymentHistory = ref(false)
 const deploymentPolling = ref(false)
 let deploymentPollTimer: ReturnType<typeof window.setTimeout> | null = null
 const savedDeploymentSnapshot = ref('')
@@ -736,6 +738,7 @@ const deploymentStatusDescription = computed(() => {
     : `状态：${generatedDeployment.value.status}。当前页面配置已保存。`
 })
 const deploymentEvents = computed(() => deploymentDetail.value?.events || [])
+const hasDeploymentHistory = computed(() => deploymentHistory.value.length > 0)
 const deploymentTimelineTitle = computed(() => {
   if (!deploymentDetail.value) return '等待目标机执行'
   const step = deploymentDetail.value.currentStep ? ` · ${deploymentDetail.value.currentStep}` : ''
@@ -766,6 +769,64 @@ const refreshDeploymentDetail = async (silent = false) => {
   if (!shouldPollDeployment(detail.status)) {
     clearDeploymentPolling()
   }
+}
+
+const loadDeploymentHistory = async (silent = true) => {
+  if (!form.service) return
+  loadingDeploymentHistory.value = true
+  try {
+    const res = await listServiceDeployments({ service: form.service, limit: 8 }, silent)
+    deploymentHistory.value = Array.isArray(res.items) ? res.items : []
+  } finally {
+    loadingDeploymentHistory.value = false
+  }
+}
+
+const openDeploymentHistory = async (row: ServiceDeploymentSummary) => {
+  if (!row?.deploymentId) return
+  clearDeploymentPolling()
+  const detail = await getServiceDeploymentDetail(row.deploymentId)
+  if (detail.service && detail.service !== form.service) {
+    selectService(detail.service)
+  }
+  generatedDeployment.value = {
+    deploymentId: row.deploymentId,
+    token: '',
+    curlCommand: '',
+    aiSreCommand: '',
+    aiSreUpdateCommand: serviceDeploymentUpdateCommand(row.service),
+    aiSreUninstallCommand: serviceDeploymentUninstallCommand(row.service),
+    aiSreRecoverCommand: serviceDeploymentRecoverCommand(row.service),
+    status: row.status
+  }
+  deploymentDetail.value = detail
+  generatedDeployment.value.status = detail.status || row.status
+  form.profile = detail.profile || form.profile
+  form.installMethod = detail.installMethod || form.installMethod
+  form.params = {
+    ...(detail.params || {})
+  }
+  if (typeof form.params.osType === 'string') {
+    form.osType = form.params.osType
+  }
+  savedDeploymentSnapshot.value = currentDeploymentSnapshot.value
+  scheduleDeploymentPolling()
+}
+
+const serviceDeploymentUpdateCommand = (service: string) => {
+  if (service === 'nginx' || service === 'elasticsearch') return `sudo ai-sre ops ${service} update`
+  return ''
+}
+
+const serviceDeploymentUninstallCommand = (service: string) => {
+  if (service === 'nginx' || service === 'elasticsearch') return `sudo ai-sre ops uninstall ${service}`
+  if (['redis', 'mysql', 'postgresql', 'kafka', 'haproxy'].includes(service)) return `sudo ai-sre ops service uninstall ${service}`
+  return ''
+}
+
+const serviceDeploymentRecoverCommand = (service: string) => {
+  if (['redis', 'mysql', 'postgresql', 'kafka', 'haproxy'].includes(service)) return `sudo ai-sre ops service recover ${service}`
+  return ''
 }
 
 const scheduleDeploymentPolling = () => {
@@ -825,6 +886,7 @@ const onGenerate = async () => {
     generatedDeployment.value = await createServiceDeployment(buildDeploymentPayload())
     savedDeploymentSnapshot.value = currentDeploymentSnapshot.value
     await refreshDeploymentDetail(true)
+    await loadDeploymentHistory(true)
     scheduleDeploymentPolling()
     activeTab.value = 'bash'
     previewVisible.value = true
@@ -857,6 +919,7 @@ const onSubmitUpdate = async () => {
     }
     savedDeploymentSnapshot.value = currentDeploymentSnapshot.value
     await refreshDeploymentDetail(true)
+    await loadDeploymentHistory(true)
     scheduleDeploymentPolling()
     ElMessage.success(`配置已提交，目标机执行 ${aiSreUpdateCommand.value} 后生效`)
   } finally {
@@ -1398,6 +1461,7 @@ const copy = async (text: string) => {
 
 if (options?.fixedServiceKey) {
   selectService(options.fixedServiceKey)
+  void loadDeploymentHistory(true)
 }
 
 onUnmounted(clearDeploymentPolling)
@@ -1424,6 +1488,9 @@ return {
   submittingUpdate,
   generatedDeployment,
   deploymentDetail,
+  deploymentHistory,
+  loadingDeploymentHistory,
+  hasDeploymentHistory,
   deploymentEvents,
   deploymentPolling,
   deploymentTimelineTitle,
@@ -1439,6 +1506,8 @@ return {
   onGenerate,
   onSubmitUpdate,
   refreshDeploymentDetail,
+  loadDeploymentHistory,
+  openDeploymentHistory,
   onReset,
   copy,
   defaultBashFilename,

@@ -10,8 +10,31 @@
       </template>
     </AppPageHeader>
 
+    <section v-if="visibleSections.length" class="workload-category-menu" aria-label="工作负载分类">
+      <button
+        class="workload-category-menu__item"
+        :class="{ 'is-active': activeSection === 'all' }"
+        type="button"
+        @click="activeSection = 'all'"
+      >
+        <span>全部工作负载</span>
+        <strong>{{ visibleSections.length }}</strong>
+      </button>
+      <button
+        v-for="section in visibleSections"
+        :key="section.id"
+        class="workload-category-menu__item"
+        :class="{ 'is-active': activeSection === section.id }"
+        type="button"
+        @click="activeSection = section.id"
+      >
+        <span>{{ section.title }}</span>
+        <strong>{{ sectionCount(section) }}</strong>
+      </button>
+    </section>
+
     <el-empty
-      v-if="!loading && !visibleSections.length"
+      v-if="!loading && !displaySections.length"
       class="workload-empty"
       description="暂无已开通工作流，请到能力中心订阅后使用。"
     >
@@ -19,7 +42,7 @@
     </el-empty>
 
     <div v-else class="workload-sections">
-      <section v-for="section in visibleSections" :key="section.id" class="workload-section">
+      <section v-for="section in displaySections" :key="section.id" class="workload-section">
         <div class="workload-section__head">
           <h3>{{ section.title }}</h3>
           <p>{{ section.description }}</p>
@@ -68,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AppPageHeader from '../../components/app/AppPageHeader.vue'
 import WorkloadTile from '../../components/workload/WorkloadTile.vue'
@@ -134,6 +157,7 @@ const INIT_TOOL_GROUPS = [
 const router = useRouter()
 const { loading, load: loadCaps, filterCapabilities, isEntitledStatus } = useCapabilityCatalog()
 const { catalog: serviceCatalog } = useServiceDeploy()
+const activeSection = ref('all')
 
 const deliveryCaps = computed(() => filterCapabilities({ category: 'delivery', status: 'all' }))
 
@@ -274,6 +298,17 @@ const visibleSections = computed<TileSection[]>(() => {
   return sections
 })
 
+const displaySections = computed(() =>
+  activeSection.value === 'all'
+    ? visibleSections.value
+    : visibleSections.value.filter((section) => section.id === activeSection.value)
+)
+
+const sectionCount = (section: TileSection) => {
+  if (section.groups?.length) return section.groups.reduce((sum, group) => sum + group.tiles.length, 0)
+  return section.tiles?.length || 0
+}
+
 const refresh = async () => {
   await loadCaps(true)
 }
@@ -295,6 +330,45 @@ onMounted(async () => {
   border: 1px dashed var(--el-border-color);
   border-radius: 18px;
   background: var(--el-fill-color-extra-light);
+}
+
+.workload-category-menu {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 6px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, rgba(37, 99, 235, 0.08), rgba(255, 255, 255, 0.94)),
+    radial-gradient(circle at 96% 0%, rgba(16, 185, 129, 0.12), transparent 32%);
+}
+
+.workload-category-menu__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 9px 12px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--el-text-color-regular);
+  cursor: pointer;
+}
+
+.workload-category-menu__item strong {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--el-fill-color-light);
+  font-size: 12px;
+}
+
+.workload-category-menu__item.is-active {
+  border-color: var(--el-color-primary-light-5);
+  background: var(--el-color-primary-light-9);
+  color: var(--el-color-primary);
 }
 
 .workload-sections {

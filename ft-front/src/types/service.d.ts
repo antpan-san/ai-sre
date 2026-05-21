@@ -79,6 +79,30 @@ export interface ServiceDeploymentDetail {
   events: ServiceDeploymentEvent[]
 }
 
+export interface ServiceDeploymentSummary {
+  deploymentId: string
+  service: string
+  profile: string
+  installMethod: string
+  version?: string
+  status: string
+  currentStep?: string
+  lastError?: string
+  startedAt?: string
+  finishedAt?: string
+  createdAt?: string
+  updatedAt?: string
+}
+
+export interface ListServiceDeploymentsParams {
+  service?: string
+  limit?: number
+}
+
+export interface ListServiceDeploymentsResponse {
+  items: ServiceDeploymentSummary[]
+}
+
 // 服务列表请求参数
 export interface GetServiceListParams {
   page?: number
