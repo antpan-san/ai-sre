@@ -512,6 +512,24 @@ const router = createRouter({
   routes
 })
 
+router.onError((error, to) => {
+  const msg = String(error?.message || error || '')
+  if (!/Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module/i.test(msg)) {
+    return
+  }
+
+  const target = to.fullPath || to.path || window.location.pathname
+  const reloadKey = `route-chunk-reload:${target}`
+  if (sessionStorage.getItem(reloadKey) === '1') {
+    sessionStorage.removeItem(reloadKey)
+    ElMessage.error('页面资源已更新，请手动刷新后重试')
+    return
+  }
+
+  sessionStorage.setItem(reloadKey, '1')
+  window.location.assign(target)
+})
+
 router.beforeEach((to, _from, next) => {
   if (to.meta.requireAuth) {
     const token = localStorage.getItem('token')

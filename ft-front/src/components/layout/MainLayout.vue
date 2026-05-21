@@ -319,11 +319,7 @@
       <main class="layout-main">
         <div class="layout-main-inner">
           <div class="layout-main-scroll" :class="{ 'layout-main-scroll--lock': lockMainScroll }">
-            <router-view v-slot="{ Component }">
-              <transition name="fade" mode="out-in">
-                <component :is="Component" :key="route.fullPath" />
-              </transition>
-            </router-view>
+            <router-view :key="route.fullPath" />
           </div>
         </div>
       </main>
@@ -681,6 +677,10 @@ const breadcrumbItems = computed<BreadcrumbItem[]>(() => {
 })
 
 const handleMenuSelect = (index: string) => {
+  if ((route.path === '/app/workloads' || route.path === '/app/deploy') && index !== route.path) {
+    window.location.assign(index)
+    return
+  }
   router.push(index)
 }
 
