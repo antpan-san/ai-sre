@@ -57,6 +57,15 @@
       </el-form>
     </el-card>
     
+    <el-alert
+      v-if="serviceStore.linuxLastTaskId"
+      class="task-alert"
+      type="info"
+      show-icon
+      :closable="false"
+      :title="`systemd 查询任务已下发：${serviceStore.linuxLastTaskId}，请在任务中心查看输出；刷新查询会再次下发只读查询。`"
+    />
+
     <el-card class="table-card">
       <div class="table-container">
         <el-table
@@ -390,13 +399,14 @@ const handleConfirm = async () => {
     
     const { service, action } = currentOperation.value
     const params: LinuxServiceOperationParams = {
-      serviceId: service.id,
-      operation: action as 'start' | 'stop' | 'restart' | 'enable' | 'disable'
+      machine_id: service.machineId,
+      service: service.name,
+      action: action as 'start' | 'stop' | 'restart' | 'enable' | 'disable'
     }
     
     const res = await serviceStore.handleLinuxServiceOperation(params)
     if (res) {
-      ElMessage.success('操作成功')
+      ElMessage.success(`操作任务已下发${(res as any).task_id ? '：' + (res as any).task_id : ''}`)
     } else {
       ElMessage.error('操作失败')
     }
@@ -436,6 +446,10 @@ onMounted(() => {
 
 .filter-card {
   margin-bottom: 20px;
+}
+
+.task-alert {
+  margin-bottom: 12px;
 }
 
 .table-container {

@@ -73,19 +73,19 @@ func buildCheckJSONResult(topic, target string, diag *diagnoseResponse, ctx map[
 	root, evidence, recs := splitAnswerSections(diag)
 	ruleHit := diag != nil && strings.EqualFold(strings.TrimSpace(diag.Source), "local-rule")
 	out := map[string]interface{}{
-		"topic":              normalizeCheckTopicAlias(topic),
-		"target":             target,
-		"status":             "ok",
-		"severity":           inferSeverity(diag),
-		"root_cause":         root,
-		"evidence":           evidence,
-		"recommendations":    recs,
-		"used_ai":            usedAI,
-		"rule_hit":           ruleHit,
-		"ai_source":          aiSourceLabel(diag),
-		"evidence_complete":  evidenceCompletenessForContext(ctx),
-		"skill_pack":         "",
-		"execution_id":       ActiveExecutionRecordID(),
+		"topic":             normalizeCheckTopicAlias(topic),
+		"target":            target,
+		"status":            "ok",
+		"severity":          inferSeverity(diag),
+		"root_cause":        root,
+		"evidence":          evidence,
+		"recommendations":   recs,
+		"used_ai":           usedAI,
+		"rule_hit":          ruleHit,
+		"ai_source":         aiSourceLabel(diag),
+		"evidence_complete": evidenceCompletenessForContext(ctx),
+		"skill_pack":        "",
+		"execution_id":      ActiveExecutionRecordID(),
 	}
 	if diag != nil {
 		out["skill_pack"] = diag.SkillName
@@ -133,6 +133,8 @@ func splitAnswerSections(diag *diagnoseResponse) (root string, evidence, recs []
 				current = p
 				continue
 			}
+			current = nil
+			continue
 		}
 		if current != nil && trim != "" && !strings.HasPrefix(trim, "-") {
 			*current = append(*current, strings.TrimPrefix(trim, "- "))

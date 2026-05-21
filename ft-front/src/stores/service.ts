@@ -24,6 +24,7 @@ export const useServiceStore = defineStore('service', () => {
   const linuxServiceList = ref<LinuxServiceInfo[]>([])
   const linuxTotal = ref<number>(0)
   const linuxLoading = ref<boolean>(false)
+  const linuxLastTaskId = ref<string>('')
   const linuxFilters = reactive<GetLinuxServiceListParams>({
     page: 1,
     pageSize: 10,
@@ -69,6 +70,7 @@ export const useServiceStore = defineStore('service', () => {
       const res = await getLinuxServiceList(linuxFilters) as any
       linuxServiceList.value = res.list || []
       linuxTotal.value = res.total || 0
+      linuxLastTaskId.value = res.task_id || ''
       return res
     } catch (error) {
       console.error('获取Linux服务列表失败:', error)
@@ -115,6 +117,7 @@ export const useServiceStore = defineStore('service', () => {
     linuxServiceList,
     linuxTotal,
     linuxLoading,
+    linuxLastTaskId,
     linuxFilters,
     fetchLinuxServiceList,
     handleLinuxServiceOperation,

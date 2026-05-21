@@ -78,10 +78,10 @@ const routes: Array<RouteRecordRaw> = [
         name: 'AdminBillingFeatures',
         component: () => import('../views/admin/FeatureBilling.vue'),
         meta: {
-          title: '套餐与计费',
+          title: '订阅包与计费',
           requireAuth: true,
           roles: superAdminRoles,
-          breadcrumb: [{ title: '订阅与计费' }, { title: '套餐与计费' }]
+          breadcrumb: [{ title: '订阅与计费' }, { title: '订阅包与计费' }]
         }
       },
       {

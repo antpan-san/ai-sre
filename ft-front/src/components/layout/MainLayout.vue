@@ -88,7 +88,7 @@
               </template>
               <el-menu-item index="/admin/billing/features">
                 <el-icon><Setting /></el-icon>
-                <template #title>套餐与计费</template>
+                <template #title>订阅包与计费</template>
               </el-menu-item>
               <el-menu-item index="/admin/billing/ai-sre-skills">
                 <el-icon><Collection /></el-icon>

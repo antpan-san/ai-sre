@@ -11,11 +11,11 @@ go build -o ai-sre .
 echo "==> version / doctor / skills"
 ./ai-sre version
 ./ai-sre doctor
-./ai-sre expert skills list | head -8
+./ai-sre expert skills list | awk 'NR<=8 {print}'
 if [[ "${OPSFLEET_SKIP_REMOTE:-}" != 1 ]]; then
   echo "==> server skills registry"
-  if ! ./ai-sre expert skills server | head -12; then
-    echo "WARN: ai-sre skills server failed (服务端 /api/ai/skills 不可达？可在 OPSFLEET_API_URL 处确认)" >&2
+  if ! ./ai-sre expert skills server | awk 'NR<=12 {print}'; then
+    echo "WARN: ai-sre expert skills server failed (服务端 /api/ai/skills 不可达？可在 OPSFLEET_API_URL 处确认)" >&2
   fi
 fi
 echo "==> negative: no creds"
@@ -25,7 +25,7 @@ HOME="$t" OPSFLEET_SKIP_REMOTE=1 ./ai-sre expert ask x 2>&1 | grep -q "credentia
 set -o pipefail
 rm -rf "$t"
 echo OK
-if [[ "${OPSFLEET_SKIP_REMOTE:-}" != 1 && "${SKIP_SKILL_SAMPLES_VERIFY:-}" != 1 ]]; then
+if [[ "${SHORT:-}" != 1 && "${OPSFLEET_SKIP_REMOTE:-}" != 1 && "${SKIP_SKILL_SAMPLES_VERIFY:-}" != 1 ]]; then
   echo "==> skill samples lab verify"
   SKIP_CLI_CHECK="${SKIP_SKILL_SAMPLES_CLI:-1}" ./scripts/verify-skill-samples-lab.sh
 fi

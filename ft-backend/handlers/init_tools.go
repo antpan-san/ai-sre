@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"ft-backend/common/logger"
-	"ft-backend/database"
 	"ft-backend/models"
 
 	"github.com/gin-gonic/gin"
@@ -49,8 +48,6 @@ func ApplySystemParams(c *gin.Context) {
 		return
 	}
 
-	username, _ := c.Get("username")
-
 	// Build the sysctl script with input sanitization
 	script := "#!/bin/bash\nset -e\n"
 	if req.Params != nil {
@@ -70,7 +67,7 @@ func ApplySystemParams(c *gin.Context) {
 	}
 	script += "sysctl -p\necho 'System parameters optimized successfully'\n"
 
-	task, err := createInitTask(c, username.(string), "系统参数优化", string(models.TaskTypeSysInit),
+	task, err := createInitTask(c, "系统参数优化", string(models.TaskTypeSysInit),
 		req.MachineIDs, map[string]interface{}{"script": script})
 	if err != nil {
 		logger.Error("创建系统参数优化任务失败: %v", err)
@@ -106,8 +103,6 @@ func ApplyTimeSync(c *gin.Context) {
 		req.Timezone = "Asia/Shanghai"
 	}
 
-	username, _ := c.Get("username")
-
 	script := `#!/bin/bash
 set -e
 # Install chrony if not present
@@ -130,7 +125,7 @@ systemctl restart chronyd
 chronyc makestep
 echo "Time synchronization configured successfully"
 `
-	task, err := createInitTask(c, username.(string), "时间同步配置", string(models.TaskTypeTimeSync),
+	task, err := createInitTask(c, "时间同步配置", string(models.TaskTypeTimeSync),
 		req.MachineIDs, map[string]interface{}{"script": script, "ntp_server": req.NTPServer, "timezone": req.Timezone})
 	if err != nil {
 		logger.Error("创建时间同步任务失败: %v", err)
@@ -157,8 +152,6 @@ func ApplySecurityHarden(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "msg": "无效的请求参数"})
 		return
 	}
-
-	username, _ := c.Get("username")
 
 	script := `#!/bin/bash
 set -e
@@ -200,7 +193,7 @@ systemctl restart sshd
 echo "Security hardening completed successfully"
 `
 
-	task, err := createInitTask(c, username.(string), "安全加固", string(models.TaskTypeSecurityHarden),
+	task, err := createInitTask(c, "安全加固", string(models.TaskTypeSecurityHarden),
 		req.MachineIDs, map[string]interface{}{"script": script})
 	if err != nil {
 		logger.Error("创建安全加固任务失败: %v", err)
@@ -228,8 +221,6 @@ func ApplyDiskOptimize(c *gin.Context) {
 		return
 	}
 
-	username, _ := c.Get("username")
-
 	script := `#!/bin/bash
 set -e
 
@@ -252,7 +243,7 @@ done
 
 echo "Disk optimization completed successfully"
 `
-	task, err := createInitTask(c, username.(string), "磁盘分区优化", string(models.TaskTypeDiskOptimize),
+	task, err := createInitTask(c, "磁盘分区优化", string(models.TaskTypeDiskOptimize),
 		req.MachineIDs, map[string]interface{}{"script": script})
 	if err != nil {
 		logger.Error("创建磁盘优化任务失败: %v", err)
@@ -270,60 +261,15 @@ echo "Disk optimization completed successfully"
 // ---- Helper Functions ----
 
 // createInitTask is a helper to create init-tool tasks with sub-tasks.
-func createInitTask(c *gin.Context, username, name, taskType string, machineIDs []string, payload map[string]interface{}) (*models.Task, error) {
-	payloadJSON, _ := json.Marshal(payload)
-	targetIDsJSON, _ := json.Marshal(machineIDs)
-
-	task := models.Task{
+func createInitTask(c *gin.Context, name, taskType string, machineIDs []string, payload map[string]interface{}) (*models.Task, error) {
+	return createManagedTask(c, managedTaskRequest{
 		Name:       name,
 		Type:       taskType,
-		Status:     string(models.TaskStatusPending),
-		CreatedBy:  username,
-		Payload:    models.JSONB(payloadJSON),
-		TargetIDs:  models.JSONB(targetIDsJSON),
-		TotalCount: len(machineIDs),
+		MachineIDs: machineIDs,
+		Payload:    payload,
 		TimeoutSec: 600,
-	}
-	applyBillingSnapshot(c, &task)
-
-	tx := database.DB.Begin()
-	if err := tx.Create(&task).Error; err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	for _, machineID := range machineIDs {
-		var machine models.Machine
-		if err := tx.Where("id = ?", machineID).First(&machine).Error; err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-
-		subTask := models.SubTask{
-			TaskID:    task.ID,
-			MachineID: machine.ID,
-			ClientID:  machine.IP,
-			Command:   mapTaskTypeToCommand(taskType),
-			Status:    string(models.TaskStatusPending),
-			Payload:   models.JSONB(payloadJSON),
-			MaxRetry:  1,
-		}
-		if err := tx.Create(&subTask).Error; err != nil {
-			tx.Rollback()
-			return nil, err
-		}
-	}
-
-	tx.Create(&models.TaskLog{
-		TaskID:  task.ID,
-		Level:   "info",
-		Message: name + " 任务已创建",
+		MaxRetry:   1,
 	})
-
-	if err := tx.Commit().Error; err != nil {
-		return nil, err
-	}
-	return &task, nil
 }
 
 // isSafeSysctlKey validates sysctl parameter names (only dots, letters, digits, underscores, hyphens).

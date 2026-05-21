@@ -160,13 +160,13 @@ export interface GetLinuxServiceListResponse {
 
 // Linux服务操作请求参数
 export interface LinuxServiceOperationParams {
-  serviceId: string
-  operation: 'start' | 'stop' | 'restart' | 'enable' | 'disable'
+  machine_id: string
+  service: string
+  action: 'start' | 'stop' | 'restart' | 'enable' | 'disable'
 }
 
 // Linux服务操作响应
 export interface LinuxServiceOperationResponse {
-  code: number
-  data: null
-  msg: string
+  task_id?: string
+  status?: string
 }

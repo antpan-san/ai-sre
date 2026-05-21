@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
+	"path/filepath"
 	"testing"
 )
 
@@ -36,10 +36,11 @@ func TestCallCLIFeedbackAnalyzeUsesBindingAuth(t *testing.T) {
 	}))
 	defer srv.Close()
 
+	t.Setenv("XDG_CONFIG_HOME", filepath.Join(t.TempDir(), "xdg"))
 	t.Setenv("OPSFLEET_API_URL", srv.URL)
 	t.Setenv("OPSFLEET_TOKEN", tok)
 	t.Setenv("OPSFLEET_CLI_FINGERPRINT", fp)
-	os.Unsetenv("OPSFLEET_SKIP_REMOTE")
+	t.Setenv("OPSFLEET_SKIP_REMOTE", "")
 
 	out, err := callCLIFeedbackAnalyze(context.Background(), "k8s", "analyze k8s", "crashloop", nil)
 	if err != nil {

@@ -132,7 +132,7 @@ func featureKeysForStripePrice(cfg *config.Config, priceID string) []string {
 	return nil
 }
 
-// ListBillingPackages 返回可展示的订阅档位（不包含 Stripe 密钥）。
+// ListBillingPackages 返回可展示的订阅包（不包含 Stripe 密钥）。
 func ListBillingPackages(c *gin.Context) {
 	cfg := c.MustGet("config").(*config.Config)
 	type row struct {

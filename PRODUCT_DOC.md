@@ -1,6 +1,6 @@
 # OpsFleetPilot 产品需求文档（PRD v2.0）
 
-> **仓库现状（2026）**：**ft-client** Go Agent 源码已从本仓库移除；下文关于 Agent、目录树与命令行的描述保留为**历史与协议参考**。主路径 Kubernetes 部署以 **离线安装包（ansible-agent + inventory + install.sh）** 为准，见根目录 `README.md`。
+> **仓库现状（2026）**：**ft-client** Go Agent 源码已从本仓库移除；下文关于 Agent、目录树与命令行的描述保留为**历史与协议参考**。主路径 Kubernetes 部署以 **离线安装包（ansible-agent + inventory + install.sh）** 为准；在线任务执行主路径为 **`opsfleet-executor agent`**，见根目录 `README.md`。
 
 > 本文档基于对 ft-backend / ft-front /（历史）ft-client 源代码的 Review 重新整理，
 > 真实反映当时实现状态，并指出超出原始文档的能力及尚未完成的部分。
@@ -240,14 +240,14 @@ Server 生成 Ansible Inventory + group_vars + 部署脚本
    ↓
 创建 Task（k8s_deploy）+ SubTask（目标: Master 节点）
    ↓
-Client（Master 节点 Agent）收到 install_k8s 命令
-   ↓ （Phase 2 实现: 调用 Ansible 执行脚本）
+控制机按离线包 / bootstrap 主路径执行 `ai-sre ops k8s install` 或服务端生成的 Ansible 脚本
+   ↓
 7 步 Ansible Playbook 顺序执行
    ↓
 结果回传，进度实时更新
 ```
 
-**注意：** Client 侧的实际命令执行（Phase 2）尚未实现，当前 StubHandler 会返回"未实现"。
+**注意：** K8s 不默认改为 Web 远程破坏性执行；`opsfleet-executor agent` 用于通用任务执行，K8s 真实安装仍需明确控制机和目标节点。
 
 **可扩展方向（代码已预留接口）：**
 
@@ -309,12 +309,13 @@ Client（Master 节点 Agent）收到 install_k8s 命令
 
 **已实现：**
 - 服务（Service）CRUD
-- 服务状态变更（start/stop/restart，仅更新 DB 状态）
-- Linux Systemd 服务管理接口（当前返回 mock 数据）
+- 服务状态变更（start/stop/restart）保留业务 Service 记录更新
+- Linux Systemd 服务查询已改为只读 `run_shell` 任务下发
+- Linux Systemd start/stop/restart/enable/disable 已改为 `systemctl` 任务下发
 
 **待完善：**
-- 服务操作需通过任务系统真实下发 `run_shell` 命令到 Agent 执行
-- Linux Systemd 服务查询需通过心跳/任务系统真实采集
+- 前端解析任务输出并形成服务列表缓存
+- 生产服务启停需增加二次确认、变更窗口和审计策略
 
 ---
 
@@ -337,11 +338,11 @@ Client（Master 节点 Agent）收到 install_k8s 命令
 
 ## 3.10 高级功能与付费
 
-高级功能已升级为账号级 **功能分级 + 多功能包订阅**。产品策略为：功能入口默认可见、付费状态清晰、执行前强校验、Web/CLI/Agent 同源权限控制。默认计费开关关闭以兼容历史部署；开启后，除 `super_admin` 外，`admin` 与 `user` 都需要有效 Stripe 订阅或人工授予的对应功能包权益。
+高级功能已升级为账号级 **功能分级 + 独立订阅包**。产品策略为：功能入口默认可见、付费状态清晰、执行前强校验、Web/CLI/Agent 同源权限控制。默认计费开关关闭以兼容历史部署；开启后，除 `super_admin` 外，`admin` 与 `user` 都需要有效 Stripe 订阅包或人工授予的对应订阅包权益。
 
 免费基础能力包括登录注册、个人资料、基础仪表盘、错误码查询、帮助中心、CLI `version/doctor/upgrade/help`、机器状态/任务记录/执行记录基础查看、高级功能说明和配置预览。AI 诊断在未购买对应技能包时每天免费 5 次，按 `Asia/Shanghai` 自然日重置。
 
-| 功能包 | 权益键 | 覆盖能力 |
+| 订阅包 | 权益键 | 覆盖能力 |
 |------|------|----------|
 | K8s 交付包 | `pack.k8s_delivery` | K8s 在线部署、离线包、installRef、bootstrap、集群清理、镜像/制品分发 |
 | 节点运维包 | `pack.node_ops` | 系统初始化、时间同步、安全加固、磁盘优化、Shell、文件分发、Linux 服务 |
@@ -418,7 +419,7 @@ ft-backend/
 - 功能包订阅（K8s 交付 / 节点运维 / 监控 / 备份性能 / AI 技能包）
 - 高级功能（备份恢复 / 性能分析）
 
-## 4.3 客户端（ft-client）
+## 4.3 本地执行器（opsfleet-executor agent；ft-client 为历史协议）
 
 | 技术 | 说明 |
 |------|------|
@@ -428,7 +429,9 @@ ft-backend/
 | /proc / syscall | Linux 真实指标采集 |
 | SHA-256 | 硬件指纹生成 |
 
-**目录结构：**
+**当前主路径：** `opsfleet-executor agent` 复用心跳协议，支持 `run_shell`、`sys_init`、`time_sync`、`security_harden`、`disk_optimize`、`install_monitor`、`sync_nodes`，负责 Web 下发任务的本地执行、超时、输出截断、本地日志和结果回传。旧 `ft-client` 目录结构仅保留为历史协议参考。
+
+**历史目录结构：**
 
 ```
 ft-client/
@@ -505,15 +508,15 @@ ft-client/
 
 | command | 说明 | Client 实现状态 |
 |---------|------|----------------|
-| run_shell | 执行 Shell 脚本 | 待实现（Phase 2）|
-| sys_init | 系统初始化 | 待实现 |
-| time_sync | 时间同步 | 待实现 |
-| security_harden | 安全加固 | 待实现 |
-| disk_optimize | 磁盘优化 | 待实现 |
-| install_k8s | K8s 安装（Ansible） | 待实现 |
-| install_monitor | 安装监控 | 待实现 |
+| run_shell | 执行 Shell 脚本 | `opsfleet-executor agent` 已实现 |
+| sys_init | 系统初始化 | `opsfleet-executor agent` 已实现（payload.script） |
+| time_sync | 时间同步 | `opsfleet-executor agent` 已实现（payload.script） |
+| security_harden | 安全加固 | `opsfleet-executor agent` 已实现（payload.script） |
+| disk_optimize | 磁盘优化 | `opsfleet-executor agent` 已实现（payload.script） |
+| install_k8s | K8s 安装（Ansible） | 保留历史协议；主路径为离线 Ansible / bootstrap |
+| install_monitor | 安装监控 | `opsfleet-executor agent` 已实现（payload.script） |
 | sync_nodes | 同步受控节点列表 | **已实现** |
-| run_playbook | 执行 Ansible Playbook | 待实现 |
+| run_playbook | 执行 Ansible Playbook | Roadmap |
 
 ## 5.4 任务结果回传（Client → Server）
 
@@ -634,12 +637,12 @@ managed_nodes:
 
 | 模块 | 现状 | 缺失部分 |
 |------|------|---------|
-| Client 命令执行 | StubHandler（仅记录日志）| 所有命令的实际执行逻辑（Phase 2）|
-| Linux 服务管理 | 返回硬编码 mock 数据 | 通过任务系统真实采集和下发 |
-| 服务 start/stop/restart | 仅更新 DB 状态 | 通过任务系统下发 run_shell 到 Agent |
+| 本地执行器 | `opsfleet-executor agent` 已实现首批任务执行 | K8s 安装仍走离线 Ansible / bootstrap 主路径，不默认远程破坏性执行 |
+| Linux 服务管理 | 已改为下发只读 systemd 查询/操作任务 | 前端持续增强任务输出解析与轮询展示 |
+| 服务 start/stop/restart | 已通过任务系统下发 `systemctl` | 生产操作需选择测试服务并确认目标 |
 | Agent 自动升级 | 协议已定义 | Client 侧接收升级通知后的自更新逻辑 |
 | RBAC 权限中间件 | 权限表已建 | 在 Gin 路由层按 API 强制权限校验 |
-| 监控一键安装 | 配置存储已实现 | 通过 install_monitor 任务下发到 Agent |
+| 监控一键安装 | 已提供 `install_monitor` 任务入口与 exporter/systemd 脚本 | AlertManager 自动推送仍是 Roadmap |
 
 ## ❌ Mock 实现
 
@@ -651,16 +654,15 @@ managed_nodes:
 
 # 九、后续开发优先级建议
 
-## Phase 2（最优先）：打通 Client 命令执行
+## 下一阶段优先级：执行器验收与订阅包闭环
 
 ```
-实现 ShellHandler，替代 StubHandler：
-  1. 接收 run_shell 命令，执行 bash 脚本，返回 stdout/stderr/exit_code
-  2. 接收 sys_init / time_sync / security_harden / disk_optimize，
-     均转化为 run_shell 执行（payload 中已含完整脚本）
-  3. 接收 install_k8s，调用本地 Ansible 执行部署脚本
-  4. 支持超时控制（Timeout 字段）
-  5. 支持执行结果流式回传（可选）
+`opsfleet-executor agent` 已替代旧 StubHandler 主路径，后续重点：
+  1. 实验环境跑通 heartbeat、任务拉取、running/success/failed 回传
+  2. Job Center、初始化工具、Linux 服务管理统一使用 `opsfleet-executor agent`
+  3. K8s 继续保留离线 Ansible / bootstrap 主路径，仅补 bundle/installRef/bootstrap 验收
+  4. 监控包完成 Node/Redis/Blackbox Exporter 与 Prometheus reload 的 MVP 验收
+  5. 未订阅任务在下发前由 `RequireCapability` / pending task 复核阻断
 ```
 
 ## Phase 3：生产加固

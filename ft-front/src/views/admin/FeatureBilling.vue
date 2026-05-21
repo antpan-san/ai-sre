@@ -2,7 +2,7 @@
   <div class="feature-billing page-shell page-shell--crud-wide">
     <div class="page-head">
       <div class="page-head-copy">
-        <h2 class="page-title">套餐与计费</h2>
+        <h2 class="page-title">订阅包与计费</h2>
         <el-popover placement="bottom-start" :width="320" trigger="click">
           <template #reference>
             <el-button text type="primary" size="small">字段说明</el-button>
@@ -10,7 +10,7 @@
           <ul class="page-desc--muted billing-help-list">
             <li><strong>展示</strong>：是否在导航中露出入口。</li>
             <li><strong>执行</strong>：关闭后任意角色不可执行。</li>
-            <li><strong>计费</strong>：开启后按套餐校验权益。</li>
+            <li><strong>计费</strong>：开启后按订阅包校验权益。</li>
           </ul>
         </el-popover>
       </div>

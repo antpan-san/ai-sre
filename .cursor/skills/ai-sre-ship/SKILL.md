@@ -40,7 +40,7 @@ description: >-
 
 在 **`git commit` / `git push` 之前**，必须**完善或核对** `README.md` 中的**产品使用**相关内容，确保与当前代码一致，包括但不限于：
 
-- [ ] **子命令与用途**：`analyze` / `ask` / `runbook` / `skills list` / `doctor` / `version`
+- [ ] **子命令与用途**：`analyze` / `ask` / `runbook` / `expert skills list` / `doctor` / `version`
 - [ ] **全局参数**：`--config`、`--key-file`、`-v`、`--no-rag`、`-o`/`--output`、`--skills-dir`、`--knowledge-dir`
 - [ ] **典型示例**：与产品文档 CLI 示例一致或可覆盖之
 - [ ] **配置方式**：密钥文件路径、`config.yaml` / `api_key` 格式（不含真实密钥）
@@ -113,7 +113,7 @@ DEPLOY_LOCAL_OPSFLEET=1 ./scripts/deploy-local.sh
 
 ### 4. 远程功能测试（必须通过）
 
-- **必测**：远程构建成功、`./ai-sre version` 正常；建议执行 `SHORT=1 bash scripts/remote-e2e.sh`（vet/build/version/skills list/无凭证负例）。
+- **必测**：远程构建成功、`./ai-sre version` 正常；建议执行 `SHORT=1 bash scripts/remote-e2e.sh`（vet/build/version/expert skills list/无凭证负例）。
 - **可选（若远程已配置密钥文件）**：`bash scripts/remote-e2e.sh` 全量 LLM 联调。
 
 若任一步失败：**停止推送 GitHub**，先修复代码并重复步骤 1–3。

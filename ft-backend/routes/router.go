@@ -290,6 +290,7 @@ func SetupRouter(cfg *config.Config) *gin.Engine {
 		infraAdmin.GET("/monitoring/configs", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionView), handlers.GetMonitoringConfigList)
 		infraAdmin.GET("/monitoring/configs/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionView), handlers.GetMonitoringConfig)
 		infraAdmin.POST("/monitoring/configs", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.CreateMonitoringConfig)
+		infraAdmin.POST("/monitoring/install", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.InstallMonitoring)
 		infraAdmin.PUT("/monitoring/configs/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.UpdateMonitoringConfig)
 		infraAdmin.DELETE("/monitoring/configs/:id", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionExecute), handlers.DeleteMonitoringConfig)
 		infraAdmin.GET("/monitoring/alert-rules", middleware.RequireCapability(models.FeatureKeyMonitoring, middleware.CapabilityActionView), handlers.GetAlertRules)

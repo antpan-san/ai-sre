@@ -127,7 +127,7 @@ func newRoot(programName string) *cobra.Command {
 		short = "OpsFleet 本地执行器 — 与 ai-sre 相同的技能包与执行语义"
 		long = `在需要部署或运维的受管机器上运行；与 ai-sre 共用同一套技能包与执行语义。
 
-  check / ops / expert / doctor / job（经 ops job run）`
+  agent / check / ops / expert / doctor / job（经 ops job run）`
 	} else {
 		short = "AI SRE Copilot — 故障诊断与运维变更"
 		long = fmt.Sprintf(`最少命令、统一排查：
@@ -148,9 +148,9 @@ func newRoot(programName string) *cobra.Command {
   %s doctor`, programName, programName, programName, programName, programName, programName)
 	}
 	root := &cobra.Command{
-		Use:          programName,
-		Short:        short,
-		Long:         long,
+		Use:           programName,
+		Short:         short,
+		Long:          long,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
@@ -171,6 +171,9 @@ func newRoot(programName string) *cobra.Command {
 		checkCmd(), opsCmd(), expertCmd(), doctorCmd(), versionCmd(), upgradeCmd(),
 	}
 	root.AddCommand(cmds...)
+	if programName == "opsfleet-executor" {
+		root.AddCommand(executorAgentCmd())
+	}
 	if programName == "ai-sre" {
 		root.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
 			if noAutoUpgrade {
