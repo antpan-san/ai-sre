@@ -1,48 +1,39 @@
 <template>
   <div class="deploy-cluster-section">
-    <el-card class="deploy-cluster-section__k8s" shadow="never">
+    <el-card v-if="showK8s" class="deploy-cluster-section__k8s" shadow="never">
       <template #header>
         <div class="deploy-cluster-section__k8s-head">
           <div>
-            <h4 class="deploy-cluster-section__card-title">Kubernetes</h4>
-            <p class="deploy-cluster-section__card-desc">离线/在线集群安装、恢复与卸载</p>
+            <h4 class="deploy-cluster-section__card-title">Kubernetes 集群交付</h4>
+            <p class="deploy-cluster-section__card-desc">离线/在线安装、恢复与卸载指引</p>
           </div>
-          <div class="deploy-cluster-section__actions">
-            <el-button type="primary" size="small" @click="goK8sDeploy">新建集群</el-button>
-            <el-button size="small" @click="goK8sProgress">部署进度</el-button>
-          </div>
+          <el-button type="primary" size="small" @click="goK8sDeploy">新建集群</el-button>
         </div>
       </template>
-      <K8sClusterPanel
-        v-if="k8sEntitled"
-        :deploy-path="k8sDeployPath"
-        :progress-path="k8sProgressPath"
-        :max-rows="5"
-        :show-toolbar="false"
-        hint="最近集群；完整列表见执行记录。"
-      />
-      <div v-else class="deploy-cluster-section__locked">
-        <p>开通 Kubernetes 交付能力后可在此查看集群并新建部署。</p>
-        <el-button v-if="k8sCap?.can_subscribe" type="warning" size="small" @click="emit('subscribe-k8s')">
-          订阅
-        </el-button>
-        <el-button v-else type="info" size="small" @click="emit('contact-admin')">联系管理员</el-button>
+      <div class="deploy-workflow-grid">
+        <article
+          v-for="item in k8sWorkflows"
+          :key="item.title"
+          class="deploy-workflow-card"
+          @click="router.push(item.path)"
+        >
+          <el-icon :size="22"><component :is="item.icon" /></el-icon>
+          <div>
+            <h4>{{ item.title }}</h4>
+            <p>{{ item.desc }}</p>
+          </div>
+          <el-button type="primary" link size="small">进入</el-button>
+        </article>
       </div>
     </el-card>
 
-    <div class="deploy-cluster-section__entries">
-      <el-card
-        v-for="entry in linkEntries"
-        :key="entry.path"
-        class="deploy-entry-card"
-        shadow="hover"
-        @click="router.push(entry.path)"
-      >
+    <div v-if="showMirror" class="deploy-cluster-section__entries">
+      <el-card class="deploy-entry-card" shadow="hover" @click="router.push(mirrorPath)">
         <div class="deploy-entry-card__body">
-          <el-icon :size="22"><component :is="entry.icon" /></el-icon>
+          <el-icon :size="22"><Download /></el-icon>
           <div>
-            <h4 class="deploy-entry-card__title">{{ entry.title }}</h4>
-            <p class="deploy-entry-card__desc">{{ entry.desc }}</p>
+            <h4 class="deploy-entry-card__title">K8s 制品目录</h4>
+            <p class="deploy-entry-card__desc">内网制品 manifest 与离线安装包索引</p>
           </div>
           <el-button type="primary" link size="small">进入</el-button>
         </div>
@@ -54,46 +45,47 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { Cpu, Download } from '@element-plus/icons-vue'
-import K8sClusterPanel from '../k8s/K8sClusterPanel.vue'
-import type { ResolvedCapability } from '../../composables/useCapabilityCatalog'
+import { Connection, Download, RefreshRight, Delete } from '@element-plus/icons-vue'
 
-const props = defineProps<{
-  k8sEntitled?: boolean
-  k8sCap?: ResolvedCapability | null
+const props = withDefaults(defineProps<{
+  showK8s?: boolean
+  showMirror?: boolean
   k8sDeployPath?: string
   k8sProgressPath?: string
-  linuxPath?: string
   mirrorPath?: string
-}>()
-
-const emit = defineEmits<{
-  'subscribe-k8s': []
-  'contact-admin': []
-}>()
+}>(), {
+  showK8s: true,
+  showMirror: true,
+  k8sDeployPath: '/app/service/k8s-deploy',
+  k8sProgressPath: '/app/service/k8s-deploy/progress',
+  mirrorPath: '/app/k8s-mirror'
+})
 
 const router = useRouter()
 
-const k8sDeployPath = computed(() => props.k8sDeployPath || '/app/service/k8s-deploy')
-const k8sProgressPath = computed(() => props.k8sProgressPath || '/app/service/k8s-deploy/progress')
-
-const linkEntries = computed(() => [
+const mirrorPath = computed(() => props.mirrorPath)
+const k8sWorkflows = computed(() => [
   {
-    path: props.linuxPath || '/app/service/linux',
-    title: 'Linux 主机',
-    desc: '主机上的服务状态与运维操作',
-    icon: Cpu,
+    title: '新建集群',
+    desc: '生成安装参数与 bundle，复制到控制机执行安装。',
+    path: props.k8sDeployPath,
+    icon: Connection,
   },
   {
-    path: props.mirrorPath || '/app/k8s-mirror',
-    title: 'K8s 制品目录',
-    desc: '内网制品 manifest 与离线安装包索引',
-    icon: Download,
+    title: '恢复引导',
+    desc: '查看 recover 命令模板与恢复前检查说明。',
+    path: props.k8sDeployPath,
+    icon: RefreshRight,
+  },
+  {
+    title: '卸载引导',
+    desc: '查看 uninstall 命令模板，避免默认执行破坏性清理。',
+    path: props.k8sDeployPath,
+    icon: Delete,
   },
 ])
 
-const goK8sDeploy = () => router.push(k8sDeployPath.value)
-const goK8sProgress = () => router.push(k8sProgressPath.value)
+const goK8sDeploy = () => router.push(props.k8sDeployPath)
 </script>
 
 <style scoped>
@@ -119,47 +111,53 @@ const goK8sProgress = () => router.push(k8sProgressPath.value)
   font-size: 13px;
   color: var(--el-text-color-secondary);
 }
-.deploy-cluster-section__actions {
-  display: flex;
-  gap: 8px;
-  flex-shrink: 0;
-}
-.deploy-cluster-section__locked {
-  padding: 12px 0;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
+.deploy-workflow-grid,
 .deploy-cluster-section__entries {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
   gap: 12px;
 }
-@media (max-width: 640px) {
-  .deploy-cluster-section__entries {
-    grid-template-columns: 1fr;
-  }
-}
+.deploy-workflow-card,
 .deploy-entry-card {
   cursor: pointer;
   border-radius: 10px;
+}
+.deploy-workflow-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 92px;
+  padding: 14px;
+  border: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+}
+.deploy-workflow-card h4,
+.deploy-entry-card__title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+}
+.deploy-workflow-card p,
+.deploy-entry-card__desc {
+  margin: 4px 0 0;
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  line-height: 1.45;
+}
+.deploy-workflow-card .el-button,
+.deploy-entry-card .el-button {
+  margin-left: auto;
+  flex-shrink: 0;
 }
 .deploy-entry-card__body {
   display: flex;
   align-items: center;
   gap: 12px;
 }
-.deploy-entry-card__title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 600;
-}
-.deploy-entry-card__desc {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--el-text-color-secondary);
+@media (max-width: 640px) {
+  .deploy-workflow-card,
+  .deploy-entry-card__body {
+    align-items: flex-start;
+  }
 }
 </style>
